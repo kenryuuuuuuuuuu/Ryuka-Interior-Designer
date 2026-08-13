@@ -1,5 +1,20 @@
 # Ryuka Interior Designer
 
+住宅図面をもとにしたThree.js内装白模型と、Blenderで再生成可能な住宅デジタルツイン基盤です。
+
+## Digital twin foundation (Phase 1)
+
+既存の `interior-white-model.html` はそのまま動作します。Phase 1では、HTML内の確定済み建物データを `data/house.json` に複製し、Blenderから白模型を再生成できる経路を追加しました。Web版のJSON読込への切替は、比較検証しながら後続フェーズで段階的に行います。
+
+- `data/house.json` — 建物形状、階高、開口、室内ドア、防音壁、屋根
+- `data/house.schema.json` — データ契約
+- `data/electrical.json` / `data/furniture.json` — 次フェーズ用の領域
+- `blender/build_house.py` — Blender白模型ジェネレーター
+- `docs/PHASE-1.md` — 実装仕様、実行方法、検証項目
+- `AGENTS.md` — データ更新・移行時の作業ルール
+
+座標と単位は従来どおりメートル、`x=西→東 / z=北→南 / y=高さ` です。Blenderでは高さをZ軸に合わせるため `(x, z, y) → (X, -Y, Z)` と変換します。
+
 自宅新築プロジェクトの内装3D白模型（Three.js）。
 
 寸法・間取り・ドア・窓の位置を、施工会社の実施図面と参考資料（マイホームクラウド間取り図）の突き合わせ検証を通じて構築している。
@@ -15,7 +30,27 @@
 
 ## ファイル構成
 
-- `interior-white-model.html` — メインの3Dビューア（単体で開けば動作する）
+- `interior-white-model.html` — 現在編集中のメイン3Dビューア。移行完了まではルートに置き、単体で開ける状態を維持する
+- `data/house.json` — Blenderと将来のWebビューアが共有する建物データ
+- `blender/` — Blender再生成スクリプト
+- `scripts/` — HTMLと共有データの同期・生成ツール
+- `docs/WORKFLOW.md` — HTML調整からBlender反映までの運用手順
+
+将来はWeb固有コードを `web/` に移します。ただし、既存リンクや「HTMLを直接開く」使い方を壊さないよう、Web版が `house.json` を読めるようになってから移動し、ルートには互換用の入口を残します。
+
+## HTMLを調整してBlenderへ反映する
+
+移行期間中は、次の流れを正式な運用とします。
+
+1. `interior-white-model.html` を調整し、ブラウザで確認する
+2. `node scripts/sync-house-from-html.mjs --check` で差分を確認する
+3. 建物寸法の意図した変更なら `node scripts/sync-house-from-html.mjs --write` で `house.json` へ同期する
+4. `python tests/validate_house.py` でデータを検査する
+5. `blender/build_house.py` でBlenderモデルを再生成する
+
+カメラ、色、メニューなどHTML表示だけの変更はBlenderへ反映する必要がありません。壁・床・階高・窓・ドアなど建物データの変更だけを同期します。追加・削除でID管理が必要になる変更は同期ツールが停止するため、JSON側でIDと確度を確認してから反映します。
+
+最終的には、建物寸法を `house.json` だけで変更し、その内容からHTMLとBlenderの両方を生成する運用へ移行します。詳細は `docs/WORKFLOW.md` を参照してください。
 
 ## 使い方
 
