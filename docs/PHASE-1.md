@@ -18,6 +18,8 @@ data/house.json
 - Reserved domain files: `data/electrical.json`, `data/furniture.json`
 - Blender generator: `blender/build_house.py`
 - Repository working rules: `AGENTS.md`
+- Transition sync tool: `scripts/sync-house-from-html.mjs`
+- HTML/Blender operations: `docs/WORKFLOW.md`
 
 ## Data contract
 
@@ -53,14 +55,15 @@ script and leaves the generated scene open.
 
 ## Verification
 
-1. Run `python tests/validate_house.py`; optionally validate the full contract
+1. Run `node scripts/sync-house-from-html.mjs --check` to detect legacy drift.
+2. Run `python tests/validate_house.py`; optionally validate the full contract
    with any Draft 2020-12 JSON Schema validator.
-2. Run the Blender command and confirm it exits successfully.
-3. Compare Blender top orthographic view against the Three.js plan view at the
+3. Run the Blender command and confirm it exits successfully.
+4. Compare Blender top orthographic view against the Three.js plan view at the
    910 mm grid.
-4. Check the four 1F footprint zones, 2F footprint, floor levels, 19 exterior
+5. Check the four 1F footprint zones, 2F footprint, floor levels, 19 exterior
    openings, 19 interior-door markers, sound wall, and two low-roof panels.
-5. Record discrepancies as data issues; do not hand-edit generated Blender
+6. Record discrepancies as data issues; do not hand-edit generated Blender
    geometry.
 
 ## Next migration steps
