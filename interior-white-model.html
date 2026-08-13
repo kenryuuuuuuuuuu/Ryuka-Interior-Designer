@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>自宅新築プロジェクト 内装白模型 v0.1</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  html,body{margin:0;padding:0;overflow:hidden;background:#dfe4e8;font-family:"Hiragino Sans","Noto Sans JP",sans-serif;}
+  #canvas-wrap{position:fixed;inset:0;}
+  #ui{position:fixed;top:12px;left:12px;background:rgba(255,255,255,.92);border-radius:10px;padding:14px 16px;
+      box-shadow:0 4px 16px rgba(0,0,0,.15);width:300px;font-size:13px;color:#222;max-height:92vh;overflow-y:auto;}
+  #ui h1{font-size:14px;margin:0 0 6px;}
+  #ui .sub{font-size:11px;color:#777;margin-bottom:10px;line-height:1.5;}
+  #ui label{display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer;}
+  #ui hr{border:none;border-top:1px solid #ddd;margin:10px 0;}
+  .legend-item{display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11.5px;}
+  .swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.2);}
+  #tip{position:fixed;bottom:10px;left:12px;font-size:11px;color:#555;background:rgba(255,255,255,.85);
+       padding:6px 10px;border-radius:6px;}
+  .labelDiv{position:absolute;color:#222;font-size:11px;background:rgba(255,255,255,.82);
+            padding:1px 5px;border-radius:4px;white-space:nowrap;pointer-events:none;transform:translate(-50%,-50%);
+            border:1px solid rgba(0,0,0,.1);}
+  .labelDiv.approx{color:#8a5a00;border-color:rgba(200,140,0,.4);}
+  .labelDiv.dim{background:rgba(30,32,36,.88);color:#ffe27a;font-size:10px;font-weight:700;
+      padding:1px 4px;border:1px solid rgba(255,255,255,.15);font-family:monospace;}
+  #floorToggle button{font-size:12px;padding:4px 10px;margin-right:4px;border:1px solid #999;border-radius:5px;
+       background:#f2f2f2;cursor:pointer;}
+  #floorToggle button.active{background:#3a6ea5;color:#fff;border-color:#3a6ea5;}
+  #ui.hidden{display:none;}
+  #menuToggle{position:fixed;top:12px;left:12px;z-index:20;background:#3a6ea5;color:#fff;border:none;
+      border-radius:8px;width:38px;height:38px;font-size:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);}
+  #menuToggle:hover{background:#2f5a87;}
+  #topViewToggle{position:fixed;top:12px;right:12px;z-index:20;background:#fff;color:#222;border:1px solid #999;
+      border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+  #topViewToggle.active{background:#3a6ea5;color:#fff;border-color:#3a6ea5;}
+</style>
+</head>
+<body>
+<div id="canvas-wrap"></div>
+<div id="labelLayer" style="position:fixed;inset:0;pointer-events:none;"></div>
+
+<button id="menuToggle" title="メニューの表示/非表示">☰</button>
+<button id="topViewToggle" title="真上から見る（平面図モード）">▦ 平面図モード</button>
+
+<div id="ui">
+  <h1>自宅新築プロジェクト 内装白模型 v0.1</h1>
+  <div class="sub">出典: 施工会社Ver5実施図面＋Ryuka-Landscape-Designer levels。<br>
+  マイホームクラウド値は不使用。寸法単位m、GL基準。</div>
+
+  <div id="floorToggle">
+    <button id="btnBoth" class="active">両方</button>
+    <button id="btn1F">1F</button>
+    <button id="btn2F">2F</button>
+  </div>
+  <div class="sub" style="margin:2px 0 8px;">1F/2F切替時、選択していない階は自動的に薄く表示されます（消去はしません）。</div>
+  <hr>
+  <label><input type="checkbox" id="chkShell" checked> 外皮・ゾーン壁（確定）</label>
+  <label><input type="checkbox" id="chkApprox" checked> 室内間仕切り（概算・要確認）</label>
+  <label><input type="checkbox" id="chkOpenings" checked> 窓・ドア（確定位置）</label>
+  <label><input type="checkbox" id="chkSound" checked> 防音壁（民泊-自宅境界）</label>
+  <label><input type="checkbox" id="chkRoof"> 片流れ屋根（平屋部）</label>
+  <label><input type="checkbox" id="chkDoors" checked> 室内ドア位置（確定）</label>
+  <label><input type="checkbox" id="chkDims" checked> 寸法値を表示（1F・mm単位）</label>
+  <label><input type="checkbox" id="chkLabels" checked> 部屋ラベル</label>
+  <label><input type="checkbox" id="chkGrid" checked> 地面グリッド(910mm)</label>
+
+  <hr>
+  <div style="font-weight:600;margin-bottom:4px;">凡例</div>
+  <div class="legend-item"><div class="swatch" style="background:#cfd6dc;"></div>確定：外皮・ゾーン境界壁（求積図と一致検算済み）</div>
+  <div class="legend-item"><div class="swatch" style="background:#ffd479;"></div>概算：室内間仕切り（●高 ◐中 ○低）</div>
+  <div class="legend-item"><div class="swatch" style="background:#e05252;"></div>確定：民泊-自宅 防音壁（小屋裏まで張り上げ）</div>
+  <div class="legend-item"><div class="swatch" style="background:#6fb3e0;"></div>確定：窓</div>
+  <div class="legend-item"><div class="swatch" style="background:#ff1fb0;"></div>確定：ドア（外部・室内とも共通色）</div>
+  <div class="legend-item"><div class="swatch" style="background:#a89f8f;"></div>片流れ屋根（平屋部A1/A2。pitch1.5寸で検算済み、x=9.100の継ぎ目は簡略化）</div>
+  <div class="legend-item"><div class="swatch" style="background:#4caf50;"></div>確定：室内ドア位置（施主指摘の座標をピクセル解析）</div>
+  <hr>
+  <div style="font-size:11px;color:#777;line-height:1.6;">
+  天井高は全室2,400mm（推測・要施工会社確認）を暫定採用。<br>
+  室内間仕切りの正確な壁位置はCAD原本があれば精度が上がります。
+  </div>
+</div>
+
+<div id="tip">左ドラッグ:回転 / 右ドラッグ:平行移動 / ホイール:ズーム　｜　平面図モード中は ドラッグ:平行移動 / ホイール:ズーム</div>
+
+<script>
+// ============================================================================
+// データ定義（すべて m、GL基準、建物ローカル座標: x=西→東 / z=北→南 / y=高さ）
+// 出典: Ryuka-Landscape-Designer data/fixed-site-data.js（確定・検算済み）
+// ============================================================================
+const LEVELS = { gl:0, fl1:0.500, fl2:3.232, eaveLow:3.400, eaveHigh:4.567, eave2:6.300, ridge:7.423 };
+const CEIL_H = 2.400; // 推測値（要確認）
+const WALL_T = 0.12;
+
+// 1階4ゾーン（確定：施工会社Ver5求積図と面積一致検算済み）
+const FLOOR1 = [
+  { id:'A1', x0:0.000,  x1:9.100,  z0:0.910, z1:6.370, use:'民泊棟（玄関・洋室11.18・LDK15.73・水回り）' },
+  { id:'A2', x0:9.100,  x1:12.740, z0:0.455, z1:6.370, use:'ヌック・自宅玄関・北土間' },
+  { id:'A3', x0:12.740, x1:16.380, z0:0.000, z1:6.370, use:'自宅LDK32.09・階段' },
+  { id:'A4', x0:16.380, x1:19.110, z0:0.000, z1:7.735, use:'水回り・南土間' }
+];
+const FLOOR2 = { x0:12.740, x1:19.110, z0:0.000, z1:6.370 };
+
+// 開口部（確定：Ryuka-Landscape-Designer openings配列そのまま）
+const OPENINGS = [
+  { face:'N', lx:0.910, w:0.95, h:2.33, sill:0.00, level:1, kind:'door',   label:'民泊 玄関ドア' }, // 訂正(2026-08-13)：施主指摘の青線(中心1.35m)に合わせ、トイレ|玄関の壁(x=0.910)起点に修正
+  { face:'N', lx:3.500, w:1.76, h:1.03, sill:1.33, level:1, kind:'window', label:'民泊 北窓' }, // 訂正(2026-08-13)：施主指摘の青線位置(中心4.381)に合わせ左へ移動
+  { face:'N', lx:9.535,w:0.95, h:2.33, sill:0.00, level:1, kind:'door',   label:'自宅 玄関ドア' }, // 訂正(2026-08-13)：施主指摘により自宅玄関・ホール(x:9.100-10.920)の中心(10.010)に配置
+  { face:'N', lx:11.048,w:0.71, h:1.0, sill:1.0, level:1, kind:'window', label:'土間・シューズクローク フィックス窓' }, // 新規(2026-08-13)：施主指摘の青線位置。A2区画(北壁z=0.455)に該当。高さ・シル高は仮値のため要確認
+  { face:'N', lx:13.699,w:1.716, h:0.45, sill:1.97, level:2, kind:'window', label:'2階 階段北窓' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。階段(2F)モジュール(13.651-15.470)内に収まる
+  { face:'S', lx:3.585, w:1.77, h:1.03, sill:1.22, level:1, kind:'window', label:'民泊 腰窓' },
+  { face:'S', lx:5.880, w:0.70, h:0.56, sill:1.69, level:1, kind:'window', label:'民泊 小窓' },
+  { face:'S', lx:9.200, w:1.80, h:1.03, sill:1.25, level:1, kind:'window', label:'自宅 腰窓' },
+  { face:'S', lx:10.150,w:0.70, h:0.96, sill:1.29, level:1, kind:'window', label:'自宅 小窓（西）' },
+  { face:'S', lx:11.665,w:1.73, h:2.26, sill:0.19, level:1, kind:'window', label:'自宅LDK 掃き出し窓' },
+  { face:'S', lx:14.620,w:0.70, h:0.96, sill:1.29, level:1, kind:'window', label:'自宅 小窓（東）' },
+  { face:'S', lx:13.681,w:1.568, h:0.96, sill:1.32, level:2, kind:'window', label:'2階 南窓①(子供部屋1)' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。子供部屋1の右下に位置
+  { face:'S', lx:16.375,w:1.771, h:0.96, sill:1.32, level:2, kind:'window', label:'2階 南窓②(夫婦寝室)' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。夫婦寝室南側の中央
+  { face:'E', lz:0.923, w:1.623, h:0.97, sill:1.28, level:2, kind:'window', label:'2階 東窓①(子供部屋2)' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ上へ移動。子供部屋2東側の中央付近
+  { face:'E', lz:3.745, w:1.457, h:0.97, sill:1.28, level:2, kind:'window', label:'2階 東窓②(夫婦寝室)' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ上へ移動。夫婦寝室東側の中央付近
+  { face:'E', lz:3.065, w:0.81, h:0.36, sill:2.23, level:1, kind:'window', label:'1階 東の細長窓' },
+  { face:'E', lz:7.000, w:0.85, h:2.33, sill:0.00, level:1, kind:'door',   label:'南土間 東のルーバー戸' },
+  // 「2階 西妻の小窓」は削除(2026-08-13)：施主指摘により子供部屋1西側に不要と判明
+  { face:'W', x:12.740, lz:1.950, w:0.650, h:0.60, sill:1.86, level:2, kind:'window', label:'2階 廊下西窓' }, // 訂正(2026-08-13)：はみ出し指摘により廊下(2F)の中心(z=2.275)を基準に、両側0.38m前後の余裕を持たせて再配置
+  { face:'W', lz:3.2, w:0.85, h:0.35, sill:2.0, level:1, kind:'window', label:'洗面脱衣室 天井近くフィックス窓' } // 訂正(2026-08-13)：施主指摘により旧「平屋 西の細長窓」(lz:3.895)を削除し、新規に天井近くの位置(sill=2.0)へ細長いフィックス窓を配置
+];
+
+// 民泊-自宅 防音壁（確定：図面の引き出し線を画像目視で確認。x=9.100の境界、小屋裏まで張り上げ）
+const SOUND_WALL = { x:7.280, z0:0.910, z1:6.370, level:1, topY:LEVELS.eaveLow }; // 西端から7,280mm(910mm×8マス)。施主指摘により修正（2026-08-13）
+
+// 室内ドア（確定：施主が平面図モードのスクショに書き込んだ青丸をピクセル解析して座標化。2026-08-13）
+// orientation 'H' = z一定の壁を横切るドア(x方向に開口幅) / 'V' = x一定の壁を横切るドア(z方向に開口幅)
+const INTERIOR_DOORS = [
+  { label:'トイレ⟷玄関', wallAt:0.910, orientation:'V', center:2.330, width:0.8, floor:1 },
+  { label:'玄関⟷洗面脱衣室', wallAt:2.730, orientation:'H', center:1.355, width:0.8, floor:1 },
+  { label:'洗面脱衣室⟷UB', wallAt:4.550, orientation:'H', center:1.371, width:0.8, floor:1 },
+  { label:'玄関⟷LDK張り出し', wallAt:2.730, orientation:'H', center:2.274, width:0.8, floor:1 },
+  { label:'玄関⟷洋室', wallAt:2.730, orientation:'V', center:2.329, width:0.8, floor:1 },
+  { label:'ヌック⟷LDK', wallAt:2.730, orientation:'H', center:8.218, width:0.910, floor:1 },
+  { label:'自宅玄関・ホール⟷LDK', wallAt:2.730, orientation:'H', center:9.555, width:0.910, floor:1 },
+  { label:'自宅玄関・ホール⟷土間・シューズクローク', wallAt:10.920, orientation:'V', center:0.910, width:0.910, floor:1 },
+  { label:'土間・シューズクローク⟷LDK', wallAt:2.275, orientation:'H', center:13.195, width:0.910, floor:1 },
+  { label:'LDK(キッチン部)⟷廊下+収納', wallAt:15.471, orientation:'V', center:2.275, width:0.910, floor:1 },
+  { label:'ファミリークローク⟷廊下+収納', wallAt:1.820, orientation:'H', center:16.000, width:0.910, floor:1 },
+  { label:'トイレ(東)⟷洗面(東)', wallAt:2.730, orientation:'H', center:17.746, width:0.910, floor:1 },
+  { label:'廊下+収納⟷脱衣室', wallAt:3.640, orientation:'H', center:16.836, width:0.910, floor:1 },
+  { label:'脱衣室⟷UB(東)', wallAt:17.291, orientation:'V', center:4.584, width:0.910, floor:1 },
+  { label:'脱衣室⟷南土間', wallAt:6.370, orientation:'H', center:16.836, width:0.910, floor:1 },
+  { label:'トイレ(2F)⟷廊下(2F)', wallAt:1.820, orientation:'H', center:13.195, width:0.910, floor:2 },
+  { label:'廊下(2F)⟷子供部屋1', wallAt:2.730, orientation:'H', center:15.015, width:0.910, floor:2 },
+  { label:'廊下(2F)⟷子供部屋2', wallAt:16.380, orientation:'V', center:2.275, width:0.910, floor:2 },
+  { label:'廊下(2F)⟷夫婦寝室', wallAt:2.730, orientation:'H', center:15.925, width:0.910, floor:2 }
+];
+
+// 室内間仕切り（v2：画像精査＋施工会社記載の確定面積との照合による推定）
+// 手法: (1)グリッド線の交点で確定できる壁位置はそのまま採用
+//       (2)施工会社記載の確定面積 ÷ グリッド確定幅 で奥行を逆算
+//       (3)照合不能な小部屋（トイレ・パントリー等）は低確度のまま暫定配置
+// confidence: '高'=グリッド2辺確定 / '中'=1辺確定+面積照合 / '低'=目視のみ
+const ROOMS_APPROX = {
+  1: [
+    { name:'トイレ(民泊)', x0:0.000, x1:0.910, z0:0.910, z1:2.730, conf:'高', note:'面積1.66㎡相当・マイホームクラウド値と一致確認' },
+    { name:'玄関(民泊)', x0:0.910, x1:2.730, z0:0.910, z1:2.730, conf:'高', note:'訂正(2026-08-13)：西端(x=0)と東端(x=7.280)を基準とした再キャリブレーションで、玄関の東壁はx=2.730が正しいと判明（前回のx=1.820は近接点同士のキャリブレーション誤差による誤り）' },
+    { name:'洗面脱衣室', x0:0.000, x1:1.820, z0:2.730, z1:4.550, conf:'高', note:'面積3.31㎡相当。この行はx=1.820に壁あり(ピクセル解析で確認)' },
+    { name:'UB(民泊)', x0:0.000, x1:1.820, z0:4.550, z1:6.370, conf:'中', note:'面積3.31㎡相当。洗面脱衣室と同幅と仮定' },
+    { name:'洋室', x0:2.730, x1:7.280, z0:0.910, z1:3.691, conf:'高', note:'訂正(2026-08-13)：西端をx=2.730に戻し、洋室|LDK境界z=3.691で再検算。箱面積12.60㎡は実際11.18㎡に近い（+13%）。x=1.820-2.730×z=2.730-6.370の範囲(洗面所/浴室の東側)は未モデル化の欠き（LDK側に含まれる可能性）。ラベルから面積表記は削除(2026-08-13)' },
+    { name:'LDK(民泊)', poly:[[1.820,2.730],[2.730,2.730],[2.730,3.691],[7.280,3.691],[7.280,6.370],[1.820,6.370]], x0:2.730, x1:7.280, z0:3.691, z1:6.370, conf:'高', note:'施主指摘(2026-08-13)によりLDK本体＋張り出し部をL字ポリゴンとして統合。内部の継ぎ目線は表示されない。ラベルから面積表記は削除(2026-08-13)。自宅側のLDKと区別するため「(民泊)」を付記' },
+    { name:'ヌック FL+200', x0:7.280, x1:9.100, z0:0.910, z1:2.730, conf:'高', note:'訂正(2026-08-13)：マイホームクラウド画像で西端が防音壁位置(x=7.280)から始まると判明（前回のx=9.100は誤り）。幅1.820m確定・奥行は面積3.31㎡から逆算(1.819m)しz1=2.730とほぼ一致。ラベルから面積表記は削除(2026-08-13)' },
+    { name:'自宅玄関・ホール', x0:9.100, x1:10.920, z0:0.455, z1:2.730, conf:'高', note:'施主指摘(2026-08-13)により赤枠の座標をピクセル解析。旧「自宅玄関・土間・ホール」から西半分を分離' },
+    { name:'土間・シューズクローク', poly:[[10.920,0.455],[12.740,0.455],[12.740,0.000],[13.651,0.000],[13.651,2.275],[10.920,2.275]], x0:10.920, x1:13.651, z0:0.455, z1:2.275, conf:'高', note:'訂正(2026-08-13)：施主指摘により南端をz=2.730→2.275に縮小(0.5マス分をLD側へ移管)' },
+    { name:'階段（曲がり階段）＋パントリー', x0:13.651, x1:15.471, z0:0.000, z1:1.820, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)に確定' },
+    { name:'LDK', poly:[[7.280,2.730],[10.920,2.730],[10.920,2.275],[13.651,2.275],[13.651,1.820],[15.471,1.820],[15.471,6.370],[7.280,6.370]], x0:7.280, x1:15.471, z0:2.730, z1:6.370, conf:'高', note:'確定(2026-08-13)：施主指摘によりLD＋キッチンを統合しLDKに変更。北端が3段階（z=2.730→2.275→1.820）の階段状になっているのが実際の間取り' },
+    { name:'ファミリークローク', x0:15.471, x1:19.110, z0:0.000, z1:1.820, conf:'高', note:'確定(2026-08-13)：施主指摘により4マス×2マス(3.640m×1.820m)、東側全幅で確定' },
+    { name:'廊下＋収納', x0:15.471, x1:17.291, z0:1.820, z1:3.640, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)で確定。西列' },
+    { name:'トイレ(東)', x0:17.291, x1:19.110, z0:1.820, z1:2.730, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×1マス(1.820m×0.910m)で確定。東列' },
+    { name:'洗面(東)', x0:17.291, x1:19.110, z0:2.730, z1:4.095, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×1.5マス(1.820m×1.365m)で確定。東列' },
+    { name:'脱衣室', x0:15.471, x1:17.291, z0:3.640, z1:6.370, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×3マス(1.820m×2.730m)で確定。西列' },
+    { name:'UB(東)', x0:17.291, x1:19.110, z0:4.095, z1:6.370, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2.5マス(1.820m×2.275m)で確定。東列' },
+    { name:'南土間', x0:16.380, x1:19.110, z0:6.370, z1:7.735, conf:'高', note:'確定(2026-08-13)：施主指摘により3マス×1.5マス(2.730m×1.365m)で確定。z=6.370起点に修正（旧z0=5.460は誤り）' },
+  ],
+  2: [
+    { name:'トイレ(2F)', x0:12.740, x1:13.651, z0:0.000, z1:1.820, conf:'高', note:'確定(2026-08-13)：施主指摘により1マス×2マス(0.910m×1.820m)で確定' },
+    { name:'階段(2F)', x0:13.651, x1:15.470, z0:0.000, z1:1.820, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)で確定。1Fの曲がり階段と同じ位置' },
+    { name:'廊下(2F)', x0:12.740, x1:16.380, z0:1.820, z1:2.730, conf:'高', note:'確定(2026-08-13)：施主指摘により4マス×1マス(3.640m×0.910m)で確定。東端はA3/A4境界(16.380)と一致' },
+    { name:'子供部屋1', x0:12.740, x1:15.470, z0:2.730, z1:6.370, conf:'高', note:'確定(2026-08-13)：施主指摘により3マス×4マス(2.730m×3.640m)で確定' },
+    { name:'子供部屋2', poly:[[15.470,0.000],[19.110,0.000],[19.110,2.730],[16.380,2.730],[16.380,1.820],[15.470,1.820]], x0:15.470, x1:19.110, z0:0.000, z1:2.730, conf:'高', note:'確定(2026-08-13)：施主指摘により矩形＋廊下の張り出し分を除いたL字で確定' },
+    { name:'夫婦寝室', x0:15.470, x1:19.110, z0:2.730, z1:6.370, conf:'高', note:'確定(2026-08-13)：施主指摘により4マス×4マス(3.640m角)で確定' }
+  ]
+};
+
+// ============================================================================
+// Three.js セットアップ
+// ============================================================================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe4e8);
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+document.getElementById('canvas-wrap').appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+sun.position.set(12, 18, 6);
+scene.add(sun);
+const sun2 = new THREE.DirectionalLight(0xffffff, 0.35);
+sun2.position.set(-8, 10, -10);
+scene.add(sun2);
+
+// 建物中心を原点付近に置くための移動量（910mmグリッドに西端(x=0)・北端(z=0)が乗るよう調整）
+const CX = 9.100, CZ = 3.640; // 9.100=910mm×10, 3.640=910mm×4
+function toScene(x,z){ return [x-CX, z-CZ]; }
+
+// カメラ初期位置
+let camDist = 26, camTheta = 0.9, camPhi = 1.05;
+const camTarget = new THREE.Vector3(0, 2, 0);
+function updateCamera(){
+  camera.position.x = camTarget.x + camDist*Math.sin(camPhi)*Math.sin(camTheta);
+  camera.position.z = camTarget.z + camDist*Math.sin(camPhi)*Math.cos(camTheta);
+  camera.position.y = camTarget.y + camDist*Math.cos(camPhi);
+  camera.lookAt(camTarget);
+}
+updateCamera();
+
+// 簡易オービットコントロール（外部ライブラリ非依存）
+let dragging=false, dragButton=0, lastX=0, lastY=0;
+renderer.domElement.addEventListener('contextmenu', e=>e.preventDefault());
+renderer.domElement.addEventListener('pointerdown', e=>{ dragging=true; dragButton=e.button; lastX=e.clientX; lastY=e.clientY; });
+window.addEventListener('pointerup', ()=> dragging=false);
+window.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+  if(topViewActive){
+    // 平面図モード：ドラッグで平行移動のみ
+    const worldPerPx = (orthoHalfSize*2)/innerHeight;
+    orthoTarget.x -= dx*worldPerPx;
+    orthoTarget.z -= dy*worldPerPx;
+    updateOrthoCam();
+    return;
+  }
+  if(dragButton===2){
+    const right = new THREE.Vector3(); camera.getWorldDirection(right); right.cross(camera.up).normalize();
+    camTarget.addScaledVector(right, -dx*0.02);
+    camTarget.y += dy*0.02;
+  } else {
+    camTheta -= dx*0.005; camPhi = Math.min(Math.max(camPhi - dy*0.005, 0.15), 1.5);
+  }
+  updateCamera();
+});
+renderer.domElement.addEventListener('wheel', e=>{
+  if(topViewActive){
+    orthoHalfSize = Math.min(Math.max(orthoHalfSize + e.deltaY*0.01, 1.5), 30);
+    updateOrthoFrustum();
+    e.preventDefault();
+    return;
+  }
+  camDist = Math.min(Math.max(camDist + e.deltaY*0.02, 4), 70); updateCamera(); e.preventDefault();
+}, {passive:false});
+
+// ---- 平面図モード（真上からの正射投影カメラ） ----
+const orthoCam = new THREE.OrthographicCamera(-10,10,10,-10,0.1,200);
+const orthoTarget = new THREE.Vector3(0,0,0);
+let orthoHalfSize = 11; // 表示範囲の半径(m相当)。ホイールでズーム
+function updateOrthoFrustum(){
+  const aspect = innerWidth/innerHeight;
+  orthoCam.left = -orthoHalfSize*aspect;
+  orthoCam.right = orthoHalfSize*aspect;
+  orthoCam.top = orthoHalfSize;
+  orthoCam.bottom = -orthoHalfSize;
+  orthoCam.updateProjectionMatrix();
+}
+function updateOrthoCam(){
+  orthoCam.position.set(orthoTarget.x, 40, orthoTarget.z);
+  orthoCam.up.set(0,0,-1); // 北(z小さい方)が画面上方に来るようにする
+  orthoCam.lookAt(orthoTarget.x, 0, orthoTarget.z);
+  updateOrthoFrustum();
+}
+updateOrthoCam();
+
+let topViewActive = true; // デフォルトを俯瞰(平面図)モードに変更（2026-08-13）
+const topViewBtn = document.getElementById('topViewToggle');
+topViewBtn.classList.add('active');
+topViewBtn.textContent = '▦ 通常視点に戻る';
+topViewBtn.onclick = ()=>{
+  topViewActive = !topViewActive;
+  topViewBtn.classList.toggle('active', topViewActive);
+  topViewBtn.textContent = topViewActive ? '▦ 通常視点に戻る' : '▦ 平面図モード';
+};
+
+// ---- 左メニューの表示/非表示 ----
+const uiPanel = document.getElementById('ui');
+document.getElementById('menuToggle').onclick = ()=>{
+  uiPanel.classList.toggle('hidden');
+};
+
+// ============================================================================
+// ジオメトリ生成
+// ============================================================================
+// フロアごとに独立したマテリアルを持たせる（1F/2F切替時の「薄くする」演出のため、
+// 同じ見た目でもインスタンスを分けて opacity を個別制御できるようにする）
+function makeFloorMats(floorSlabColor){
+  return {
+    shell:      new THREE.MeshStandardMaterial({color:0xcfd6dc, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false}),
+    shellEdge:  new THREE.LineBasicMaterial({color:0x556270, transparent:true, opacity:1, depthTest:false}),
+    approx:     new THREE.MeshBasicMaterial({color:0xffd479, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false}), // Basic材質でライティング非依存に統一(矩形/L字ポリゴンの見た目差異を解消)
+    approxEdge: new THREE.LineBasicMaterial({color:0xb07a00, transparent:true, opacity:1, depthTest:false}),
+    opening:    new THREE.MeshStandardMaterial({color:0x6fb3e0, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false}), // 窓
+    extDoor:    new THREE.MeshStandardMaterial({color:0xff1fb0, emissive:0xff1fb0, emissiveIntensity:0.35, transparent:true, opacity:0.95, side:THREE.DoubleSide, depthWrite:false}), // 外部ドア（室内ドアと同系色で統一）
+    floorSlab:  new THREE.MeshStandardMaterial({color:floorSlabColor, side:THREE.DoubleSide, transparent:true, opacity:1, depthWrite:false}),
+    sound:      new THREE.MeshStandardMaterial({color:0xe05252, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false}),
+    roof:       new THREE.MeshStandardMaterial({color:0xa89f8f, transparent:true, opacity:0.9, side:THREE.DoubleSide, depthWrite:false}),
+    roofEdge:   new THREE.LineBasicMaterial({color:0x6b6152, transparent:true, opacity:1, depthTest:false}),
+    door:       new THREE.MeshStandardMaterial({color:0xff1fb0, emissive:0xff1fb0, emissiveIntensity:0.35, transparent:true, opacity:0.95, side:THREE.DoubleSide, depthWrite:false}),
+    doorEdge:   new THREE.LineBasicMaterial({color:0x1a1a1a, transparent:true, opacity:1, depthTest:false})
+  };
+}
+const M1 = makeFloorMats(0xf3f0e8); // 1F用マテリアル一式
+const M2 = makeFloorMats(0xeef2f5); // 2F用マテリアル一式
+[M1,M2].forEach(set=> Object.values(set).forEach(m=> m.userData.base = m.opacity));
+
+function setFloorDim(matSet, factor){
+  Object.values(matSet).forEach(m=>{ m.opacity = m.userData.base * factor; });
+}
+
+const groups = {
+  shell1:new THREE.Group(), shell2:new THREE.Group(),
+  approx1:new THREE.Group(), approx2:new THREE.Group(),
+  openings1:new THREE.Group(), openings2:new THREE.Group(),
+  sound:new THREE.Group(), roof:new THREE.Group(), doors:new THREE.Group(),
+  floor1:new THREE.Group(), floor2:new THREE.Group()
+};
+groups.roof.visible = false; // デフォルトで屋根を非表示に変更（2026-08-13）
+const shellAll = new THREE.Group(); shellAll.add(groups.shell1, groups.shell2);
+const approxAll = new THREE.Group(); approxAll.add(groups.approx1, groups.approx2);
+const openingsAll = new THREE.Group(); openingsAll.add(groups.openings1, groups.openings2);
+[shellAll, approxAll, openingsAll, groups.sound, groups.roof, groups.doors, groups.floor1, groups.floor2].forEach(g=>scene.add(g));
+
+function boxWire(x0,x1,y0,y1,z0,z1, mat, edgeMat, parent, renderOrder){
+  const [sx0,sz0]=toScene(x0,z0), [sx1,sz1]=toScene(x1,z1);
+  const w=sx1-sx0, d=sz1-sz0, h=y1-y0;
+  const geo = new THREE.BoxGeometry(Math.max(w,0.02), Math.max(h,0.02), Math.max(d,0.02));
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(sx0+w/2, y0+h/2, sz0+d/2);
+  if(renderOrder!==undefined) mesh.renderOrder = renderOrder;
+  parent.add(mesh);
+  if(edgeMat){
+    const edges = new THREE.EdgesGeometry(geo);
+    const line = new THREE.LineSegments(edges, edgeMat);
+    line.position.copy(mesh.position);
+    if(renderOrder!==undefined) line.renderOrder = renderOrder+0.5;
+    parent.add(line);
+  }
+  return mesh;
+}
+
+// L字などの多角形の部屋を「1つの図形」として押し出す（内部の継ぎ目に余計な輪郭線が出ないようにする）
+// pts: [[x,z], ...] 建物ローカル座標の頂点リスト（時計回り/反時計回りいずれも可）
+function polyWire(pts, y0, y1, mat, edgeMat, parent, renderOrder){
+  const shape = new THREE.Shape();
+  pts.forEach(([x,z], i)=>{
+    const [sx] = toScene(x,0);
+    const sy = -(z - CZ); // toScene相当のz変換を符号反転して適用(回転後に正しい向きにするため)
+    if(i===0) shape.moveTo(sx, sy); else shape.lineTo(sx, sy);
+  });
+  shape.closePath();
+  const h = y1-y0;
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: Math.max(h,0.02), bevelEnabled:false });
+  geo.rotateX(-Math.PI/2);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(0, y0, 0);
+  if(renderOrder!==undefined) mesh.renderOrder = renderOrder;
+  parent.add(mesh);
+  if(edgeMat){
+    const edges = new THREE.EdgesGeometry(geo, 30); // 30度以上の角のみを輪郭線として抽出(内部の平坦な継ぎ目は無視)
+    const line = new THREE.LineSegments(edges, edgeMat);
+    line.position.copy(mesh.position);
+    if(renderOrder!==undefined) line.renderOrder = renderOrder+0.5;
+    parent.add(line);
+  }
+  return mesh;
+}
+
+function makeLabel(text, x, y, z, approx, dim){
+  const div = document.createElement('div');
+  div.className = 'labelDiv' + (approx ? ' approx' : '') + (dim ? ' dim' : '');
+  div.textContent = text;
+  document.getElementById('labelLayer').appendChild(div);
+  return { div, pos:new THREE.Vector3(...toSceneY(x,y,z)) };
+}
+function toSceneY(x,y,z){ const [sx,sz]=toScene(x,z); return [sx,y,sz]; }
+
+const labels = [];
+
+// ---- 寸法値ラベル（1F。北辺沿いにx方向、西辺沿いにz方向の区間長をmmで表示） ----
+// 出典: これまでの検算で確定した壁位置グリッド
+const DIM_X_1F = [0, 0.910, 1.820, 2.730, 7.280, 9.100, 12.740, 16.380, 19.110];
+const DIM_Z_1F = [0, 0.455, 0.910, 2.730, 3.691, 4.550, 6.370, 7.735];
+const DIM_Y = 0.05; // 床すれすれの高さに配置(俯瞰モードで見やすい)
+function buildDimLabels(){
+  for(let i=0;i<DIM_X_1F.length-1;i++){
+    const a=DIM_X_1F[i], b=DIM_X_1F[i+1];
+    const mm = Math.round((b-a)*1000);
+    const l = makeLabel(mm+'', (a+b)/2, DIM_Y, -0.45, false, true);
+    l.floor = 1; l.isDim = true;
+    labels.push(l);
+  }
+  for(let i=0;i<DIM_Z_1F.length-1;i++){
+    const a=DIM_Z_1F[i], b=DIM_Z_1F[i+1];
+    const mm = Math.round((b-a)*1000);
+    const l = makeLabel(mm+'', -0.45, DIM_Y, (a+b)/2, false, true);
+    l.floor = 1; l.isDim = true;
+    labels.push(l);
+  }
+}
+buildDimLabels();
+document.getElementById('chkDims').onchange = refreshLabelVis;
+
+// ---- 1F外皮ゾーン（確定） ----
+FLOOR1.forEach(seg=>{
+  boxWire(seg.x0, seg.x1, LEVELS.fl1, LEVELS.fl1+CEIL_H, seg.z0, seg.z1, M1.shell, M1.shellEdge, groups.shell1, 1);
+  const [sx0,sz0]=toScene(seg.x0,seg.z0), [sx1,sz1]=toScene(seg.x1,seg.z1);
+  const fgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
+  const fmesh = new THREE.Mesh(fgeo, M1.floorSlab);
+  fmesh.renderOrder = 0;
+  fmesh.rotation.x = -Math.PI/2;
+  fmesh.position.set(sx0+(sx1-sx0)/2, LEVELS.fl1+0.005, sz0+(sz1-sz0)/2);
+  groups.floor1.add(fmesh);
+});
+
+// ---- 2F外皮ゾーン（確定） ----
+{
+  const seg = FLOOR2;
+  boxWire(seg.x0, seg.x1, LEVELS.fl2, LEVELS.fl2+CEIL_H, seg.z0, seg.z1, M2.shell, M2.shellEdge, groups.shell2, 1);
+  const [sx0,sz0]=toScene(seg.x0,seg.z0), [sx1,sz1]=toScene(seg.x1,seg.z1);
+  const fgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
+  const fmesh = new THREE.Mesh(fgeo, M2.floorSlab);
+  fmesh.renderOrder = 0;
+  fmesh.rotation.x = -Math.PI/2;
+  fmesh.position.set(sx0+(sx1-sx0)/2, LEVELS.fl2+0.005, sz0+(sz1-sz0)/2);
+  groups.floor2.add(fmesh);
+}
+
+// ---- 民泊-自宅 防音壁（確定・1F扱い） ----
+boxWire(SOUND_WALL.x-WALL_T/2, SOUND_WALL.x+WALL_T/2, LEVELS.fl1, SOUND_WALL.topY, SOUND_WALL.z0, SOUND_WALL.z1, M1.sound, null, groups.sound, 2);
+{
+  const l = makeLabel('防音壁（小屋裏まで）', SOUND_WALL.x, SOUND_WALL.topY+0.25, (SOUND_WALL.z0+SOUND_WALL.z1)/2, false);
+  l.floor = 1;
+  labels.push(l);
+}
+
+// ---- 片流れ屋根（確定：平屋部A1/A2。pitch.hiraya=0.15で検算し立面図eaveHigh=4.567と一致） ----
+// 出典: Ryuka-Landscape-Designer js/building-model.js の yAt() 関数と同じ式
+function yAtHiraya(z){ return LEVELS.eaveLow + (z + 0.500) * 0.15; } // eave.north=0.500, pitch.hiraya=0.15
+function slopedRoofBox(x0,x1,zN,zS, thickness, mat, edgeMat, parent){
+  const yN = yAtHiraya(zN), yS = yAtHiraya(zS);
+  const dz = zS-zN, dy = yS-yN;
+  const runLen = Math.sqrt(dz*dz+dy*dy);
+  const angle = Math.atan2(dy,dz);
+  const width = x1-x0;
+  const geo = new THREE.BoxGeometry(width, thickness, runLen);
+  const mesh = new THREE.Mesh(geo, mat);
+  const midX=(x0+x1)/2, midZ=(zN+zS)/2, midY=(yN+yS)/2;
+  const [smx,smz] = toScene(midX, midZ);
+  mesh.position.set(smx, midY, smz);
+  mesh.rotation.x = -angle;
+  parent.add(mesh);
+  const edges = new THREE.EdgesGeometry(geo);
+  const line = new THREE.LineSegments(edges, edgeMat);
+  line.rotation.copy(mesh.rotation); line.position.copy(mesh.position);
+  parent.add(line);
+}
+const HIRAYA_EAVE_SOUTH = 7.280; // MODEL-SPEC.md hirayaEaveSouth（確定）
+const EAVE_NORTH_OVERHANG = 0.500;
+slopedRoofBox(FLOOR1[0].x0, FLOOR1[0].x1, FLOOR1[0].z0-EAVE_NORTH_OVERHANG, HIRAYA_EAVE_SOUTH, 0.15, M1.roof, M1.roofEdge, groups.roof); // A1
+slopedRoofBox(FLOOR1[1].x0, FLOOR1[1].x1, FLOOR1[1].z0-EAVE_NORTH_OVERHANG, HIRAYA_EAVE_SOUTH, 0.15, M1.roof, M1.roofEdge, groups.roof); // A2
+// 注記：A1/A2の継ぎ目(x=9.100)は北面の段差により屋根面の高さが微妙に異なるが、
+// 破風の接合ディテールは未モデル化（簡略化）。見た目の目安としては十分だが、精密な意匠検討には使わない。
+
+// ---- 室内間仕切り（v2：確度付き） ----
+[1,2].forEach(fl=>{
+  const baseY = fl===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const mats = fl===1 ? M1 : M2;
+  const grp = fl===1 ? groups.approx1 : groups.approx2;
+  ROOMS_APPROX[fl].forEach(r=>{
+    if(r.poly){
+      polyWire(r.poly, baseY, baseY+CEIL_H, mats.approx, mats.approxEdge, grp, 2);
+    } else {
+      boxWire(r.x0, r.x1, baseY, baseY+CEIL_H, r.z0, r.z1, mats.approx, r.noEdge ? null : mats.approxEdge, grp, 2);
+    }
+    const confMark = r.conf==='高' ? '●' : (r.conf==='中' ? '◐' : '○');
+    const l = makeLabel(`${confMark} ${r.name}`, (r.x0+r.x1)/2, baseY+CEIL_H+0.15, (r.z0+r.z1)/2, true);
+    l.floor = fl;
+    labels.push(l);
+  });
+});
+
+// ---- 室内ドア（確定：施主指摘の青丸位置） ----
+INTERIOR_DOORS.forEach(d=>{
+  const baseY = d.floor===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const mats = d.floor===1 ? M1 : M2;
+  const grp = groups.doors;
+  const doorH = 1.9; // 人の目線でも見える高さまで立ち上げる(実ドア高さの目安)
+  const thick = 0.06;
+  let x0,x1,z0,z1;
+  if(d.orientation==='H'){ // z一定の壁を横切る -> x方向に開口幅
+    x0 = d.center - d.width/2; x1 = d.center + d.width/2;
+    z0 = d.wallAt - thick/2; z1 = d.wallAt + thick/2;
+  } else { // 'V': x一定の壁を横切る -> z方向に開口幅
+    x0 = d.wallAt - thick/2; x1 = d.wallAt + thick/2;
+    z0 = d.center - d.width/2; z1 = d.center + d.width/2;
+  }
+  boxWire(x0, x1, baseY, baseY+doorH, z0, z1, mats.door, mats.doorEdge, grp, 3);
+});
+
+// ---- 開口部（確定） ----
+function segAtX(lx){ return FLOOR1.find(s=>lx>=s.x0-1e-6 && lx<=s.x1+1e-6) || FLOOR1[0]; }
+OPENINGS.forEach(o=>{
+  const baseFl = (o.level===2) ? LEVELS.fl2 : LEVELS.fl1;
+  const y0 = baseFl + o.sill, y1 = y0 + o.h;
+  let x0,x1,z0,z1;
+  if(o.face==='N'){
+    const seg = o.level===2 ? FLOOR2 : segAtX(o.lx);
+    x0=o.lx; x1=o.lx+o.w; z0=seg.z0-0.03; z1=seg.z0+0.03;
+  } else if(o.face==='S'){
+    const seg = o.level===2 ? FLOOR2 : segAtX(o.lx);
+    x0=o.lx; x1=o.lx+o.w; z0=seg.z1-0.03; z1=seg.z1+0.03;
+  } else if(o.face==='E'){
+    const wallX = o.x!==undefined ? o.x : 19.110;
+    x0=wallX-0.03; x1=wallX+0.03; z0=o.lz; z1=o.lz+o.w;
+  } else { // W
+    const wallX = o.x!==undefined ? o.x : 0;
+    x0=wallX-0.03; x1=wallX+0.03; z0=o.lz; z1=o.lz+o.w;
+  }
+  const mats = (o.level===2) ? M2 : M1;
+  const grp = (o.level===2) ? groups.openings2 : groups.openings1;
+  const mat = (o.kind==='door') ? mats.extDoor : mats.opening;
+  boxWire(x0,x1,y0,y1,z0,z1, mat, null, grp, 3);
+});
+
+// ---- 地面グリッド ----
+const grid = new THREE.GridHelper(36.4, 40, 0x9aa4ab, 0xc7ced3); // 1マス=910mm(建築モジュール)
+grid.position.y = -0.02;
+scene.add(grid);
+
+// ============================================================================
+// UI連動
+// ============================================================================
+document.getElementById('chkShell').onchange = e=> shellAll.visible = e.target.checked;
+document.getElementById('chkApprox').onchange = e=> { approxAll.visible = e.target.checked; refreshLabelVis(); };
+document.getElementById('chkOpenings').onchange = e=> openingsAll.visible = e.target.checked;
+document.getElementById('chkSound').onchange = e=> groups.sound.visible = e.target.checked;
+document.getElementById('chkRoof').onchange = e=> groups.roof.visible = e.target.checked;
+document.getElementById('chkDoors').onchange = e=> groups.doors.visible = e.target.checked;
+document.getElementById('chkLabels').onchange = refreshLabelVis;
+document.getElementById('chkGrid').onchange = e=> grid.visible = e.target.checked;
+
+const DIM_FACTOR = 0.08; // 非選択フロアの不透明度倍率（0=完全に消える、1=通常表示）
+let floorMode = 'both';
+function applyFloorMode(){
+  if(floorMode==='both'){ setFloorDim(M1,1); setFloorDim(M2,1); }
+  else if(floorMode==='1F'){ setFloorDim(M1,1); setFloorDim(M2,DIM_FACTOR); }
+  else { setFloorDim(M1,DIM_FACTOR); setFloorDim(M2,1); }
+  // 床スラブ・屋根・防音壁はすべてM1/M2に含まれているため、上のsetFloorDimで連動して薄くなる
+  groups.floor1.visible = true; groups.floor2.visible = true;
+  refreshLabelVis();
+}
+document.getElementById('btnBoth').onclick = ()=>{ floorMode='both'; setActiveBtn('btnBoth'); applyFloorMode(); };
+document.getElementById('btn1F').onclick = ()=>{ floorMode='1F'; setActiveBtn('btn1F'); applyFloorMode(); };
+document.getElementById('btn2F').onclick = ()=>{ floorMode='2F'; setActiveBtn('btn2F'); applyFloorMode(); };
+function setActiveBtn(id){ ['btnBoth','btn1F','btn2F'].forEach(b=>document.getElementById(b).classList.toggle('active', b===id)); }
+
+function refreshLabelVis(){
+  const showLabels = document.getElementById('chkLabels').checked;
+  const showApprox = document.getElementById('chkApprox').checked;
+  const showDims = document.getElementById('chkDims').checked;
+  labels.forEach(l=>{
+    let vis = l.isDim ? showDims : showLabels;
+    if(l.floor===1 && floorMode==='2F') vis=false;
+    if(l.floor===2 && floorMode==='1F') vis=false;
+    if(!l.isDim && l.div.classList.contains('approx') && !showApprox) vis=false;
+    l.div.style.display = vis ? 'block' : 'none';
+  });
+}
+
+// ============================================================================
+// レンダーループ
+// ============================================================================
+function updateLabels(activeCam){
+  labels.forEach(l=>{
+    const p = l.pos.clone().project(activeCam);
+    l.div.style.left = ((p.x*0.5+0.5)*innerWidth)+'px';
+    l.div.style.top = ((-p.y*0.5+0.5)*innerHeight)+'px';
+    l.div.style.display = (p.z>1 || l.div.style.display==='none') ? 'none' : l.div.style.display;
+  });
+}
+applyFloorMode();
+function animate(){
+  requestAnimationFrame(animate);
+  const activeCam = topViewActive ? orthoCam : camera;
+  renderer.render(scene, activeCam);
+  updateLabels(activeCam);
+}
+animate();
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  updateOrthoFrustum();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
