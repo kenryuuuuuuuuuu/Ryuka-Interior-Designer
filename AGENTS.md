@@ -1,5 +1,11 @@
 # Repository guidance
 
+**最初に読むこと：** `docs/HANDOFF.md` を作業開始前に必ず読むこと。CAD原本がなく、
+壁位置を撮影した間取り画像のピクセル解析で再構築した経緯、既に一度発見・修正した
+Three.js/データパイプラインの不具合、施主に確認待ちの未解決事項がまとめてある。
+読み飛ばすと、既に出した結論を再導出したり、一度直したバグを再発させたりする
+リスクがある。
+
 This repository contains a browser-based architectural white model and the
 first phase of a reproducible Blender digital-twin pipeline.
 
