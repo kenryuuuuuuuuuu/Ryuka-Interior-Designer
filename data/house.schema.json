@@ -3,7 +3,7 @@
   "$id": "https://ryuka.example/schemas/house.schema.json",
   "title": "Ryuka house digital twin",
   "type": "object",
-  "required": ["schemaVersion", "units", "coordinateSystem", "levels", "defaults", "footprints", "openings", "interiorDoors", "specialWalls", "roofs"],
+  "required": ["schemaVersion", "units", "coordinateSystem", "levels", "defaults", "footprints", "openings", "interiorDoors", "specialWalls", "roofs", "rooms", "walls"],
   "properties": {
     "schemaVersion": { "const": "1.0.0" },
     "units": { "const": "m" },
@@ -18,14 +18,17 @@
       "required": ["ceilingHeight", "wallThickness"],
       "properties": {
         "ceilingHeight": { "type": "number", "exclusiveMinimum": 0 },
-        "wallThickness": { "type": "number", "exclusiveMinimum": 0 }
+        "wallThickness": { "type": "number", "exclusiveMinimum": 0 },
+        "interiorWallThickness": { "type": "number", "exclusiveMinimum": 0 }
       }
     },
     "footprints": { "type": "array", "items": { "$ref": "#/$defs/rect" } },
     "openings": { "type": "array", "items": { "$ref": "#/$defs/opening" } },
     "interiorDoors": { "type": "array", "items": { "$ref": "#/$defs/interiorDoor" } },
     "specialWalls": { "type": "array", "items": { "type": "object", "required": ["id", "x", "z0", "z1", "level", "topY"] } },
-    "roofs": { "type": "array", "items": { "type": "object", "required": ["id", "footprintId", "zNorth", "zSouth", "pitch", "thickness"] } }
+    "roofs": { "type": "array", "items": { "type": "object", "required": ["id", "footprintId", "zNorth", "zSouth", "pitch", "thickness"] } },
+    "rooms": { "type": "array", "items": { "$ref": "#/$defs/room" } },
+    "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" } }
   },
   "$defs": {
     "rect": {
@@ -54,6 +57,25 @@
         "id": { "type": "string" }, "label": { "type": "string" }, "wallAt": { "type": "number" },
         "orientation": { "enum": ["H", "V"] }, "center": { "type": "number" }, "width": { "type": "number", "exclusiveMinimum": 0 },
         "floor": { "type": "integer", "minimum": 1 }, "status": { "enum": ["verified", "derived", "estimated"] }
+      }
+    },
+    "room": {
+      "type": "object",
+      "required": ["id", "level", "label", "polygon", "status"],
+      "properties": {
+        "id": { "type": "string" }, "level": { "type": "integer", "minimum": 1 }, "label": { "type": "string" },
+        "polygon": { "type": "array", "minItems": 3, "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 } },
+        "status": { "enum": ["verified", "derived", "estimated"] }
+      }
+    },
+    "wall": {
+      "type": "object",
+      "required": ["id", "level", "x0", "x1", "z0", "z1", "orientation", "status"],
+      "properties": {
+        "id": { "type": "string" }, "level": { "type": "integer", "minimum": 1 },
+        "x0": { "type": "number" }, "x1": { "type": "number" }, "z0": { "type": "number" }, "z1": { "type": "number" },
+        "orientation": { "enum": ["H", "V"] }, "status": { "enum": ["verified", "derived", "estimated"] },
+        "sourceRooms": { "type": "array", "items": { "type": "string" } }
       }
     }
   }

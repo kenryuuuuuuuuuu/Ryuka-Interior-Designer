@@ -115,6 +115,37 @@ def build_exterior_walls(data, coll, mat):
                     box(f"wall-{fp['id']}-{face}-{i:02d}", fixed-thickness/2, fixed+thickness/2, a, b, low, high, coll, mat)
 
 
+def build_interior_walls(data, coll, mat):
+    """data['walls'](部屋ポリゴンから重複統合した壁芯データ)から室内壁を生成する。
+    同じ壁の上にある室内ドア(interiorDoors)を自動検出し、開口として切り欠く。
+    ドア高さは建具表が未入手のため暫定値(2.0m)。実データが揃い次第、
+    interiorDoorsにheightフィールドを足して置き換えること。
+    """
+    thickness = data["defaults"].get("interiorWallThickness", 0.06)
+    placeholder_door_height = 2.0
+    for wall in data["walls"]:
+        base = level_y(data, wall["level"])
+        height = data["defaults"]["ceilingHeight"]
+        doors_on_wall = []
+        for d in data["interiorDoors"]:
+            if d["floor"] != wall["level"] or d["orientation"] != wall["orientation"]:
+                continue
+            lo, hi = d["center"] - d["width"] / 2, d["center"] + d["width"] / 2
+            if wall["orientation"] == "H":
+                if abs(d["wallAt"] - wall["z0"]) < 0.01 and wall["x0"] - 0.01 <= lo and hi <= wall["x1"] + 0.01:
+                    doors_on_wall.append(d)
+            else:
+                if abs(d["wallAt"] - wall["x0"]) < 0.01 and wall["z0"] - 0.01 <= lo and hi <= wall["z1"] + 0.01:
+                    doors_on_wall.append(d)
+        cuts = [(d["center"] - d["width"] / 2, d["center"] + d["width"] / 2, 0, placeholder_door_height) for d in doors_on_wall]
+        if wall["orientation"] == "H":
+            for i, (a, b, low, high) in enumerate(wall_segments(wall["x0"], wall["x1"], base, height, cuts)):
+                box(f"{wall['id']}-{i:02d}", a, b, wall["z0"]-thickness/2, wall["z0"]+thickness/2, low, high, coll, mat)
+        else:
+            for i, (a, b, low, high) in enumerate(wall_segments(wall["z0"], wall["z1"], base, height, cuts)):
+                box(f"{wall['id']}-{i:02d}", wall["x0"]-thickness/2, wall["x0"]+thickness/2, a, b, low, high, coll, mat)
+
+
 def build_roof(data, roof, fp, coll, mat):
     z0, z1 = roof["zNorth"], roof["zSouth"]
     y0 = roof["baseAtZMinus0_5"] + (z0 + 0.5) * roof["pitch"]
@@ -138,14 +169,17 @@ def build(data):
     bpy.ops.object.delete(use_global=False)
     root = collection("RYUKA_DIGITAL_TWIN")
     slabs, walls = collection("Slabs", root), collection("ExteriorWalls", root)
+    interior_walls = collection("InteriorWalls", root)
     markers, specials, roofs = collection("DoorMarkers", root), collection("SpecialWalls", root), collection("Roofs", root)
     white = material("MAT_WhiteModel", (0.78, 0.82, 0.86, 1))
+    interior_white = material("MAT_InteriorWall", (0.92, 0.88, 0.78, 1))
     marker = material("MAT_DoorMarker", (0.2, 0.55, 0.9, 0.35))
     roof_mat = material("MAT_Roof", (0.45, 0.4, 0.34, 1))
     for fp in data["footprints"]:
         y = level_y(data, fp["level"])
         box(f"slab-{fp['id']}", fp["x0"], fp["x1"], fp["z0"], fp["z1"], y-0.12, y, slabs, white)
     build_exterior_walls(data, walls, white)
+    build_interior_walls(data, interior_walls, interior_white)
     for door in data["interiorDoors"]:
         base, thick, height = level_y(data, door["floor"]), 0.03, 1.9
         if door["orientation"] == "H":

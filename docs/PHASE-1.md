@@ -34,12 +34,19 @@ data/house.json
 
 ## Initial generation scope
 
-The generator creates named collections for slabs, exterior walls, openings,
-interior-door markers, special walls, and roofs. Exterior walls are split around
-openings, so windows and doors are actual voids rather than decals. Interior
-room partitions are intentionally deferred until their polygons are normalized
-as wall centerlines; generating walls from room boxes would duplicate shared
-walls and encode known approximations as construction geometry.
+The generator creates named collections for slabs, exterior walls, interior
+walls, openings, interior-door markers, special walls, and roofs. Exterior and
+interior walls are split around openings, so windows and doors are actual
+voids rather than decals.
+
+**Update (Phase 1b):** interior room partitions are no longer deferred. Room
+polygons were normalized into deduplicated wall centerlines (`data/house.json`
+`walls`, sourced from `rooms`) via a one-time conversion script external to
+this repository. Interior-door voids are cut into these walls using a
+placeholder door height (2.0 m) until real 建具表 (door schedule) heights are
+available. This conversion does not yet run automatically from
+`sync-house-from-html.mjs`; see the "rooms / walls" section in `README.md` for
+the staleness-detection mechanism and manual regeneration steps.
 
 ## Run
 
@@ -62,7 +69,8 @@ script and leaves the generated scene open.
 4. Compare Blender top orthographic view against the Three.js plan view at the
    910 mm grid.
 5. Check the four 1F footprint zones, 2F footprint, floor levels, 19 exterior
-   openings, 19 interior-door markers, sound wall, and two low-roof panels.
+   openings, 19 interior-door markers, 24 rooms, 23 interior walls, sound
+   wall, and two low-roof panels.
 6. Record discrepancies as data issues; do not hand-edit generated Blender
    geometry.
 

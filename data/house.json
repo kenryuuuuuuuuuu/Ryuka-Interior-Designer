@@ -1,65 +1,1504 @@
 {
   "schemaVersion": "1.0.0",
   "units": "m",
-  "coordinateSystem": { "x": "west_to_east", "z": "north_to_south", "y": "up", "origin": "GL_local" },
-  "provenance": { "migratedFrom": "interior-white-model.html", "snapshotDate": "2026-08-13", "note": "Phase 1 copy; the legacy HTML remains operational during migration." },
-  "levels": { "gl": 0, "fl1": 0.5, "fl2": 3.232, "eaveLow": 3.4, "eaveHigh": 4.567, "eave2": 6.3, "ridge": 7.423 },
-  "defaults": { "ceilingHeight": 2.4, "wallThickness": 0.12, "ceilingHeightStatus": "estimated" },
+  "coordinateSystem": {
+    "x": "west_to_east",
+    "z": "north_to_south",
+    "y": "up",
+    "origin": "GL_local"
+  },
+  "provenance": {
+    "migratedFrom": "interior-white-model.html",
+    "snapshotDate": "2026-08-13",
+    "note": "Phase 1 copy; the legacy HTML remains operational during migration. rooms/walls added in Phase 1b (room polygons -> deduplicated wall centerlines, derived from interior-white-model.html ROOMS_APPROX).",
+    "roomsSourceHash": "46b18acd7dadfefe834be1d451e4051a3926a7a17eb8c884adc1de2655544eb9",
+    "roomsSourceNote": "sha256 of the ROOMS_APPROX declaration in interior-white-model.html at the time rooms/walls were derived (Phase 1b, scripts external to this repo). If this hash no longer matches the current HTML, rooms/walls are stale and must be regenerated; sync-house-from-html.mjs --check will warn but cannot regenerate them automatically."
+  },
+  "levels": {
+    "gl": 0,
+    "fl1": 0.5,
+    "fl2": 3.232,
+    "eaveLow": 3.4,
+    "eaveHigh": 4.567,
+    "eave2": 6.3,
+    "ridge": 7.423
+  },
+  "defaults": {
+    "ceilingHeight": 2.4,
+    "wallThickness": 0.12,
+    "ceilingHeightStatus": "estimated",
+    "interiorWallThickness": 0.06
+  },
   "footprints": [
-    { "id": "1f-a1", "level": 1, "x0": 0, "x1": 9.1, "z0": 0.91, "z1": 6.37, "use": "民泊棟（玄関・洋室・LDK・水回り）", "status": "verified" },
-    { "id": "1f-a2", "level": 1, "x0": 9.1, "x1": 12.74, "z0": 0.455, "z1": 6.37, "use": "ヌック・自宅玄関・北土間", "status": "verified" },
-    { "id": "1f-a3", "level": 1, "x0": 12.74, "x1": 16.38, "z0": 0, "z1": 6.37, "use": "自宅LDK・階段", "status": "verified" },
-    { "id": "1f-a4", "level": 1, "x0": 16.38, "x1": 19.11, "z0": 0, "z1": 7.735, "use": "水回り・南土間", "status": "verified" },
-    { "id": "2f-main", "level": 2, "x0": 12.74, "x1": 19.11, "z0": 0, "z1": 6.37, "use": "2階", "status": "verified" }
+    {
+      "id": "1f-a1",
+      "level": 1,
+      "x0": 0,
+      "x1": 9.1,
+      "z0": 0.91,
+      "z1": 6.37,
+      "use": "民泊棟（玄関・洋室・LDK・水回り）",
+      "status": "verified"
+    },
+    {
+      "id": "1f-a2",
+      "level": 1,
+      "x0": 9.1,
+      "x1": 12.74,
+      "z0": 0.455,
+      "z1": 6.37,
+      "use": "ヌック・自宅玄関・北土間",
+      "status": "verified"
+    },
+    {
+      "id": "1f-a3",
+      "level": 1,
+      "x0": 12.74,
+      "x1": 16.38,
+      "z0": 0,
+      "z1": 6.37,
+      "use": "自宅LDK・階段",
+      "status": "verified"
+    },
+    {
+      "id": "1f-a4",
+      "level": 1,
+      "x0": 16.38,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 7.735,
+      "use": "水回り・南土間",
+      "status": "verified"
+    },
+    {
+      "id": "2f-main",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 6.37,
+      "use": "2階",
+      "status": "verified"
+    }
   ],
   "openings": [
-    { "id":"op-001","face":"N","offset":0.91,"width":0.95,"height":2.33,"sill":0,"level":1,"kind":"door","label":"民泊 玄関ドア","status":"verified" },
-    { "id":"op-002","face":"N","offset":3.5,"width":1.76,"height":1.03,"sill":1.33,"level":1,"kind":"window","label":"民泊 北窓","status":"verified" },
-    { "id":"op-003","face":"N","offset":9.535,"width":0.95,"height":2.33,"sill":0,"level":1,"kind":"door","label":"自宅 玄関ドア","status":"verified" },
-    { "id":"op-004","face":"N","offset":11.048,"width":0.71,"height":1,"sill":1,"level":1,"kind":"window","label":"土間・シューズクローク フィックス窓","status":"estimated" },
-    { "id":"op-005","face":"N","offset":13.699,"width":1.716,"height":0.45,"sill":1.97,"level":2,"kind":"window","label":"2階 階段北窓","status":"verified" },
-    { "id":"op-006","face":"S","offset":3.585,"width":1.77,"height":1.03,"sill":1.22,"level":1,"kind":"window","label":"民泊 腰窓","status":"verified" },
-    { "id":"op-007","face":"S","offset":5.88,"width":0.7,"height":0.56,"sill":1.69,"level":1,"kind":"window","label":"民泊 小窓","status":"verified" },
-    { "id":"op-008","face":"S","offset":9.2,"width":1.8,"height":1.03,"sill":1.25,"level":1,"kind":"window","label":"自宅 腰窓","status":"verified" },
-    { "id":"op-009","face":"S","offset":10.15,"width":0.7,"height":0.96,"sill":1.29,"level":1,"kind":"window","label":"自宅 小窓（西）","status":"verified" },
-    { "id":"op-010","face":"S","offset":11.665,"width":1.73,"height":2.26,"sill":0.19,"level":1,"kind":"window","label":"自宅LDK 掃き出し窓","status":"verified" },
-    { "id":"op-011","face":"S","offset":14.62,"width":0.7,"height":0.96,"sill":1.29,"level":1,"kind":"window","label":"自宅 小窓（東）","status":"verified" },
-    { "id":"op-012","face":"S","offset":13.681,"width":1.568,"height":0.96,"sill":1.32,"level":2,"kind":"window","label":"2階 南窓①(子供部屋1)","status":"verified" },
-    { "id":"op-013","face":"S","offset":16.375,"width":1.771,"height":0.96,"sill":1.32,"level":2,"kind":"window","label":"2階 南窓②(夫婦寝室)","status":"verified" },
-    { "id":"op-014","face":"E","offset":0.923,"width":1.623,"height":0.97,"sill":1.28,"level":2,"kind":"window","label":"2階 東窓①(子供部屋2)","status":"verified" },
-    { "id":"op-015","face":"E","offset":3.745,"width":1.457,"height":0.97,"sill":1.28,"level":2,"kind":"window","label":"2階 東窓②(夫婦寝室)","status":"verified" },
-    { "id":"op-016","face":"E","offset":3.065,"width":0.81,"height":0.36,"sill":2.23,"level":1,"kind":"window","label":"1階 東の細長窓","status":"verified" },
-    { "id":"op-017","face":"E","offset":7,"width":0.85,"height":2.33,"sill":0,"level":1,"kind":"door","label":"南土間 東のルーバー戸","status":"verified" },
-    { "id":"op-018","face":"W","wallX":12.74,"offset":1.95,"width":0.65,"height":0.6,"sill":1.86,"level":2,"kind":"window","label":"2階 廊下西窓","status":"verified" },
-    { "id":"op-019","face":"W","offset":3.2,"width":0.85,"height":0.35,"sill":2,"level":1,"kind":"window","label":"洗面脱衣室 天井近くフィックス窓","status":"verified" }
+    {
+      "id": "op-001",
+      "face": "N",
+      "offset": 0.91,
+      "width": 0.95,
+      "height": 2.33,
+      "sill": 0,
+      "level": 1,
+      "kind": "door",
+      "label": "民泊 玄関ドア",
+      "status": "verified"
+    },
+    {
+      "id": "op-002",
+      "face": "N",
+      "offset": 3.5,
+      "width": 1.76,
+      "height": 1.03,
+      "sill": 1.33,
+      "level": 1,
+      "kind": "window",
+      "label": "民泊 北窓",
+      "status": "verified"
+    },
+    {
+      "id": "op-003",
+      "face": "N",
+      "offset": 9.535,
+      "width": 0.95,
+      "height": 2.33,
+      "sill": 0,
+      "level": 1,
+      "kind": "door",
+      "label": "自宅 玄関ドア",
+      "status": "verified"
+    },
+    {
+      "id": "op-004",
+      "face": "N",
+      "offset": 11.048,
+      "width": 0.71,
+      "height": 1,
+      "sill": 1,
+      "level": 1,
+      "kind": "window",
+      "label": "土間・シューズクローク フィックス窓",
+      "status": "estimated"
+    },
+    {
+      "id": "op-005",
+      "face": "N",
+      "offset": 13.699,
+      "width": 1.716,
+      "height": 0.45,
+      "sill": 1.97,
+      "level": 2,
+      "kind": "window",
+      "label": "2階 階段北窓",
+      "status": "verified"
+    },
+    {
+      "id": "op-006",
+      "face": "S",
+      "offset": 3.585,
+      "width": 1.77,
+      "height": 1.03,
+      "sill": 1.22,
+      "level": 1,
+      "kind": "window",
+      "label": "民泊 腰窓",
+      "status": "verified"
+    },
+    {
+      "id": "op-007",
+      "face": "S",
+      "offset": 5.88,
+      "width": 0.7,
+      "height": 0.56,
+      "sill": 1.69,
+      "level": 1,
+      "kind": "window",
+      "label": "民泊 小窓",
+      "status": "verified"
+    },
+    {
+      "id": "op-008",
+      "face": "S",
+      "offset": 9.2,
+      "width": 1.8,
+      "height": 1.03,
+      "sill": 1.25,
+      "level": 1,
+      "kind": "window",
+      "label": "自宅 腰窓",
+      "status": "verified"
+    },
+    {
+      "id": "op-009",
+      "face": "S",
+      "offset": 10.15,
+      "width": 0.7,
+      "height": 0.96,
+      "sill": 1.29,
+      "level": 1,
+      "kind": "window",
+      "label": "自宅 小窓（西）",
+      "status": "verified"
+    },
+    {
+      "id": "op-010",
+      "face": "S",
+      "offset": 11.665,
+      "width": 1.73,
+      "height": 2.26,
+      "sill": 0.19,
+      "level": 1,
+      "kind": "window",
+      "label": "自宅LDK 掃き出し窓",
+      "status": "verified"
+    },
+    {
+      "id": "op-011",
+      "face": "S",
+      "offset": 14.62,
+      "width": 0.7,
+      "height": 0.96,
+      "sill": 1.29,
+      "level": 1,
+      "kind": "window",
+      "label": "自宅 小窓（東）",
+      "status": "verified"
+    },
+    {
+      "id": "op-012",
+      "face": "S",
+      "offset": 13.681,
+      "width": 1.568,
+      "height": 0.96,
+      "sill": 1.32,
+      "level": 2,
+      "kind": "window",
+      "label": "2階 南窓①(子供部屋1)",
+      "status": "verified"
+    },
+    {
+      "id": "op-013",
+      "face": "S",
+      "offset": 16.375,
+      "width": 1.771,
+      "height": 0.96,
+      "sill": 1.32,
+      "level": 2,
+      "kind": "window",
+      "label": "2階 南窓②(夫婦寝室)",
+      "status": "verified"
+    },
+    {
+      "id": "op-014",
+      "face": "E",
+      "offset": 0.923,
+      "width": 1.623,
+      "height": 0.97,
+      "sill": 1.28,
+      "level": 2,
+      "kind": "window",
+      "label": "2階 東窓①(子供部屋2)",
+      "status": "verified"
+    },
+    {
+      "id": "op-015",
+      "face": "E",
+      "offset": 3.745,
+      "width": 1.457,
+      "height": 0.97,
+      "sill": 1.28,
+      "level": 2,
+      "kind": "window",
+      "label": "2階 東窓②(夫婦寝室)",
+      "status": "verified"
+    },
+    {
+      "id": "op-016",
+      "face": "E",
+      "offset": 3.065,
+      "width": 0.81,
+      "height": 0.36,
+      "sill": 2.23,
+      "level": 1,
+      "kind": "window",
+      "label": "1階 東の細長窓",
+      "status": "verified"
+    },
+    {
+      "id": "op-017",
+      "face": "E",
+      "offset": 7,
+      "width": 0.85,
+      "height": 2.33,
+      "sill": 0,
+      "level": 1,
+      "kind": "door",
+      "label": "南土間 東のルーバー戸",
+      "status": "verified"
+    },
+    {
+      "id": "op-018",
+      "face": "W",
+      "wallX": 12.74,
+      "offset": 1.95,
+      "width": 0.65,
+      "height": 0.6,
+      "sill": 1.86,
+      "level": 2,
+      "kind": "window",
+      "label": "2階 廊下西窓",
+      "status": "verified"
+    },
+    {
+      "id": "op-019",
+      "face": "W",
+      "offset": 3.2,
+      "width": 0.85,
+      "height": 0.35,
+      "sill": 2,
+      "level": 1,
+      "kind": "window",
+      "label": "洗面脱衣室 天井近くフィックス窓",
+      "status": "verified"
+    }
   ],
   "interiorDoors": [
-    {"id":"door-001","label":"トイレ⟷玄関","wallAt":0.91,"orientation":"V","center":2.33,"width":0.8,"floor":1,"status":"verified"},
-    {"id":"door-002","label":"玄関⟷洗面脱衣室","wallAt":2.73,"orientation":"H","center":1.355,"width":0.8,"floor":1,"status":"verified"},
-    {"id":"door-003","label":"洗面脱衣室⟷UB","wallAt":4.55,"orientation":"H","center":1.371,"width":0.8,"floor":1,"status":"verified"},
-    {"id":"door-004","label":"玄関⟷LDK張り出し","wallAt":2.73,"orientation":"H","center":2.274,"width":0.8,"floor":1,"status":"verified"},
-    {"id":"door-005","label":"玄関⟷洋室","wallAt":2.73,"orientation":"V","center":2.329,"width":0.8,"floor":1,"status":"verified"},
-    {"id":"door-006","label":"ヌック⟷LDK","wallAt":2.73,"orientation":"H","center":8.218,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-007","label":"自宅玄関・ホール⟷LDK","wallAt":2.73,"orientation":"H","center":9.555,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-008","label":"自宅玄関・ホール⟷土間・シューズクローク","wallAt":10.92,"orientation":"V","center":0.91,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-009","label":"土間・シューズクローク⟷LDK","wallAt":2.275,"orientation":"H","center":13.195,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-010","label":"LDK(キッチン部)⟷廊下+収納","wallAt":15.471,"orientation":"V","center":2.275,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-011","label":"ファミリークローク⟷廊下+収納","wallAt":1.82,"orientation":"H","center":16,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-012","label":"トイレ(東)⟷洗面(東)","wallAt":2.73,"orientation":"H","center":17.746,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-013","label":"廊下+収納⟷脱衣室","wallAt":3.64,"orientation":"H","center":16.836,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-014","label":"脱衣室⟷UB(東)","wallAt":17.291,"orientation":"V","center":4.584,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-015","label":"脱衣室⟷南土間","wallAt":6.37,"orientation":"H","center":16.836,"width":0.91,"floor":1,"status":"verified"},
-    {"id":"door-016","label":"トイレ(2F)⟷廊下(2F)","wallAt":1.82,"orientation":"H","center":13.195,"width":0.91,"floor":2,"status":"verified"},
-    {"id":"door-017","label":"廊下(2F)⟷子供部屋1","wallAt":2.73,"orientation":"H","center":15.015,"width":0.91,"floor":2,"status":"verified"},
-    {"id":"door-018","label":"廊下(2F)⟷子供部屋2","wallAt":16.38,"orientation":"V","center":2.275,"width":0.91,"floor":2,"status":"verified"},
-    {"id":"door-019","label":"廊下(2F)⟷夫婦寝室","wallAt":2.73,"orientation":"H","center":15.925,"width":0.91,"floor":2,"status":"verified"}
+    {
+      "id": "door-001",
+      "label": "トイレ⟷玄関",
+      "wallAt": 0.91,
+      "orientation": "V",
+      "center": 2.33,
+      "width": 0.8,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-002",
+      "label": "玄関⟷洗面脱衣室",
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 1.355,
+      "width": 0.8,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-003",
+      "label": "洗面脱衣室⟷UB",
+      "wallAt": 4.55,
+      "orientation": "H",
+      "center": 1.371,
+      "width": 0.8,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-004",
+      "label": "玄関⟷LDK張り出し",
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 2.274,
+      "width": 0.8,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-005",
+      "label": "玄関⟷洋室",
+      "wallAt": 2.73,
+      "orientation": "V",
+      "center": 2.329,
+      "width": 0.8,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-006",
+      "label": "ヌック⟷LDK",
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 8.218,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-007",
+      "label": "自宅玄関・ホール⟷LDK",
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 9.555,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-008",
+      "label": "自宅玄関・ホール⟷土間・シューズクローク",
+      "wallAt": 10.92,
+      "orientation": "V",
+      "center": 0.91,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-009",
+      "label": "土間・シューズクローク⟷LDK",
+      "wallAt": 2.275,
+      "orientation": "H",
+      "center": 13.195,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-010",
+      "label": "LDK(キッチン部)⟷廊下+収納",
+      "wallAt": 15.471,
+      "orientation": "V",
+      "center": 2.275,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-011",
+      "label": "ファミリークローク⟷廊下+収納",
+      "wallAt": 1.82,
+      "orientation": "H",
+      "center": 16,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-012",
+      "label": "トイレ(東)⟷洗面(東)",
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 17.746,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-013",
+      "label": "廊下+収納⟷脱衣室",
+      "wallAt": 3.64,
+      "orientation": "H",
+      "center": 16.836,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-014",
+      "label": "脱衣室⟷UB(東)",
+      "wallAt": 17.291,
+      "orientation": "V",
+      "center": 4.584,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-015",
+      "label": "脱衣室⟷南土間",
+      "wallAt": 6.37,
+      "orientation": "H",
+      "center": 16.836,
+      "width": 0.91,
+      "floor": 1,
+      "status": "verified"
+    },
+    {
+      "id": "door-016",
+      "label": "トイレ(2F)⟷廊下(2F)",
+      "wallAt": 1.82,
+      "orientation": "H",
+      "center": 13.195,
+      "width": 0.91,
+      "floor": 2,
+      "status": "verified"
+    },
+    {
+      "id": "door-017",
+      "label": "廊下(2F)⟷子供部屋1",
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 15.015,
+      "width": 0.91,
+      "floor": 2,
+      "status": "verified"
+    },
+    {
+      "id": "door-018",
+      "label": "廊下(2F)⟷子供部屋2",
+      "wallAt": 16.38,
+      "orientation": "V",
+      "center": 2.275,
+      "width": 0.91,
+      "floor": 2,
+      "status": "verified"
+    },
+    {
+      "id": "door-019",
+      "label": "廊下(2F)⟷夫婦寝室",
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 15.925,
+      "width": 0.91,
+      "floor": 2,
+      "status": "verified"
+    }
   ],
   "specialWalls": [
-    { "id":"sound-wall-01", "label":"民泊-自宅 防音壁", "x":7.28, "z0":0.91, "z1":6.37, "level":1, "topY":3.4, "status":"verified" }
+    {
+      "id": "sound-wall-01",
+      "label": "民泊-自宅 防音壁",
+      "x": 7.28,
+      "z0": 0.91,
+      "z1": 6.37,
+      "level": 1,
+      "topY": 3.4,
+      "status": "verified"
+    }
   ],
   "roofs": [
-    { "id":"roof-a1", "footprintId":"1f-a1", "zNorth":0.41, "zSouth":7.28, "pitch":0.15, "thickness":0.15, "baseAtZMinus0_5":3.4, "status":"derived" },
-    { "id":"roof-a2", "footprintId":"1f-a2", "zNorth":-0.045, "zSouth":7.28, "pitch":0.15, "thickness":0.15, "baseAtZMinus0_5":3.4, "status":"derived" }
+    {
+      "id": "roof-a1",
+      "footprintId": "1f-a1",
+      "zNorth": 0.41,
+      "zSouth": 7.28,
+      "pitch": 0.15,
+      "thickness": 0.15,
+      "baseAtZMinus0_5": 3.4,
+      "status": "derived"
+    },
+    {
+      "id": "roof-a2",
+      "footprintId": "1f-a2",
+      "zNorth": -0.045,
+      "zSouth": 7.28,
+      "pitch": 0.15,
+      "thickness": 0.15,
+      "baseAtZMinus0_5": 3.4,
+      "status": "derived"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "room-1f-01",
+      "level": 1,
+      "label": "トイレ(民泊)",
+      "polygon": [
+        [
+          0.0,
+          0.91
+        ],
+        [
+          0.91,
+          0.91
+        ],
+        [
+          0.91,
+          2.73
+        ],
+        [
+          0.0,
+          2.73
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-02",
+      "level": 1,
+      "label": "玄関(民泊)",
+      "polygon": [
+        [
+          0.91,
+          0.91
+        ],
+        [
+          2.73,
+          0.91
+        ],
+        [
+          2.73,
+          2.73
+        ],
+        [
+          0.91,
+          2.73
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-03",
+      "level": 1,
+      "label": "洗面脱衣室",
+      "polygon": [
+        [
+          0.0,
+          2.73
+        ],
+        [
+          1.82,
+          2.73
+        ],
+        [
+          1.82,
+          4.55
+        ],
+        [
+          0.0,
+          4.55
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-04",
+      "level": 1,
+      "label": "UB(民泊)",
+      "polygon": [
+        [
+          0.0,
+          4.55
+        ],
+        [
+          1.82,
+          4.55
+        ],
+        [
+          1.82,
+          6.37
+        ],
+        [
+          0.0,
+          6.37
+        ]
+      ],
+      "status": "derived"
+    },
+    {
+      "id": "room-1f-05",
+      "level": 1,
+      "label": "洋室",
+      "polygon": [
+        [
+          2.73,
+          0.91
+        ],
+        [
+          7.28,
+          0.91
+        ],
+        [
+          7.28,
+          3.691
+        ],
+        [
+          2.73,
+          3.691
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-06",
+      "level": 1,
+      "label": "LDK(民泊)",
+      "polygon": [
+        [
+          1.82,
+          2.73
+        ],
+        [
+          2.73,
+          2.73
+        ],
+        [
+          2.73,
+          3.691
+        ],
+        [
+          7.28,
+          3.691
+        ],
+        [
+          7.28,
+          6.37
+        ],
+        [
+          1.82,
+          6.37
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-07",
+      "level": 1,
+      "label": "ヌック",
+      "polygon": [
+        [
+          7.28,
+          0.91
+        ],
+        [
+          9.1,
+          0.91
+        ],
+        [
+          9.1,
+          2.73
+        ],
+        [
+          7.28,
+          2.73
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-08",
+      "level": 1,
+      "label": "自宅玄関・ホール",
+      "polygon": [
+        [
+          9.1,
+          0.455
+        ],
+        [
+          10.92,
+          0.455
+        ],
+        [
+          10.92,
+          2.73
+        ],
+        [
+          9.1,
+          2.73
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-09",
+      "level": 1,
+      "label": "土間・シューズクローク",
+      "polygon": [
+        [
+          10.92,
+          0.455
+        ],
+        [
+          12.74,
+          0.455
+        ],
+        [
+          12.74,
+          0.0
+        ],
+        [
+          13.651,
+          0.0
+        ],
+        [
+          13.651,
+          2.275
+        ],
+        [
+          10.92,
+          2.275
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-10",
+      "level": 1,
+      "label": "階段（曲がり階段）＋パントリー",
+      "polygon": [
+        [
+          13.651,
+          0.0
+        ],
+        [
+          15.471,
+          0.0
+        ],
+        [
+          15.471,
+          1.82
+        ],
+        [
+          13.651,
+          1.82
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-11",
+      "level": 1,
+      "label": "LDK",
+      "polygon": [
+        [
+          7.28,
+          2.73
+        ],
+        [
+          10.92,
+          2.73
+        ],
+        [
+          10.92,
+          2.275
+        ],
+        [
+          13.651,
+          2.275
+        ],
+        [
+          13.651,
+          1.82
+        ],
+        [
+          15.471,
+          1.82
+        ],
+        [
+          15.471,
+          6.37
+        ],
+        [
+          7.28,
+          6.37
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-12",
+      "level": 1,
+      "label": "ファミリークローク",
+      "polygon": [
+        [
+          15.471,
+          0.0
+        ],
+        [
+          19.11,
+          0.0
+        ],
+        [
+          19.11,
+          1.82
+        ],
+        [
+          15.471,
+          1.82
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-13",
+      "level": 1,
+      "label": "廊下＋収納",
+      "polygon": [
+        [
+          15.471,
+          1.82
+        ],
+        [
+          17.291,
+          1.82
+        ],
+        [
+          17.291,
+          3.64
+        ],
+        [
+          15.471,
+          3.64
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-14",
+      "level": 1,
+      "label": "トイレ(東)",
+      "polygon": [
+        [
+          17.291,
+          1.82
+        ],
+        [
+          19.11,
+          1.82
+        ],
+        [
+          19.11,
+          2.73
+        ],
+        [
+          17.291,
+          2.73
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-15",
+      "level": 1,
+      "label": "洗面(東)",
+      "polygon": [
+        [
+          17.291,
+          2.73
+        ],
+        [
+          19.11,
+          2.73
+        ],
+        [
+          19.11,
+          4.095
+        ],
+        [
+          17.291,
+          4.095
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-16",
+      "level": 1,
+      "label": "脱衣室",
+      "polygon": [
+        [
+          15.471,
+          3.64
+        ],
+        [
+          17.291,
+          3.64
+        ],
+        [
+          17.291,
+          6.37
+        ],
+        [
+          15.471,
+          6.37
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-17",
+      "level": 1,
+      "label": "UB(東)",
+      "polygon": [
+        [
+          17.291,
+          4.095
+        ],
+        [
+          19.11,
+          4.095
+        ],
+        [
+          19.11,
+          6.37
+        ],
+        [
+          17.291,
+          6.37
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-1f-18",
+      "level": 1,
+      "label": "南土間",
+      "polygon": [
+        [
+          16.38,
+          6.37
+        ],
+        [
+          19.11,
+          6.37
+        ],
+        [
+          19.11,
+          7.735
+        ],
+        [
+          16.38,
+          7.735
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-2f-01",
+      "level": 2,
+      "label": "トイレ(2F)",
+      "polygon": [
+        [
+          12.74,
+          0.0
+        ],
+        [
+          13.651,
+          0.0
+        ],
+        [
+          13.651,
+          1.82
+        ],
+        [
+          12.74,
+          1.82
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-2f-02",
+      "level": 2,
+      "label": "階段(2F)",
+      "polygon": [
+        [
+          13.651,
+          0.0
+        ],
+        [
+          15.47,
+          0.0
+        ],
+        [
+          15.47,
+          1.82
+        ],
+        [
+          13.651,
+          1.82
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-2f-03",
+      "level": 2,
+      "label": "廊下(2F)",
+      "polygon": [
+        [
+          12.74,
+          1.82
+        ],
+        [
+          16.38,
+          1.82
+        ],
+        [
+          16.38,
+          2.73
+        ],
+        [
+          12.74,
+          2.73
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-2f-04",
+      "level": 2,
+      "label": "子供部屋1",
+      "polygon": [
+        [
+          12.74,
+          2.73
+        ],
+        [
+          15.47,
+          2.73
+        ],
+        [
+          15.47,
+          6.37
+        ],
+        [
+          12.74,
+          6.37
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-2f-05",
+      "level": 2,
+      "label": "子供部屋2",
+      "polygon": [
+        [
+          15.47,
+          0.0
+        ],
+        [
+          19.11,
+          0.0
+        ],
+        [
+          19.11,
+          2.73
+        ],
+        [
+          16.38,
+          2.73
+        ],
+        [
+          16.38,
+          1.82
+        ],
+        [
+          15.47,
+          1.82
+        ]
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "room-2f-06",
+      "level": 2,
+      "label": "夫婦寝室",
+      "polygon": [
+        [
+          15.47,
+          2.73
+        ],
+        [
+          19.11,
+          2.73
+        ],
+        [
+          19.11,
+          6.37
+        ],
+        [
+          15.47,
+          6.37
+        ]
+      ],
+      "status": "verified"
+    }
+  ],
+  "walls": [
+    {
+      "id": "wall-1f-001",
+      "level": 1,
+      "x0": 13.651,
+      "x1": 19.11,
+      "z0": 1.82,
+      "z1": 1.82,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK",
+        "トイレ(東)",
+        "ファミリークローク",
+        "廊下＋収納",
+        "階段（曲がり階段）＋パントリー"
+      ]
+    },
+    {
+      "id": "wall-1f-002",
+      "level": 1,
+      "x0": 10.92,
+      "x1": 13.651,
+      "z0": 2.275,
+      "z1": 2.275,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK",
+        "土間・シューズクローク"
+      ]
+    },
+    {
+      "id": "wall-1f-003",
+      "level": 1,
+      "x0": 0.0,
+      "x1": 2.73,
+      "z0": 2.73,
+      "z1": 2.73,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK(民泊)",
+        "トイレ(民泊)",
+        "洗面脱衣室",
+        "玄関(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-004",
+      "level": 1,
+      "x0": 7.28,
+      "x1": 10.92,
+      "z0": 2.73,
+      "z1": 2.73,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK",
+        "ヌック",
+        "自宅玄関・ホール"
+      ]
+    },
+    {
+      "id": "wall-1f-005",
+      "level": 1,
+      "x0": 17.291,
+      "x1": 19.11,
+      "z0": 2.73,
+      "z1": 2.73,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "トイレ(東)",
+        "洗面(東)"
+      ]
+    },
+    {
+      "id": "wall-1f-006",
+      "level": 1,
+      "x0": 15.471,
+      "x1": 17.291,
+      "z0": 3.64,
+      "z1": 3.64,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "廊下＋収納",
+        "脱衣室"
+      ]
+    },
+    {
+      "id": "wall-1f-007",
+      "level": 1,
+      "x0": 2.73,
+      "x1": 7.28,
+      "z0": 3.691,
+      "z1": 3.691,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK(民泊)",
+        "洋室"
+      ]
+    },
+    {
+      "id": "wall-1f-008",
+      "level": 1,
+      "x0": 17.291,
+      "x1": 19.11,
+      "z0": 4.095,
+      "z1": 4.095,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "UB(東)",
+        "洗面(東)"
+      ]
+    },
+    {
+      "id": "wall-1f-009",
+      "level": 1,
+      "x0": 0.0,
+      "x1": 1.82,
+      "z0": 4.55,
+      "z1": 4.55,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "UB(民泊)",
+        "洗面脱衣室"
+      ]
+    },
+    {
+      "id": "wall-1f-010",
+      "level": 1,
+      "x0": 16.38,
+      "x1": 19.11,
+      "z0": 6.37,
+      "z1": 6.37,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "UB(東)",
+        "南土間",
+        "脱衣室"
+      ]
+    },
+    {
+      "id": "wall-1f-011",
+      "level": 1,
+      "x0": 0.91,
+      "x1": 0.91,
+      "z0": 0.91,
+      "z1": 2.73,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "トイレ(民泊)",
+        "玄関(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-012",
+      "level": 1,
+      "x0": 1.82,
+      "x1": 1.82,
+      "z0": 2.73,
+      "z1": 6.37,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK(民泊)",
+        "UB(民泊)",
+        "洗面脱衣室"
+      ]
+    },
+    {
+      "id": "wall-1f-013",
+      "level": 1,
+      "x0": 2.73,
+      "x1": 2.73,
+      "z0": 0.91,
+      "z1": 3.691,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK(民泊)",
+        "洋室",
+        "玄関(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-014",
+      "level": 1,
+      "x0": 10.92,
+      "x1": 10.92,
+      "z0": 0.455,
+      "z1": 2.73,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK",
+        "土間・シューズクローク",
+        "自宅玄関・ホール"
+      ]
+    },
+    {
+      "id": "wall-1f-015",
+      "level": 1,
+      "x0": 13.651,
+      "x1": 13.651,
+      "z0": 0.0,
+      "z1": 2.275,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK",
+        "土間・シューズクローク",
+        "階段（曲がり階段）＋パントリー"
+      ]
+    },
+    {
+      "id": "wall-1f-016",
+      "level": 1,
+      "x0": 15.471,
+      "x1": 15.471,
+      "z0": 0.0,
+      "z1": 6.37,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "LDK",
+        "ファミリークローク",
+        "廊下＋収納",
+        "脱衣室",
+        "階段（曲がり階段）＋パントリー"
+      ]
+    },
+    {
+      "id": "wall-1f-017",
+      "level": 1,
+      "x0": 17.291,
+      "x1": 17.291,
+      "z0": 1.82,
+      "z1": 6.37,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "UB(東)",
+        "トイレ(東)",
+        "廊下＋収納",
+        "洗面(東)",
+        "脱衣室"
+      ]
+    },
+    {
+      "id": "wall-2f-001",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 16.38,
+      "z0": 1.82,
+      "z1": 1.82,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "トイレ(2F)",
+        "子供部屋2",
+        "廊下(2F)",
+        "階段(2F)"
+      ]
+    },
+    {
+      "id": "wall-2f-002",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 19.11,
+      "z0": 2.73,
+      "z1": 2.73,
+      "orientation": "H",
+      "status": "derived",
+      "sourceRooms": [
+        "夫婦寝室",
+        "子供部屋1",
+        "子供部屋2",
+        "廊下(2F)"
+      ]
+    },
+    {
+      "id": "wall-2f-003",
+      "level": 2,
+      "x0": 13.651,
+      "x1": 13.651,
+      "z0": 0.0,
+      "z1": 1.82,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "トイレ(2F)",
+        "階段(2F)"
+      ]
+    },
+    {
+      "id": "wall-2f-004",
+      "level": 2,
+      "x0": 15.47,
+      "x1": 15.47,
+      "z0": 0.0,
+      "z1": 1.82,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "子供部屋2",
+        "階段(2F)"
+      ]
+    },
+    {
+      "id": "wall-2f-005",
+      "level": 2,
+      "x0": 15.47,
+      "x1": 15.47,
+      "z0": 2.73,
+      "z1": 6.37,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "夫婦寝室",
+        "子供部屋1"
+      ]
+    },
+    {
+      "id": "wall-2f-006",
+      "level": 2,
+      "x0": 16.38,
+      "x1": 16.38,
+      "z0": 1.82,
+      "z1": 2.73,
+      "orientation": "V",
+      "status": "derived",
+      "sourceRooms": [
+        "子供部屋2",
+        "廊下(2F)"
+      ]
+    }
   ]
 }
-
