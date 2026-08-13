@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -17,6 +18,28 @@ if (!["--check", "--write"].includes(mode)) {
 
 const html = fs.readFileSync(htmlPath, "utf8");
 const house = JSON.parse(fs.readFileSync(housePath, "utf8"));
+
+// rooms/walls は Phase 1b でこのリポジトリ外の一度きりの変換スクリプトにより
+// ROOMS_APPROX から生成された。この同期ツールはまだ rooms/walls を再生成できないため、
+// ROOMS_APPROX の内容が生成時から変わっていないかをハッシュで検知し、
+// 変わっていれば警告するだけに留める。
+function checkRoomsFreshness() {
+  const start = html.indexOf("const ROOMS_APPROX =");
+  if (start < 0) return;
+  const end = html.indexOf("};", start) + 2;
+  const block = html.slice(start, end);
+  const currentHash = crypto.createHash("sha256").update(block, "utf8").digest("hex");
+  const recordedHash = house.provenance?.roomsSourceHash;
+  if (recordedHash && currentHash !== recordedHash) {
+    console.warn(
+      "WARNING: ROOMS_APPROX in interior-white-model.html has changed since " +
+      "data/house.json's rooms/walls were generated. rooms/walls are now STALE. " +
+      "This script cannot regenerate them; re-run the room/wall extraction step " +
+      "manually and update provenance.roomsSourceHash."
+    );
+  }
+}
+checkRoomsFreshness();
 
 function declaration(name) {
   const start = html.indexOf(`const ${name} =`);
