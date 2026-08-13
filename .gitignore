@@ -1,3 +1,8 @@
 .DS_Store
 *.log
 node_modules/
+build/
+*.blend
+*.blend1
+__pycache__/
+*.py[cod]

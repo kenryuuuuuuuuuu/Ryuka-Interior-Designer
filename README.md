@@ -1,5 +1,20 @@
 # Ryuka Interior Designer
 
+住宅図面をもとにしたThree.js内装白模型と、Blenderで再生成可能な住宅デジタルツイン基盤です。
+
+## Digital twin foundation (Phase 1)
+
+既存の `interior-white-model.html` はそのまま動作します。Phase 1では、HTML内の確定済み建物データを `data/house.json` に複製し、Blenderから白模型を再生成できる経路を追加しました。Web版のJSON読込への切替は、比較検証しながら後続フェーズで段階的に行います。
+
+- `data/house.json` — 建物形状、階高、開口、室内ドア、防音壁、屋根
+- `data/house.schema.json` — データ契約
+- `data/electrical.json` / `data/furniture.json` — 次フェーズ用の領域
+- `blender/build_house.py` — Blender白模型ジェネレーター
+- `docs/PHASE-1.md` — 実装仕様、実行方法、検証項目
+- `AGENTS.md` — データ更新・移行時の作業ルール
+
+座標と単位は従来どおりメートル、`x=西→東 / z=北→南 / y=高さ` です。Blenderでは高さをZ軸に合わせるため `(x, z, y) → (X, -Y, Z)` と変換します。
+
 自宅新築プロジェクトの内装3D白模型（Three.js）。
 
 寸法・間取り・ドア・窓の位置を、施工会社の実施図面と参考資料（マイホームクラウド間取り図）の突き合わせ検証を通じて構築している。
