@@ -25,6 +25,10 @@ if (!["--check", "--write"].includes(mode)) {
 }
 
 const house = JSON.parse(fs.readFileSync(housePath, "utf8"));
+const furnitureCatalogPath = path.join(root, "data", "furniture-catalog.json");
+const furniturePath = path.join(root, "data", "furniture.json");
+const furnitureCatalog = JSON.parse(fs.readFileSync(furnitureCatalogPath, "utf8"));
+const furniture = JSON.parse(fs.readFileSync(furniturePath, "utf8"));
 
 const CONF_FROM_STATUS = { verified: "高", derived: "中", estimated: "低" };
 
@@ -145,11 +149,39 @@ function buildWalls() {
   return `const WALLS = [\n${rows}\n];`;
 }
 
+function buildFurnitureCatalog() {
+  const rows = furnitureCatalog.types
+    .map((t) => `  ${str(t.type)}: { label:${str(t.label)}, category:${str(t.category)}, shape:${str(t.shape)}, width:${num(t.width)}, depth:${num(t.depth)}, height:${num(t.height)}, clearance:${num(t.clearance)} }`)
+    .join(",\n");
+  return `const FURNITURE_CATALOG = {\n${rows}\n};`;
+}
+
+function buildFurnitureItems() {
+  const byType = Object.fromEntries(furnitureCatalog.types.map((t) => [t.type, t]));
+  const rows = furniture.items.map((item) => {
+    const profile = byType[item.type];
+    if (!profile) throw new Error(`furniture.json: ${item.id} が未知のtype「${item.type}」を参照している`);
+    const fields = [
+      `id:${str(item.id)}`, `type:${str(item.type)}`, `level:${item.level}`,
+      `x:${num(item.x)}`, `z:${num(item.z)}`, `rotation:${item.rotation}`,
+      `width:${num(item.widthOverride ?? profile.width)}`,
+      `depth:${num(item.depthOverride ?? profile.depth)}`,
+      `height:${num(item.heightOverride ?? profile.height)}`,
+      `label:${str(item.label ?? profile.label)}`,
+      `status:${str(item.status)}`,
+    ];
+    if (item.room) fields.push(`room:${str(item.room)}`);
+    return withNote(`  { ${fields.join(", ")} },`, item.note);
+  });
+  return `const FURNITURE_ITEMS = [\n${rows.join("\n")}\n];`;
+}
+
 const banner = `// ============================================================================
 // 自動生成ファイル。手で編集しないこと。
-// 生成元: data/house.json （このリポジトリの正本）
+// 生成元: data/house.json / data/furniture-catalog.json / data/furniture.json
+//        （このリポジトリの正本）
 // 生成コマンド: node scripts/build-web-data.mjs
-// house.json を編集したら、このファイルを再生成してからブラウザで確認すること。
+// これらのJSONを編集したら、このファイルを再生成してからブラウザで確認すること。
 // ============================================================================`;
 
 const CEIL_H = `const CEIL_H = ${num(house.defaults.ceilingHeight)}; // ${house.defaults.ceilingHeightStatus === "estimated" ? "推測値（要確認）" : house.defaults.ceilingHeightStatus}`;
@@ -178,12 +210,16 @@ const output = [
   "",
   buildRoofs(),
   "",
+  buildFurnitureCatalog(),
+  "",
+  buildFurnitureItems(),
+  "",
 ].join("\n");
 
 if (mode === "--check") {
   const current = fs.existsSync(outPath) ? fs.readFileSync(outPath, "utf8") : null;
   if (current === output) {
-    console.log("generated/house-data.js is up to date with data/house.json.");
+    console.log("generated/house-data.js is up to date with data/house.json / furniture-catalog.json / furniture.json.");
     process.exit(0);
   }
   console.error("generated/house-data.js is STALE. Run: node scripts/build-web-data.mjs");
@@ -192,4 +228,4 @@ if (mode === "--check") {
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, output, "utf8");
-console.log(`Wrote ${path.relative(root, outPath)} from data/house.json.`);
+console.log(`Wrote ${path.relative(root, outPath)} from data/house.json / furniture-catalog.json / furniture.json.`);

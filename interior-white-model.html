@@ -143,6 +143,7 @@
 
   <div class="section-title">表示レイヤー</div>
   <label><input type="checkbox" id="chkApprox" checked> 室内間仕切り（概算・要確認）</label>
+  <label><input type="checkbox" id="chkFurniture" checked> 家具・設備（配置検討中）</label>
   <label><input type="checkbox" id="chkOpenings" checked> 窓・ドア（確定位置）</label>
   <label><input type="checkbox" id="chkSound" checked> 防音壁（民泊-自宅境界）</label>
   <label><input type="checkbox" id="chkRoof"> 屋根（1F片流れ＋2F切妻）</label>
@@ -158,11 +159,13 @@
   <div class="legend-item"><div class="swatch" style="background:#ff1fb0;"></div>確定：ドア（外部・室内とも共通色）</div>
   <div class="legend-item"><div class="swatch" style="background:#a89f8f;"></div>屋根：1F片流れ（平屋部A1/A2、1.5寸勾配。x=9.100の継ぎ目は簡略化）／2F切妻（3寸勾配、棟は東西方向。妻壁は未モデル化）</div>
   <div class="legend-item"><div class="swatch" style="background:#4caf50;"></div>確定：室内ドア位置（施主指摘の座標をピクセル解析）</div>
+  <div class="legend-item"><div class="swatch" style="background:#b98d5e;"></div>家具・設備（配置検討中。位置・サイズとも仮／status: estimated）</div>
   <hr>
   <div style="font-size:11px;color:#777;line-height:1.6;">
   天井高は全室2,400mm（推測・要施工会社確認）を暫定採用。<br>
   室内間仕切りの正確な壁位置はCAD原本があれば精度が上がります。<br>
-  内覧モードの壁の当たり判定は概算です（実測厚みではなく簡略化した厚みを使用）。
+  内覧モードの壁の当たり判定は概算です（実測厚みではなく簡略化した厚みを使用）。<br>
+  家具・設備は日本の住宅設備の標準寸法をもとにした仮配置で、実測値ではありません。
   </div>
 </div>
 
@@ -393,6 +396,7 @@ const groups = {
   doors1:new THREE.Group(), doors2:new THREE.Group(),
   sound:new THREE.Group(),
   roofHiraya:new THREE.Group(), roofGable:new THREE.Group(),
+  furniture1:new THREE.Group(), furniture2:new THREE.Group(),
   floor1:new THREE.Group(), floor2:new THREE.Group()
 };
 const approxAll = new THREE.Group(); approxAll.add(groups.approx1, groups.approx2);
@@ -400,8 +404,9 @@ const openingsAll = new THREE.Group(); openingsAll.add(groups.openings1, groups.
 const doorsAll = new THREE.Group(); doorsAll.add(groups.doors1, groups.doors2);
 const roofAll = new THREE.Group(); roofAll.add(groups.roofHiraya, groups.roofGable);
 roofAll.visible = false; // デフォルトで屋根を非表示に変更（2026-08-13）
+const furnitureAll = new THREE.Group(); furnitureAll.add(groups.furniture1, groups.furniture2);
 const soundFloorGate = new THREE.Group(); soundFloorGate.add(groups.sound); // 防音壁は1F扱いなので1F/2F表示に連動させる
-[approxAll, openingsAll, doorsAll, soundFloorGate, roofAll, groups.floor1, groups.floor2].forEach(g=>scene.add(g));
+[approxAll, openingsAll, doorsAll, soundFloorGate, roofAll, furnitureAll, groups.floor1, groups.floor2].forEach(g=>scene.add(g));
 
 function boxWire(x0,x1,y0,y1,z0,z1, mat, edgeMat, parent, renderOrder){
   const [sx0,sz0]=toScene(x0,z0), [sx1,sz1]=toScene(x1,z1);
@@ -678,6 +683,105 @@ ROOFS.forEach(r=>{
 // 注記：A1/A2の継ぎ目(x=9.100)は北面の段差により屋根面の高さが微妙に異なるが、
 // 破風の接合ディテールは未モデル化（簡略化）。見た目の目安としては十分だが、精密な意匠検討には使わない。
 
+// ============================================================================
+// 家具・設備（data/furniture-catalog.json / data/furniture.json から生成）
+// ============================================================================
+// 単純な箱・円柱の組み合わせで「それと分かる形」を作る。既製3Dモデル(GLB等)は
+// 使わない — サイズを自由に調整できること、PWAのオフライン保存が軽いことを優先。
+// 各shape関数は、幅w(ローカルX)・奥行d(ローカルZ)・高さh(ローカルY、床から)の
+// 直方体1個ぶんの領域を基準に部品を組む。原点(0,0,0)は footprint 中心・床面。
+// rotation(0/90/180/270度)は呼び出し側でグループごとY軸回転して適用する。
+const FURNITURE_BOX = new THREE.BoxGeometry(1,1,1);
+const FURNITURE_CYL = new THREE.CylinderGeometry(0.5,0.5,1,16);
+function fPart(group, w,h,d, x,y,z, mat, cylinder){
+  const mesh = new THREE.Mesh(cylinder ? FURNITURE_CYL : FURNITURE_BOX, mat);
+  mesh.scale.set(w,h,d);
+  mesh.position.set(x,y+h/2,z);
+  group.add(mesh);
+  return mesh;
+}
+const FMAT = {
+  wood:      new THREE.MeshStandardMaterial({color:0xb98d5e, roughness:0.8}),
+  fabricBlue:new THREE.MeshStandardMaterial({color:0x5c7d9e, roughness:0.9}),
+  fabricTan: new THREE.MeshStandardMaterial({color:0xd8c39a, roughness:0.9}),
+  metal:     new THREE.MeshStandardMaterial({color:0x9aa2a8, roughness:0.4, metalness:0.6}),
+  white:     new THREE.MeshStandardMaterial({color:0xf2efe9, roughness:0.6}),
+  counter:   new THREE.MeshStandardMaterial({color:0xc9cdd0, roughness:0.5}),
+  dark:      new THREE.MeshStandardMaterial({color:0x3a3f45, roughness:0.5}),
+  mirror:    new THREE.MeshStandardMaterial({color:0xaebfc9, roughness:0.2, metalness:0.3})
+};
+const FURNITURE_SHAPES = {
+  boxAppliance(group,w,d,h){ fPart(group, w,h,d, 0,0,0, FMAT.metal); },
+  kitchenCounter(group,w,d,h){
+    fPart(group, w,h*0.85,d, 0,0,0, FMAT.counter);
+    fPart(group, w*0.22,0.05,d*0.5, -w*0.28,h*0.85,0, FMAT.dark); // シンク
+    fPart(group, w,h*0.15,d*0.12, 0,h*0.85,-d*0.44, FMAT.white); // 背面立ち上がり
+  },
+  vanity(group,w,d,h){
+    fPart(group, w,h*0.42,d, 0,0,0, FMAT.white);
+    fPart(group, w*0.85,h*0.5,0.04, 0,h*0.45,-d*0.45, FMAT.mirror);
+  },
+  toilet(group,w,d,h){
+    fPart(group, w*0.75,h*0.45,d*0.35, 0,0,d*0.28, FMAT.white); // ボウル
+    fPart(group, w*0.7,h*0.55,d*0.25, 0,h*0.45,-d*0.32, FMAT.white); // タンク
+  },
+  bathtub(group,w,d,h){
+    fPart(group, w,h,d, 0,0,0, FMAT.white);
+    fPart(group, w*0.85,h*0.6,d*0.7, 0,h*0.35,0, FMAT.mirror);
+  },
+  bed(group,w,d,h){
+    fPart(group, w,h,d*0.92, 0,0,-d*0.04, FMAT.fabricTan); // マットレス
+    fPart(group, w,h*1.6,d*0.06, 0,0,-d*0.47, FMAT.wood); // ヘッドボード
+    fPart(group, w*0.42,h*0.35,d*0.22, -w*0.24,h*0.65,-d*0.32, FMAT.white); // 枕
+    fPart(group, w*0.42,h*0.35,d*0.22, w*0.24,h*0.65,-d*0.32, FMAT.white);
+  },
+  sofa(group,w,d,h){
+    fPart(group, w,h*0.45,d, 0,0,0, FMAT.fabricBlue); // 座面
+    fPart(group, w,h*0.55,d*0.22, 0,h*0.45,-d*0.39, FMAT.fabricBlue); // 背もたれ
+    fPart(group, w*0.12,h*0.85,d, -w*0.44,0,0, FMAT.fabricBlue); // 肘掛け
+    fPart(group, w*0.12,h*0.85,d, w*0.44,0,0, FMAT.fabricBlue);
+  },
+  table(group,w,d,h){
+    fPart(group, w,h*0.08,d, 0,h*0.92,0, FMAT.wood);
+    const legInset=0.06;
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{
+      fPart(group, 0.06,h*0.92,0.06, sx*(w/2-legInset), 0, sz*(d/2-legInset), FMAT.wood);
+    });
+  },
+  chair(group,w,d,h){
+    fPart(group, w,h*0.06,d, 0,h*0.5,0, FMAT.wood); // 座面
+    fPart(group, w,h*0.5,0.05, 0,h*0.5,-d*0.45, FMAT.wood); // 背もたれ
+    const legInset=0.04;
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{
+      fPart(group, 0.04,h*0.5,0.04, sx*(w/2-legInset), 0, sz*(d/2-legInset), FMAT.wood);
+    });
+  },
+  lowCabinet(group,w,d,h){ fPart(group, w,h,d, 0,0,0, FMAT.wood); },
+  shelf(group,w,d,h){
+    fPart(group, w,h,0.04, 0,0,-d*0.45, FMAT.wood); // 背板
+    fPart(group, 0.04,h,d, -w*0.47,0,0, FMAT.wood); // 側板
+    fPart(group, 0.04,h,d, w*0.47,0,0, FMAT.wood);
+    [0.02,0.35,0.68].forEach(t=> fPart(group, w*0.9,0.03,d*0.9, 0,h*t,0, FMAT.wood)); // 棚板
+  }
+};
+FURNITURE_ITEMS.forEach(item=>{
+  const profile = FURNITURE_CATALOG[item.type];
+  if(!profile) return;
+  const shapeFn = FURNITURE_SHAPES[profile.shape];
+  if(!shapeFn) return;
+  const holder = new THREE.Group();
+  shapeFn(holder, item.width, item.depth, item.height);
+  const baseY = item.level===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const [sx,sz] = toScene(item.x, item.z);
+  holder.position.set(sx, baseY, sz);
+  holder.rotation.y = -item.rotation * Math.PI/180; // Three.jsは反時計回り正のため符号反転
+  const grp = item.level===1 ? groups.furniture1 : groups.furniture2;
+  grp.add(holder);
+  const l = makeLabel(item.label, item.x, baseY+item.height+0.12, item.z, false);
+  l.floor = item.level; l.isFurniture = true;
+  labels.push(l);
+});
+
 // ---- 室内間仕切り（v2：確度付き） ----
 [1,2].forEach(fl=>{
   const baseY = fl===1 ? LEVELS.fl1 : LEVELS.fl2;
@@ -747,6 +851,7 @@ scene.add(grid);
 // UI連動
 // ============================================================================
 document.getElementById('chkApprox').onchange = e=> { approxAll.visible = e.target.checked; refreshLabelVis(); };
+document.getElementById('chkFurniture').onchange = e=> { furnitureAll.visible = e.target.checked; refreshLabelVis(); };
 document.getElementById('chkOpenings').onchange = e=> openingsAll.visible = e.target.checked;
 document.getElementById('chkSound').onchange = e=> groups.sound.visible = e.target.checked;
 document.getElementById('chkRoof').onchange = e=> roofAll.visible = e.target.checked;
@@ -762,6 +867,7 @@ function applyFloorMode(){
   groups.openings1.visible = show1; groups.openings2.visible = show2;
   groups.doors1.visible = show1; groups.doors2.visible = show2;
   groups.roofHiraya.visible = show1; groups.roofGable.visible = show2;
+  groups.furniture1.visible = show1; groups.furniture2.visible = show2;
   groups.floor1.visible = show1; groups.floor2.visible = show2;
   soundFloorGate.visible = show1; // 防音壁は1F扱い
   refreshLabelVis();
@@ -775,11 +881,13 @@ function refreshLabelVis(){
   const showLabels = document.getElementById('chkLabels').checked;
   const showApprox = document.getElementById('chkApprox').checked;
   const showDims = document.getElementById('chkDims').checked;
+  const showFurniture = document.getElementById('chkFurniture').checked;
   labels.forEach(l=>{
     let vis = l.isDim ? showDims : showLabels;
     if(l.floor===1 && floorMode==='2F') vis=false;
     if(l.floor===2 && floorMode==='1F') vis=false;
     if(!l.isDim && l.div.classList.contains('approx') && !showApprox) vis=false;
+    if(l.isFurniture && !showFurniture) vis=false;
     l.div.style.display = vis ? 'block' : 'none';
   });
 }
@@ -845,15 +953,18 @@ function restoreLayerVisibility(){
   groups.sound.visible = document.getElementById('chkSound').checked;
   roofAll.visible = document.getElementById('chkRoof').checked;
   doorsAll.visible = document.getElementById('chkDoors').checked;
+  furnitureAll.visible = document.getElementById('chkFurniture').checked;
   grid.visible = document.getElementById('chkGrid').checked;
 }
 function enterWalkMode(spawn){
   savedFloorMode = floorMode;
   walkLevel = spawn.level; walkPos.x = spawn.x; walkPos.z = spawn.z; walkYaw = spawn.yaw; walkPitch = 0;
-  // 概算の間仕切り・開口部・防音壁・屋根・グリッドを隠し、実壁+天井+床だけを見せる
+  // 概算の間仕切り・開口部・防音壁・屋根・グリッドを隠し、実壁+天井+床+家具だけを見せる
+  // （家具は「実際に通れるか」を確認する内覧モードの主目的そのものなので隠さない）
   approxAll.visible = false; openingsAll.visible = false; doorsAll.visible = false;
   groups.sound.visible = false; roofAll.visible = false; grid.visible = false;
   groups.floor1.visible = walkLevel===1; groups.floor2.visible = walkLevel===2;
+  groups.furniture1.visible = walkLevel===1; groups.furniture2.visible = walkLevel===2;
   walkGroup.visible = true;
   labels.forEach(l=> l.div.style.display = 'none');
   document.querySelector('#walkHud .room').textContent = spawn.label;

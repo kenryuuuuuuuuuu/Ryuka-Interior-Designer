@@ -1,8 +1,9 @@
 // ============================================================================
 // 自動生成ファイル。手で編集しないこと。
-// 生成元: data/house.json （このリポジトリの正本）
+// 生成元: data/house.json / data/furniture-catalog.json / data/furniture.json
+//        （このリポジトリの正本）
 // 生成コマンド: node scripts/build-web-data.mjs
-// house.json を編集したら、このファイルを再生成してからブラウザで確認すること。
+// これらのJSONを編集したら、このファイルを再生成してからブラウザで確認すること。
 // ============================================================================
 const LEVELS = { gl:0, fl1:0.707, fl2:3.439, eaveLow:3.4, eaveHigh:4.567, eave2:6.3, ridge:7.423 };
 const CEIL_H = 2.4; // 推測値（要確認）
@@ -124,4 +125,61 @@ const ROOFS = [
   { id:'roof-a1', kind:'lean_to', x0:0, x1:9.1, zNorth:0.41, zSouth:7.28, pitch:0.15, thickness:0.15, base:3.4 },
   { id:'roof-a2', kind:'lean_to', x0:9.1, x1:12.74, zNorth:-0.045, zSouth:7.28, pitch:0.15, thickness:0.15, base:3.4 },
   { id:'roof-2f-gable', kind:'gable', x0:12.52, x1:19.33, zNorth:-0.558, zRidge:3.185, zSouth:6.928, yEave:6.3, yRidge:7.423, thickness:0.18 }
+];
+
+const FURNITURE_CATALOG = {
+  'kitchen-counter': { label:'システムキッチン', category:'fixture', shape:'kitchenCounter', width:2.55, depth:0.65, height:0.85, clearance:0.9 },
+  'refrigerator': { label:'冷蔵庫', category:'furniture', shape:'boxAppliance', width:0.69, depth:0.7, height:1.83, clearance:0.7 },
+  'washing-machine': { label:'洗濯機', category:'furniture', shape:'boxAppliance', width:0.64, depth:0.72, height:1.05, clearance:0.6 },
+  'vanity': { label:'洗面化粧台', category:'fixture', shape:'vanity', width:0.75, depth:0.53, height:1.9, clearance:0.75 },
+  'toilet': { label:'便器', category:'fixture', shape:'toilet', width:0.45, depth:0.75, height:1, clearance:0.5 },
+  'bathtub': { label:'浴槽（ユニットバス）', category:'fixture', shape:'bathtub', width:1.6, depth:0.8, height:0.6, clearance:0.6 },
+  'bed-single': { label:'シングルベッド', category:'furniture', shape:'bed', width:0.97, depth:1.95, height:0.5, clearance:0.5 },
+  'bed-semi-double': { label:'セミダブルベッド', category:'furniture', shape:'bed', width:1.2, depth:1.95, height:0.5, clearance:0.5 },
+  'bed-double': { label:'ダブルベッド', category:'furniture', shape:'bed', width:1.4, depth:1.95, height:0.5, clearance:0.5 },
+  'sofa-2seat': { label:'2人掛けソファ', category:'furniture', shape:'sofa', width:1.5, depth:0.85, height:0.8, clearance:0.4 },
+  'sofa-3seat': { label:'3人掛けソファ', category:'furniture', shape:'sofa', width:1.9, depth:0.85, height:0.8, clearance:0.4 },
+  'dining-table-4': { label:'ダイニングテーブル（4人）', category:'furniture', shape:'table', width:1.35, depth:0.8, height:0.72, clearance:0.75 },
+  'dining-table-6': { label:'ダイニングテーブル（6人）', category:'furniture', shape:'table', width:1.8, depth:0.85, height:0.72, clearance:0.75 },
+  'chair': { label:'椅子', category:'furniture', shape:'chair', width:0.45, depth:0.5, height:0.85, clearance:0.3 },
+  'tv-board': { label:'テレビボード', category:'furniture', shape:'lowCabinet', width:1.5, depth:0.4, height:0.45, clearance:0.3 },
+  'desk': { label:'デスク', category:'furniture', shape:'table', width:1.1, depth:0.6, height:0.72, clearance:0.75 },
+  'shelf': { label:'収納棚・本棚', category:'furniture', shape:'shelf', width:0.9, depth:0.3, height:1.8, clearance:0.6 },
+  'wardrobe': { label:'ワードローブ・洋服ダンス', category:'furniture', shape:'shelf', width:1.2, depth:0.6, height:1.8, clearance:0.7 }
+};
+
+const FURNITURE_ITEMS = [
+  { id:'fur-001', type:'vanity', level:1, x:0.91, z:4.2, rotation:0, width:0.75, depth:0.53, height:1.9, label:'洗面化粧台（民泊）', status:'estimated', room:'room-1f-03' }, // 洗面脱衣室の南壁側に仮配置。実際の給排水位置は施工会社図面待ち
+  { id:'fur-002', type:'washing-machine', level:1, x:1.5, z:3.1, rotation:0, width:0.64, depth:0.72, height:1.05, label:'洗濯機（民泊）', status:'estimated', room:'room-1f-03' },
+  { id:'fur-003', type:'bathtub', level:1, x:0.91, z:5.92, rotation:0, width:1.6, depth:0.8, height:0.6, label:'浴槽（民泊UB）', status:'estimated', room:'room-1f-04' },
+  { id:'fur-004', type:'bed-semi-double', level:1, x:6.25, z:2.2, rotation:90, width:1.2, depth:1.95, height:0.5, label:'ベッド（民泊 洋室）', status:'estimated', room:'room-1f-05' }, // 東壁側に枕を向けて配置。窓（民泊北窓・民泊腰窓）との干渉は要確認
+  { id:'fur-005', type:'wardrobe', level:1, x:3.2, z:1.26, rotation:0, width:1.2, depth:0.6, height:1.8, label:'ワードローブ（民泊 洋室）', status:'estimated', room:'room-1f-05' },
+  { id:'fur-006', type:'kitchen-counter', level:1, x:2.2, z:5.03, rotation:90, width:2.55, depth:0.65, height:0.85, label:'キッチン（民泊LDK）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-007', type:'refrigerator', level:1, x:2.2, z:3.95, rotation:90, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫（民泊LDK）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-008', type:'dining-table-4', level:1, x:4.6, z:5, rotation:0, width:1.35, depth:0.8, height:0.72, label:'ダイニングテーブル（民泊LDK）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-009', type:'chair', level:1, x:4.6, z:4.35, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子1（民泊LDK）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-010', type:'chair', level:1, x:4.6, z:5.65, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子2（民泊LDK）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-011', type:'sofa-2seat', level:1, x:5.7, z:5.9, rotation:0, width:1.5, depth:0.85, height:0.8, label:'ソファ（民泊LDK）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-012', type:'tv-board', level:1, x:7.03, z:5.9, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード（民泊LDK）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-013', type:'kitchen-counter', level:1, x:8, z:4.95, rotation:90, width:2.55, depth:0.65, height:0.85, label:'キッチン（自宅LDK）', status:'estimated', room:'room-1f-11' }, // 西壁（防音壁）側に仮配置。実際のキッチン向き・位置は施工会社図面待ち
+  { id:'fur-014', type:'refrigerator', level:1, x:8, z:3.6, rotation:90, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫（自宅LDK）', status:'estimated', room:'room-1f-11' },
+  { id:'fur-015', type:'dining-table-6', level:1, x:10.5, z:5, rotation:0, width:1.8, depth:0.85, height:0.72, label:'ダイニングテーブル（自宅LDK）', status:'estimated', room:'room-1f-11' },
+  { id:'fur-016', type:'chair', level:1, x:9.9, z:4.4, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子1（自宅LDK）', status:'estimated', room:'room-1f-11' },
+  { id:'fur-017', type:'chair', level:1, x:10.5, z:4.4, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子2（自宅LDK）', status:'estimated', room:'room-1f-11' },
+  { id:'fur-018', type:'chair', level:1, x:11.1, z:4.4, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子3（自宅LDK）', status:'estimated', room:'room-1f-11' },
+  { id:'fur-019', type:'chair', level:1, x:10.5, z:5.6, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子4（自宅LDK）', status:'estimated', room:'room-1f-11' },
+  { id:'fur-020', type:'sofa-3seat', level:1, x:13.2, z:2.8, rotation:0, width:1.9, depth:0.85, height:0.8, label:'ソファ（自宅LDK）', status:'estimated', room:'room-1f-11' }, // 掃き出し窓（自宅LDK掃き出し窓）に近いため、窓の開閉・カーテンとの干渉は要確認
+  { id:'fur-021', type:'tv-board', level:1, x:13.2, z:6.03, rotation:0, width:1.5, depth:0.4, height:0.45, label:'テレビボード（自宅LDK）', status:'estimated', room:'room-1f-11' },
+  { id:'fur-022', type:'toilet', level:1, x:18.65, z:2.3, rotation:90, width:0.45, depth:0.75, height:1, label:'便器（1F東）', status:'estimated', room:'room-1f-14' },
+  { id:'fur-023', type:'vanity', level:1, x:18.7, z:3, rotation:90, width:0.75, depth:0.53, height:1.9, label:'洗面化粧台（1F東）', status:'estimated', room:'room-1f-15' },
+  { id:'fur-024', type:'washing-machine', level:1, x:16.1, z:5.5, rotation:0, width:0.64, depth:0.72, height:1.05, label:'洗濯機（1F東）', status:'estimated', room:'room-1f-16' },
+  { id:'fur-025', type:'bathtub', level:1, x:18.2, z:5.9, rotation:90, width:1.6, depth:0.8, height:0.6, label:'浴槽（1F東UB）', status:'estimated', room:'room-1f-17' },
+  { id:'fur-026', type:'toilet', level:2, x:13.2, z:1.3, rotation:0, width:0.45, depth:0.75, height:1, label:'便器（2F）', status:'estimated', room:'room-2f-01' },
+  { id:'fur-027', type:'bed-single', level:2, x:13.3, z:3.4, rotation:90, width:0.97, depth:1.95, height:0.5, label:'ベッド（子供部屋1）', status:'estimated', room:'room-2f-04' },
+  { id:'fur-028', type:'desk', level:2, x:14.8, z:3.1, rotation:270, width:1.1, depth:0.6, height:0.72, label:'デスク（子供部屋1）', status:'estimated', room:'room-2f-04' },
+  { id:'fur-029', type:'shelf', level:2, x:13.15, z:6.05, rotation:0, width:0.9, depth:0.3, height:1.8, label:'本棚（子供部屋1）', status:'estimated', room:'room-2f-04' },
+  { id:'fur-030', type:'bed-single', level:2, x:18.6, z:0.75, rotation:90, width:0.97, depth:1.95, height:0.5, label:'ベッド（子供部屋2）', status:'estimated', room:'room-2f-05' },
+  { id:'fur-031', type:'desk', level:2, x:16.1, z:0.5, rotation:0, width:1.1, depth:0.6, height:0.72, label:'デスク（子供部屋2）', status:'estimated', room:'room-2f-05' },
+  { id:'fur-032', type:'bed-double', level:2, x:17.3, z:3.4, rotation:90, width:1.4, depth:1.95, height:0.5, label:'ベッド（夫婦寝室）', status:'estimated', room:'room-2f-06' },
+  { id:'fur-033', type:'wardrobe', level:2, x:15.9, z:5.8, rotation:90, width:1.2, depth:0.6, height:1.8, label:'ワードローブ（夫婦寝室）', status:'estimated', room:'room-2f-06' },
 ];

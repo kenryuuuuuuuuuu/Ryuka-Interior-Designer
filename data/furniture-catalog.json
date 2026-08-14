@@ -1,0 +1,209 @@
+{
+  "schemaVersion": "1.0.0",
+  "units": "m",
+  "note": "家具・設備の「型」のライブラリ。ここには種類ごとの標準寸法だけを定義し、実際にどこへ何個置くかは data/furniture.json 側で管理する。shape はThree.js側のどの描画関数（プリミティブの組み合わせ方）を使うかの指定で、interior-white-model.html の FURNITURE_SHAPES に対応する。寸法は日本の住宅設備・家具の一般的な標準値で、施主の実測値ではないため個々の配置側で status: estimated とすること。",
+  "categories": {
+    "fixture": "造作・設備（施工会社が設置する。位置は図面で決まり自由に動かせない）",
+    "furniture": "置き家具（後から購入する。自由に配置を検討する対象）"
+  },
+  "types": [
+    {
+      "type": "kitchen-counter",
+      "label": "システムキッチン",
+      "category": "fixture",
+      "shape": "kitchenCounter",
+      "width": 2.55,
+      "depth": 0.65,
+      "height": 0.85,
+      "clearance": 0.9,
+      "note": "I型システムキッチンの一般的な間口2,550mm・奥行650mm・高さ850mm。clearanceは背面通路として推奨される900mm"
+    },
+    {
+      "type": "refrigerator",
+      "label": "冷蔵庫",
+      "category": "furniture",
+      "shape": "boxAppliance",
+      "width": 0.69,
+      "depth": 0.7,
+      "height": 1.83,
+      "clearance": 0.7,
+      "note": "400〜500Lクラスの一般的な寸法。扉開閉のため前面にclearanceが必要"
+    },
+    {
+      "type": "washing-machine",
+      "label": "洗濯機",
+      "category": "furniture",
+      "shape": "boxAppliance",
+      "width": 0.64,
+      "depth": 0.72,
+      "height": 1.05,
+      "clearance": 0.6,
+      "note": "ドラム式の一般的な寸法。縦型なら幅0.6×奥行0.64×高さ1.0程度"
+    },
+    {
+      "type": "vanity",
+      "label": "洗面化粧台",
+      "category": "fixture",
+      "shape": "vanity",
+      "width": 0.75,
+      "depth": 0.53,
+      "height": 1.9,
+      "clearance": 0.75,
+      "note": "三面鏡付き洗面化粧台の一般的な間口750mm。heightは鏡上端まで"
+    },
+    {
+      "type": "toilet",
+      "label": "便器",
+      "category": "fixture",
+      "shape": "toilet",
+      "width": 0.45,
+      "depth": 0.75,
+      "height": 1.0,
+      "clearance": 0.5,
+      "note": "タンク付き洋式便器の一般的な寸法。heightはタンク上端まで"
+    },
+    {
+      "type": "bathtub",
+      "label": "浴槽（ユニットバス）",
+      "category": "fixture",
+      "shape": "bathtub",
+      "width": 1.6,
+      "depth": 0.8,
+      "height": 0.6,
+      "clearance": 0.6,
+      "note": "1616サイズ（1坪）ユニットバスの浴槽部分。UB全体ではなく浴槽のみを表す"
+    },
+    {
+      "type": "bed-single",
+      "label": "シングルベッド",
+      "category": "furniture",
+      "shape": "bed",
+      "width": 0.97,
+      "depth": 1.95,
+      "height": 0.5,
+      "clearance": 0.5,
+      "note": "JIS規格シングル（マットレス970×1950mm）。heightはマットレス上面まで"
+    },
+    {
+      "type": "bed-semi-double",
+      "label": "セミダブルベッド",
+      "category": "furniture",
+      "shape": "bed",
+      "width": 1.2,
+      "depth": 1.95,
+      "height": 0.5,
+      "clearance": 0.5,
+      "note": "マットレス1200×1950mm"
+    },
+    {
+      "type": "bed-double",
+      "label": "ダブルベッド",
+      "category": "furniture",
+      "shape": "bed",
+      "width": 1.4,
+      "depth": 1.95,
+      "height": 0.5,
+      "clearance": 0.5,
+      "note": "マットレス1400×1950mm"
+    },
+    {
+      "type": "sofa-2seat",
+      "label": "2人掛けソファ",
+      "category": "furniture",
+      "shape": "sofa",
+      "width": 1.5,
+      "depth": 0.85,
+      "height": 0.8,
+      "clearance": 0.4,
+      "note": "一般的な2人掛け。heightは背もたれ上端まで"
+    },
+    {
+      "type": "sofa-3seat",
+      "label": "3人掛けソファ",
+      "category": "furniture",
+      "shape": "sofa",
+      "width": 1.9,
+      "depth": 0.85,
+      "height": 0.8,
+      "clearance": 0.4,
+      "note": "一般的な3人掛け"
+    },
+    {
+      "type": "dining-table-4",
+      "label": "ダイニングテーブル（4人）",
+      "category": "furniture",
+      "shape": "table",
+      "width": 1.35,
+      "depth": 0.8,
+      "height": 0.72,
+      "clearance": 0.75,
+      "note": "4人掛けの一般的な寸法。clearanceは椅子を引いて立ち座りするのに必要な750mm"
+    },
+    {
+      "type": "dining-table-6",
+      "label": "ダイニングテーブル（6人）",
+      "category": "furniture",
+      "shape": "table",
+      "width": 1.8,
+      "depth": 0.85,
+      "height": 0.72,
+      "clearance": 0.75,
+      "note": "6人掛けの一般的な寸法"
+    },
+    {
+      "type": "chair",
+      "label": "椅子",
+      "category": "furniture",
+      "shape": "chair",
+      "width": 0.45,
+      "depth": 0.5,
+      "height": 0.85,
+      "clearance": 0.3,
+      "note": "ダイニングチェアの一般的な寸法。heightは背もたれ上端まで"
+    },
+    {
+      "type": "tv-board",
+      "label": "テレビボード",
+      "category": "furniture",
+      "shape": "lowCabinet",
+      "width": 1.5,
+      "depth": 0.4,
+      "height": 0.45,
+      "clearance": 0.3,
+      "note": "50インチクラスのテレビを載せる想定"
+    },
+    {
+      "type": "desk",
+      "label": "デスク",
+      "category": "furniture",
+      "shape": "table",
+      "width": 1.1,
+      "depth": 0.6,
+      "height": 0.72,
+      "clearance": 0.75,
+      "note": "学習机・ワークデスクの一般的な寸法"
+    },
+    {
+      "type": "shelf",
+      "label": "収納棚・本棚",
+      "category": "furniture",
+      "shape": "shelf",
+      "width": 0.9,
+      "depth": 0.3,
+      "height": 1.8,
+      "clearance": 0.6,
+      "note": "背の高い棚。窓や照明との干渉に注意が必要なため高さを実寸で持つ"
+    },
+    {
+      "type": "wardrobe",
+      "label": "ワードローブ・洋服ダンス",
+      "category": "furniture",
+      "shape": "shelf",
+      "width": 1.2,
+      "depth": 0.6,
+      "height": 1.8,
+      "clearance": 0.7,
+      "note": "扉の開閉スペースを含めてclearanceを確保する"
+    }
+  ]
+}
