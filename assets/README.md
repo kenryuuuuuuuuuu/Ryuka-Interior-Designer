@@ -1,6 +1,3 @@
-# Assets
+# assets
 
-Future externally sourced textures, furniture models, and fixture models belong
-under this directory. Record source URL, author, license, and scale for every
-asset. Do not commit an asset unless redistribution is permitted.
-
+外部から調達するテクスチャ・家具モデル・設備モデルは、今後このディレクトリ配下に置く。アセットごとに出典URL・作者・ライセンス・スケールを記録すること。再配布が許可されていないアセットはコミットしない。

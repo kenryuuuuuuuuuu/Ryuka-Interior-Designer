@@ -25,7 +25,7 @@
     "footprints": { "type": "array", "items": { "$ref": "#/$defs/rect" } },
     "openings": { "type": "array", "items": { "$ref": "#/$defs/opening" } },
     "interiorDoors": { "type": "array", "items": { "$ref": "#/$defs/interiorDoor" } },
-    "specialWalls": { "type": "array", "items": { "type": "object", "required": ["id", "x", "z0", "z1", "level", "topY"] } },
+    "specialWalls": { "type": "array", "items": { "type": "object", "required": ["id", "x", "z0", "z1", "level", "topY"], "properties": { "note": { "type": "string" } } } },
     "roofs": { "type": "array", "items": { "type": "object", "required": ["id", "footprintId", "zNorth", "zSouth", "pitch", "thickness"] } },
     "rooms": { "type": "array", "items": { "$ref": "#/$defs/room" } },
     "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" } }
@@ -47,7 +47,7 @@
         "id": { "type": "string" }, "face": { "enum": ["N", "S", "E", "W"] }, "offset": { "type": "number" },
         "wallX": { "type": "number" }, "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 },
         "sill": { "type": "number", "minimum": 0 }, "level": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["door", "window"] },
-        "label": { "type": "string" }, "status": { "enum": ["verified", "derived", "estimated"] }
+        "label": { "type": "string" }, "status": { "enum": ["verified", "derived", "estimated"] }, "note": { "type": "string" }
       }
     },
     "interiorDoor": {
@@ -65,7 +65,7 @@
       "properties": {
         "id": { "type": "string" }, "level": { "type": "integer", "minimum": 1 }, "label": { "type": "string" },
         "polygon": { "type": "array", "minItems": 3, "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 } },
-        "status": { "enum": ["verified", "derived", "estimated"] }
+        "status": { "enum": ["verified", "derived", "estimated"] }, "note": { "type": "string" }
       }
     },
     "wall": {

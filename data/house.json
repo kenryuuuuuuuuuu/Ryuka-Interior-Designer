@@ -8,16 +8,21 @@
     "origin": "GL_local"
   },
   "provenance": {
-    "migratedFrom": "interior-white-model.html",
-    "snapshotDate": "2026-08-13",
-    "note": "Phase 1 copy; the legacy HTML remains operational during migration. rooms/walls added in Phase 1b (room polygons -> deduplicated wall centerlines, derived from interior-white-model.html ROOMS_APPROX).",
-    "roomsSourceHash": "46b18acd7dadfefe834be1d451e4051a3926a7a17eb8c884adc1de2655544eb9",
-    "roomsSourceNote": "sha256 of the ROOMS_APPROX declaration in interior-white-model.html at the time rooms/walls were derived (Phase 1b, scripts external to this repo). If this hash no longer matches the current HTML, rooms/walls are stale and must be regenerated; sync-house-from-html.mjs --check will warn but cannot regenerate them automatically."
+    "note": "data/house.json はこのリポジトリの正本（Single Source of Truth）。interior-white-model.html はもう建物データを直接持たず、scripts/build-web-data.mjs がこのファイルから描画用データを生成する（詳細は docs/ARCHITECTURE.md）。",
+    "sources": [
+      "施工会社実施図面Ver5（配置図・求積図・平面図・立面図の4葉。docs/に施主名等を含むPDFとしてローカル保存、.gitignore対象でGitHubには存在しない）",
+      "Ryuka-Landscape-Designerリポジトリ（外皮の階高・軒高の検算元）"
+    ],
+    "levelsNote": "levels.fl1/fl2は2026-08-14に東側立面図の実測値（1階FL=GL+707mm、1階階高2,732mm）に合わせて修正した。旧値(fl1=0.5, fl2=3.232)は基礎高(GL+500mm)を1階FLと取り違えていたための誤り。levels.eaveLow/eave2/ridgeは南側立面図の基礎高基準の寸法チェーンと一致しており修正不要だった。",
+    "history": [
+      "2026-08-13: Claude.aiセッションで間取り・ドア・窓の座標確定、rooms/walls抽出（Phase 1b、変換スクリプトはリポジトリ外）",
+      "2026-08-14: Claude Codeで施工会社図面PDFを精読。fl1/fl2の誤りを修正し、正本の向きをinterior-white-model.html→house.jsonからhouse.json→interior-white-model.htmlへ反転。各エンティティのnoteフィールドにHTML側の根拠コメントを移植"
+    ]
   },
   "levels": {
     "gl": 0,
-    "fl1": 0.5,
-    "fl2": 3.232,
+    "fl1": 0.707,
+    "fl2": 3.439,
     "eaveLow": 3.4,
     "eaveHigh": 4.567,
     "eave2": 6.3,
@@ -92,7 +97,8 @@
       "level": 1,
       "kind": "door",
       "label": "民泊 玄関ドア",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘の青線(中心1.35m)に合わせ、トイレ|玄関の壁(x=0.910)起点に修正"
     },
     {
       "id": "op-002",
@@ -104,7 +110,8 @@
       "level": 1,
       "kind": "window",
       "label": "民泊 北窓",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘の青線位置(中心4.381)に合わせ左へ移動"
     },
     {
       "id": "op-003",
@@ -116,7 +123,8 @@
       "level": 1,
       "kind": "door",
       "label": "自宅 玄関ドア",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘により自宅玄関・ホール(x:9.100-10.920)の中心(10.010)に配置"
     },
     {
       "id": "op-004",
@@ -128,7 +136,8 @@
       "level": 1,
       "kind": "window",
       "label": "土間・シューズクローク フィックス窓",
-      "status": "estimated"
+      "status": "estimated",
+      "note": "新規(2026-08-13)：施主指摘の青線位置。A2区画(北壁z=0.455)に該当。高さ・シル高は仮値のため要確認"
     },
     {
       "id": "op-005",
@@ -140,7 +149,8 @@
       "level": 2,
       "kind": "window",
       "label": "2階 階段北窓",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。階段(2F)モジュール(13.651-15.470)内に収まる"
     },
     {
       "id": "op-006",
@@ -224,7 +234,8 @@
       "level": 2,
       "kind": "window",
       "label": "2階 南窓①(子供部屋1)",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。子供部屋1の右下に位置"
     },
     {
       "id": "op-013",
@@ -236,7 +247,8 @@
       "level": 2,
       "kind": "window",
       "label": "2階 南窓②(夫婦寝室)",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。夫婦寝室南側の中央"
     },
     {
       "id": "op-014",
@@ -248,7 +260,8 @@
       "level": 2,
       "kind": "window",
       "label": "2階 東窓①(子供部屋2)",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘の青線位置に合わせ上へ移動。子供部屋2東側の中央付近"
     },
     {
       "id": "op-015",
@@ -260,7 +273,8 @@
       "level": 2,
       "kind": "window",
       "label": "2階 東窓②(夫婦寝室)",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘の青線位置に合わせ上へ移動。夫婦寝室東側の中央付近"
     },
     {
       "id": "op-016",
@@ -297,7 +311,8 @@
       "level": 2,
       "kind": "window",
       "label": "2階 廊下西窓",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：はみ出し指摘により廊下(2F)の中心(z=2.275)を基準に、両側0.38m前後の余裕を持たせて再配置"
     },
     {
       "id": "op-019",
@@ -309,7 +324,8 @@
       "level": 1,
       "kind": "window",
       "label": "洗面脱衣室 天井近くフィックス窓",
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘により旧「平屋 西の細長窓」(lz:3.895)を削除し、新規に天井近くの位置(sill=2.0)へ細長いフィックス窓を配置"
     }
   ],
   "interiorDoors": [
@@ -513,7 +529,8 @@
       "z1": 6.37,
       "level": 1,
       "topY": 3.4,
-      "status": "verified"
+      "status": "verified",
+      "note": "西端から7,280mm(910mm×8マス)。施主指摘により修正（2026-08-13）"
     }
   ],
   "roofs": [
@@ -545,7 +562,7 @@
       "label": "トイレ(民泊)",
       "polygon": [
         [
-          0.0,
+          0,
           0.91
         ],
         [
@@ -557,11 +574,12 @@
           2.73
         ],
         [
-          0.0,
+          0,
           2.73
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "面積1.66㎡相当・マイホームクラウド値と一致確認"
     },
     {
       "id": "room-1f-02",
@@ -585,7 +603,8 @@
           2.73
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：西端(x=0)と東端(x=7.280)を基準とした再キャリブレーションで、玄関の東壁はx=2.730が正しいと判明（前回のx=1.820は近接点同士のキャリブレーション誤差による誤り）"
     },
     {
       "id": "room-1f-03",
@@ -593,7 +612,7 @@
       "label": "洗面脱衣室",
       "polygon": [
         [
-          0.0,
+          0,
           2.73
         ],
         [
@@ -605,11 +624,12 @@
           4.55
         ],
         [
-          0.0,
+          0,
           4.55
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "面積3.31㎡相当。この行はx=1.820に壁あり(ピクセル解析で確認)"
     },
     {
       "id": "room-1f-04",
@@ -617,7 +637,7 @@
       "label": "UB(民泊)",
       "polygon": [
         [
-          0.0,
+          0,
           4.55
         ],
         [
@@ -629,11 +649,12 @@
           6.37
         ],
         [
-          0.0,
+          0,
           6.37
         ]
       ],
-      "status": "derived"
+      "status": "derived",
+      "note": "面積3.31㎡相当。洗面脱衣室と同幅と仮定"
     },
     {
       "id": "room-1f-05",
@@ -657,7 +678,8 @@
           3.691
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：西端をx=2.730に戻し、洋室|LDK境界z=3.691で再検算。箱面積12.60㎡は実際11.18㎡に近い（+13%）。x=1.820-2.730×z=2.730-6.370の範囲(洗面所/浴室の東側)は未モデル化の欠き（LDK側に含まれる可能性）。ラベルから面積表記は削除(2026-08-13)"
     },
     {
       "id": "room-1f-06",
@@ -689,7 +711,8 @@
           6.37
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "施主指摘(2026-08-13)によりLDK本体＋張り出し部をL字ポリゴンとして統合。内部の継ぎ目線は表示されない。ラベルから面積表記は削除(2026-08-13)。自宅側のLDKと区別するため「(民泊)」を付記"
     },
     {
       "id": "room-1f-07",
@@ -713,7 +736,8 @@
           2.73
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "床面はFL+200mm（施工会社図面表記の一段上がった小上がり）。訂正(2026-08-13)：マイホームクラウド画像で西端が防音壁位置(x=7.280)から始まると判明（前回のx=9.100は誤り）。幅1.820m確定・奥行は面積3.31㎡から逆算(1.819m)しz1=2.730とほぼ一致。ラベルから面積表記は削除(2026-08-13)"
     },
     {
       "id": "room-1f-08",
@@ -737,7 +761,8 @@
           2.73
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "施主指摘(2026-08-13)により赤枠の座標をピクセル解析。旧「自宅玄関・土間・ホール」から西半分を分離"
     },
     {
       "id": "room-1f-09",
@@ -754,11 +779,11 @@
         ],
         [
           12.74,
-          0.0
+          0
         ],
         [
           13.651,
-          0.0
+          0
         ],
         [
           13.651,
@@ -769,7 +794,8 @@
           2.275
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "訂正(2026-08-13)：施主指摘により南端をz=2.730→2.275に縮小(0.5マス分をLD側へ移管)"
     },
     {
       "id": "room-1f-10",
@@ -778,11 +804,11 @@
       "polygon": [
         [
           13.651,
-          0.0
+          0
         ],
         [
           15.471,
-          0.0
+          0
         ],
         [
           15.471,
@@ -793,7 +819,8 @@
           1.82
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)に確定"
     },
     {
       "id": "room-1f-11",
@@ -833,7 +860,8 @@
           6.37
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘によりLD＋キッチンを統合しLDKに変更。北端が3段階（z=2.730→2.275→1.820）の階段状になっているのが実際の間取り"
     },
     {
       "id": "room-1f-12",
@@ -842,11 +870,11 @@
       "polygon": [
         [
           15.471,
-          0.0
+          0
         ],
         [
           19.11,
-          0.0
+          0
         ],
         [
           19.11,
@@ -857,7 +885,8 @@
           1.82
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により4マス×2マス(3.640m×1.820m)、東側全幅で確定"
     },
     {
       "id": "room-1f-13",
@@ -881,7 +910,8 @@
           3.64
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)で確定。西列"
     },
     {
       "id": "room-1f-14",
@@ -905,7 +935,8 @@
           2.73
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により2マス×1マス(1.820m×0.910m)で確定。東列"
     },
     {
       "id": "room-1f-15",
@@ -929,7 +960,8 @@
           4.095
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により2マス×1.5マス(1.820m×1.365m)で確定。東列"
     },
     {
       "id": "room-1f-16",
@@ -953,7 +985,8 @@
           6.37
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により2マス×3マス(1.820m×2.730m)で確定。西列"
     },
     {
       "id": "room-1f-17",
@@ -977,7 +1010,8 @@
           6.37
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により2マス×2.5マス(1.820m×2.275m)で確定。東列"
     },
     {
       "id": "room-1f-18",
@@ -1001,7 +1035,8 @@
           7.735
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により3マス×1.5マス(2.730m×1.365m)で確定。z=6.370起点に修正（旧z0=5.460は誤り）"
     },
     {
       "id": "room-2f-01",
@@ -1010,11 +1045,11 @@
       "polygon": [
         [
           12.74,
-          0.0
+          0
         ],
         [
           13.651,
-          0.0
+          0
         ],
         [
           13.651,
@@ -1025,7 +1060,8 @@
           1.82
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により1マス×2マス(0.910m×1.820m)で確定"
     },
     {
       "id": "room-2f-02",
@@ -1034,11 +1070,11 @@
       "polygon": [
         [
           13.651,
-          0.0
+          0
         ],
         [
           15.47,
-          0.0
+          0
         ],
         [
           15.47,
@@ -1049,7 +1085,8 @@
           1.82
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)で確定。1Fの曲がり階段と同じ位置"
     },
     {
       "id": "room-2f-03",
@@ -1073,7 +1110,8 @@
           2.73
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により4マス×1マス(3.640m×0.910m)で確定。東端はA3/A4境界(16.380)と一致"
     },
     {
       "id": "room-2f-04",
@@ -1097,7 +1135,8 @@
           6.37
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により3マス×4マス(2.730m×3.640m)で確定"
     },
     {
       "id": "room-2f-05",
@@ -1106,11 +1145,11 @@
       "polygon": [
         [
           15.47,
-          0.0
+          0
         ],
         [
           19.11,
-          0.0
+          0
         ],
         [
           19.11,
@@ -1129,7 +1168,8 @@
           1.82
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により矩形＋廊下の張り出し分を除いたL字で確定"
     },
     {
       "id": "room-2f-06",
@@ -1153,7 +1193,8 @@
           6.37
         ]
       ],
-      "status": "verified"
+      "status": "verified",
+      "note": "確定(2026-08-13)：施主指摘により4マス×4マス(3.640m角)で確定"
     }
   ],
   "walls": [
@@ -1191,7 +1232,7 @@
     {
       "id": "wall-1f-003",
       "level": 1,
-      "x0": 0.0,
+      "x0": 0,
       "x1": 2.73,
       "z0": 2.73,
       "z1": 2.73,
@@ -1278,7 +1319,7 @@
     {
       "id": "wall-1f-009",
       "level": 1,
-      "x0": 0.0,
+      "x0": 0,
       "x1": 1.82,
       "z0": 4.55,
       "z1": 4.55,
@@ -1368,7 +1409,7 @@
       "level": 1,
       "x0": 13.651,
       "x1": 13.651,
-      "z0": 0.0,
+      "z0": 0,
       "z1": 2.275,
       "orientation": "V",
       "status": "derived",
@@ -1383,7 +1424,7 @@
       "level": 1,
       "x0": 15.471,
       "x1": 15.471,
-      "z0": 0.0,
+      "z0": 0,
       "z1": 6.37,
       "orientation": "V",
       "status": "derived",
@@ -1449,7 +1490,7 @@
       "level": 2,
       "x0": 13.651,
       "x1": 13.651,
-      "z0": 0.0,
+      "z0": 0,
       "z1": 1.82,
       "orientation": "V",
       "status": "derived",
@@ -1463,7 +1504,7 @@
       "level": 2,
       "x0": 15.47,
       "x1": 15.47,
-      "z0": 0.0,
+      "z0": 0,
       "z1": 1.82,
       "orientation": "V",
       "status": "derived",
