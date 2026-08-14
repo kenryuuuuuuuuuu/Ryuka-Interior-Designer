@@ -86,3 +86,24 @@ CAD原本がないため、施主がマイホームクラウドの画面やこ�
 - **2階切妻屋根を追加**：`Ryuka-Landscape-Designer`の`js/building-model.js`・`docs/MODEL-SPEC.md`§3.4.2から3寸勾配・棟東西方向・軒出寸法（北南0.558m、東西破風側0.220m）を移植。`house.json`の`roofs`に`kind:"gable"`のエントリとして追加し、既存の片流れ屋根には`kind:"lean_to"`を明示した。東西の妻壁（屋根下を塞ぐ三角壁）と、`Ryuka-Landscape-Designer`が別途持つ南東部A4上の下屋（§3.4.3）は今回のスコープ外で未移植
 - **GitHub Pages公開・PWA化**：`Ryuka-Landscape-Designer`と同じ構成（`index.html`のリダイレクト、`manifest.webmanifest`、`sw.js`、`icon.svg`）を移植し、`https://kenryuuuuuuuuuu.github.io/Ryuka-Interior-Designer/` で公開した。GitHub Pages自体の設定は`gh api`で有効化。オフライン起動のためThree.js本体を`vendor/three.min.js`にローカル同梱し、CDN参照をやめた。詳細は[ARCHITECTURE.md「公開」](ARCHITECTURE.md#公開github-pages--pwa)
 - **一人称視点の内覧モードを追加**：`data/house.json`の`walls`（内壁）と`footprints`（外壁は「区間の引き算」方式で区画境界の相殺辺を除外して導出、rooms→walls変換時と同じロジック）からドア開口を差し引いた「壁セグメント」を共通データとして作り、(1)内覧モード用の実壁・天井メッシュ、(2)円と線分の距離判定による衝突判定（プレイヤー半径0.26m＋壁厚/2）の両方をそこから生成した。スポーン地点（民泊棟玄関／自宅玄関）は`openings`の玄関ドアデータから自動計算している。操作はデスクトップ・スマホともドラッグで視点操作、移動はWASD／矢印キー（デスクトップ）かバーチャルジョイスティック（タッチデバイス）。壁の当たり判定は実測寸法ではなく概算データからの導出のため、判定自体も概算
+
+### 2026-08-15：家具・設備の配置（第1段階）
+
+家具配置の実装方針について事前に相談し、以下5点で合意してから着手した。
+
+1. 見た目は箱・円柱の組み合わせで作る。既製3Dモデル（GLB等）は使わない — サイズを自由に調整できること、PWAのオフライン保存が軽いことを優先
+2. データは`data/furniture.json`に置き、`house.json`とは分ける
+3. 編集は将来Web UI上のドラッグで行い、作業中はブラウザのlocalStorageに自動保存、決まったらJSONを書き出してGitにコミットする二段構え（`Ryuka-Landscape-Designer`がlocalStorageのみで機種間同期されない弱点を踏まえた設計。localStorage連携は未実装、現状は`furniture.json`を直接編集する運用）
+4. 回転は0/90/180/270度の90度刻みに限定する（当たり判定の実装コストを抑えるため）
+5. 「造作」（施工会社が設置し動かせない：キッチン・洗面台・UB・便器）と「置き家具」（後から自由に動かす：ベッド・ソファ・テーブル等）を区別する
+
+実装内容：
+
+- `data/furniture-catalog.json`（新設）：家具・設備の「型」ライブラリ。18種類（キッチン・洗面台・UB・便器・冷蔵庫・洗濯機・ベッド3種・ソファ2種・ダイニングテーブル2種・椅子・テレビボード・デスク・棚・ワードローブ）。寸法は日本の住宅設備・家具の一般的な標準値（施主の実測値ではない）
+- `data/furniture.json`：33個の配置インスタンス。1F民泊棟・自宅LDK・水回り、2F各寝室など主要な部屋一通りに仮配置。すべて`status: estimated`
+- `data/furniture.schema.json`（新設）：`furniture.json`のデータ契約
+- `tests/validate_furniture.py`（新設）：カタログのtype参照・house.jsonのroom参照・rotation値などを検証。部屋の外形から大きく外れた配置がないかも機械チェックする
+- `scripts/build-web-data.mjs`を拡張し、`FURNITURE_CATALOG`・`FURNITURE_ITEMS`を生成データに追加
+- `interior-white-model.html`に`FURNITURE_SHAPES`（家具の種類ごとの組み立て関数）を実装し、家具・設備レイヤーとして表示。内覧モードでは概算の間仕切り等と違って**家具は表示したままにした**（「実際に通れるか」を確認する内覧モードの主目的に直結するため）
+- Blenderへの家具生成は今回のスコープ外（施主の判断：配置の試行錯誤はインタラクティブ性が命なのでHTML側で詰める。決まった配置は将来Blenderからも読み込める設計にはしてある）
+- 作業は`feature/furniture-placement`ブランチで実施

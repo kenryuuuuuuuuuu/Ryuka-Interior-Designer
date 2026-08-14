@@ -12,11 +12,15 @@
 - `vendor/three.min.js` — Three.js本体のローカル同梱コピー（オフラインでも動くように、CDN参照ではなくここから読み込む）
 - `data/house.json` — 建物データの正本。寸法・開口部・室内ドア・部屋・壁・屋根
 - `data/house.schema.json` — `house.json`のデータ契約（JSON Schema）
-- `data/electrical.json` / `data/furniture.json` — 次フェーズ（電気設備・家具配置）用の領域。現在は空
-- `generated/house-data.js` — `house.json`から自動生成されるHTML表示用データ（手で編集しない）
-- `scripts/build-web-data.mjs` — `house.json` → `generated/house-data.js` の生成スクリプト
-- `blender/build_house.py` — `house.json`からBlender白模型を再生成するスクリプト
+- `data/furniture-catalog.json` — 家具・設備の「型」ライブラリ（種類ごとの標準寸法・形状指定）
+- `data/furniture.json` — 家具・設備の配置（どこに何を置くか）。正本
+- `data/furniture.schema.json` — `furniture.json`のデータ契約（JSON Schema）
+- `data/electrical.json` — 次フェーズ（電気設備）用の領域。現在は空
+- `generated/house-data.js` — `house.json`・`furniture-catalog.json`・`furniture.json`から自動生成されるHTML表示用データ（手で編集しない）
+- `scripts/build-web-data.mjs` — 上記JSON群 → `generated/house-data.js` の生成スクリプト
+- `blender/build_house.py` — `house.json`からBlender白模型を再生成するスクリプト（家具は対象外。HTML側だけで扱う方針）
 - `tests/validate_house.py` — `house.json`の整合性チェック（依存ライブラリなしで動作）
+- `tests/validate_furniture.py` — 家具データの整合性チェック
 
 ## 使い方
 
@@ -32,7 +36,7 @@ GitHub Pagesで公開している。スマホのブラウザで開き、共有�
 
 - 左上「☰」：メニューの表示/非表示
 - 上部中央のモード切替：「俯瞰」（自由回転）／「平面図」（真上からの正射投影、寸法比較用）／「内覧」（一人称視点で歩ける。玄関を選ぶとその場所からスタートし、壁に当たり判定がある。デスクトップはWASD/矢印キー移動＋ドラッグで視点操作、スマホはバーチャルジョイスティック＋ドラッグ）
-- メニュー内チェックボックス：レイヤーごとの表示切替（室内間仕切り・窓ドア・防音壁・屋根・室内ドア位置・寸法値・部屋ラベル・910mmグリッド）。内覧モード中はこれらの代わりに実壁・天井を表示する
+- メニュー内チェックボックス：レイヤーごとの表示切替（室内間仕切り・家具設備・窓ドア・防音壁・屋根・室内ドア位置・寸法値・部屋ラベル・家具ラベル・910mmグリッド）。部屋ラベルと家具ラベルは別々にON/OFFできる。内覧モード中は概算レイヤーの代わりに実壁・天井を表示するが、家具は内覧モード中も表示される
 
 ### 建物の寸法を変更する
 

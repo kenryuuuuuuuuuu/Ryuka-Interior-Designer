@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryuka.example/schemas/furniture.schema.json",
+  "title": "Ryuka furniture placement",
+  "description": "data/furniture.json（配置インスタンス）のデータ契約。型の定義は data/furniture-catalog.json を参照。",
+  "type": "object",
+  "required": ["schemaVersion", "units", "items"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "units": { "const": "m" },
+    "note": { "type": "string" },
+    "items": { "type": "array", "items": { "$ref": "#/$defs/item" } }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": ["id", "type", "level", "x", "z", "rotation", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "room": { "type": "string" },
+        "label": { "type": "string" },
+        "level": { "type": "integer", "minimum": 1 },
+        "x": { "type": "number" },
+        "z": { "type": "number" },
+        "rotation": { "enum": [0, 90, 180, 270] },
+        "widthOverride": { "type": "number", "exclusiveMinimum": 0 },
+        "depthOverride": { "type": "number", "exclusiveMinimum": 0 },
+        "heightOverride": { "type": "number", "exclusiveMinimum": 0 },
+        "status": { "enum": ["verified", "derived", "estimated"] },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}
