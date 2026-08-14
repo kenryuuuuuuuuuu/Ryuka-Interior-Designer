@@ -2,8 +2,17 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <title>自宅新築プロジェクト 内装白模型 v0.1</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#3a6ea5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ryuka Interior">
+<link rel="apple-touch-icon" href="icon.svg">
+<script src="vendor/three.min.js"></script>
 <style>
   :root{
     --accent:#3a6ea5; --accent-dark:#2f5a87; --ink:#222b32; --sub:#6b7480;
@@ -925,6 +934,13 @@ window.addEventListener('resize', ()=>{
   updateOrthoFrustum();
   renderer.setSize(innerWidth, innerHeight);
 });
+</script>
+<script>
+// PWA化：ホーム画面追加・オフライン起動のためのService Worker登録。
+// file://で開いた場合は登録しない（http/https配信時のみ）。
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(console.warn));
+}
 </script>
 </body>
 </html>

@@ -7,6 +7,9 @@
 ## ファイル構成
 
 - `interior-white-model.html` — Three.js製の内装白模型。単体でブラウザに開ける。`generated/house-data.js` を読み込んで表示する
+- `index.html` — GitHub PagesのルートURL用リダイレクト（`interior-white-model.html`へ転送するだけ）
+- `manifest.webmanifest` / `sw.js` / `icon.svg` — PWA化（ホーム画面に追加・オフライン起動）用の設定一式
+- `vendor/three.min.js` — Three.js本体のローカル同梱コピー（オフラインでも動くように、CDN参照ではなくここから読み込む）
 - `data/house.json` — 建物データの正本。寸法・開口部・室内ドア・部屋・壁・屋根
 - `data/house.schema.json` — `house.json`のデータ契約（JSON Schema）
 - `data/electrical.json` / `data/furniture.json` — 次フェーズ（電気設備・家具配置）用の領域。現在は空
@@ -17,9 +20,15 @@
 
 ## 使い方
 
-### Three.jsビューアを見る
+### Webアプリとして開く
 
-`interior-white-model.html` をブラウザで直接開く。ビルド不要、外部依存はCDN経由のThree.js（r128）のみ。
+**https://kenryuuuuuuuuuu.github.io/Ryuka-Interior-Designer/**
+
+GitHub Pagesで公開している。スマホのブラウザで開き、共有ボタン→「ホーム画面に追加」（iPhone/Safari）または「アプリをインストール」（Android/Chrome）を選ぶと、アイコンをタップするだけでアプリのように開けるようになる（オフラインでも起動する）。
+
+### ローカルで開く
+
+`interior-white-model.html` をブラウザで直接開く。ビルド不要、外部依存はローカル同梱の Three.js（r128、`vendor/three.min.js`）のみ。
 
 - 左上「☰」：メニューの表示/非表示
 - 上部中央のモード切替：「俯瞰」（自由回転）／「平面図」（真上からの正射投影、寸法比較用）／「内覧」（一人称視点で歩ける。玄関を選ぶとその場所からスタートし、壁に当たり判定がある。デスクトップはWASD/矢印キー移動＋ドラッグで視点操作、スマホはバーチャルジョイスティック＋ドラッグ）

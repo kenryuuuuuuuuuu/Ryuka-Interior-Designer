@@ -16,6 +16,7 @@
 - 家具配置：未着手（次のステップ）
 - データ正本：`data/house.json`に一本化済み（2026-08-14。詳細は[BACKGROUND.md 5章](BACKGROUND.md#5-変更履歴ログ)）
 - 内覧モード（一人称視点）：1F/2Fとも歩行・壁の当たり判定に対応。スポーン地点は民泊棟玄関／自宅玄関の2箇所、デスクトップ・スマホ両対応。壁の当たり判定は概算データからの導出（未検証）
+- Web公開・PWA化：[https://kenryuuuuuuuuuu.github.io/Ryuka-Interior-Designer/](https://kenryuuuuuuuuuu.github.io/Ryuka-Interior-Designer/) で公開（2026-08-14）。ホーム画面に追加してアプリのように開ける。詳細は[ARCHITECTURE.md「公開」](ARCHITECTURE.md#公開github-pages--pwa)
 
 ## 未解決事項・要確認事項
 

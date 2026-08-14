@@ -1,0 +1,14 @@
+{
+  "name": "Ryuka 内装デジタルツイン",
+  "short_name": "Ryuka Interior",
+  "description": "自宅新築プロジェクトの内装白模型・一人称内覧シミュレーター",
+  "start_url": "./interior-white-model.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#dfe4e8",
+  "theme_color": "#3a6ea5",
+  "orientation": "any",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
