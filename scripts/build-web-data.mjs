@@ -115,10 +115,34 @@ function buildRoofs() {
   const rows = house.roofs
     .map((r) => {
       const fp = fpById[r.footprintId];
-      return `  { id:${str(r.id)}, x0:${num(fp.x0)}, x1:${num(fp.x1)}, zNorth:${num(r.zNorth)}, zSouth:${num(r.zSouth)}, pitch:${num(r.pitch)}, thickness:${num(r.thickness)}, base:${num(r.baseAtZMinus0_5)} }`;
+      if (r.kind === "gable") {
+        const zRidge = (fp.z0 + fp.z1) / 2;
+        const fields = [
+          `id:${str(r.id)}`, `kind:${str(r.kind)}`,
+          `x0:${num(fp.x0 - r.eaveGableEnd)}`, `x1:${num(fp.x1 + r.eaveGableEnd)}`,
+          `zNorth:${num(fp.z0 - r.eaveLongSide)}`, `zRidge:${num(zRidge)}`, `zSouth:${num(fp.z1 + r.eaveLongSide)}`,
+          `yEave:${num(house.levels.eave2)}`, `yRidge:${num(house.levels.ridge)}`,
+          `thickness:${num(r.thickness)}`,
+        ];
+        return `  { ${fields.join(", ")} }`;
+      }
+      const fields = [
+        `id:${str(r.id)}`, `kind:${str(r.kind ?? "lean_to")}`,
+        `x0:${num(fp.x0)}`, `x1:${num(fp.x1)}`,
+        `zNorth:${num(r.zNorth)}`, `zSouth:${num(r.zSouth)}`,
+        `pitch:${num(r.pitch)}`, `thickness:${num(r.thickness)}`, `base:${num(r.baseAtZMinus0_5)}`,
+      ];
+      return `  { ${fields.join(", ")} }`;
     })
     .join(",\n");
   return `const ROOFS = [\n${rows}\n];`;
+}
+
+function buildWalls() {
+  const rows = house.walls
+    .map((w) => `  { id:${str(w.id)}, level:${w.level}, x0:${num(w.x0)}, x1:${num(w.x1)}, z0:${num(w.z0)}, z1:${num(w.z1)}, orientation:${str(w.orientation)} }`)
+    .join(",\n");
+  return `const WALLS = [\n${rows}\n];`;
 }
 
 const banner = `// ============================================================================
@@ -130,12 +154,14 @@ const banner = `// =============================================================
 
 const CEIL_H = `const CEIL_H = ${num(house.defaults.ceilingHeight)}; // ${house.defaults.ceilingHeightStatus === "estimated" ? "推測値（要確認）" : house.defaults.ceilingHeightStatus}`;
 const WALL_T = `const WALL_T = ${num(house.defaults.wallThickness)};`;
+const INTERIOR_WALL_T = `const INTERIOR_WALL_T = ${num(house.defaults.interiorWallThickness ?? 0.06)};`;
 
 const output = [
   banner,
   buildLevels(),
   CEIL_H,
   WALL_T,
+  INTERIOR_WALL_T,
   "",
   buildFloor1(),
   buildFloor2(),
@@ -145,6 +171,8 @@ const output = [
   buildSoundWall(),
   "",
   buildInteriorDoors(),
+  "",
+  buildWalls(),
   "",
   buildRoomsApprox(),
   "",

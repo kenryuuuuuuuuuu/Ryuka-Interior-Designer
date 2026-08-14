@@ -7,6 +7,7 @@
 const LEVELS = { gl:0, fl1:0.707, fl2:3.439, eaveLow:3.4, eaveHigh:4.567, eave2:6.3, ridge:7.423 };
 const CEIL_H = 2.4; // 推測値（要確認）
 const WALL_T = 0.12;
+const INTERIOR_WALL_T = 0.06;
 
 const FLOOR1 = [
   { id:'1f-a1', x0:0, x1:9.1, z0:0.91, z1:6.37, use:'民泊棟（玄関・洋室・LDK・水回り）' },
@@ -62,6 +63,32 @@ const INTERIOR_DOORS = [
   { label:'廊下(2F)⟷夫婦寝室', wallAt:2.73, orientation:'H', center:15.925, width:0.91, floor:2 }
 ];
 
+const WALLS = [
+  { id:'wall-1f-001', level:1, x0:13.651, x1:19.11, z0:1.82, z1:1.82, orientation:'H' },
+  { id:'wall-1f-002', level:1, x0:10.92, x1:13.651, z0:2.275, z1:2.275, orientation:'H' },
+  { id:'wall-1f-003', level:1, x0:0, x1:2.73, z0:2.73, z1:2.73, orientation:'H' },
+  { id:'wall-1f-004', level:1, x0:7.28, x1:10.92, z0:2.73, z1:2.73, orientation:'H' },
+  { id:'wall-1f-005', level:1, x0:17.291, x1:19.11, z0:2.73, z1:2.73, orientation:'H' },
+  { id:'wall-1f-006', level:1, x0:15.471, x1:17.291, z0:3.64, z1:3.64, orientation:'H' },
+  { id:'wall-1f-007', level:1, x0:2.73, x1:7.28, z0:3.691, z1:3.691, orientation:'H' },
+  { id:'wall-1f-008', level:1, x0:17.291, x1:19.11, z0:4.095, z1:4.095, orientation:'H' },
+  { id:'wall-1f-009', level:1, x0:0, x1:1.82, z0:4.55, z1:4.55, orientation:'H' },
+  { id:'wall-1f-010', level:1, x0:16.38, x1:19.11, z0:6.37, z1:6.37, orientation:'H' },
+  { id:'wall-1f-011', level:1, x0:0.91, x1:0.91, z0:0.91, z1:2.73, orientation:'V' },
+  { id:'wall-1f-012', level:1, x0:1.82, x1:1.82, z0:2.73, z1:6.37, orientation:'V' },
+  { id:'wall-1f-013', level:1, x0:2.73, x1:2.73, z0:0.91, z1:3.691, orientation:'V' },
+  { id:'wall-1f-014', level:1, x0:10.92, x1:10.92, z0:0.455, z1:2.73, orientation:'V' },
+  { id:'wall-1f-015', level:1, x0:13.651, x1:13.651, z0:0, z1:2.275, orientation:'V' },
+  { id:'wall-1f-016', level:1, x0:15.471, x1:15.471, z0:0, z1:6.37, orientation:'V' },
+  { id:'wall-1f-017', level:1, x0:17.291, x1:17.291, z0:1.82, z1:6.37, orientation:'V' },
+  { id:'wall-2f-001', level:2, x0:12.74, x1:16.38, z0:1.82, z1:1.82, orientation:'H' },
+  { id:'wall-2f-002', level:2, x0:12.74, x1:19.11, z0:2.73, z1:2.73, orientation:'H' },
+  { id:'wall-2f-003', level:2, x0:13.651, x1:13.651, z0:0, z1:1.82, orientation:'V' },
+  { id:'wall-2f-004', level:2, x0:15.47, x1:15.47, z0:0, z1:1.82, orientation:'V' },
+  { id:'wall-2f-005', level:2, x0:15.47, x1:15.47, z0:2.73, z1:6.37, orientation:'V' },
+  { id:'wall-2f-006', level:2, x0:16.38, x1:16.38, z0:1.82, z1:2.73, orientation:'V' }
+];
+
 const ROOMS_APPROX = {
   1: [
     { name:'トイレ(民泊)', x0:0, x1:0.91, z0:0.91, z1:2.73, conf:'高', note:'面積1.66㎡相当・マイホームクラウド値と一致確認' },
@@ -94,6 +121,7 @@ const ROOMS_APPROX = {
 };
 
 const ROOFS = [
-  { id:'roof-a1', x0:0, x1:9.1, zNorth:0.41, zSouth:7.28, pitch:0.15, thickness:0.15, base:3.4 },
-  { id:'roof-a2', x0:9.1, x1:12.74, zNorth:-0.045, zSouth:7.28, pitch:0.15, thickness:0.15, base:3.4 }
+  { id:'roof-a1', kind:'lean_to', x0:0, x1:9.1, zNorth:0.41, zSouth:7.28, pitch:0.15, thickness:0.15, base:3.4 },
+  { id:'roof-a2', kind:'lean_to', x0:9.1, x1:12.74, zNorth:-0.045, zSouth:7.28, pitch:0.15, thickness:0.15, base:3.4 },
+  { id:'roof-2f-gable', kind:'gable', x0:12.52, x1:19.33, zNorth:-0.558, zRidge:3.185, zSouth:6.928, yEave:6.3, yRidge:7.423, thickness:0.18 }
 ];

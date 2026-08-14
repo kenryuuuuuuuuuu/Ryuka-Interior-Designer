@@ -536,6 +536,7 @@
   "roofs": [
     {
       "id": "roof-a1",
+      "kind": "lean_to",
       "footprintId": "1f-a1",
       "zNorth": 0.41,
       "zSouth": 7.28,
@@ -546,6 +547,7 @@
     },
     {
       "id": "roof-a2",
+      "kind": "lean_to",
       "footprintId": "1f-a2",
       "zNorth": -0.045,
       "zSouth": 7.28,
@@ -553,6 +555,19 @@
       "thickness": 0.15,
       "baseAtZMinus0_5": 3.4,
       "status": "derived"
+    },
+    {
+      "id": "roof-2f-gable",
+      "kind": "gable",
+      "footprintId": "2f-main",
+      "ridgeAxis": "x",
+      "pitch": 0.3,
+      "thickness": 0.18,
+      "eaveGableEnd": 0.22,
+      "eaveLongSide": 0.558,
+      "status": "verified",
+      "source": "Ryuka-Landscape-Designer（js/building-model.js, docs/MODEL-SPEC.md §3.4.2。実施図面Ver5の四面立面図と検算済み）",
+      "note": "2階切妻屋根。棟(ridge)はfootprint(2f-main)のz中央(=(z0+z1)/2=3.185m)を東西方向(x軸に平行)に通る。棟高・軒高はlevels.ridge(7.423)/levels.eave2(6.300)を使用し、3寸勾配(0.30)と整合する（(7.423-6.300)/(3.185+0.558)=0.300）。東西の妻壁（屋根下を塞ぐ三角壁）は未実装（簡略化）。南東部A4上の別の下屋（Ryuka-Landscape-Designer 3.4.3）はこのエントリの対象外、未移植。"
     }
   ],
   "rooms": [

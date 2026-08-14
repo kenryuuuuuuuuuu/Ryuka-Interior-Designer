@@ -146,22 +146,37 @@ def build_interior_walls(data, coll, mat):
                 box(f"{wall['id']}-{i:02d}", wall["x0"]-thickness/2, wall["x0"]+thickness/2, a, b, low, high, coll, mat)
 
 
-def build_roof(data, roof, fp, coll, mat):
-    z0, z1 = roof["zNorth"], roof["zSouth"]
-    y0 = roof["baseAtZMinus0_5"] + (z0 + 0.5) * roof["pitch"]
-    y1 = roof["baseAtZMinus0_5"] + (z1 + 0.5) * roof["pitch"]
+def build_roof_panel(name, x0, x1, z0, y0, z1, y1, thickness, coll, mat):
+    """z0/y0 -> z1/y1 の2点を結ぶ、傾斜した屋根の板を1枚生成する。"""
     run = math.hypot(z1 - z0, y1 - y0)
     bpy.ops.mesh.primitive_cube_add(
-        location=((fp["x0"] + fp["x1"]) / 2, -(z0 + z1) / 2, (y0 + y1) / 2),
-        scale=((fp["x1"] - fp["x0"]) / 2, run / 2, roof["thickness"] / 2),
+        location=((x0 + x1) / 2, -(z0 + z1) / 2, (y0 + y1) / 2),
+        scale=((x1 - x0) / 2, run / 2, thickness / 2),
         rotation=(-math.atan2(y1 - y0, z1 - z0), 0, 0),
     )
     obj = bpy.context.object
-    obj.name = roof["id"]
+    obj.name = name
     for current in list(obj.users_collection):
         current.objects.unlink(obj)
     coll.objects.link(obj)
     obj.data.materials.append(mat)
+
+
+def build_roof(data, roof, fp, coll, mat):
+    if roof.get("kind") == "gable":
+        # 切妻屋根：footprintのz中央を東西方向(x軸に平行)に通る棟(ridge)を挟んで
+        # 北面・南面の2枚を生成する。出典: Ryuka-Landscape-Designer js/building-model.js
+        x0, x1 = fp["x0"] - roof["eaveGableEnd"], fp["x1"] + roof["eaveGableEnd"]
+        z_ridge = (fp["z0"] + fp["z1"]) / 2
+        y_eave, y_ridge = data["levels"]["eave2"], data["levels"]["ridge"]
+        z_north, z_south = fp["z0"] - roof["eaveLongSide"], fp["z1"] + roof["eaveLongSide"]
+        build_roof_panel(f"{roof['id']}-N", x0, x1, z_north, y_eave, z_ridge, y_ridge, roof["thickness"], coll, mat)
+        build_roof_panel(f"{roof['id']}-S", x0, x1, z_ridge, y_ridge, z_south, y_eave, roof["thickness"], coll, mat)
+        return
+    z0, z1 = roof["zNorth"], roof["zSouth"]
+    y0 = roof["baseAtZMinus0_5"] + (z0 + 0.5) * roof["pitch"]
+    y1 = roof["baseAtZMinus0_5"] + (z1 + 0.5) * roof["pitch"]
+    build_roof_panel(roof["id"], fp["x0"], fp["x1"], z0, y0, z1, y1, roof["thickness"], coll, mat)
 
 
 def build(data):

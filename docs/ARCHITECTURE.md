@@ -81,7 +81,7 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 2. `node scripts/build-web-data.mjs --check` が「up to date」と報告すること（生成物のコミット漏れがないか）
 3. Blenderが利用可能なら、上記のBlender生成コマンドが正常終了すること
 4. Blenderの上面正射投影ビューと、Three.js側の平面図モード（910mmグリッド）を見比べて整合を確認する
-5. 4つの1F求積ゾーン、2Fフットプリント、階高、開口部、室内ドア、部屋数、壁数、防音壁、片流れ屋根2枚を数の上で確認する（現在の数はSTATUS.mdに記載）
+5. 4つの1F求積ゾーン、2Fフットプリント、階高、開口部、室内ドア、部屋数、壁数、防音壁、屋根（1F片流れ2枚＋2F切妻1式）を数の上で確認する（現在の数はSTATUS.mdに記載）
 6. 不整合を見つけたら `house.json` 側のデータ問題として記録する。生成された `generated/house-data.js` やBlenderジオメトリを直接手で編集しない
 
 ## 移行状況

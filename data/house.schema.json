@@ -26,7 +26,23 @@
     "openings": { "type": "array", "items": { "$ref": "#/$defs/opening" } },
     "interiorDoors": { "type": "array", "items": { "$ref": "#/$defs/interiorDoor" } },
     "specialWalls": { "type": "array", "items": { "type": "object", "required": ["id", "x", "z0", "z1", "level", "topY"], "properties": { "note": { "type": "string" } } } },
-    "roofs": { "type": "array", "items": { "type": "object", "required": ["id", "footprintId", "zNorth", "zSouth", "pitch", "thickness"] } },
+    "roofs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "footprintId", "kind", "thickness", "status"],
+        "properties": {
+          "id": { "type": "string" }, "footprintId": { "type": "string" },
+          "kind": { "enum": ["lean_to", "gable"] },
+          "thickness": { "type": "number", "exclusiveMinimum": 0 },
+          "status": { "enum": ["verified", "derived", "estimated"] },
+          "zNorth": { "type": "number" }, "zSouth": { "type": "number" }, "pitch": { "type": "number" },
+          "baseAtZMinus0_5": { "type": "number" },
+          "ridgeAxis": { "enum": ["x", "z"] }, "eaveGableEnd": { "type": "number" }, "eaveLongSide": { "type": "number" },
+          "source": { "type": "string" }, "note": { "type": "string" }
+        }
+      }
+    },
     "rooms": { "type": "array", "items": { "$ref": "#/$defs/room" } },
     "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" } }
   },

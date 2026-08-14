@@ -5,82 +5,190 @@
 <title>自宅新築プロジェクト 内装白模型 v0.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
-  html,body{margin:0;padding:0;overflow:hidden;background:#dfe4e8;font-family:"Hiragino Sans","Noto Sans JP",sans-serif;}
-  #canvas-wrap{position:fixed;inset:0;}
-  #ui{position:fixed;top:12px;left:12px;background:rgba(255,255,255,.92);border-radius:10px;padding:14px 16px;
-      box-shadow:0 4px 16px rgba(0,0,0,.15);width:300px;font-size:13px;color:#222;max-height:92vh;overflow-y:auto;}
-  #ui h1{font-size:14px;margin:0 0 6px;}
-  #ui .sub{font-size:11px;color:#777;margin-bottom:10px;line-height:1.5;}
-  #ui label{display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer;}
-  #ui hr{border:none;border-top:1px solid #ddd;margin:10px 0;}
-  .legend-item{display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11.5px;}
-  .swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.2);}
+  :root{
+    --accent:#3a6ea5; --accent-dark:#2f5a87; --ink:#222b32; --sub:#6b7480;
+    --panel-bg:rgba(255,255,255,.94); --line:#e4e7ea; --radius:14px;
+  }
+  html,body{margin:0;padding:0;overflow:hidden;background:#dfe4e8;font-family:"Hiragino Sans","Noto Sans JP",sans-serif;
+      -webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
+  #canvas-wrap{position:fixed;inset:0;touch-action:none;}
+  * { box-sizing:border-box; }
+
+  /* ---- 左パネル ---- */
+  #ui{position:fixed;top:64px;left:12px;background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
+      padding:16px 18px;box-shadow:0 8px 28px rgba(20,30,40,.16);width:300px;font-size:13px;color:var(--ink);
+      max-height:calc(100vh - 84px);overflow-y:auto;transition:transform .18s ease,opacity .18s ease;}
+  #ui h1{font-size:14.5px;margin:0 0 4px;font-weight:700;letter-spacing:.01em;}
+  #ui .sub{font-size:11.5px;color:var(--sub);margin-bottom:10px;line-height:1.55;}
+  #ui .section-title{font-size:11px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;
+      margin:14px 0 6px;}
+  #ui .section-title:first-of-type{margin-top:0;}
+  #ui label{display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer;padding:3px 4px;border-radius:7px;
+      transition:background .12s;}
+  #ui label:hover{background:#f2f4f6;}
+  #ui input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
+  #ui hr{border:none;border-top:1px solid var(--line);margin:12px 0;}
+  .legend-item{display:flex;align-items:flex-start;gap:8px;margin:5px 0;font-size:11.5px;line-height:1.5;color:#3d444b;}
+  .swatch{width:13px;height:13px;border-radius:4px;flex-shrink:0;margin-top:2px;border:1px solid rgba(0,0,0,.18);}
+  #ui.hidden{transform:translateX(-8px);opacity:0;pointer-events:none;}
+
+  /* ---- 上部バー ---- */
+  #topBar{position:fixed;top:12px;left:12px;right:12px;z-index:20;display:flex;align-items:center;
+      justify-content:space-between;gap:10px;pointer-events:none;}
+  #topBar > *{pointer-events:auto;}
+  #menuToggle{background:var(--accent);color:#fff;border:none;border-radius:10px;width:40px;height:40px;
+      font-size:16px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.22);flex-shrink:0;}
+  #menuToggle:hover{background:var(--accent-dark);}
+  #modeSwitch{display:flex;background:rgba(255,255,255,.94);border-radius:11px;padding:3px;box-shadow:0 3px 12px rgba(0,0,0,.18);
+      gap:2px;}
+  #modeSwitch button{border:none;background:transparent;color:#4a5158;font-size:12.5px;font-weight:600;
+      padding:8px 13px;border-radius:8px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s;}
+  #modeSwitch button.active{background:var(--accent);color:#fff;}
+  #modeSwitch button:not(.active):hover{background:#eef1f4;}
+  #floorToggle{display:flex;background:rgba(255,255,255,.94);border-radius:11px;padding:3px;box-shadow:0 3px 12px rgba(0,0,0,.18);gap:2px;}
+  #floorToggle button{font-size:12.5px;font-weight:600;padding:8px 12px;border:none;border-radius:8px;
+       background:transparent;color:#4a5158;cursor:pointer;transition:background .15s,color .15s;}
+  #floorToggle button.active{background:var(--accent);color:#fff;}
+  #floorToggle button:not(.active):hover{background:#eef1f4;}
+  #floorToggle.disabled{opacity:.4;pointer-events:none;}
+
   #tip{position:fixed;bottom:10px;left:12px;font-size:11px;color:#555;background:rgba(255,255,255,.85);
-       padding:6px 10px;border-radius:6px;}
+       padding:6px 10px;border-radius:6px;max-width:min(94vw,520px);}
   .labelDiv{position:absolute;color:#222;font-size:11px;background:rgba(255,255,255,.82);
             padding:1px 5px;border-radius:4px;white-space:nowrap;pointer-events:none;transform:translate(-50%,-50%);
             border:1px solid rgba(0,0,0,.1);}
   .labelDiv.approx{color:#8a5a00;border-color:rgba(200,140,0,.4);}
   .labelDiv.dim{background:rgba(30,32,36,.88);color:#ffe27a;font-size:10px;font-weight:700;
       padding:1px 4px;border:1px solid rgba(255,255,255,.15);font-family:monospace;}
-  #floorToggle button{font-size:12px;padding:4px 10px;margin-right:4px;border:1px solid #999;border-radius:5px;
-       background:#f2f2f2;cursor:pointer;}
-  #floorToggle button.active{background:#3a6ea5;color:#fff;border-color:#3a6ea5;}
-  #ui.hidden{display:none;}
-  #menuToggle{position:fixed;top:12px;left:12px;z-index:20;background:#3a6ea5;color:#fff;border:none;
-      border-radius:8px;width:38px;height:38px;font-size:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);}
-  #menuToggle:hover{background:#2f5a87;}
-  #topViewToggle{position:fixed;top:12px;right:12px;z-index:20;background:#fff;color:#222;border:1px solid #999;
-      border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);}
-  #topViewToggle.active{background:#3a6ea5;color:#fff;border-color:#3a6ea5;}
+
+  /* ---- 内覧（一人称）モード ---- */
+  #walkHud{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:22;display:none;
+      align-items:center;gap:10px;background:rgba(20,26,32,.72);color:#fff;padding:8px 10px 8px 16px;
+      border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.28);font-size:12.5px;backdrop-filter:blur(4px);}
+  #walkHud .room{font-weight:600;}
+  #walkHud button{background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:8px;padding:7px 11px;
+      font-size:12px;cursor:pointer;white-space:nowrap;}
+  #walkHud button:hover{background:rgba(255,255,255,.24);}
+  #crosshair{position:fixed;top:50%;left:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;
+      background:rgba(255,255,255,.85);box-shadow:0 0 0 1.5px rgba(0,0,0,.35);z-index:21;display:none;pointer-events:none;}
+  #moveHint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:21;display:none;
+      background:rgba(20,26,32,.66);color:#fff;font-size:11.5px;padding:6px 12px;border-radius:8px;pointer-events:none;
+      white-space:nowrap;}
+
+  #joyBase{position:fixed;left:26px;bottom:26px;width:104px;height:104px;border-radius:50%;
+      background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.5);z-index:21;display:none;
+      touch-action:none;}
+  #joyKnob{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
+      background:rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.25);}
+
+  #spawnOverlay{position:fixed;inset:0;z-index:30;background:rgba(18,22,26,.55);display:none;
+      align-items:center;justify-content:center;padding:20px;}
+  #spawnCard{background:#fff;border-radius:18px;padding:26px 26px 22px;max-width:420px;width:100%;
+      box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;}
+  #spawnCard h2{margin:0 0 4px;font-size:16.5px;color:var(--ink);}
+  #spawnCard p{margin:0 0 18px;font-size:12.5px;color:var(--sub);line-height:1.6;}
+  .spawnOptions{display:flex;gap:10px;flex-wrap:wrap;}
+  .spawnBtn{flex:1 1 160px;background:#f5f7f9;border:1.5px solid var(--line);border-radius:13px;padding:16px 12px;
+      cursor:pointer;text-align:center;transition:border-color .15s,background .15s;}
+  .spawnBtn:hover{border-color:var(--accent);background:#eef4fa;}
+  .spawnBtn .icon{font-size:24px;margin-bottom:6px;}
+  .spawnBtn .title{font-weight:700;font-size:13px;color:var(--ink);}
+  .spawnBtn .desc{font-size:11px;color:var(--sub);margin-top:3px;line-height:1.5;}
+  #spawnCancel{margin-top:16px;background:none;border:none;color:var(--sub);font-size:12px;cursor:pointer;
+      text-decoration:underline;}
+
+  @media (max-width:640px){
+    #ui{left:10px;right:10px;width:auto;top:auto;bottom:12px;max-height:52vh;}
+    #topBar{top:10px;left:10px;right:10px;}
+    #modeSwitch button{padding:8px 10px;font-size:11.5px;}
+    #floorToggle button{padding:8px 9px;font-size:11.5px;}
+    #tip{display:none;}
+  }
 </style>
 </head>
 <body>
 <div id="canvas-wrap"></div>
 <div id="labelLayer" style="position:fixed;inset:0;pointer-events:none;"></div>
 
-<button id="menuToggle" title="メニューの表示/非表示">☰</button>
-<button id="topViewToggle" title="真上から見る（平面図モード）">▦ 平面図モード</button>
+<div id="topBar">
+  <button id="menuToggle" title="メニューの表示/非表示">☰</button>
+  <div id="modeSwitch">
+    <button id="modeOrbit" data-mode="orbit">◔ 俯瞰</button>
+    <button id="modeTop" data-mode="top" class="active">▦ 平面図</button>
+    <button id="modeWalk" data-mode="walk">🚶 内覧</button>
+  </div>
+</div>
 
 <div id="ui">
   <h1>自宅新築プロジェクト 内装白模型 v0.1</h1>
   <div class="sub">出典: 施工会社Ver5実施図面＋Ryuka-Landscape-Designer levels。<br>
   マイホームクラウド値は不使用。寸法単位m、GL基準。</div>
 
+  <div class="section-title">表示フロア</div>
   <div id="floorToggle">
     <button id="btnBoth" class="active">両方</button>
     <button id="btn1F">1F</button>
     <button id="btn2F">2F</button>
   </div>
-  <div class="sub" style="margin:2px 0 8px;">1F/2F切替時、選択していない階は自動的に薄く表示されます（消去はしません）。</div>
-  <hr>
-  <label><input type="checkbox" id="chkShell" checked> 外皮・ゾーン壁（確定）</label>
+  <div class="sub" style="margin:6px 0 0;">1F/2F切替時、選択していない階は非表示になります。内覧モード中はスポーン地点で階が決まります。</div>
+
+  <div class="section-title">表示レイヤー</div>
   <label><input type="checkbox" id="chkApprox" checked> 室内間仕切り（概算・要確認）</label>
   <label><input type="checkbox" id="chkOpenings" checked> 窓・ドア（確定位置）</label>
   <label><input type="checkbox" id="chkSound" checked> 防音壁（民泊-自宅境界）</label>
-  <label><input type="checkbox" id="chkRoof"> 片流れ屋根（平屋部）</label>
+  <label><input type="checkbox" id="chkRoof"> 屋根（1F片流れ＋2F切妻）</label>
   <label><input type="checkbox" id="chkDoors" checked> 室内ドア位置（確定）</label>
   <label><input type="checkbox" id="chkDims" checked> 寸法値を表示（1F・mm単位）</label>
   <label><input type="checkbox" id="chkLabels" checked> 部屋ラベル</label>
   <label><input type="checkbox" id="chkGrid" checked> 地面グリッド(910mm)</label>
 
-  <hr>
-  <div style="font-weight:600;margin-bottom:4px;">凡例</div>
-  <div class="legend-item"><div class="swatch" style="background:#cfd6dc;"></div>確定：外皮・ゾーン境界壁（求積図と一致検算済み）</div>
+  <div class="section-title">凡例</div>
   <div class="legend-item"><div class="swatch" style="background:#ffd479;"></div>概算：室内間仕切り（●高 ◐中 ○低）</div>
   <div class="legend-item"><div class="swatch" style="background:#e05252;"></div>確定：民泊-自宅 防音壁（小屋裏まで張り上げ）</div>
   <div class="legend-item"><div class="swatch" style="background:#6fb3e0;"></div>確定：窓</div>
   <div class="legend-item"><div class="swatch" style="background:#ff1fb0;"></div>確定：ドア（外部・室内とも共通色）</div>
-  <div class="legend-item"><div class="swatch" style="background:#a89f8f;"></div>片流れ屋根（平屋部A1/A2。pitch1.5寸で検算済み、x=9.100の継ぎ目は簡略化）</div>
+  <div class="legend-item"><div class="swatch" style="background:#a89f8f;"></div>屋根：1F片流れ（平屋部A1/A2、1.5寸勾配。x=9.100の継ぎ目は簡略化）／2F切妻（3寸勾配、棟は東西方向。妻壁は未モデル化）</div>
   <div class="legend-item"><div class="swatch" style="background:#4caf50;"></div>確定：室内ドア位置（施主指摘の座標をピクセル解析）</div>
   <hr>
   <div style="font-size:11px;color:#777;line-height:1.6;">
   天井高は全室2,400mm（推測・要施工会社確認）を暫定採用。<br>
-  室内間仕切りの正確な壁位置はCAD原本があれば精度が上がります。
+  室内間仕切りの正確な壁位置はCAD原本があれば精度が上がります。<br>
+  内覧モードの壁の当たり判定は概算です（実測厚みではなく簡略化した厚みを使用）。
   </div>
 </div>
 
-<div id="tip">左ドラッグ:回転 / 右ドラッグ:平行移動 / ホイール:ズーム　｜　平面図モード中は ドラッグ:平行移動 / ホイール:ズーム</div>
+<div id="tip">俯瞰: 左ドラッグ回転／右ドラッグ平行移動／ホイールズーム　｜　平面図: ドラッグ平行移動／ホイールズーム　｜　内覧: WASD移動／ドラッグ視点</div>
+
+<!-- ---- 内覧（一人称）モードのHUD ---- -->
+<div id="walkHud">
+  <span class="room">内覧モード</span>
+  <button id="walkSwitchSpawn">🚪 玄関を選び直す</button>
+  <button id="walkExit">✕ 終了</button>
+</div>
+<div id="crosshair"></div>
+<div id="moveHint">WASD / 矢印キーで移動　｜　ドラッグで視点操作</div>
+<div id="joyBase"><div id="joyKnob"></div></div>
+
+<!-- ---- スポーン地点選択オーバーレイ ---- -->
+<div id="spawnOverlay">
+  <div id="spawnCard">
+    <h2>どちらから歩き始めますか</h2>
+    <p>玄関を選ぶと、その場所からその階を一人称視点で歩けます。</p>
+    <div class="spawnOptions">
+      <div class="spawnBtn" id="spawnMinpaku">
+        <div class="icon">🏠</div>
+        <div class="title">民泊棟 玄関から</div>
+        <div class="desc">1F・玄関(民泊)〜LDK(民泊)側</div>
+      </div>
+      <div class="spawnBtn" id="spawnJitaku">
+        <div class="icon">🏡</div>
+        <div class="title">自宅 玄関から</div>
+        <div class="desc">1F・自宅玄関ホール側</div>
+      </div>
+    </div>
+    <button id="spawnCancel">やめる</button>
+  </div>
+</div>
 
 <script src="generated/house-data.js"></script>
 <script>
@@ -122,15 +230,26 @@ function updateCamera(){
 }
 updateCamera();
 
-// 簡易オービットコントロール（外部ライブラリ非依存）
+// ============================================================================
+// 表示モード：'top'（平面図・正射投影）／'orbit'（俯瞰・自由回転）／'walk'（内覧・一人称）
+// ============================================================================
+let mode = 'top'; // デフォルトを平面図モードに（2026-08-13）
+const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+// ---- 俯瞰モード：簡易オービットコントロール（外部ライブラリ非依存） ----
 let dragging=false, dragButton=0, lastX=0, lastY=0;
 renderer.domElement.addEventListener('contextmenu', e=>e.preventDefault());
-renderer.domElement.addEventListener('pointerdown', e=>{ dragging=true; dragButton=e.button; lastX=e.clientX; lastY=e.clientY; });
-window.addEventListener('pointerup', ()=> dragging=false);
+renderer.domElement.addEventListener('pointerdown', e=>{
+  if(mode==='walk'){ onWalkPointerDown(e); return; }
+  if(mode!=='orbit' && mode!=='top') return;
+  dragging=true; dragButton=e.button; lastX=e.clientX; lastY=e.clientY;
+});
+window.addEventListener('pointerup', e=>{ dragging=false; onWalkPointerUp(e); });
 window.addEventListener('pointermove', e=>{
+  if(mode==='walk'){ onWalkPointerMove(e); return; }
   if(!dragging) return;
   const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
-  if(topViewActive){
+  if(mode==='top'){
     // 平面図モード：ドラッグで平行移動のみ
     const worldPerPx = (orthoHalfSize*2)/innerHeight;
     orthoTarget.x -= dx*worldPerPx;
@@ -148,7 +267,8 @@ window.addEventListener('pointermove', e=>{
   updateCamera();
 });
 renderer.domElement.addEventListener('wheel', e=>{
-  if(topViewActive){
+  if(mode==='walk') return;
+  if(mode==='top'){
     orthoHalfSize = Math.min(Math.max(orthoHalfSize + e.deltaY*0.01, 1.5), 30);
     updateOrthoFrustum();
     e.preventDefault();
@@ -177,15 +297,20 @@ function updateOrthoCam(){
 }
 updateOrthoCam();
 
-let topViewActive = true; // デフォルトを俯瞰(平面図)モードに変更（2026-08-13）
-const topViewBtn = document.getElementById('topViewToggle');
-topViewBtn.classList.add('active');
-topViewBtn.textContent = '▦ 通常視点に戻る';
-topViewBtn.onclick = ()=>{
-  topViewActive = !topViewActive;
-  topViewBtn.classList.toggle('active', topViewActive);
-  topViewBtn.textContent = topViewActive ? '▦ 通常視点に戻る' : '▦ 平面図モード';
-};
+// ---- モード切替UI ----
+const modeButtons = { top: document.getElementById('modeTop'), orbit: document.getElementById('modeOrbit'), walk: document.getElementById('modeWalk') };
+function setMode(next){
+  if(next==='walk' && mode!=='walk'){
+    openSpawnOverlay();
+    return; // 実際のモード切替はスポーン選択後（enterWalkMode内）に行う
+  }
+  if(mode==='walk' && next!=='walk') exitWalkMode();
+  mode = next;
+  applyModeChrome(mode);
+}
+modeButtons.top.onclick = ()=> setMode('top');
+modeButtons.orbit.onclick = ()=> setMode('orbit');
+modeButtons.walk.onclick = ()=> setMode('walk');
 
 // ---- 左メニューの表示/非表示 ----
 const uiPanel = document.getElementById('ui');
@@ -196,12 +321,10 @@ document.getElementById('menuToggle').onclick = ()=>{
 // ============================================================================
 // ジオメトリ生成
 // ============================================================================
-// フロアごとに独立したマテリアルを持たせる（1F/2F切替時の「薄くする」演出のため、
-// 同じ見た目でもインスタンスを分けて opacity を個別制御できるようにする）
+// フロアごとに独立したマテリアルを持たせる（床スラブの色を1F/2Fで変えるため。
+// 1F/2F切替時の表示・非表示はマテリアルではなくグループのvisibleで行う）
 function makeFloorMats(floorSlabColor){
   return {
-    shell:      new THREE.MeshStandardMaterial({color:0xcfd6dc, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false}),
-    shellEdge:  new THREE.LineBasicMaterial({color:0x556270, transparent:true, opacity:1, depthTest:false}),
     approx:     new THREE.MeshBasicMaterial({color:0xffd479, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false}), // Basic材質でライティング非依存に統一(矩形/L字ポリゴンの見た目差異を解消)
     approxEdge: new THREE.LineBasicMaterial({color:0xb07a00, transparent:true, opacity:1, depthTest:false}),
     opening:    new THREE.MeshStandardMaterial({color:0x6fb3e0, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false}), // 窓
@@ -216,24 +339,27 @@ function makeFloorMats(floorSlabColor){
 }
 const M1 = makeFloorMats(0xf3f0e8); // 1F用マテリアル一式
 const M2 = makeFloorMats(0xeef2f5); // 2F用マテリアル一式
-[M1,M2].forEach(set=> Object.values(set).forEach(m=> m.userData.base = m.opacity));
 
-function setFloorDim(matSet, factor){
-  Object.values(matSet).forEach(m=>{ m.opacity = m.userData.base * factor; });
-}
-
+// 各グループの入れ子構造は「レイヤー種別のチェックボックス」×「1F/2F表示」の
+// 2軸を、Object3D.visible の階層ANDだけで表現するためのもの。
+// 例: 屋根チェックボックス(roofAll.visible)がONでも、1F表示中はroofGableが
+// 非表示なので2階の切妻屋根は出ない。逆に1F/2F=両方でもチェックボックスが
+// OFFならroofAll自体が非表示になり何も出ない。
 const groups = {
-  shell1:new THREE.Group(), shell2:new THREE.Group(),
   approx1:new THREE.Group(), approx2:new THREE.Group(),
   openings1:new THREE.Group(), openings2:new THREE.Group(),
-  sound:new THREE.Group(), roof:new THREE.Group(), doors:new THREE.Group(),
+  doors1:new THREE.Group(), doors2:new THREE.Group(),
+  sound:new THREE.Group(),
+  roofHiraya:new THREE.Group(), roofGable:new THREE.Group(),
   floor1:new THREE.Group(), floor2:new THREE.Group()
 };
-groups.roof.visible = false; // デフォルトで屋根を非表示に変更（2026-08-13）
-const shellAll = new THREE.Group(); shellAll.add(groups.shell1, groups.shell2);
 const approxAll = new THREE.Group(); approxAll.add(groups.approx1, groups.approx2);
 const openingsAll = new THREE.Group(); openingsAll.add(groups.openings1, groups.openings2);
-[shellAll, approxAll, openingsAll, groups.sound, groups.roof, groups.doors, groups.floor1, groups.floor2].forEach(g=>scene.add(g));
+const doorsAll = new THREE.Group(); doorsAll.add(groups.doors1, groups.doors2);
+const roofAll = new THREE.Group(); roofAll.add(groups.roofHiraya, groups.roofGable);
+roofAll.visible = false; // デフォルトで屋根を非表示に変更（2026-08-13）
+const soundFloorGate = new THREE.Group(); soundFloorGate.add(groups.sound); // 防音壁は1F扱いなので1F/2F表示に連動させる
+[approxAll, openingsAll, doorsAll, soundFloorGate, roofAll, groups.floor1, groups.floor2].forEach(g=>scene.add(g));
 
 function boxWire(x0,x1,y0,y1,z0,z1, mat, edgeMat, parent, renderOrder){
   const [sx0,sz0]=toScene(x0,z0), [sx1,sz1]=toScene(x1,z1);
@@ -315,9 +441,133 @@ function buildDimLabels(){
 buildDimLabels();
 document.getElementById('chkDims').onchange = refreshLabelVis;
 
-// ---- 1F外皮ゾーン（確定） ----
+function segAtX(lx){ return FLOOR1.find(s=>lx>=s.x0-1e-6 && lx<=s.x1+1e-6) || FLOOR1[0]; }
+
+// ============================================================================
+// 壁セグメント（内覧モードの当たり判定・実壁メッシュの共通データ）
+// ============================================================================
+// house.json の footprints は求積図のゾーン区分であり、隣接ゾーンの共有辺は
+// 実在する壁ではない（区画境界壁レイヤーを削除した理由と同じ）。ここでは
+// rooms→walls変換時と同じ「区間の引き算」方式で、共有辺を除いた真の外周
+// だけを抽出する。内壁は house.walls（重複統合済みの壁芯データ）をそのまま使う。
+// 当たり判定は壁厚を考慮した円と線分の距離判定（プレイヤー半径+壁厚/2）。
+// 実測の壁位置ではなく概算データからの導出のため、判定自体も概算である。
+function subtractRanges(ranges, cutFrom, cutTo){
+  const out = [];
+  ranges.forEach(([a,b])=>{
+    if(a < cutFrom) out.push([a, Math.min(b,cutFrom)]);
+    if(b > cutTo) out.push([Math.max(a,cutFrom), b]);
+  });
+  return out.filter(([a,b])=> b-a > 1e-4);
+}
+function exteriorSegmentsForLevel(rects){
+  const segs = [];
+  rects.forEach((r,i)=>{
+    const edges = [
+      {orientation:'H', at:r.z0, from:r.x0, to:r.x1},
+      {orientation:'H', at:r.z1, from:r.x0, to:r.x1},
+      {orientation:'V', at:r.x0, from:r.z0, to:r.z1},
+      {orientation:'V', at:r.x1, from:r.z0, to:r.z1},
+    ];
+    edges.forEach(edge=>{
+      let ranges = [[edge.from, edge.to]];
+      rects.forEach((other,j)=>{
+        if(j===i) return;
+        let cf, ct, touches=false;
+        if(edge.orientation==='H' && (other.z0===edge.at || other.z1===edge.at)){
+          cf=Math.max(other.x0, edge.from); ct=Math.min(other.x1, edge.to); touches = cf<ct;
+        } else if(edge.orientation==='V' && (other.x0===edge.at || other.x1===edge.at)){
+          cf=Math.max(other.z0, edge.from); ct=Math.min(other.z1, edge.to); touches = cf<ct;
+        }
+        if(touches) ranges = subtractRanges(ranges, cf, ct);
+      });
+      ranges.forEach(([a,b])=> segs.push({orientation:edge.orientation, at:edge.at, from:a, to:b}));
+    });
+  });
+  return segs;
+}
+function cutGaps(segs, gaps){
+  let result = segs;
+  gaps.forEach(g=>{
+    result = result.flatMap(s=>{
+      if(s.orientation!==g.orientation || Math.abs(s.at-g.at)>0.02) return [s];
+      return subtractRanges([[s.from,s.to]], g.from, g.to).map(([a,b])=>({orientation:s.orientation, at:s.at, from:a, to:b}));
+    });
+  });
+  return result;
+}
+function doorGapsForLevel(level){
+  const gaps = [];
+  OPENINGS.forEach(o=>{
+    if(o.kind!=='door' || o.level!==level) return;
+    if(o.face==='N') gaps.push({orientation:'H', at:(level===2?FLOOR2.z0:segAtX(o.lx).z0), from:o.lx, to:o.lx+o.w});
+    else if(o.face==='S') gaps.push({orientation:'H', at:(level===2?FLOOR2.z1:segAtX(o.lx).z1), from:o.lx, to:o.lx+o.w});
+    else if(o.face==='E') gaps.push({orientation:'V', at:(o.x!==undefined?o.x:19.110), from:o.lz, to:o.lz+o.w});
+    else gaps.push({orientation:'V', at:(o.x!==undefined?o.x:0), from:o.lz, to:o.lz+o.w});
+  });
+  INTERIOR_DOORS.forEach(d=>{
+    if(d.floor!==level) return;
+    gaps.push({orientation:d.orientation, at:d.wallAt, from:d.center-d.width/2, to:d.center+d.width/2});
+  });
+  return gaps;
+}
+const wallSegmentsByLevel = {};
+[1,2].forEach(level=>{
+  const rects = level===1 ? FLOOR1 : [FLOOR2];
+  const ext = exteriorSegmentsForLevel(rects).map(s=>({...s, thick:WALL_T}));
+  const interior = WALLS.filter(w=>w.level===level).map(w=> w.orientation==='H'
+    ? {orientation:'H', at:w.z0, from:w.x0, to:w.x1, thick:INTERIOR_WALL_T}
+    : {orientation:'V', at:w.x0, from:w.z0, to:w.z1, thick:INTERIOR_WALL_T});
+  let segs = cutGaps([...ext, ...interior], doorGapsForLevel(level));
+  if(level===1) segs.push({orientation:'V', at:SOUND_WALL.x, from:SOUND_WALL.z0, to:SOUND_WALL.z1, thick:WALL_T});
+  wallSegmentsByLevel[level] = segs;
+});
+
+const PLAYER_RADIUS = 0.26; // 肩幅ぶんの当たり判定半径(m)
+function resolveWalk(level, x, z, dx, dz){
+  const segs = wallSegmentsByLevel[level] || [];
+  function blocked(px,pz){
+    for(const s of segs){
+      const r = PLAYER_RADIUS + s.thick/2;
+      let d;
+      if(s.orientation==='H'){ const cx=Math.max(s.from, Math.min(px, s.to)); d=Math.hypot(px-cx, pz-s.at); }
+      else { const cz=Math.max(s.from, Math.min(pz, s.to)); d=Math.hypot(px-s.at, pz-cz); }
+      if(d < r) return true;
+    }
+    return false;
+  }
+  let nx = x+dx, nz = z+dz;
+  if(blocked(nx, z)) nx = x; // X方向を軸ごとに判定してスライドさせる
+  if(blocked(nx, nz)) nz = z;
+  return [nx, nz];
+}
+
+// ---- 内覧モード用の実壁・天井メッシュ（衝突セグメントと同じデータから生成） ----
+const walkGroup = new THREE.Group(); walkGroup.visible = false; scene.add(walkGroup);
+const walkWallMat = new THREE.MeshStandardMaterial({color:0xf6f3ec, side:THREE.DoubleSide});
+const walkCeilingMat = new THREE.MeshStandardMaterial({color:0xfbfaf7, side:THREE.DoubleSide});
+[1,2].forEach(level=>{
+  const baseY = level===1 ? LEVELS.fl1 : LEVELS.fl2;
+  wallSegmentsByLevel[level].forEach(s=>{
+    const t = s.thick/2;
+    if(s.orientation==='H') boxWire(s.from, s.to, baseY, baseY+CEIL_H, s.at-t, s.at+t, walkWallMat, null, walkGroup);
+    else boxWire(s.at-t, s.at+t, baseY, baseY+CEIL_H, s.from, s.to, walkWallMat, null, walkGroup);
+  });
+  (level===1 ? FLOOR1 : [FLOOR2]).forEach(r=>{
+    const [sx0,sz0]=toScene(r.x0,r.z0), [sx1,sz1]=toScene(r.x1,r.z1);
+    const cgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
+    const cmesh = new THREE.Mesh(cgeo, walkCeilingMat);
+    cmesh.rotation.x = Math.PI/2;
+    cmesh.position.set(sx0+(sx1-sx0)/2, baseY+CEIL_H-0.01, sz0+(sz1-sz0)/2);
+    walkGroup.add(cmesh);
+  });
+});
+
+// ---- 1F床スラブ ----
+// FLOOR1は求積図の計算ゾーン(A1〜A4)であり実在する壁ではないため、表示上は
+// 床面の参照プレーンだけを描画する（house.json側のfootprintsデータは
+// Blenderの外壁生成・開口部の所属ゾーン判定に使うので保持する）。
 FLOOR1.forEach(seg=>{
-  boxWire(seg.x0, seg.x1, LEVELS.fl1, LEVELS.fl1+CEIL_H, seg.z0, seg.z1, M1.shell, M1.shellEdge, groups.shell1, 1);
   const [sx0,sz0]=toScene(seg.x0,seg.z0), [sx1,sz1]=toScene(seg.x1,seg.z1);
   const fgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
   const fmesh = new THREE.Mesh(fgeo, M1.floorSlab);
@@ -327,10 +577,9 @@ FLOOR1.forEach(seg=>{
   groups.floor1.add(fmesh);
 });
 
-// ---- 2F外皮ゾーン（確定） ----
+// ---- 2F床スラブ ----
 {
   const seg = FLOOR2;
-  boxWire(seg.x0, seg.x1, LEVELS.fl2, LEVELS.fl2+CEIL_H, seg.z0, seg.z1, M2.shell, M2.shellEdge, groups.shell2, 1);
   const [sx0,sz0]=toScene(seg.x0,seg.z0), [sx1,sz1]=toScene(seg.x1,seg.z1);
   const fgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
   const fmesh = new THREE.Mesh(fgeo, M2.floorSlab);
@@ -348,28 +597,42 @@ boxWire(SOUND_WALL.x-WALL_T/2, SOUND_WALL.x+WALL_T/2, LEVELS.fl1, SOUND_WALL.top
   labels.push(l);
 }
 
-// ---- 片流れ屋根（確定：平屋部A1/A2。data/house.json の roofs から生成） ----
-// 出典: Ryuka-Landscape-Designer js/building-model.js の yAt() 関数と同じ式
+// ---- 屋根（確定：平屋部A1/A2の片流れ＋2階の切妻。data/house.json の roofs から生成） ----
+// 出典: Ryuka-Landscape-Designer js/building-model.js の yAt()/slopeRoof() と同じ式
 function yAtHiraya(z, base, pitch){ return base + (z + 0.500) * pitch; } // eave.north=0.500
-function slopedRoofBox(x0,x1,zN,zS, pitch, base, thickness, mat, edgeMat, parent){
-  const yN = yAtHiraya(zN, base, pitch), yS = yAtHiraya(zS, base, pitch);
-  const dz = zS-zN, dy = yS-yN;
+// 傾斜する屋根の板を1枚描画する。zA/yA→zB/yBの2点を結ぶ面になる（切妻なら片側の面ごとに2回呼ぶ）。
+function roofPanel(x0,x1,zA,yA,zB,yB, thickness, mat, edgeMat, parent, renderOrder){
+  const dz = zB-zA, dy = yB-yA;
   const runLen = Math.sqrt(dz*dz+dy*dy);
   const angle = Math.atan2(dy,dz);
   const width = x1-x0;
   const geo = new THREE.BoxGeometry(width, thickness, runLen);
   const mesh = new THREE.Mesh(geo, mat);
-  const midX=(x0+x1)/2, midZ=(zN+zS)/2, midY=(yN+yS)/2;
+  const midX=(x0+x1)/2, midZ=(zA+zB)/2, midY=(yA+yB)/2;
   const [smx,smz] = toScene(midX, midZ);
   mesh.position.set(smx, midY, smz);
   mesh.rotation.x = -angle;
+  if(renderOrder!==undefined) mesh.renderOrder = renderOrder;
   parent.add(mesh);
   const edges = new THREE.EdgesGeometry(geo);
   const line = new THREE.LineSegments(edges, edgeMat);
   line.rotation.copy(mesh.rotation); line.position.copy(mesh.position);
+  if(renderOrder!==undefined) line.renderOrder = renderOrder+0.5;
   parent.add(line);
 }
-ROOFS.forEach(r=> slopedRoofBox(r.x0, r.x1, r.zNorth, r.zSouth, r.pitch, r.base, r.thickness, M1.roof, M1.roofEdge, groups.roof));
+// renderOrder=4: 室内間仕切り(2)・ドア/開口部(3)より後に描画し、透明材質のdepthWrite:false
+// (半透明レイヤー同士のちらつき対策で全体的に無効化している)の下でも屋根が一番手前に来るようにする。
+// 実際の高さ(y座標)はここでは効かない――renderOrderの数値だけで前後関係が決まる。
+ROOFS.forEach(r=>{
+  if(r.kind==='gable'){
+    // 棟(zRidge)を挟んで北面・南面の2枚。屋根は2F扱いなのでroofGable(2F表示に連動)へ。
+    roofPanel(r.x0, r.x1, r.zNorth, r.yEave, r.zRidge, r.yRidge, r.thickness, M2.roof, M2.roofEdge, groups.roofGable, 4);
+    roofPanel(r.x0, r.x1, r.zRidge, r.yRidge, r.zSouth, r.yEave, r.thickness, M2.roof, M2.roofEdge, groups.roofGable, 4);
+  } else {
+    const yN = yAtHiraya(r.zNorth, r.base, r.pitch), yS = yAtHiraya(r.zSouth, r.base, r.pitch);
+    roofPanel(r.x0, r.x1, r.zNorth, yN, r.zSouth, yS, r.thickness, M1.roof, M1.roofEdge, groups.roofHiraya, 4);
+  }
+});
 // 注記：A1/A2の継ぎ目(x=9.100)は北面の段差により屋根面の高さが微妙に異なるが、
 // 破風の接合ディテールは未モデル化（簡略化）。見た目の目安としては十分だが、精密な意匠検討には使わない。
 
@@ -395,7 +658,7 @@ ROOFS.forEach(r=> slopedRoofBox(r.x0, r.x1, r.zNorth, r.zSouth, r.pitch, r.base,
 INTERIOR_DOORS.forEach(d=>{
   const baseY = d.floor===1 ? LEVELS.fl1 : LEVELS.fl2;
   const mats = d.floor===1 ? M1 : M2;
-  const grp = groups.doors;
+  const grp = d.floor===1 ? groups.doors1 : groups.doors2;
   const doorH = 1.9; // 人の目線でも見える高さまで立ち上げる(実ドア高さの目安)
   const thick = 0.06;
   let x0,x1,z0,z1;
@@ -410,7 +673,6 @@ INTERIOR_DOORS.forEach(d=>{
 });
 
 // ---- 開口部（確定） ----
-function segAtX(lx){ return FLOOR1.find(s=>lx>=s.x0-1e-6 && lx<=s.x1+1e-6) || FLOOR1[0]; }
 OPENINGS.forEach(o=>{
   const baseFl = (o.level===2) ? LEVELS.fl2 : LEVELS.fl1;
   const y0 = baseFl + o.sill, y1 = y0 + o.h;
@@ -442,23 +704,24 @@ scene.add(grid);
 // ============================================================================
 // UI連動
 // ============================================================================
-document.getElementById('chkShell').onchange = e=> shellAll.visible = e.target.checked;
 document.getElementById('chkApprox').onchange = e=> { approxAll.visible = e.target.checked; refreshLabelVis(); };
 document.getElementById('chkOpenings').onchange = e=> openingsAll.visible = e.target.checked;
 document.getElementById('chkSound').onchange = e=> groups.sound.visible = e.target.checked;
-document.getElementById('chkRoof').onchange = e=> groups.roof.visible = e.target.checked;
-document.getElementById('chkDoors').onchange = e=> groups.doors.visible = e.target.checked;
+document.getElementById('chkRoof').onchange = e=> roofAll.visible = e.target.checked;
+document.getElementById('chkDoors').onchange = e=> doorsAll.visible = e.target.checked;
 document.getElementById('chkLabels').onchange = refreshLabelVis;
 document.getElementById('chkGrid').onchange = e=> grid.visible = e.target.checked;
 
-const DIM_FACTOR = 0.08; // 非選択フロアの不透明度倍率（0=完全に消える、1=通常表示）
 let floorMode = 'both';
 function applyFloorMode(){
-  if(floorMode==='both'){ setFloorDim(M1,1); setFloorDim(M2,1); }
-  else if(floorMode==='1F'){ setFloorDim(M1,1); setFloorDim(M2,DIM_FACTOR); }
-  else { setFloorDim(M1,DIM_FACTOR); setFloorDim(M2,1); }
-  // 床スラブ・屋根・防音壁はすべてM1/M2に含まれているため、上のsetFloorDimで連動して薄くなる
-  groups.floor1.visible = true; groups.floor2.visible = true;
+  // 薄く表示ではなく完全に非表示にする（うすい表示だと紛らわしいとの指摘、2026-08-14）
+  const show1 = floorMode !== '2F', show2 = floorMode !== '1F';
+  groups.approx1.visible = show1; groups.approx2.visible = show2;
+  groups.openings1.visible = show1; groups.openings2.visible = show2;
+  groups.doors1.visible = show1; groups.doors2.visible = show2;
+  groups.roofHiraya.visible = show1; groups.roofGable.visible = show2;
+  groups.floor1.visible = show1; groups.floor2.visible = show2;
+  soundFloorGate.visible = show1; // 防音壁は1F扱い
   refreshLabelVis();
 }
 document.getElementById('btnBoth').onclick = ()=>{ floorMode='both'; setActiveBtn('btnBoth'); applyFloorMode(); };
@@ -480,6 +743,159 @@ function refreshLabelVis(){
 }
 
 // ============================================================================
+// 内覧（一人称）モード：スポーン地点・カメラ・移動入力
+// ============================================================================
+function findOpening(labelSubstr){ return OPENINGS.find(o=>o.label.includes(labelSubstr)); }
+// 玄関の開口部データから、建物内側を向いた状態でのスポーン地点を計算する。
+// inset: 玄関の壁面から室内側へどれだけ入った位置にスポーンさせるか(m)
+function spawnFromDoor(labelSubstr, label, inset){
+  const o = findOpening(labelSubstr);
+  if(!o) return { x:CX, z:CZ, yaw:0, level:1, label };
+  const level = o.level || 1;
+  let x,z,yaw;
+  if(o.face==='N'){ x=o.lx+o.w/2; z=(level===2?FLOOR2.z0:segAtX(o.lx).z0)+inset; yaw=0; }
+  else if(o.face==='S'){ x=o.lx+o.w/2; z=(level===2?FLOOR2.z1:segAtX(o.lx).z1)-inset; yaw=Math.PI; }
+  else if(o.face==='E'){ x=(o.x!==undefined?o.x:19.110)-inset; z=o.lz+o.w/2; yaw=-Math.PI/2; }
+  else { x=(o.x!==undefined?o.x:0)+inset; z=o.lz+o.w/2; yaw=Math.PI/2; }
+  return { x, z, yaw, level, label };
+}
+const SPAWN_MINPAKU = spawnFromDoor('民泊 玄関ドア', '民泊棟 玄関から', 1.1);
+const SPAWN_JITAKU = spawnFromDoor('自宅 玄関ドア', '自宅 玄関から', 1.1);
+
+const walkCamera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.05, 100);
+let walkLevel = 1;
+const walkPos = { x:0, z:0 };
+let walkYaw = 0, walkPitch = 0;
+const EYE_HEIGHT = 1.55; // 目線の高さ(m、床から)
+const WALK_SPEED = 1.7;  // 歩行速度(m/s)
+
+function updateWalkCamera(){
+  const baseY = walkLevel===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const [sx,sz] = toScene(walkPos.x, walkPos.z);
+  walkCamera.position.set(sx, baseY+EYE_HEIGHT, sz);
+  const fx = Math.sin(walkYaw)*Math.cos(walkPitch);
+  const fy = Math.sin(walkPitch);
+  const fz = Math.cos(walkYaw)*Math.cos(walkPitch);
+  walkCamera.lookAt(sx+fx, baseY+EYE_HEIGHT+fy, sz+fz);
+}
+
+function applyModeChrome(m){
+  Object.entries(modeButtons).forEach(([k,btn])=> btn.classList.toggle('active', k===m));
+  document.getElementById('floorToggle').classList.toggle('disabled', m==='walk');
+  document.getElementById('walkHud').style.display = m==='walk' ? 'flex' : 'none';
+  document.getElementById('crosshair').style.display = m==='walk' ? 'block' : 'none';
+  document.getElementById('moveHint').style.display = (m==='walk' && !isTouchDevice) ? 'block' : 'none';
+  document.getElementById('joyBase').style.display = (m==='walk' && isTouchDevice) ? 'block' : 'none';
+}
+
+function openSpawnOverlay(){ document.getElementById('spawnOverlay').style.display = 'flex'; }
+function closeSpawnOverlay(){ document.getElementById('spawnOverlay').style.display = 'none'; }
+document.getElementById('spawnCancel').onclick = closeSpawnOverlay;
+document.getElementById('spawnMinpaku').onclick = ()=>{ closeSpawnOverlay(); enterWalkMode(SPAWN_MINPAKU); };
+document.getElementById('spawnJitaku').onclick = ()=>{ closeSpawnOverlay(); enterWalkMode(SPAWN_JITAKU); };
+document.getElementById('walkSwitchSpawn').onclick = openSpawnOverlay;
+document.getElementById('walkExit').onclick = ()=> setMode('top');
+
+let savedFloorMode = 'both';
+function restoreLayerVisibility(){
+  approxAll.visible = document.getElementById('chkApprox').checked;
+  openingsAll.visible = document.getElementById('chkOpenings').checked;
+  groups.sound.visible = document.getElementById('chkSound').checked;
+  roofAll.visible = document.getElementById('chkRoof').checked;
+  doorsAll.visible = document.getElementById('chkDoors').checked;
+  grid.visible = document.getElementById('chkGrid').checked;
+}
+function enterWalkMode(spawn){
+  savedFloorMode = floorMode;
+  walkLevel = spawn.level; walkPos.x = spawn.x; walkPos.z = spawn.z; walkYaw = spawn.yaw; walkPitch = 0;
+  // 概算の間仕切り・開口部・防音壁・屋根・グリッドを隠し、実壁+天井+床だけを見せる
+  approxAll.visible = false; openingsAll.visible = false; doorsAll.visible = false;
+  groups.sound.visible = false; roofAll.visible = false; grid.visible = false;
+  groups.floor1.visible = walkLevel===1; groups.floor2.visible = walkLevel===2;
+  walkGroup.visible = true;
+  labels.forEach(l=> l.div.style.display = 'none');
+  document.querySelector('#walkHud .room').textContent = spawn.label;
+  mode = 'walk';
+  applyModeChrome('walk');
+  updateWalkCamera();
+}
+function exitWalkMode(){
+  walkGroup.visible = false;
+  floorMode = savedFloorMode;
+  applyFloorMode();
+  restoreLayerVisibility();
+  joyId = null; joyVec.x = 0; joyVec.y = 0;
+  if(joyKnobEl) joyKnobEl.style.transform = 'translate(0,0)';
+  lookDragId = null;
+}
+
+// ---- 入力：キーボード（WASD / 矢印キー） ----
+const keys = {};
+window.addEventListener('keydown', e=>{ keys[e.code]=true; });
+window.addEventListener('keyup', e=>{ keys[e.code]=false; });
+
+// ---- 入力：ポインタ（マウスドラッグ／タッチ）でのルック＋バーチャルジョイスティック ----
+const joyBaseEl = document.getElementById('joyBase');
+const joyKnobEl = document.getElementById('joyKnob');
+const JOY_RADIUS = 45;
+let joyId = null, joyBaseX = 0, joyBaseY = 0;
+const joyVec = { x:0, y:0 };
+let lookDragId = null, lookLastX = 0, lookLastY = 0;
+
+function withinJoystick(clientX, clientY){
+  if(!isTouchDevice || joyBaseEl.style.display==='none') return false;
+  const r = joyBaseEl.getBoundingClientRect();
+  return clientX>=r.left && clientX<=r.right && clientY>=r.top && clientY<=r.bottom;
+}
+function onWalkPointerDown(e){
+  if(withinJoystick(e.clientX, e.clientY)){
+    joyId = e.pointerId; joyBaseX = e.clientX; joyBaseY = e.clientY;
+  } else {
+    lookDragId = e.pointerId; lookLastX = e.clientX; lookLastY = e.clientY;
+  }
+}
+function onWalkPointerMove(e){
+  if(e.pointerId===joyId){
+    let dx=e.clientX-joyBaseX, dy=e.clientY-joyBaseY;
+    const len=Math.hypot(dx,dy);
+    if(len>JOY_RADIUS){ dx=dx/len*JOY_RADIUS; dy=dy/len*JOY_RADIUS; }
+    joyVec.x = dx/JOY_RADIUS; joyVec.y = -dy/JOY_RADIUS;
+    joyKnobEl.style.transform = `translate(${dx}px,${dy}px)`;
+  } else if(e.pointerId===lookDragId){
+    const dx=e.clientX-lookLastX, dy=e.clientY-lookLastY;
+    lookLastX=e.clientX; lookLastY=e.clientY;
+    walkYaw -= dx*0.0035;
+    walkPitch = Math.max(-1.3, Math.min(1.3, walkPitch - dy*0.0035));
+  }
+}
+function onWalkPointerUp(e){
+  if(e.pointerId===joyId){ joyId=null; joyVec.x=0; joyVec.y=0; joyKnobEl.style.transform='translate(0,0)'; }
+  if(e.pointerId===lookDragId){ lookDragId=null; }
+}
+
+// ---- 毎フレームの移動更新（衝突判定つき） ----
+function updateWalkMovement(dt){
+  let fwd = 0, strafe = 0;
+  if(keys['KeyW']||keys['ArrowUp']) fwd += 1;
+  if(keys['KeyS']||keys['ArrowDown']) fwd -= 1;
+  if(keys['KeyD']||keys['ArrowRight']) strafe += 1;
+  if(keys['KeyA']||keys['ArrowLeft']) strafe -= 1;
+  fwd += joyVec.y; strafe += joyVec.x;
+  const len = Math.hypot(fwd, strafe);
+  if(len > 1e-4){
+    fwd/=Math.max(len,1); strafe/=Math.max(len,1);
+    const dist = WALK_SPEED * dt;
+    // カメラのyaw基準で前後・左右を建物ローカル(x,z)に変換。
+    // forward=(sin(yaw),cos(yaw))、right=forward×up=(-cos(yaw),sin(yaw))
+    const dx = (Math.sin(walkYaw)*fwd - Math.cos(walkYaw)*strafe) * dist;
+    const dz = (Math.cos(walkYaw)*fwd + Math.sin(walkYaw)*strafe) * dist;
+    const [nx,nz] = resolveWalk(walkLevel, walkPos.x, walkPos.z, dx, dz);
+    walkPos.x = nx; walkPos.z = nz;
+  }
+  updateWalkCamera();
+}
+
+// ============================================================================
 // レンダーループ
 // ============================================================================
 function updateLabels(activeCam){
@@ -491,9 +907,13 @@ function updateLabels(activeCam){
   });
 }
 applyFloorMode();
+const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
-  const activeCam = topViewActive ? orthoCam : camera;
+  const dt = Math.min(clock.getDelta(), 0.1);
+  let activeCam;
+  if(mode==='walk'){ updateWalkMovement(dt); activeCam = walkCamera; }
+  else activeCam = (mode==='top') ? orthoCam : camera;
   renderer.render(scene, activeCam);
   updateLabels(activeCam);
 }
@@ -501,6 +921,7 @@ animate();
 
 window.addEventListener('resize', ()=>{
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  walkCamera.aspect = innerWidth/innerHeight; walkCamera.updateProjectionMatrix();
   updateOrthoFrustum();
   renderer.setSize(innerWidth, innerHeight);
 });
