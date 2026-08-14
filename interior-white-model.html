@@ -247,15 +247,48 @@ const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0
 
 // ---- 俯瞰モード：簡易オービットコントロール（外部ライブラリ非依存） ----
 let dragging=false, dragButton=0, lastX=0, lastY=0;
+// ピンチズーム：2本指の距離変化をホイールズームと同じ処理に変換する
+const activePointers = new Map();
+let pinchDist = null;
+function applyZoomDelta(delta){
+  // delta>0（指を広げた＝ズームイン）でorthoHalfSize/camDistを縮める
+  if(mode==='top'){
+    orthoHalfSize = Math.min(Math.max(orthoHalfSize - delta*0.025, 1.5), 30);
+    updateOrthoFrustum();
+  } else if(mode==='orbit'){
+    camDist = Math.min(Math.max(camDist - delta*0.06, 4), 70);
+    updateCamera();
+  }
+}
 renderer.domElement.addEventListener('contextmenu', e=>e.preventDefault());
 renderer.domElement.addEventListener('pointerdown', e=>{
   if(mode==='walk'){ onWalkPointerDown(e); return; }
   if(mode!=='orbit' && mode!=='top') return;
+  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(activePointers.size===2){
+    dragging = false; // 2本指になったら単指ドラッグは止める
+    const [p1,p2] = [...activePointers.values()];
+    pinchDist = Math.hypot(p1.x-p2.x, p1.y-p2.y);
+    return;
+  }
   dragging=true; dragButton=e.button; lastX=e.clientX; lastY=e.clientY;
 });
-window.addEventListener('pointerup', e=>{ dragging=false; onWalkPointerUp(e); });
+window.addEventListener('pointerup', e=>{
+  activePointers.delete(e.pointerId);
+  if(activePointers.size<2) pinchDist = null;
+  dragging=false;
+  onWalkPointerUp(e);
+});
 window.addEventListener('pointermove', e=>{
   if(mode==='walk'){ onWalkPointerMove(e); return; }
+  if(activePointers.has(e.pointerId)) activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(activePointers.size===2){
+    const [p1,p2] = [...activePointers.values()];
+    const dist = Math.hypot(p1.x-p2.x, p1.y-p2.y);
+    if(pinchDist!==null) applyZoomDelta(dist-pinchDist);
+    pinchDist = dist;
+    return;
+  }
   if(!dragging) return;
   const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
   if(mode==='top'){
