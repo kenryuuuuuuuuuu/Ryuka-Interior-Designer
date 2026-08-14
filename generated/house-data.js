@@ -132,7 +132,8 @@ const FURNITURE_CATALOG = {
   'refrigerator': { label:'冷蔵庫', category:'furniture', shape:'boxAppliance', width:0.69, depth:0.7, height:1.83, clearance:0.7 },
   'washing-machine': { label:'洗濯機', category:'furniture', shape:'boxAppliance', width:0.64, depth:0.72, height:1.05, clearance:0.6 },
   'vanity': { label:'洗面化粧台', category:'fixture', shape:'vanity', width:0.75, depth:0.53, height:1.9, clearance:0.75 },
-  'toilet': { label:'便器', category:'fixture', shape:'toilet', width:0.45, depth:0.75, height:1, clearance:0.5 },
+  'toilet': { label:'便器（タンク付き）', category:'fixture', shape:'toilet', width:0.45, depth:0.75, height:1, clearance:0.5 },
+  'toilet-tankless': { label:'便器（タンクレス）', category:'fixture', shape:'toiletTankless', width:0.4, depth:0.65, height:0.75, clearance:0.5 },
   'bathtub': { label:'浴槽（ユニットバス）', category:'fixture', shape:'bathtub', width:1.6, depth:0.8, height:0.6, clearance:0.6 },
   'bed-single': { label:'シングルベッド', category:'furniture', shape:'bed', width:0.97, depth:1.95, height:0.5, clearance:0.5 },
   'bed-semi-double': { label:'セミダブルベッド', category:'furniture', shape:'bed', width:1.2, depth:1.95, height:0.5, clearance:0.5 },
@@ -142,6 +143,7 @@ const FURNITURE_CATALOG = {
   'dining-table-4': { label:'ダイニングテーブル（4人）', category:'furniture', shape:'table', width:1.35, depth:0.8, height:0.72, clearance:0.75 },
   'dining-table-6': { label:'ダイニングテーブル（6人）', category:'furniture', shape:'table', width:1.8, depth:0.85, height:0.72, clearance:0.75 },
   'chair': { label:'椅子', category:'furniture', shape:'chair', width:0.45, depth:0.5, height:0.85, clearance:0.3 },
+  'cupboard': { label:'カップボード', category:'furniture', shape:'cupboard', width:1.2, depth:0.45, height:1.9, clearance:0.45 },
   'tv-board': { label:'テレビボード', category:'furniture', shape:'lowCabinet', width:1.5, depth:0.4, height:0.45, clearance:0.3 },
   'desk': { label:'デスク', category:'furniture', shape:'table', width:1.1, depth:0.6, height:0.72, clearance:0.75 },
   'shelf': { label:'収納棚・本棚', category:'furniture', shape:'shelf', width:0.9, depth:0.3, height:1.8, clearance:0.6 },
@@ -149,6 +151,7 @@ const FURNITURE_CATALOG = {
 };
 
 const FURNITURE_ITEMS = [
+  { id:'fur-035', type:'toilet', level:1, x:0.455, z:1.4, rotation:0, width:0.45, depth:0.75, height:1, label:'便器（1F民泊・タンク付き）', status:'estimated', room:'room-1f-01' }, // 施主指摘(2026-08-15)によりタンク付きで新規配置。東壁の扉(トイレ⟷玄関)の可動域を避け、部屋北寄りに配置
   { id:'fur-001', type:'vanity', level:1, x:0.91, z:4.2, rotation:0, width:0.75, depth:0.53, height:1.9, label:'洗面化粧台（民泊）', status:'estimated', room:'room-1f-03' }, // 洗面脱衣室の南壁側に仮配置。実際の給排水位置は施工会社図面待ち
   { id:'fur-002', type:'washing-machine', level:1, x:1.5, z:3.1, rotation:0, width:0.64, depth:0.72, height:1.05, label:'洗濯機（民泊）', status:'estimated', room:'room-1f-03' },
   { id:'fur-003', type:'bathtub', level:1, x:0.91, z:5.92, rotation:0, width:1.6, depth:0.8, height:0.6, label:'浴槽（民泊UB）', status:'estimated', room:'room-1f-04' },
@@ -170,7 +173,8 @@ const FURNITURE_ITEMS = [
   { id:'fur-019', type:'chair', level:1, x:10.5, z:5.6, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子4（自宅LDK）', status:'estimated', room:'room-1f-11' },
   { id:'fur-020', type:'sofa-3seat', level:1, x:13.2, z:2.8, rotation:0, width:1.9, depth:0.85, height:0.8, label:'ソファ（自宅LDK）', status:'estimated', room:'room-1f-11' }, // 掃き出し窓（自宅LDK掃き出し窓）に近いため、窓の開閉・カーテンとの干渉は要確認
   { id:'fur-021', type:'tv-board', level:1, x:13.2, z:6.03, rotation:0, width:1.5, depth:0.4, height:0.45, label:'テレビボード（自宅LDK）', status:'estimated', room:'room-1f-11' },
-  { id:'fur-022', type:'toilet', level:1, x:18.65, z:2.3, rotation:90, width:0.45, depth:0.75, height:1, label:'便器（1F東）', status:'estimated', room:'room-1f-14' },
+  { id:'fur-034', type:'cupboard', level:1, x:15.15, z:2.7, rotation:90, width:1.2, depth:0.45, height:1.9, label:'カップボード（自宅LDK）', status:'estimated', room:'room-1f-11' }, // リビング東壁側に仮配置。ダイニング・キッチンからは離れているため、実運用では動線・配膳のしやすさを踏まえて再検討の余地あり
+  { id:'fur-022', type:'toilet-tankless', level:1, x:18.65, z:2.3, rotation:90, width:0.4, depth:0.65, height:0.75, label:'便器（1F自宅・タンクレス）', status:'estimated', room:'room-1f-14' }, // 施主指摘(2026-08-15)によりタンクレスに変更
   { id:'fur-023', type:'vanity', level:1, x:18.7, z:3, rotation:90, width:0.75, depth:0.53, height:1.9, label:'洗面化粧台（1F東）', status:'estimated', room:'room-1f-15' },
   { id:'fur-024', type:'washing-machine', level:1, x:16.1, z:5.5, rotation:0, width:0.64, depth:0.72, height:1.05, label:'洗濯機（1F東）', status:'estimated', room:'room-1f-16' },
   { id:'fur-025', type:'bathtub', level:1, x:18.2, z:5.9, rotation:90, width:1.6, depth:0.8, height:0.6, label:'浴槽（1F東UB）', status:'estimated', room:'room-1f-17' },

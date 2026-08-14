@@ -53,7 +53,7 @@
     },
     {
       "type": "toilet",
-      "label": "便器",
+      "label": "便器（タンク付き）",
       "category": "fixture",
       "shape": "toilet",
       "width": 0.45,
@@ -61,6 +61,17 @@
       "height": 1.0,
       "clearance": 0.5,
       "note": "タンク付き洋式便器の一般的な寸法。heightはタンク上端まで"
+    },
+    {
+      "type": "toilet-tankless",
+      "label": "便器（タンクレス）",
+      "category": "fixture",
+      "shape": "toiletTankless",
+      "width": 0.4,
+      "depth": 0.65,
+      "height": 0.75,
+      "clearance": 0.5,
+      "note": "タンクレス洋式便器の一般的な寸法。タンクがない分、奥行・高さともタンク付きより小さい。heightはボウル上端まで、壁に操作パネルを想定"
     },
     {
       "type": "bathtub",
@@ -160,6 +171,17 @@
       "height": 0.85,
       "clearance": 0.3,
       "note": "ダイニングチェアの一般的な寸法。heightは背もたれ上端まで"
+    },
+    {
+      "type": "cupboard",
+      "label": "カップボード",
+      "category": "furniture",
+      "shape": "cupboard",
+      "width": 1.2,
+      "depth": 0.45,
+      "height": 1.9,
+      "clearance": 0.45,
+      "note": "食器棚・家電収納を兼ねる背の高いキッチン収納の一般的な寸法。上下2段構成で、中間の天板部分に炊飯器・電子レンジ等の家電を置くことを想定"
     },
     {
       "type": "tv-board",

@@ -150,6 +150,7 @@
   <label><input type="checkbox" id="chkDoors" checked> 室内ドア位置（確定）</label>
   <label><input type="checkbox" id="chkDims" checked> 寸法値を表示（1F・mm単位）</label>
   <label><input type="checkbox" id="chkLabels" checked> 部屋ラベル</label>
+  <label><input type="checkbox" id="chkFurnitureLabels" checked> 家具ラベル</label>
   <label><input type="checkbox" id="chkGrid" checked> 地面グリッド(910mm)</label>
 
   <div class="section-title">凡例</div>
@@ -725,6 +726,10 @@ const FURNITURE_SHAPES = {
     fPart(group, w*0.75,h*0.45,d*0.35, 0,0,d*0.28, FMAT.white); // ボウル
     fPart(group, w*0.7,h*0.55,d*0.25, 0,h*0.45,-d*0.32, FMAT.white); // タンク
   },
+  toiletTankless(group,w,d,h){
+    fPart(group, w*0.8,h*0.85,d*0.7, 0,0,d*0.1, FMAT.white); // ボウル一体型（タンクなし）
+    fPart(group, w*0.35,h*0.25,0.04, 0,h*0.55,-d*0.42, FMAT.dark); // 壁掛け操作パネル
+  },
   bathtub(group,w,d,h){
     fPart(group, w,h,d, 0,0,0, FMAT.white);
     fPart(group, w*0.85,h*0.6,d*0.7, 0,h*0.35,0, FMAT.mirror);
@@ -757,6 +762,11 @@ const FURNITURE_SHAPES = {
     });
   },
   lowCabinet(group,w,d,h){ fPart(group, w,h,d, 0,0,0, FMAT.wood); },
+  cupboard(group,w,d,h){
+    fPart(group, w,h*0.5,d, 0,0,0, FMAT.wood); // 下段収納
+    fPart(group, w,0.04,d, 0,h*0.5,0, FMAT.dark); // 天板（家電置き場）
+    fPart(group, w,h*0.42,d*0.85, 0,h*0.54,0, FMAT.mirror); // 上段（ガラス扉のイメージ）
+  },
   shelf(group,w,d,h){
     fPart(group, w,h,0.04, 0,0,-d*0.45, FMAT.wood); // 背板
     fPart(group, 0.04,h,d, -w*0.47,0,0, FMAT.wood); // 側板
@@ -857,6 +867,7 @@ document.getElementById('chkSound').onchange = e=> groups.sound.visible = e.targ
 document.getElementById('chkRoof').onchange = e=> roofAll.visible = e.target.checked;
 document.getElementById('chkDoors').onchange = e=> doorsAll.visible = e.target.checked;
 document.getElementById('chkLabels').onchange = refreshLabelVis;
+document.getElementById('chkFurnitureLabels').onchange = refreshLabelVis;
 document.getElementById('chkGrid').onchange = e=> grid.visible = e.target.checked;
 
 let floorMode = 'both';
@@ -881,13 +892,15 @@ function refreshLabelVis(){
   const showLabels = document.getElementById('chkLabels').checked;
   const showApprox = document.getElementById('chkApprox').checked;
   const showDims = document.getElementById('chkDims').checked;
-  const showFurniture = document.getElementById('chkFurniture').checked;
+  const showFurnitureLabels = document.getElementById('chkFurnitureLabels').checked;
   labels.forEach(l=>{
-    let vis = l.isDim ? showDims : showLabels;
+    let vis;
+    if(l.isDim) vis = showDims;
+    else if(l.isFurniture) vis = showFurnitureLabels;
+    else vis = showLabels;
     if(l.floor===1 && floorMode==='2F') vis=false;
     if(l.floor===2 && floorMode==='1F') vis=false;
-    if(!l.isDim && l.div.classList.contains('approx') && !showApprox) vis=false;
-    if(l.isFurniture && !showFurniture) vis=false;
+    if(!l.isDim && !l.isFurniture && l.div.classList.contains('approx') && !showApprox) vis=false;
     l.div.style.display = vis ? 'block' : 'none';
   });
 }

@@ -4,6 +4,18 @@
   "note": "家具・設備の配置インスタンス。type は data/furniture-catalog.json の type を参照する。x/z は建物ローカル座標での footprint 中心、rotation は0/90/180/270度のみ（Y軸まわり、90度刻みに限定）。widthOverride/depthOverride/heightOverrideを指定すると、そのインスタンスだけカタログ標準寸法から変更できる。これは第1段階の初期配置案であり、実測に基づく最終配置ではない（すべてstatus: estimated）。今後Web UI上のドラッグ操作で調整していく。",
   "items": [
     {
+      "id": "fur-035",
+      "type": "toilet",
+      "room": "room-1f-01",
+      "label": "便器（1F民泊・タンク付き）",
+      "level": 1,
+      "x": 0.455,
+      "z": 1.4,
+      "rotation": 0,
+      "status": "estimated",
+      "note": "施主指摘(2026-08-15)によりタンク付きで新規配置。東壁の扉(トイレ⟷玄関)の可動域を避け、部屋北寄りに配置"
+    },
+    {
       "id": "fur-001",
       "type": "vanity",
       "room": "room-1f-03",
@@ -239,15 +251,28 @@
       "status": "estimated"
     },
     {
+      "id": "fur-034",
+      "type": "cupboard",
+      "room": "room-1f-11",
+      "label": "カップボード（自宅LDK）",
+      "level": 1,
+      "x": 15.15,
+      "z": 2.7,
+      "rotation": 90,
+      "status": "estimated",
+      "note": "リビング東壁側に仮配置。ダイニング・キッチンからは離れているため、実運用では動線・配膳のしやすさを踏まえて再検討の余地あり"
+    },
+    {
       "id": "fur-022",
-      "type": "toilet",
+      "type": "toilet-tankless",
       "room": "room-1f-14",
-      "label": "便器（1F東）",
+      "label": "便器（1F自宅・タンクレス）",
       "level": 1,
       "x": 18.65,
       "z": 2.3,
       "rotation": 90,
-      "status": "estimated"
+      "status": "estimated",
+      "note": "施主指摘(2026-08-15)によりタンクレスに変更"
     },
     {
       "id": "fur-023",
