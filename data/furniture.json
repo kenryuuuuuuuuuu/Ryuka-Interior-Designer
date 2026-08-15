@@ -97,17 +97,6 @@
       "note": "施主指摘(2026-08-15)によりデスク用の椅子を新規配置"
     },
     {
-      "id": "fur-005",
-      "type": "wardrobe",
-      "room": "room-1f-05",
-      "label": "ワードローブ",
-      "level": 1,
-      "x": 6.89,
-      "z": 3.04,
-      "rotation": 90,
-      "status": "estimated"
-    },
-    {
       "id": "fur-006",
       "type": "kitchen-counter",
       "room": "room-1f-06",

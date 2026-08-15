@@ -85,6 +85,7 @@ const INTERIOR_DOORS = [
   { id:'door-021', type:'door-open', category:'door', operation:'open', label:'土間⟷SC', orientation:'V', wallAt:12.451, center:1.365, width:1.82, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：施主指摘により「土間・シューズクローク」を右の壁(x=13.651)から1200mmの位置(x=12.451)で分割。境界全体を開口とし、壁のないドアなしの開口として配置。room-1f-09/room-1f-20の境界と一致させること
   { id:'door-022', type:'door-open', category:'door', operation:'open', label:'階段⟷パントリー', orientation:'H', wallAt:1.82, center:15.016, width:0.91, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：施主指摘により「階段（曲がり階段）＋パントリー」の南東1マスを分離した際、南側1辺を壁のない開口として配置。room-1f-10/room-1f-21の境界と一致させること
   { id:'door-023', type:'door-fold', category:'door', operation:'fold', label:'廊下⟷収納', orientation:'H', wallAt:2.73, center:16.836, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'estimated' }, // 新規(2026-08-15)：施主指摘により「廊下＋収納」の北東1マスを分離した際、南側1辺を片開き折れ戸として配置（当初は両開き戸としたが、施主指摘により片開き折れ戸に変更）。room-1f-13/room-1f-22の境界と一致させること
+  { id:'door-024', type:'door-double-swing', category:'door', operation:'double-swing', label:'洋室⟷収納', orientation:'V', wallAt:6.37, center:3.0085, width:1.365, height:2, floor:1, swingDir:'in', status:'estimated' }, // 新規(2026-08-15)：施主指摘により「洋室」の南東1マス(0.91×1.365)を分離した際、西側1辺を両開き戸として配置。room-1f-05/room-1f-23の境界と一致させること
 ];
 
 const WALLS = [
@@ -108,6 +109,7 @@ const WALLS = [
   { id:'wall-1f-018', level:1, x0:12.451, x1:12.451, z0:0.455, z1:2.275, orientation:'V' },
   { id:'wall-1f-019', level:1, x0:14.561, x1:15.471, z0:1.82, z1:1.82, orientation:'H' },
   { id:'wall-1f-020', level:1, x0:16.381, x1:17.291, z0:2.73, z1:2.73, orientation:'H' },
+  { id:'wall-1f-021', level:1, x0:6.37, x1:6.37, z0:2.326, z1:3.691, orientation:'V' },
   { id:'wall-2f-001', level:2, x0:12.74, x1:16.38, z0:1.82, z1:1.82, orientation:'H' },
   { id:'wall-2f-002', level:2, x0:12.74, x1:19.11, z0:2.73, z1:2.73, orientation:'H' },
   { id:'wall-2f-003', level:2, x0:13.651, x1:13.651, z0:0, z1:1.82, orientation:'V' },
@@ -122,7 +124,8 @@ const ROOMS_APPROX = {
     { name:'玄関(民泊)', x0:0.91, x1:2.73, z0:0.91, z1:2.73, conf:'高', note:'訂正(2026-08-13)：西端(x=0)と東端(x=7.280)を基準とした再キャリブレーションで、玄関の東壁はx=2.730が正しいと判明（前回のx=1.820は近接点同士のキャリブレーション誤差による誤り）' },
     { name:'洗面脱衣室', x0:0, x1:1.82, z0:2.73, z1:4.55, conf:'高', note:'面積3.31㎡相当。この行はx=1.820に壁あり(ピクセル解析で確認)' },
     { name:'UB(民泊)', x0:0, x1:1.82, z0:4.55, z1:6.37, conf:'中', note:'面積3.31㎡相当。洗面脱衣室と同幅と仮定' },
-    { name:'洋室', x0:2.73, x1:7.28, z0:0.91, z1:3.691, conf:'高', note:'訂正(2026-08-13)：西端をx=2.730に戻し、洋室|LDK境界z=3.691で再検算。箱面積12.60㎡は実際11.18㎡に近い（+13%）。x=1.820-2.730×z=2.730-6.370の範囲(洗面所/浴室の東側)は未モデル化の欠き（LDK側に含まれる可能性）。ラベルから面積表記は削除(2026-08-13)' },
+    { name:'洋室', x0:2.73, x1:7.28, z0:0.91, z1:3.691, poly:[[2.73,0.91],[7.28,0.91],[7.28,2.326],[6.37,2.326],[6.37,3.691],[2.73,3.691]], conf:'低', note:'訂正(2026-08-13)：西端をx=2.730に戻し、洋室|LDK境界z=3.691で再検算。箱面積12.60㎡は実際11.18㎡に近い（+13%）。x=1.820-2.730×z=2.730-6.370の範囲(洗面所/浴室の東側)は未モデル化の欠き（LDK側に含まれる可能性）。ラベルから面積表記は削除(2026-08-13)。追記(2026-08-15)：施主指摘により南東の横1マス×縦1.5マス(x:6.37-7.28,z:2.326-3.691)を「収納」（room-1f-23）として分離、L字形状に変更' },
+    { name:'収納', x0:6.37, x1:7.28, z0:2.326, z1:3.691, conf:'低', note:'新規(2026-08-15)：施主指摘により「洋室」の南東1マス(0.91×1.365)を分離。西側1辺を両開き戸（door-024）として配置。room-1f-05の境界と一致させること' },
     { name:'LDK(民泊)', x0:1.82, x1:7.28, z0:2.73, z1:6.37, poly:[[1.82,2.73],[2.73,2.73],[2.73,3.691],[7.28,3.691],[7.28,6.37],[1.82,6.37]], conf:'高', note:'施主指摘(2026-08-13)によりLDK本体＋張り出し部をL字ポリゴンとして統合。内部の継ぎ目線は表示されない。ラベルから面積表記は削除(2026-08-13)。自宅側のLDKと区別するため「(民泊)」を付記' },
     { name:'ヌック', x0:7.28, x1:9.1, z0:0.91, z1:2.73, conf:'高', note:'床面はFL+200mm（施工会社図面表記の一段上がった小上がり）。訂正(2026-08-13)：マイホームクラウド画像で西端が防音壁位置(x=7.280)から始まると判明（前回のx=9.100は誤り）。幅1.820m確定・奥行は面積3.31㎡から逆算(1.819m)しz1=2.730とほぼ一致。ラベルから面積表記は削除(2026-08-13)' },
     { name:'自宅玄関', x0:9.1, x1:10.92, z0:0.455, z1:1.82, poly:[[9.1,0.455],[10.92,0.455],[10.92,1.82],[9.1,1.365]], conf:'低', note:'施主指摘(2026-08-13)により赤枠の座標をピクセル解析。旧「自宅玄関・土間・ホール」から西半分を分離。2026-08-15：施主指摘により斜め框（目分量の角度）で「自宅玄関・ホール」を分割。角度は概算のため`estimated`。施主指摘により当初の(9.100,0.910)-(10.920,1.820)から(9.100,0.910)-(10.920,1.365)へ緩やかに変更後、同じ角度のまま0.455下（南）へ平行移動し(9.100,1.365)-(10.920,1.820)に' },
@@ -191,7 +194,6 @@ const FURNITURE_ITEMS = [
   { id:'fur-037', type:'bed-single', level:1, x:5.42, z:2.67, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド2', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更
   { id:'fur-041', type:'desk', level:1, x:6.9, z:1.47, rotation:90, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)によりワークデスクを新規配置
   { id:'fur-042', type:'chair', level:1, x:6.46, z:1.49, rotation:90, width:0.45, depth:0.5, height:0.85, label:'椅子', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)によりデスク用の椅子を新規配置
-  { id:'fur-005', type:'wardrobe', level:1, x:6.89, z:3.04, rotation:90, width:1.2, depth:0.6, height:1.8, label:'ワードローブ', status:'estimated', room:'room-1f-05' },
   { id:'fur-006', type:'kitchen-counter', level:1, x:6.87, z:5.43, rotation:270, width:1.8, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-06' },
   { id:'fur-007', type:'refrigerator', level:1, x:6.86, z:4.06, rotation:90, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫', status:'estimated', room:'room-1f-06' },
   { id:'fur-008', type:'dining-table-4', level:1, x:5.01, z:5.25, rotation:0, width:1.2, depth:0.8, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-06' },
