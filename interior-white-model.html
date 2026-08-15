@@ -1711,6 +1711,15 @@ function exportOpeningsJSON(){
 }
 function exportInteriorDoorsJSON(){
   const items = INTERIOR_DOORS.map(base=>{
+    // orientation:'D'（斜め壁）はwallAt/centerを持たず、壁線スライド編集の対象外のため
+    // base（元データ）のx0/z0/x1/z1をそのまま素通しする（effectiveInteriorDoor()で計算される
+    // eff.centerはD向けには存在しないため、ここでcenterとして書き出すと壊れる）
+    if(base.orientation === 'D'){
+      const out = { id: base.id, type: base.type, orientation: 'D', x0: base.x0, z0: base.z0, x1: base.x1, z1: base.z1, floor: base.floor };
+      out.label = base.label;
+      out.status = base.status;
+      return out;
+    }
     const eff = effectiveInteriorDoor(base);
     const cat = DOOR_WINDOW_CATALOG[eff.type];
     const out = { id: base.id, type: eff.type, wallAt: base.wallAt, orientation: base.orientation, center: round2(eff.center), floor: base.floor };

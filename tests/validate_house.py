@@ -13,7 +13,7 @@ def main():
     assert data["schemaVersion"] == "1.0.0"
     assert data["units"] == "m"
     assert len(data["footprints"]) == 5
-    assert len(data["rooms"]) == 30, f"expected 30 rooms, got {len(data['rooms'])}"
+    assert len(data["rooms"]) == 33, f"expected 33 rooms, got {len(data['rooms'])}"
     assert len(data["walls"]) >= 20, f"expected at least 20 interior walls, got {len(data['walls'])}"
 
     ids = []

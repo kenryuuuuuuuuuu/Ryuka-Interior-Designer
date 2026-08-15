@@ -77,16 +77,19 @@ const INTERIOR_DOORS = [
   { id:'door-013', type:'door-slide', category:'door', operation:'slide', label:'廊下⟷脱衣室', orientation:'H', wallAt:3.64, center:16.84, width:0.8, height:2, floor:1, slideDir:'L', status:'verified' },
   { id:'door-014', type:'door-hinged-wide', category:'door', operation:'swing', label:'脱衣室⟷UB(東)', orientation:'V', wallAt:17.291, center:4.58, width:0.91, height:2, floor:1, hingeSide:'L', swingDir:'out', status:'verified' },
   { id:'door-015', type:'door-hinged-wide', category:'door', operation:'swing', label:'脱衣室⟷南土間', orientation:'H', wallAt:6.37, center:16.83, width:0.91, height:2, floor:1, hingeSide:'L', swingDir:'out', status:'verified' },
-  { id:'door-016', type:'door-hinged-wide', category:'door', operation:'swing', label:'トイレ(2F)⟷廊下(2F)', orientation:'H', wallAt:1.82, center:13.2, width:0.91, height:2, floor:2, hingeSide:'L', swingDir:'out', status:'verified' },
+  { id:'door-016', type:'door-hinged-wide', category:'door', operation:'swing', label:'トイレ(2F)⟷廊下(2F)', orientation:'H', wallAt:1.82, center:13.27, width:0.7, height:2, floor:2, hingeSide:'L', swingDir:'out', status:'verified' },
   { id:'door-017', type:'door-hinged-wide', category:'door', operation:'swing', label:'廊下(2F)⟷子供部屋1', orientation:'H', wallAt:2.73, center:15.02, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'out', status:'verified' },
   { id:'door-018', type:'door-hinged-wide', category:'door', operation:'swing', label:'廊下(2F)⟷子供部屋2', orientation:'V', wallAt:16.38, center:2.28, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'out', status:'verified' },
   { id:'door-019', type:'door-hinged-wide', category:'door', operation:'swing', label:'廊下(2F)⟷夫婦寝室', orientation:'H', wallAt:2.73, center:15.93, width:0.91, height:2, floor:2, hingeSide:'L', swingDir:'out', status:'verified' },
   { id:'door-020', type:'door-open', category:'door', operation:'open', label:'自宅玄関⟷自宅ホール（斜め框）', orientation:'D', x0:9.1, z0:1.365, x1:10.92, z1:1.82, width:0.91, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：施主指摘により斜め框（目分量の角度）に、壁のないドアなしの開口として配置。room-1f-08/room-1f-19の境界と一致させること。施主指摘により角度を緩やかに変更後、同じ角度のまま0.455下へ平行移動
-  { id:'door-021', type:'door-open', category:'door', operation:'open', label:'土間⟷SC', orientation:'V', wallAt:12.451, center:1.365, width:1.82, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：施主指摘により「土間・シューズクローク」を右の壁(x=13.651)から1200mmの位置(x=12.451)で分割。境界全体を開口とし、壁のないドアなしの開口として配置。room-1f-09/room-1f-20の境界と一致させること
-  { id:'door-022', type:'door-open', category:'door', operation:'open', label:'階段⟷パントリー', orientation:'H', wallAt:1.82, center:15.016, width:0.91, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：施主指摘により「階段（曲がり階段）＋パントリー」の南東1マスを分離した際、南側1辺を壁のない開口として配置。room-1f-10/room-1f-21の境界と一致させること
-  { id:'door-023', type:'door-fold', category:'door', operation:'fold', label:'廊下⟷収納', orientation:'H', wallAt:2.73, center:16.836, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'estimated' }, // 新規(2026-08-15)：施主指摘により「廊下＋収納」の北東1マスを分離した際、南側1辺を片開き折れ戸として配置（当初は両開き戸としたが、施主指摘により片開き折れ戸に変更）。room-1f-13/room-1f-22の境界と一致させること
-  { id:'door-024', type:'door-double-swing', category:'door', operation:'double-swing', label:'洋室⟷収納', orientation:'V', wallAt:6.37, center:3.0085, width:1.365, height:2, floor:1, swingDir:'in', status:'estimated' }, // 新規(2026-08-15)：施主指摘により「洋室」の南東1マス(0.91×1.365)を分離した際、西側1辺を両開き戸として配置。room-1f-05/room-1f-23の境界と一致させること
-  { id:'door-025', type:'door-open', category:'door', operation:'open', label:'玄関(民泊)⟷ホール(民泊)', orientation:'H', wallAt:1.82, center:1.82, width:1.82, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：施主指摘により「玄関(民泊)」(2×2マス)の南側1マス(2×1マス)を「ホール(民泊)」として分離した際、境界を自宅玄関の斜め框と同様に壁のない開口として配置。room-1f-02/room-1f-24の境界と一致させること
+  { id:'door-021', type:'door-open', category:'door', operation:'open', label:'土間⟷SC', orientation:'V', wallAt:12.451, center:1.37, width:1.82, height:2, floor:1, status:'estimated' },
+  { id:'door-022', type:'door-open', category:'door', operation:'open', label:'階段⟷パントリー', orientation:'H', wallAt:1.82, center:15.02, width:0.91, height:2, floor:1, status:'estimated' },
+  { id:'door-023', type:'door-fold', category:'door', operation:'fold', label:'廊下⟷収納', orientation:'H', wallAt:2.73, center:16.84, width:0.91, height:2, floor:1, hingeSide:'L', swingDir:'out', status:'estimated' },
+  { id:'door-024', type:'door-double-swing', category:'door', operation:'double-swing', label:'洋室⟷収納', orientation:'V', wallAt:6.37, center:3.01, width:1.25, height:2, floor:1, swingDir:'in', status:'estimated' },
+  { id:'door-025', type:'door-open', category:'door', operation:'open', label:'玄関(民泊)⟷ホール(民泊)', orientation:'H', wallAt:1.82, center:1.82, width:1.82, height:2, floor:1, status:'estimated' },
+  { id:'door-026', type:'door-double-fold', category:'door', operation:'double-fold', label:'子供部屋1⟷クローゼット', orientation:'H', wallAt:3.64, center:13.65, width:1.82, height:2, floor:2, swingDir:'out', status:'estimated' },
+  { id:'door-027', type:'door-double-fold', category:'door', operation:'double-fold', label:'子供部屋2⟷クローゼット', orientation:'V', wallAt:16.38, center:0.91, width:1.82, height:2, floor:2, swingDir:'out', status:'estimated' },
+  { id:'door-028', type:'door-open', category:'door', operation:'open', label:'夫婦寝室⟷書斎', orientation:'H', wallAt:3.64, center:17.75, width:2.73, height:2, floor:2, status:'estimated' },
 ];
 
 const WALLS = [
@@ -117,7 +120,10 @@ const WALLS = [
   { id:'wall-2f-003', level:2, x0:13.651, x1:13.651, z0:0, z1:1.82, orientation:'V' },
   { id:'wall-2f-004', level:2, x0:15.47, x1:15.47, z0:0, z1:1.82, orientation:'V' },
   { id:'wall-2f-005', level:2, x0:15.47, x1:15.47, z0:2.73, z1:6.37, orientation:'V' },
-  { id:'wall-2f-006', level:2, x0:16.38, x1:16.38, z0:1.82, z1:2.73, orientation:'V' }
+  { id:'wall-2f-006', level:2, x0:16.38, x1:16.38, z0:1.82, z1:2.73, orientation:'V' },
+  { id:'wall-2f-007', level:2, x0:12.74, x1:14.56, z0:3.64, z1:3.64, orientation:'H' },
+  { id:'wall-2f-008', level:2, x0:16.38, x1:16.38, z0:0, z1:1.82, orientation:'V' },
+  { id:'wall-2f-009', level:2, x0:16.38, x1:19.11, z0:3.64, z1:3.64, orientation:'H' }
 ];
 
 const ROOMS_APPROX = {
@@ -151,9 +157,12 @@ const ROOMS_APPROX = {
     { name:'トイレ(2F)', x0:12.74, x1:13.651, z0:0, z1:1.82, conf:'高', note:'確定(2026-08-13)：施主指摘により1マス×2マス(0.910m×1.820m)で確定' },
     { name:'階段(2F)', x0:13.651, x1:15.47, z0:0, z1:1.82, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)で確定。1Fの曲がり階段と同じ位置' },
     { name:'廊下(2F)', x0:12.74, x1:16.38, z0:1.82, z1:2.73, conf:'高', note:'確定(2026-08-13)：施主指摘により4マス×1マス(3.640m×0.910m)で確定。東端はA3/A4境界(16.380)と一致' },
-    { name:'子供部屋1', x0:12.74, x1:15.47, z0:2.73, z1:6.37, conf:'高', note:'確定(2026-08-13)：施主指摘により3マス×4マス(2.730m×3.640m)で確定' },
-    { name:'子供部屋2', x0:15.47, x1:19.11, z0:0, z1:2.73, poly:[[15.47,0],[19.11,0],[19.11,2.73],[16.38,2.73],[16.38,1.82],[15.47,1.82]], conf:'高', note:'確定(2026-08-13)：施主指摘により矩形＋廊下の張り出し分を除いたL字で確定' },
-    { name:'夫婦寝室', x0:15.47, x1:19.11, z0:2.73, z1:6.37, conf:'高', note:'確定(2026-08-13)：施主指摘により4マス×4マス(3.640m角)で確定' }
+    { name:'子供部屋1', x0:12.74, x1:15.47, z0:2.73, z1:6.37, poly:[[14.56,2.73],[15.47,2.73],[15.47,6.37],[12.74,6.37],[12.74,3.64],[14.56,3.64]], conf:'低', note:'確定(2026-08-13)：施主指摘により3マス×4マス(2.730m×3.640m)で確定。追記(2026-08-15)：施主指摘により北西2マス×1マスを「クローゼット」（room-2f-07）として分離、L字形状に変更' },
+    { name:'クローゼット', x0:12.74, x1:14.56, z0:2.73, z1:3.64, conf:'低', note:'新規(2026-08-15)：施主指摘により「子供部屋1」の北西2マス×1マス(1.82×0.91)を分離。南側1辺を両開き折れ戸（door-026）として配置。room-2f-04の境界と一致させること' },
+    { name:'子供部屋2', x0:16.38, x1:19.11, z0:0, z1:2.73, conf:'低', note:'確定(2026-08-13)：施主指摘により矩形＋廊下の張り出し分を除いたL字で確定。追記(2026-08-15)：施主指摘により西端1マス×2マスを「クローゼット」（room-2f-08）として分離、廊下の張り出し分とあわせて西端の1マス列が丸ごと外れたため矩形に戻った' },
+    { name:'クローゼット', x0:15.47, x1:16.38, z0:0, z1:1.82, conf:'低', note:'新規(2026-08-15)：施主指摘により「子供部屋2」の西端1マス×2マス(0.91×1.82)を分離。東側1辺を両開き折れ戸（door-027）として配置。room-2f-05の境界と一致させること' },
+    { name:'夫婦寝室', x0:15.47, x1:19.11, z0:2.73, z1:6.37, poly:[[15.47,2.73],[16.38,2.73],[16.38,3.64],[19.11,3.64],[19.11,6.37],[15.47,6.37]], conf:'低', note:'確定(2026-08-13)：施主指摘により4マス×4マス(3.640m角)で確定。追記(2026-08-15)：施主指摘により北東3マス×1マスを「書斎」（room-2f-09）として分離、L字形状に変更' },
+    { name:'書斎', x0:16.38, x1:19.11, z0:2.73, z1:3.64, conf:'低', note:'新規(2026-08-15)：施主指摘により「夫婦寝室」の北東3マス×1マス(2.73×0.91)を分離。南側1辺を壁のない開口（door-028）として配置。room-2f-06の境界と一致させること' }
   ]
 };
 
@@ -193,30 +202,30 @@ const FURNITURE_ITEMS = [
   { id:'fur-001', type:'vanity', level:1, x:0.29, z:3.26, rotation:270, width:0.75, depth:0.53, height:1.9, label:'洗面化粧台', status:'estimated', room:'room-1f-03' },
   { id:'fur-002', type:'washing-machine', level:1, x:0.34, z:4.19, rotation:0, width:0.64, depth:0.72, height:1.05, label:'洗濯機', status:'estimated', room:'room-1f-03' },
   { id:'fur-003', type:'bathtub', level:1, x:0.92, z:5.96, rotation:0, width:1.82, depth:0.8, height:0.6, label:'浴槽', status:'estimated', room:'room-1f-04' },
-  { id:'fur-036', type:'bed-single', level:1, x:4.23, z:2.64, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド1', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更
-  { id:'fur-037', type:'bed-single', level:1, x:5.42, z:2.67, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド2', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更
-  { id:'fur-041', type:'desk', level:1, x:6.9, z:1.47, rotation:90, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)によりワークデスクを新規配置
-  { id:'fur-042', type:'chair', level:1, x:6.46, z:1.49, rotation:90, width:0.45, depth:0.5, height:0.85, label:'椅子', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)によりデスク用の椅子を新規配置
-  { id:'fur-006', type:'kitchen-counter', level:1, x:6.87, z:5.43, rotation:270, width:1.8, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-06' },
+  { id:'fur-036', type:'bed-single', level:1, x:3.9, z:2.67, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド1', status:'estimated', room:'room-1f-05' },
+  { id:'fur-037', type:'bed-single', level:1, x:5.07, z:2.69, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド2', status:'estimated', room:'room-1f-05' },
+  { id:'fur-041', type:'desk', level:1, x:6.9, z:1.47, rotation:90, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-1f-05' },
+  { id:'fur-042', type:'chair', level:1, x:6.46, z:1.49, rotation:90, width:0.45, depth:0.5, height:0.85, label:'椅子', status:'estimated', room:'room-1f-05' },
+  { id:'fur-006', type:'kitchen-counter', level:1, x:6.87, z:5.43, rotation:90, width:1.8, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-06' },
   { id:'fur-007', type:'refrigerator', level:1, x:6.86, z:4.06, rotation:90, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫', status:'estimated', room:'room-1f-06' },
-  { id:'fur-008', type:'dining-table-4', level:1, x:5.01, z:5.25, rotation:0, width:1.2, depth:0.8, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-06' },
-  { id:'fur-009', type:'chair', level:1, x:5.01, z:4.8, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子1', status:'estimated', room:'room-1f-06' },
-  { id:'fur-010', type:'chair', level:1, x:5.01, z:5.65, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子2', status:'estimated', room:'room-1f-06' },
+  { id:'fur-008', type:'dining-table-4', level:1, x:5.24, z:5.22, rotation:0, width:1.2, depth:0.8, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-06' },
+  { id:'fur-009', type:'chair', level:1, x:5.26, z:4.82, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子1', status:'estimated', room:'room-1f-06' },
+  { id:'fur-010', type:'chair', level:1, x:5.26, z:5.66, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子2', status:'estimated', room:'room-1f-06' },
   { id:'fur-011', type:'sofa-2seat', level:1, x:3.54, z:4.14, rotation:0, width:1.5, depth:0.85, height:0.8, label:'ソファ', status:'estimated', room:'room-1f-06' },
   { id:'fur-012', type:'tv-board', level:1, x:2.05, z:5.22, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-1f-06' },
-  { id:'fur-038', type:'coffee-table', level:1, x:3.54, z:4.87, rotation:0, width:1, depth:0.5, height:0.4, label:'ローテーブル', status:'estimated', room:'room-1f-06' }, // 施主指摘(2026-08-15)によりソファ前に新規配置
-  { id:'fur-043', type:'counter-table', level:1, x:3.6, z:6.14, rotation:180, width:1.7, depth:0.35, height:1, label:'カウンターテーブル', status:'estimated', room:'room-1f-06' }, // 施主指摘(2026-08-15)により南窓際にカフェ風のカウンターテーブルを新規配置
-  { id:'fur-044', type:'chair', level:1, x:3.46, z:5.97, rotation:180, width:0.45, depth:0.7, height:0.85, label:'椅子（カウンター）', status:'estimated', room:'room-1f-06' }, // 施主指摘(2026-08-15)により、カウンターテーブル用の椅子を新規配置
-  { id:'fur-013', type:'kitchen-counter', level:1, x:13.63, z:5.08, rotation:90, width:2.55, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-11' },
+  { id:'fur-038', type:'coffee-table', level:1, x:3.53, z:5.07, rotation:0, width:0.8, depth:0.4, height:0.4, label:'ローテーブル', status:'estimated', room:'room-1f-06' },
+  { id:'fur-043', type:'counter-table', level:1, x:3.67, z:6.11, rotation:180, width:1.7, depth:0.35, height:1, label:'カウンターテーブル', status:'estimated', room:'room-1f-06' },
+  { id:'fur-044', type:'chair', level:1, x:3.7, z:6.01, rotation:180, width:0.45, depth:0.7, height:0.85, label:'椅子（カウンター）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-013', type:'kitchen-counter', level:1, x:13.63, z:5.08, rotation:270, width:2.55, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-11' },
   { id:'fur-014', type:'refrigerator', level:1, x:15.11, z:5.99, rotation:180, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫', status:'estimated', room:'room-1f-11' },
   { id:'fur-015', type:'dining-table-6', level:1, x:12.08, z:4.69, rotation:0, width:1.4, depth:0.85, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-11' },
-  { id:'fur-016', type:'chair', level:1, x:11.79, z:4.07, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子1', status:'estimated', room:'room-1f-11' },
-  { id:'fur-017', type:'chair', level:1, x:12.47, z:4.12, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子2', status:'estimated', room:'room-1f-11' },
-  { id:'fur-018', type:'chair', level:1, x:11.81, z:5.24, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子3', status:'estimated', room:'room-1f-11' },
-  { id:'fur-019', type:'chair', level:1, x:12.43, z:5.28, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子4', status:'estimated', room:'room-1f-11' },
+  { id:'fur-016', type:'chair', level:1, x:11.79, z:4.07, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子1', status:'estimated', room:'room-1f-11' },
+  { id:'fur-017', type:'chair', level:1, x:12.47, z:4.12, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子2', status:'estimated', room:'room-1f-11' },
+  { id:'fur-018', type:'chair', level:1, x:11.81, z:5.24, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子3', status:'estimated', room:'room-1f-11' },
+  { id:'fur-019', type:'chair', level:1, x:12.43, z:5.28, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子4', status:'estimated', room:'room-1f-11' },
   { id:'fur-020', type:'sofa-3seat', level:1, x:9.38, z:4.87, rotation:90, width:2, depth:0.85, height:0.8, label:'ソファ', status:'estimated', room:'room-1f-11' },
   { id:'fur-021', type:'tv-board', level:1, x:7.56, z:4.82, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-1f-11' },
-  { id:'fur-039', type:'coffee-table', level:1, x:8.36, z:4.87, rotation:90, width:1, depth:0.5, height:0.4, label:'ローテーブル', status:'estimated', room:'room-1f-11' }, // 施主指摘(2026-08-15)によりソファ前に新規配置
+  { id:'fur-039', type:'coffee-table', level:1, x:8.36, z:4.87, rotation:90, width:1, depth:0.5, height:0.4, label:'ローテーブル', status:'estimated', room:'room-1f-11' },
   { id:'fur-034', type:'cupboard', level:1, x:15.23, z:4.34, rotation:90, width:2.55, depth:0.45, height:1.9, label:'カップボード', status:'estimated', room:'room-1f-11' },
   { id:'fur-022', type:'toilet-tankless', level:1, x:18.79, z:2.27, rotation:90, width:0.4, depth:0.65, height:0.75, label:'便器（タンクレス）', status:'estimated', room:'room-1f-14' },
   { id:'fur-023', type:'vanity', level:1, x:18.19, z:3.86, rotation:180, width:1.82, depth:0.45, height:1.9, label:'洗面化粧台', status:'estimated', room:'room-1f-15' },
@@ -225,10 +234,8 @@ const FURNITURE_ITEMS = [
   { id:'fur-026', type:'toilet', level:2, x:13.19, z:0.35, rotation:0, width:0.45, depth:0.75, height:1, label:'便器（タンク付き）', status:'estimated', room:'room-2f-01' },
   { id:'fur-027', type:'bed-single', level:2, x:14.47, z:5.86, rotation:90, width:0.97, depth:1.95, height:0.5, label:'ベッド', status:'estimated', room:'room-2f-04' },
   { id:'fur-028', type:'desk', level:2, x:13.06, z:4.79, rotation:270, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-2f-04' },
-  { id:'fur-029', type:'shelf', level:2, x:13.19, z:2.9, rotation:0, width:0.9, depth:0.3, height:1.8, label:'本棚', status:'estimated', room:'room-2f-04' },
   { id:'fur-030', type:'bed-single', level:2, x:18.57, z:1.71, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド', status:'estimated', room:'room-2f-05' },
   { id:'fur-031', type:'desk', level:2, x:17.44, z:0.3, rotation:0, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-2f-05' },
   { id:'fur-032', type:'bed-double', level:2, x:18.07, z:5.07, rotation:90, width:2, depth:2, height:0.5, label:'ベッド', status:'estimated', room:'room-2f-06' },
-  { id:'fur-033', type:'wardrobe', level:2, x:17.73, z:3.2, rotation:180, width:2.73, depth:0.91, height:1.8, label:'ワードローブ', status:'estimated', room:'room-2f-06' },
-  { id:'fur-040', type:'tv-board', level:2, x:15.72, z:5, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-2f-06' }, // 施主指摘(2026-08-15)により西壁側に新規配置
+  { id:'fur-040', type:'tv-board', level:2, x:15.72, z:5, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-2f-06' },
 ];

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "units": "m",
-  "note": "家具・設備の配置インスタンス。type は data/furniture-catalog.json の type を参照する。x/z は建物ローカル座標での footprint 中心、rotation は0/90/180/270度のみ。ブラウザの配置編集機能から書き出したファイル。data/furniture.json に上書きしてコミットすること。labelは部屋名・棟名を含めない命名規則（詳細はdocs/ARCHITECTURE.md「家具・設備」参照）。",
+  "note": "家具・設備の配置インスタンス。type は data/furniture-catalog.json の type を参照する。x/z は建物ローカル座標での footprint 中心、rotation は0/90/180/270度のみ。ブラウザの配置編集機能から書き出したファイル。data/furniture.json に上書きしてコミットすること。",
   "items": [
     {
       "id": "fur-035",
@@ -54,11 +54,10 @@
       "room": "room-1f-05",
       "label": "ベッド1",
       "level": 1,
-      "x": 4.23,
-      "z": 2.64,
+      "x": 3.9,
+      "z": 2.67,
       "rotation": 180,
-      "status": "estimated",
-      "note": "施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更"
+      "status": "estimated"
     },
     {
       "id": "fur-037",
@@ -66,11 +65,10 @@
       "room": "room-1f-05",
       "label": "ベッド2",
       "level": 1,
-      "x": 5.42,
-      "z": 2.67,
+      "x": 5.07,
+      "z": 2.69,
       "rotation": 180,
-      "status": "estimated",
-      "note": "施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更"
+      "status": "estimated"
     },
     {
       "id": "fur-041",
@@ -81,8 +79,7 @@
       "x": 6.9,
       "z": 1.47,
       "rotation": 90,
-      "status": "estimated",
-      "note": "施主指摘(2026-08-15)によりワークデスクを新規配置"
+      "status": "estimated"
     },
     {
       "id": "fur-042",
@@ -93,8 +90,7 @@
       "x": 6.46,
       "z": 1.49,
       "rotation": 90,
-      "status": "estimated",
-      "note": "施主指摘(2026-08-15)によりデスク用の椅子を新規配置"
+      "status": "estimated"
     },
     {
       "id": "fur-006",
@@ -104,7 +100,7 @@
       "level": 1,
       "x": 6.87,
       "z": 5.43,
-      "rotation": 270,
+      "rotation": 90,
       "widthOverride": 1.8,
       "status": "estimated"
     },
@@ -125,8 +121,8 @@
       "room": "room-1f-06",
       "label": "ダイニングテーブル",
       "level": 1,
-      "x": 5.01,
-      "z": 5.25,
+      "x": 5.24,
+      "z": 5.22,
       "rotation": 0,
       "widthOverride": 1.2,
       "status": "estimated"
@@ -137,9 +133,9 @@
       "room": "room-1f-06",
       "label": "椅子1",
       "level": 1,
-      "x": 5.01,
-      "z": 4.8,
-      "rotation": 180,
+      "x": 5.26,
+      "z": 4.82,
+      "rotation": 0,
       "status": "estimated"
     },
     {
@@ -148,9 +144,9 @@
       "room": "room-1f-06",
       "label": "椅子2",
       "level": 1,
-      "x": 5.01,
-      "z": 5.65,
-      "rotation": 0,
+      "x": 5.26,
+      "z": 5.66,
+      "rotation": 180,
       "status": "estimated"
     },
     {
@@ -181,11 +177,12 @@
       "room": "room-1f-06",
       "label": "ローテーブル",
       "level": 1,
-      "x": 3.54,
-      "z": 4.87,
+      "x": 3.53,
+      "z": 5.07,
       "rotation": 0,
-      "status": "estimated",
-      "note": "施主指摘(2026-08-15)によりソファ前に新規配置"
+      "widthOverride": 0.8,
+      "depthOverride": 0.4,
+      "status": "estimated"
     },
     {
       "id": "fur-043",
@@ -193,12 +190,11 @@
       "room": "room-1f-06",
       "label": "カウンターテーブル",
       "level": 1,
-      "x": 3.6,
-      "z": 6.14,
+      "x": 3.67,
+      "z": 6.11,
       "rotation": 180,
       "widthOverride": 1.7,
-      "status": "estimated",
-      "note": "施主指摘(2026-08-15)により南窓際にカフェ風のカウンターテーブルを新規配置"
+      "status": "estimated"
     },
     {
       "id": "fur-044",
@@ -206,12 +202,11 @@
       "room": "room-1f-06",
       "label": "椅子（カウンター）",
       "level": 1,
-      "x": 3.46,
-      "z": 5.97,
+      "x": 3.7,
+      "z": 6.01,
       "rotation": 180,
       "depthOverride": 0.7,
-      "status": "estimated",
-      "note": "施主指摘(2026-08-15)により、カウンターテーブル用の椅子を新規配置"
+      "status": "estimated"
     },
     {
       "id": "fur-013",
@@ -221,7 +216,7 @@
       "level": 1,
       "x": 13.63,
       "z": 5.08,
-      "rotation": 90,
+      "rotation": 270,
       "status": "estimated"
     },
     {
@@ -255,7 +250,7 @@
       "level": 1,
       "x": 11.79,
       "z": 4.07,
-      "rotation": 180,
+      "rotation": 0,
       "status": "estimated"
     },
     {
@@ -266,7 +261,7 @@
       "level": 1,
       "x": 12.47,
       "z": 4.12,
-      "rotation": 180,
+      "rotation": 0,
       "status": "estimated"
     },
     {
@@ -277,7 +272,7 @@
       "level": 1,
       "x": 11.81,
       "z": 5.24,
-      "rotation": 0,
+      "rotation": 180,
       "status": "estimated"
     },
     {
@@ -288,7 +283,7 @@
       "level": 1,
       "x": 12.43,
       "z": 5.28,
-      "rotation": 0,
+      "rotation": 180,
       "status": "estimated"
     },
     {
@@ -323,8 +318,7 @@
       "x": 8.36,
       "z": 4.87,
       "rotation": 90,
-      "status": "estimated",
-      "note": "施主指摘(2026-08-15)によりソファ前に新規配置"
+      "status": "estimated"
     },
     {
       "id": "fur-034",
@@ -420,17 +414,6 @@
       "status": "estimated"
     },
     {
-      "id": "fur-029",
-      "type": "shelf",
-      "room": "room-2f-04",
-      "label": "本棚",
-      "level": 2,
-      "x": 13.19,
-      "z": 2.9,
-      "rotation": 0,
-      "status": "estimated"
-    },
-    {
       "id": "fur-030",
       "type": "bed-single",
       "room": "room-2f-05",
@@ -466,19 +449,6 @@
       "status": "estimated"
     },
     {
-      "id": "fur-033",
-      "type": "wardrobe",
-      "room": "room-2f-06",
-      "label": "ワードローブ",
-      "level": 2,
-      "x": 17.73,
-      "z": 3.2,
-      "rotation": 180,
-      "widthOverride": 2.73,
-      "depthOverride": 0.91,
-      "status": "estimated"
-    },
-    {
       "id": "fur-040",
       "type": "tv-board",
       "room": "room-2f-06",
@@ -487,8 +457,7 @@
       "x": 15.72,
       "z": 5,
       "rotation": 90,
-      "status": "estimated",
-      "note": "施主指摘(2026-08-15)により西壁側に新規配置"
+      "status": "estimated"
     }
   ]
 }
