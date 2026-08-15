@@ -90,6 +90,35 @@
   #joyKnob{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
       background:rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.25);}
 
+  /* ---- 家具の配置編集（平面図モード限定） ---- */
+  #editToggle{background:rgba(255,255,255,.94);border:none;border-radius:11px;padding:9px 14px;
+      font-size:12.5px;font-weight:600;color:#4a5158;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.18);
+      display:none;white-space:nowrap;}
+  #editToggle.active{background:var(--accent);color:#fff;}
+  #editHint{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:20;display:none;
+      background:rgba(20,26,32,.7);color:#fff;font-size:11.5px;padding:6px 12px;border-radius:8px;
+      pointer-events:none;white-space:nowrap;max-width:92vw;text-overflow:ellipsis;overflow:hidden;}
+  #furniturePanel{position:fixed;right:12px;bottom:12px;z-index:22;display:none;width:240px;
+      background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
+      padding:14px 16px;box-shadow:0 8px 28px rgba(20,30,40,.2);font-size:12.5px;color:var(--ink);}
+  #furniturePanel .fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
+      font-weight:700;}
+  #furniturePanel .fp-head button{background:none;border:none;color:var(--sub);cursor:pointer;font-size:14px;
+      padding:2px 4px;}
+  .fp-row{margin:8px 0;}
+  .fp-row button{width:100%;background:#f2f4f6;border:1.5px solid var(--line);border-radius:9px;padding:8px;
+      font-size:12px;cursor:pointer;color:var(--ink);}
+  .fp-row button:hover{border-color:var(--accent);}
+  .fp-dims{display:flex;gap:6px;}
+  .fp-dims label{flex:1;font-size:10.5px;color:var(--sub);display:flex;flex-direction:column;gap:3px;}
+  .fp-dims input{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:5px 6px;font-size:12px;}
+  #furnitureBar{position:fixed;left:12px;bottom:12px;z-index:22;display:none;align-items:center;gap:8px;
+      background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:12px;padding:9px 12px;
+      box-shadow:0 8px 24px rgba(20,30,40,.18);font-size:11.5px;color:var(--sub);flex-wrap:wrap;max-width:88vw;}
+  #furnitureBar button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px;
+      font-size:11.5px;cursor:pointer;white-space:nowrap;}
+  #furnitureBar #fbClearAll{background:#e2e5e8;color:#4a5158;}
+
   #spawnOverlay{position:fixed;inset:0;z-index:30;background:rgba(18,22,26,.55);display:none;
       align-items:center;justify-content:center;padding:20px;}
   #spawnCard{background:#fff;border-radius:18px;padding:26px 26px 22px;max-width:420px;width:100%;
@@ -126,7 +155,9 @@
     <button id="modeTop" data-mode="top" class="active">▦ 平面図</button>
     <button id="modeWalk" data-mode="walk">🚶 内覧</button>
   </div>
+  <button id="editToggle" title="家具の配置を編集（平面図モード限定）">✎ 家具編集</button>
 </div>
+<div id="editHint">家具をタップ/クリックで選択→ドラッグで移動。選択中は下のパネルで回転・サイズ変更</div>
 
 <div id="ui">
   <h1>自宅新築プロジェクト 内装白模型 v0.1</h1>
@@ -181,6 +212,30 @@
 <div id="crosshair"></div>
 <div id="moveHint">WASD / 矢印キーで移動　｜　ドラッグで視点操作</div>
 <div id="joyBase"><div id="joyKnob"></div></div>
+
+<!-- ---- 家具編集パネル（平面図モード・編集トグルON時のみ） ---- -->
+<div id="furniturePanel">
+  <div class="fp-head">
+    <span id="fpLabel">-</span>
+    <button id="fpClose" title="選択解除">✕</button>
+  </div>
+  <div class="fp-row">
+    <button id="fpRotate">↻ 90度回転</button>
+  </div>
+  <div class="fp-row fp-dims">
+    <label>幅<input type="number" id="fpWidth" step="0.05" min="0.05"></label>
+    <label>奥行<input type="number" id="fpDepth" step="0.05" min="0.05"></label>
+    <label>高さ<input type="number" id="fpHeight" step="0.05" min="0.05"></label>
+  </div>
+  <div class="fp-row">
+    <button id="fpReset">この家具をリセット</button>
+  </div>
+</div>
+<div id="furnitureBar">
+  <span id="fbCount"></span>
+  <button id="fbExport">⬇ furniture.jsonを書き出す</button>
+  <button id="fbClearAll">編集をすべて取り消す</button>
+</div>
 
 <!-- ---- スポーン地点選択オーバーレイ ---- -->
 <div id="spawnOverlay">
@@ -264,16 +319,100 @@ function applyZoomDelta(delta){
     updateCamera();
   }
 }
+
+// ---- 家具の配置編集（平面図モード限定）：選択・ドラッグ移動 ----
+// furnitureMeshes/effectiveFurniture/FURNITURE_ITEMS 等はこの後ろで定義されるが、
+// ここで作る関数は実際に呼ばれるのはユーザー操作時（全スクリプト実行後）なので問題ない。
+let editMode = false;
+let selectedFurnitureId = null;
+let draggingFurniture = false;
+let dragPlaneY = 0;
+const editRaycaster = new THREE.Raycaster();
+const editPointerNDC = new THREE.Vector2();
+let selectionHelper = null;
+
+function ndcFromClient(clientX, clientY){
+  const rect = renderer.domElement.getBoundingClientRect();
+  editPointerNDC.x = ((clientX-rect.left)/rect.width)*2-1;
+  editPointerNDC.y = -((clientY-rect.top)/rect.height)*2+1;
+  return editPointerNDC;
+}
+function pickFurnitureAt(clientX, clientY){
+  editRaycaster.setFromCamera(ndcFromClient(clientX, clientY), orthoCam);
+  const hits = editRaycaster.intersectObject(furnitureAll, true);
+  for(const hit of hits){
+    let obj = hit.object;
+    while(obj){
+      if(obj.userData && obj.userData.furnitureId) return obj.userData.furnitureId;
+      obj = obj.parent;
+    }
+  }
+  return null;
+}
+function groundPointAt(clientX, clientY, planeY){
+  editRaycaster.setFromCamera(ndcFromClient(clientX, clientY), orthoCam);
+  const ro = editRaycaster.ray.origin, rd = editRaycaster.ray.direction;
+  if(Math.abs(rd.y) < 1e-6) return null;
+  const t = (planeY - ro.y) / rd.y;
+  return { x: ro.x + rd.x*t, z: ro.z + rd.z*t };
+}
+function setSelectedFurniture(id){
+  selectedFurnitureId = id;
+  if(selectionHelper){ scene.remove(selectionHelper); selectionHelper = null; }
+  if(id){
+    const entry = furnitureMeshes.get(id);
+    if(entry){
+      selectionHelper = new THREE.BoxHelper(entry.holder, 0xffcf3a);
+      selectionHelper.renderOrder = 10;
+      scene.add(selectionHelper);
+    }
+  }
+  updateFurniturePanel();
+}
+function moveSelectedFurnitureTo(clientX, clientY){
+  if(!selectedFurnitureId) return;
+  const p = groundPointAt(clientX, clientY, dragPlaneY);
+  if(!p) return;
+  const entry = furnitureMeshes.get(selectedFurnitureId);
+  if(!entry) return;
+  entry.holder.position.x = p.x; entry.holder.position.z = p.z;
+  entry.label.pos.x = p.x; entry.label.pos.z = p.z;
+  furnitureEdits[selectedFurnitureId] = {...(furnitureEdits[selectedFurnitureId]||{}), x: round2(p.x+CX), z: round2(p.z+CZ)};
+  updateFurniturePanel();
+}
+function setEditMode(on){
+  editMode = on;
+  if(!on){ setSelectedFurniture(null); draggingFurniture=false; }
+  else if(!document.getElementById('chkFurniture').checked){
+    document.getElementById('chkFurniture').checked = true;
+    furnitureAll.visible = true;
+  }
+  document.getElementById('editToggle').classList.toggle('active', editMode);
+  document.getElementById('furniturePanel').style.display = (editMode && selectedFurnitureId) ? 'block' : 'none';
+  document.getElementById('editHint').style.display = editMode ? 'block' : 'none';
+  document.getElementById('furnitureBar').style.display = editMode ? 'flex' : 'none';
+}
+
 renderer.domElement.addEventListener('contextmenu', e=>e.preventDefault());
 renderer.domElement.addEventListener('pointerdown', e=>{
   if(mode==='walk'){ onWalkPointerDown(e); return; }
   if(mode!=='orbit' && mode!=='top') return;
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   if(activePointers.size===2){
-    dragging = false; // 2本指になったら単指ドラッグは止める
+    dragging = false; draggingFurniture = false; // 2本指になったら単指ドラッグは止める
     const [p1,p2] = [...activePointers.values()];
     pinchDist = Math.hypot(p1.x-p2.x, p1.y-p2.y);
     return;
+  }
+  if(mode==='top' && editMode){
+    const id = pickFurnitureAt(e.clientX, e.clientY);
+    setSelectedFurniture(id);
+    if(id){
+      const base = FURNITURE_ITEMS.find(f=>f.id===id);
+      dragPlaneY = base.level===1 ? LEVELS.fl1 : LEVELS.fl2;
+      draggingFurniture = true;
+      return; // 家具を選択した場合はカメラのパンを発生させない
+    }
   }
   dragging=true; dragButton=e.button; lastX=e.clientX; lastY=e.clientY;
 });
@@ -281,6 +420,7 @@ window.addEventListener('pointerup', e=>{
   activePointers.delete(e.pointerId);
   if(activePointers.size<2) pinchDist = null;
   dragging=false;
+  if(draggingFurniture){ draggingFurniture=false; saveFurnitureEdits(); }
   onWalkPointerUp(e);
 });
 window.addEventListener('pointermove', e=>{
@@ -293,6 +433,7 @@ window.addEventListener('pointermove', e=>{
     pinchDist = dist;
     return;
   }
+  if(draggingFurniture){ moveSelectedFurnitureTo(e.clientX, e.clientY); return; }
   if(!dragging) return;
   const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
   if(mode==='top'){
@@ -774,12 +915,27 @@ const FURNITURE_SHAPES = {
     [0.02,0.35,0.68].forEach(t=> fPart(group, w*0.9,0.03,d*0.9, 0,h*t,0, FMAT.wood)); // 棚板
   }
 };
-FURNITURE_ITEMS.forEach(item=>{
+// ---- 家具の配置編集（第2段階）：ブラウザ上のドラッグ・回転・サイズ変更をlocalStorageに保存する ----
+// FURNITURE_ITEMS（data/furniture.jsonから生成）はこのセッションでは書き換えない。
+// 差分だけを furnitureEdits に持ち、effectiveFurniture() で重ねて見た目に反映する。
+// 「書き出し」ボタンで差分を反映した完全なJSONをダウンロードし、それをfurniture.jsonへ
+// 手動でコミットする運用（Ryuka-Landscape-DesignerがlocalStorageのみで機種間同期されない
+// 弱点を踏まえた設計。詳細はdocs/BACKGROUND.md）。
+const FURNITURE_EDITS_KEY = 'ryuka-furniture-edits-v1';
+let furnitureEdits = {};
+try { furnitureEdits = JSON.parse(localStorage.getItem(FURNITURE_EDITS_KEY) || '{}') || {}; } catch(e){ furnitureEdits = {}; }
+function saveFurnitureEdits(){ try{ localStorage.setItem(FURNITURE_EDITS_KEY, JSON.stringify(furnitureEdits)); } catch(e){} }
+function effectiveFurniture(item){ const e = furnitureEdits[item.id]; return e ? {...item, ...e} : item; }
+function round2(n){ return Math.round(n*100)/100; }
+
+const furnitureMeshes = new Map(); // id -> { holder, label }
+function placeFurnitureItem(item){
   const profile = FURNITURE_CATALOG[item.type];
   if(!profile) return;
   const shapeFn = FURNITURE_SHAPES[profile.shape];
   if(!shapeFn) return;
   const holder = new THREE.Group();
+  holder.userData.furnitureId = item.id;
   shapeFn(holder, item.width, item.depth, item.height);
   const baseY = item.level===1 ? LEVELS.fl1 : LEVELS.fl2;
   const [sx,sz] = toScene(item.x, item.z);
@@ -790,7 +946,116 @@ FURNITURE_ITEMS.forEach(item=>{
   const l = makeLabel(item.label, item.x, baseY+item.height+0.12, item.z, false);
   l.floor = item.level; l.isFurniture = true;
   labels.push(l);
-});
+  furnitureMeshes.set(item.id, { holder, label: l, baseY });
+}
+function removeFurnitureMesh(id){
+  const entry = furnitureMeshes.get(id);
+  if(!entry) return;
+  if(entry.holder.parent) entry.holder.parent.remove(entry.holder);
+  const idx = labels.indexOf(entry.label);
+  if(idx>=0){ entry.label.div.remove(); labels.splice(idx,1); }
+  furnitureMeshes.delete(id);
+}
+function rebuildFurnitureItem(id){
+  const base = FURNITURE_ITEMS.find(f=>f.id===id);
+  if(!base) return;
+  removeFurnitureMesh(id);
+  placeFurnitureItem(effectiveFurniture(base));
+}
+FURNITURE_ITEMS.forEach(item=> placeFurnitureItem(effectiveFurniture(item)));
+
+// ---- 家具編集パネルの表示・操作 ----
+function updateFurniturePanel(){
+  const panel = document.getElementById('furniturePanel');
+  if(!editMode || !selectedFurnitureId){ panel.style.display = 'none'; return; }
+  const base = FURNITURE_ITEMS.find(f=>f.id===selectedFurnitureId);
+  if(!base){ panel.style.display = 'none'; return; }
+  const eff = effectiveFurniture(base);
+  document.getElementById('fpLabel').textContent = eff.label || eff.type;
+  document.getElementById('fpWidth').value = eff.width;
+  document.getElementById('fpDepth').value = eff.depth;
+  document.getElementById('fpHeight').value = eff.height;
+  panel.style.display = 'block';
+}
+function updateFurnitureBar(){
+  const n = Object.keys(furnitureEdits).length;
+  document.getElementById('fbCount').textContent = n>0 ? `編集済み: ${n}件` : '編集なし';
+}
+function rotateSelected(){
+  if(!selectedFurnitureId) return;
+  const base = FURNITURE_ITEMS.find(f=>f.id===selectedFurnitureId);
+  const next = (effectiveFurniture(base).rotation + 90) % 360;
+  furnitureEdits[selectedFurnitureId] = {...(furnitureEdits[selectedFurnitureId]||{}), rotation: next};
+  const entry = furnitureMeshes.get(selectedFurnitureId);
+  if(entry) entry.holder.rotation.y = -next * Math.PI/180;
+  saveFurnitureEdits();
+  setSelectedFurniture(selectedFurnitureId); // 選択枠(BoxHelper)を回転後の向きで作り直す
+  updateFurnitureBar();
+}
+function applySizeEdit(field, value){
+  if(!selectedFurnitureId) return;
+  const v = parseFloat(value);
+  if(!(v>0)) return;
+  furnitureEdits[selectedFurnitureId] = {...(furnitureEdits[selectedFurnitureId]||{}), [field]: round2(v)};
+  saveFurnitureEdits();
+  rebuildFurnitureItem(selectedFurnitureId);
+  setSelectedFurniture(selectedFurnitureId);
+  updateFurnitureBar();
+}
+function resetSelected(){
+  if(!selectedFurnitureId) return;
+  delete furnitureEdits[selectedFurnitureId];
+  saveFurnitureEdits();
+  rebuildFurnitureItem(selectedFurnitureId);
+  setSelectedFurniture(selectedFurnitureId);
+  updateFurnitureBar();
+}
+function exportFurnitureJSON(){
+  const items = FURNITURE_ITEMS.map(base=>{
+    const eff = effectiveFurniture(base);
+    const cat = FURNITURE_CATALOG[base.type];
+    const out = { id: base.id, type: base.type };
+    if(base.room) out.room = base.room;
+    if(base.label) out.label = base.label;
+    out.level = base.level; out.x = round2(eff.x); out.z = round2(eff.z); out.rotation = eff.rotation;
+    if(round2(eff.width) !== round2(cat.width)) out.widthOverride = round2(eff.width);
+    if(round2(eff.depth) !== round2(cat.depth)) out.depthOverride = round2(eff.depth);
+    if(round2(eff.height) !== round2(cat.height)) out.heightOverride = round2(eff.height);
+    out.status = base.status;
+    if(base.note) out.note = base.note;
+    return out;
+  });
+  const payload = {
+    schemaVersion: '1.0.0', units: 'm',
+    note: '家具・設備の配置インスタンス。type は data/furniture-catalog.json の type を参照する。x/z は建物ローカル座標での footprint 中心、rotation は0/90/180/270度のみ。ブラウザの配置編集機能から書き出したファイル。data/furniture.json に上書きしてコミットすること。',
+    items,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'furniture.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+document.getElementById('fpClose').onclick = ()=> setSelectedFurniture(null);
+document.getElementById('fpRotate').onclick = rotateSelected;
+document.getElementById('fpReset').onclick = resetSelected;
+document.getElementById('fpWidth').onchange = e=> applySizeEdit('width', e.target.value);
+document.getElementById('fpDepth').onchange = e=> applySizeEdit('depth', e.target.value);
+document.getElementById('fpHeight').onchange = e=> applySizeEdit('height', e.target.value);
+document.getElementById('fbExport').onclick = exportFurnitureJSON;
+document.getElementById('fbClearAll').onclick = ()=>{
+  if(Object.keys(furnitureEdits).length===0) return;
+  if(!confirm('家具の編集内容をすべて取り消し、元の配置に戻します。よろしいですか？')) return;
+  const ids = Object.keys(furnitureEdits);
+  furnitureEdits = {};
+  saveFurnitureEdits();
+  ids.forEach(id=> rebuildFurnitureItem(id));
+  setSelectedFurniture(null);
+  updateFurnitureBar();
+};
+document.getElementById('editToggle').onclick = ()=> setEditMode(!editMode);
+updateFurnitureBar();
 
 // ---- 室内間仕切り（v2：確度付き） ----
 [1,2].forEach(fl=>{
@@ -949,6 +1214,8 @@ function applyModeChrome(m){
   document.getElementById('crosshair').style.display = m==='walk' ? 'block' : 'none';
   document.getElementById('moveHint').style.display = (m==='walk' && !isTouchDevice) ? 'block' : 'none';
   document.getElementById('joyBase').style.display = (m==='walk' && isTouchDevice) ? 'block' : 'none';
+  document.getElementById('editToggle').style.display = m==='top' ? 'inline-block' : 'none';
+  if(m!=='top' && editMode) setEditMode(false); // 家具編集は平面図モード限定
 }
 
 function openSpawnOverlay(){ document.getElementById('spawnOverlay').style.display = 'flex'; }
@@ -1073,6 +1340,7 @@ function updateLabels(activeCam){
   });
 }
 applyFloorMode();
+applyModeChrome(mode); // 初期表示のモード関連UI（家具編集トグル等）をmodeの実値に同期させる
 const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
@@ -1080,6 +1348,7 @@ function animate(){
   let activeCam;
   if(mode==='walk'){ updateWalkMovement(dt); activeCam = walkCamera; }
   else activeCam = (mode==='top') ? orthoCam : camera;
+  if(selectionHelper) selectionHelper.update(); // ドラッグ中の選択枠を追従させる
   renderer.render(scene, activeCam);
   updateLabels(activeCam);
 }

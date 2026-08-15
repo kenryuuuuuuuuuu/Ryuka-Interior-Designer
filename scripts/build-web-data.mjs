@@ -217,8 +217,11 @@ const output = [
 ].join("\n");
 
 if (mode === "--check") {
+  // Windowsのgit checkoutはCRLFに変換することがあるため、改行コードの違いだけで
+  // 誤ってSTALE判定しないよう正規化してから比較する。
+  const normalize = (s) => (s == null ? s : s.replace(/\r\n/g, "\n"));
   const current = fs.existsSync(outPath) ? fs.readFileSync(outPath, "utf8") : null;
-  if (current === output) {
+  if (normalize(current) === normalize(output)) {
     console.log("generated/house-data.js is up to date with data/house.json / furniture-catalog.json / furniture.json.");
     process.exit(0);
   }
