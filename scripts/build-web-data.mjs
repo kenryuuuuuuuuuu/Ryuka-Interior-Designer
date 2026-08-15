@@ -119,7 +119,7 @@ function buildInteriorDoors() {
     const profile = doorWindowByType[d.type];
     if (!profile) throw new Error(`interior-doors.json: ${d.id} が未知のtype「${d.type}」を参照している`);
     const parts = [
-      `id:${str(d.id)}`, `type:${str(d.type)}`, `operation:${str(profile.operation)}`, `label:${str(d.label)}`, `wallAt:${num(d.wallAt)}`,
+      `id:${str(d.id)}`, `type:${str(d.type)}`, `category:${str(profile.category)}`, `operation:${str(profile.operation)}`, `label:${str(d.label)}`, `wallAt:${num(d.wallAt)}`,
       `orientation:${str(d.orientation)}`, `center:${num(d.center)}`,
       `width:${num(d.widthOverride ?? profile.width)}`,
       `height:${num(d.heightOverride ?? profile.height)}`,
