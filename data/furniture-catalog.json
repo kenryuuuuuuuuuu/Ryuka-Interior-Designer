@@ -118,6 +118,17 @@
       "note": "マットレス1400×1950mm"
     },
     {
+      "type": "coffee-table",
+      "label": "ローテーブル",
+      "category": "furniture",
+      "shape": "table",
+      "width": 1.0,
+      "depth": 0.5,
+      "height": 0.4,
+      "clearance": 0.3,
+      "note": "ソファの前に置く背の低いセンターテーブルの一般的な寸法"
+    },
+    {
       "type": "sofa-2seat",
       "label": "2人掛けソファ",
       "category": "furniture",

@@ -337,10 +337,19 @@ function ndcFromClient(clientX, clientY){
   editPointerNDC.y = -((clientY-rect.top)/rect.height)*2+1;
   return editPointerNDC;
 }
+function isEffectivelyVisible(obj){
+  // Three.js(r128)のRaycasterはvisible:falseのオブジェクトを自動的には除外しないため、
+  // 祖先を辿って明示的に確認する。1F/2F表示切替で非表示中の家具が選択されてしまう不具合の対策。
+  for(let node = obj; node; node = node.parent){
+    if(node.visible === false) return false;
+  }
+  return true;
+}
 function pickFurnitureAt(clientX, clientY){
   editRaycaster.setFromCamera(ndcFromClient(clientX, clientY), orthoCam);
   const hits = editRaycaster.intersectObject(furnitureAll, true);
   for(const hit of hits){
+    if(!isEffectivelyVisible(hit.object)) continue;
     let obj = hit.object;
     while(obj){
       if(obj.userData && obj.userData.furnitureId) return obj.userData.furnitureId;

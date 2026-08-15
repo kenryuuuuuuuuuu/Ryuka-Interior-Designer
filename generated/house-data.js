@@ -138,6 +138,7 @@ const FURNITURE_CATALOG = {
   'bed-single': { label:'シングルベッド', category:'furniture', shape:'bed', width:0.97, depth:1.95, height:0.5, clearance:0.5 },
   'bed-semi-double': { label:'セミダブルベッド', category:'furniture', shape:'bed', width:1.2, depth:1.95, height:0.5, clearance:0.5 },
   'bed-double': { label:'ダブルベッド', category:'furniture', shape:'bed', width:1.4, depth:1.95, height:0.5, clearance:0.5 },
+  'coffee-table': { label:'ローテーブル', category:'furniture', shape:'table', width:1, depth:0.5, height:0.4, clearance:0.3 },
   'sofa-2seat': { label:'2人掛けソファ', category:'furniture', shape:'sofa', width:1.5, depth:0.85, height:0.8, clearance:0.4 },
   'sofa-3seat': { label:'3人掛けソファ', category:'furniture', shape:'sofa', width:1.9, depth:0.85, height:0.8, clearance:0.4 },
   'dining-table-4': { label:'ダイニングテーブル（4人）', category:'furniture', shape:'table', width:1.35, depth:0.8, height:0.72, clearance:0.75 },
@@ -155,7 +156,8 @@ const FURNITURE_ITEMS = [
   { id:'fur-001', type:'vanity', level:1, x:0.29, z:3.26, rotation:270, width:0.75, depth:0.53, height:1.9, label:'洗面化粧台（民泊）', status:'estimated', room:'room-1f-03' },
   { id:'fur-002', type:'washing-machine', level:1, x:0.34, z:4.19, rotation:0, width:0.64, depth:0.72, height:1.05, label:'洗濯機（民泊）', status:'estimated', room:'room-1f-03' },
   { id:'fur-003', type:'bathtub', level:1, x:0.92, z:5.96, rotation:0, width:1.82, depth:0.8, height:0.6, label:'浴槽（民泊UB）', status:'estimated', room:'room-1f-04' },
-  { id:'fur-004', type:'bed-semi-double', level:1, x:3.98, z:2.68, rotation:180, width:1.2, depth:1.95, height:0.5, label:'ベッド（民泊 洋室）', status:'estimated', room:'room-1f-05' },
+  { id:'fur-036', type:'bed-single', level:1, x:3.4, z:2.68, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド1（民泊 洋室）', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更
+  { id:'fur-037', type:'bed-single', level:1, x:4.57, z:2.68, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド2（民泊 洋室）', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更
   { id:'fur-005', type:'wardrobe', level:1, x:6.89, z:3.04, rotation:90, width:1.2, depth:0.6, height:1.8, label:'ワードローブ（民泊 洋室）', status:'estimated', room:'room-1f-05' },
   { id:'fur-006', type:'kitchen-counter', level:1, x:6.87, z:5.43, rotation:270, width:1.8, depth:0.65, height:0.85, label:'キッチン（民泊LDK）', status:'estimated', room:'room-1f-06' },
   { id:'fur-007', type:'refrigerator', level:1, x:6.86, z:4.06, rotation:90, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫（民泊LDK）', status:'estimated', room:'room-1f-06' },
@@ -164,6 +166,7 @@ const FURNITURE_ITEMS = [
   { id:'fur-010', type:'chair', level:1, x:5.01, z:5.65, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子2（民泊LDK）', status:'estimated', room:'room-1f-06' },
   { id:'fur-011', type:'sofa-2seat', level:1, x:3.54, z:4.14, rotation:0, width:1.5, depth:0.85, height:0.8, label:'ソファ（民泊LDK）', status:'estimated', room:'room-1f-06' },
   { id:'fur-012', type:'tv-board', level:1, x:2.05, z:5.22, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード（民泊LDK）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-038', type:'coffee-table', level:1, x:3.54, z:4.87, rotation:0, width:1, depth:0.5, height:0.4, label:'ローテーブル（民泊LDK）', status:'estimated', room:'room-1f-06' }, // 施主指摘(2026-08-15)によりソファ前に新規配置
   { id:'fur-013', type:'kitchen-counter', level:1, x:13.63, z:5.08, rotation:90, width:2.55, depth:0.65, height:0.85, label:'キッチン（自宅LDK）', status:'estimated', room:'room-1f-11' },
   { id:'fur-014', type:'refrigerator', level:1, x:15.11, z:5.99, rotation:180, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫（自宅LDK）', status:'estimated', room:'room-1f-11' },
   { id:'fur-015', type:'dining-table-6', level:1, x:12.08, z:4.69, rotation:0, width:1.4, depth:0.85, height:0.72, label:'ダイニングテーブル（自宅LDK）', status:'estimated', room:'room-1f-11' },
@@ -173,6 +176,7 @@ const FURNITURE_ITEMS = [
   { id:'fur-019', type:'chair', level:1, x:12.43, z:5.28, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子4（自宅LDK）', status:'estimated', room:'room-1f-11' },
   { id:'fur-020', type:'sofa-3seat', level:1, x:9.38, z:4.87, rotation:90, width:2, depth:0.85, height:0.8, label:'ソファ（自宅LDK）', status:'estimated', room:'room-1f-11' },
   { id:'fur-021', type:'tv-board', level:1, x:7.56, z:4.82, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード（自宅LDK）', status:'estimated', room:'room-1f-11' },
+  { id:'fur-039', type:'coffee-table', level:1, x:8.36, z:4.87, rotation:90, width:1, depth:0.5, height:0.4, label:'ローテーブル（自宅LDK）', status:'estimated', room:'room-1f-11' }, // 施主指摘(2026-08-15)によりソファ前に新規配置
   { id:'fur-034', type:'cupboard', level:1, x:15.23, z:4.34, rotation:90, width:2.55, depth:0.45, height:1.9, label:'カップボード（自宅LDK）', status:'estimated', room:'room-1f-11' },
   { id:'fur-022', type:'toilet-tankless', level:1, x:18.79, z:2.27, rotation:90, width:0.4, depth:0.65, height:0.75, label:'便器（1F自宅・タンクレス）', status:'estimated', room:'room-1f-14' },
   { id:'fur-023', type:'vanity', level:1, x:18.19, z:3.86, rotation:180, width:1.82, depth:0.45, height:1.9, label:'洗面化粧台（1F東）', status:'estimated', room:'room-1f-15' },
@@ -186,4 +190,5 @@ const FURNITURE_ITEMS = [
   { id:'fur-031', type:'desk', level:2, x:17.44, z:0.3, rotation:0, width:1.1, depth:0.6, height:0.72, label:'デスク（子供部屋2）', status:'estimated', room:'room-2f-05' },
   { id:'fur-032', type:'bed-double', level:2, x:18.07, z:5.07, rotation:90, width:2, depth:2, height:0.5, label:'ベッド（夫婦寝室）', status:'estimated', room:'room-2f-06' },
   { id:'fur-033', type:'wardrobe', level:2, x:17.73, z:3.2, rotation:180, width:2.73, depth:0.91, height:1.8, label:'ワードローブ（夫婦寝室）', status:'estimated', room:'room-2f-06' },
+  { id:'fur-040', type:'tv-board', level:2, x:15.72, z:5, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード（夫婦寝室）', status:'estimated', room:'room-2f-06' }, // 施主指摘(2026-08-15)により西壁側に新規配置
 ];

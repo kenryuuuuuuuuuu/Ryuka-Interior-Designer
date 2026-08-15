@@ -56,6 +56,7 @@ CAD原本がないため、施主がマイホームクラウドの画面やこ�
 | 片流れ屋根レイヤーをオンにすると、屋根が間取りの下に隠れて見える | 全ての半透明マテリアルで`depthWrite:false`にしているため、前後関係は実際のY座標ではなく`renderOrder`の数値だけで決まる。屋根メッシュ(`slopedRoofBox`)だけ`renderOrder`を設定し忘れていて既定値0のまま描画されていた（外皮=1、室内間仕切り=2、ドア/開口部=3より低い） | `slopedRoofBox`に`renderOrder`引数を追加し、屋根を4（他レイヤーより後＝手前）に設定（2026-08-14） |
 | `Ryuka-Landscape-Designer`の`data/fixed-site-data.js`にも同じfl1/fl2の誤りがある | 同リポジトリのコメントに「基礎高0.500」と明記されており、`fl1`という変数名でありながら実際は基礎高を表す値として設計されていたと判明。当リポジトリのHTMLは元々ここからLEVELSをコピーしていたため、誤りごと引き継いでいた | 当リポジトリでは4章の通り立面図の実測値に修正済み。`Ryuka-Landscape-Designer`側は未修正（別リポジトリのため対象外）。今後同リポジトリの値を参照する際はfl1/fl2が基礎高基準である点に注意 |
 | `node scripts/build-web-data.mjs --check`が、実際にはgenerated/house-data.jsが最新でもSTALEと誤判定することがある | WindowsのGit（`core.autocrlf`）が`.js`ファイルをチェックアウト時にCRLFへ変換するが、Node.jsの`fs.writeFileSync`はLFで書き出す。ファイル内容は実質同じでも、生の文字列比較では改行コードの違いだけで不一致になる | 比較前に`\r\n`を`\n`へ正規化するよう`--check`のロジックを修正（2026-08-15） |
+| 表示フロアを1F/2Fに限定していても、非表示側の家具がクリック選択されてしまう | Three.js(r128)の`Raycaster.intersectObject`は`Object3D.visible:false`のオブジェクトを自動的には除外しない。`groups.furniture2`を非表示にしていても、レイキャストは素通りしてヒットする | ヒットしたオブジェクトから祖先を辿り、`visible:false`のノードがあれば除外する`isEffectivelyVisible()`を追加（2026-08-15） |
 
 ## 4. 作業上の約束事
 

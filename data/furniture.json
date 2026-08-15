@@ -49,15 +49,28 @@
       "status": "estimated"
     },
     {
-      "id": "fur-004",
-      "type": "bed-semi-double",
+      "id": "fur-036",
+      "type": "bed-single",
       "room": "room-1f-05",
-      "label": "ベッド（民泊 洋室）",
+      "label": "ベッド1（民泊 洋室）",
       "level": 1,
-      "x": 3.98,
+      "x": 3.4,
       "z": 2.68,
       "rotation": 180,
-      "status": "estimated"
+      "status": "estimated",
+      "note": "施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更"
+    },
+    {
+      "id": "fur-037",
+      "type": "bed-single",
+      "room": "room-1f-05",
+      "label": "ベッド2（民泊 洋室）",
+      "level": 1,
+      "x": 4.57,
+      "z": 2.68,
+      "rotation": 180,
+      "status": "estimated",
+      "note": "施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更"
     },
     {
       "id": "fur-005",
@@ -148,6 +161,18 @@
       "z": 5.22,
       "rotation": 90,
       "status": "estimated"
+    },
+    {
+      "id": "fur-038",
+      "type": "coffee-table",
+      "room": "room-1f-06",
+      "label": "ローテーブル（民泊LDK）",
+      "level": 1,
+      "x": 3.54,
+      "z": 4.87,
+      "rotation": 0,
+      "status": "estimated",
+      "note": "施主指摘(2026-08-15)によりソファ前に新規配置"
     },
     {
       "id": "fur-013",
@@ -249,6 +274,18 @@
       "z": 4.82,
       "rotation": 90,
       "status": "estimated"
+    },
+    {
+      "id": "fur-039",
+      "type": "coffee-table",
+      "room": "room-1f-11",
+      "label": "ローテーブル（自宅LDK）",
+      "level": 1,
+      "x": 8.36,
+      "z": 4.87,
+      "rotation": 90,
+      "status": "estimated",
+      "note": "施主指摘(2026-08-15)によりソファ前に新規配置"
     },
     {
       "id": "fur-034",
@@ -401,6 +438,18 @@
       "widthOverride": 2.73,
       "depthOverride": 0.91,
       "status": "estimated"
+    },
+    {
+      "id": "fur-040",
+      "type": "tv-board",
+      "room": "room-2f-06",
+      "label": "テレビボード（夫婦寝室）",
+      "level": 2,
+      "x": 15.72,
+      "z": 5.0,
+      "rotation": 90,
+      "status": "estimated",
+      "note": "施主指摘(2026-08-15)により西壁側に新規配置"
     }
   ]
 }
