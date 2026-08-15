@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryuka.example/schemas/interior-doors.schema.json",
+  "title": "Ryuka interior doors placement",
+  "description": "data/interior-doors.json（室内ドアの配置インスタンス）のデータ契約。型の定義は data/door-window-catalog.json を参照。",
+  "type": "object",
+  "required": ["schemaVersion", "units", "items"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "units": { "const": "m" },
+    "note": { "type": "string" },
+    "items": { "type": "array", "items": { "$ref": "#/$defs/item" } }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": ["id", "type", "wallAt", "orientation", "center", "floor", "label", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "wallAt": { "type": "number" },
+        "orientation": { "enum": ["H", "V"] },
+        "center": { "type": "number" },
+        "floor": { "type": "integer", "minimum": 1 },
+        "widthOverride": { "type": "number", "exclusiveMinimum": 0 },
+        "heightOverride": { "type": "number", "exclusiveMinimum": 0 },
+        "hingeSide": { "enum": ["L", "R"] },
+        "swingDir": { "enum": ["in", "out"] },
+        "slideDir": { "enum": ["L", "R"] },
+        "label": { "type": "string" },
+        "status": { "enum": ["verified", "derived", "estimated"] },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

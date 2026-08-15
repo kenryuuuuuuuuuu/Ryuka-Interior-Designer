@@ -1,8 +1,10 @@
 /**
- * data/house.json（正本）から、Three.js白模型（interior-white-model.html）が読み込む
+ * data/house.json・data/furniture-catalog.json・data/furniture.json・
+ * data/door-catalog.json・data/window-catalog.json・data/openings.json・data/interior-doors.json
+ * （いずれも正本）から、Three.js白模型（interior-white-model.html）が読み込む
  * 描画用データファイル generated/house-data.js を生成する。
  *
- * house.json を編集したら、このスクリプトを実行してHTML側のデータを更新すること。
+ * これらのJSONを編集したら、このスクリプトを実行してHTML側のデータを更新すること。
  * 詳細な運用手順は docs/ARCHITECTURE.md を参照。
  *
  * 使い方:
@@ -29,6 +31,16 @@ const furnitureCatalogPath = path.join(root, "data", "furniture-catalog.json");
 const furniturePath = path.join(root, "data", "furniture.json");
 const furnitureCatalog = JSON.parse(fs.readFileSync(furnitureCatalogPath, "utf8"));
 const furniture = JSON.parse(fs.readFileSync(furniturePath, "utf8"));
+const doorCatalogPath = path.join(root, "data", "door-catalog.json");
+const windowCatalogPath = path.join(root, "data", "window-catalog.json");
+const openingsPath = path.join(root, "data", "openings.json");
+const interiorDoorsPath = path.join(root, "data", "interior-doors.json");
+const doorCatalog = JSON.parse(fs.readFileSync(doorCatalogPath, "utf8"));
+const windowCatalog = JSON.parse(fs.readFileSync(windowCatalogPath, "utf8"));
+const openings = JSON.parse(fs.readFileSync(openingsPath, "utf8"));
+const interiorDoors = JSON.parse(fs.readFileSync(interiorDoorsPath, "utf8"));
+const doorWindowTypes = [...doorCatalog.types, ...windowCatalog.types];
+const doorWindowByType = Object.fromEntries(doorWindowTypes.map((t) => [t.type, t]));
 
 const CONF_FROM_STATUS = { verified: "高", derived: "中", estimated: "低" };
 
@@ -61,13 +73,35 @@ function buildFloor2() {
   return `const FLOOR2 = { x0:${num(fp.x0)}, x1:${num(fp.x1)}, z0:${num(fp.z0)}, z1:${num(fp.z1)} };`;
 }
 
+function buildDoorWindowCatalog() {
+  const rows = doorWindowTypes
+    .map((t) => {
+      const fields = [`label:${str(t.label)}`, `category:${str(t.category)}`, `operation:${str(t.operation)}`, `width:${num(t.width)}`, `height:${num(t.height)}`, `sill:${num(t.sill)}`];
+      if (t.archRise !== undefined) fields.push(`archRise:${num(t.archRise)}`);
+      return `  ${str(t.type)}: { ${fields.join(", ")} }`;
+    })
+    .join(",\n");
+  return `const DOOR_WINDOW_CATALOG = {\n${rows}\n};`;
+}
+
 function buildOpenings() {
-  const rows = house.openings.map((o) => {
-    const parts = [`face:${str(o.face)}`];
+  const rows = openings.items.map((o) => {
+    const profile = doorWindowByType[o.type];
+    if (!profile) throw new Error(`openings.json: ${o.id} が未知のtype「${o.type}」を参照している`);
+    const parts = [`id:${str(o.id)}`, `type:${str(o.type)}`, `category:${str(profile.category)}`, `operation:${str(profile.operation)}`, `face:${str(o.face)}`];
     if (o.face === "N" || o.face === "S") parts.push(`lx:${num(o.offset)}`);
     else parts.push(`lz:${num(o.offset)}`);
     if (o.wallX !== undefined) parts.push(`x:${num(o.wallX)}`);
-    parts.push(`w:${num(o.width)}`, `h:${num(o.height)}`, `sill:${num(o.sill)}`, `level:${o.level}`, `kind:${str(o.kind)}`, `label:${str(o.label)}`);
+    parts.push(
+      `w:${num(o.widthOverride ?? profile.width)}`,
+      `h:${num(o.heightOverride ?? profile.height)}`,
+      `sill:${num(o.sillOverride ?? profile.sill)}`,
+      `level:${o.level}`,
+    );
+    if (o.hingeSide) parts.push(`hingeSide:${str(o.hingeSide)}`);
+    if (o.swingDir) parts.push(`swingDir:${str(o.swingDir)}`);
+    if (o.slideDir) parts.push(`slideDir:${str(o.slideDir)}`);
+    parts.push(`label:${str(o.label)}`, `status:${str(o.status)}`);
     return withNote(`  { ${parts.join(", ")} },`, o.note);
   });
   return `const OPENINGS = [\n${rows.join("\n")}\n];`;
@@ -81,10 +115,23 @@ function buildSoundWall() {
 }
 
 function buildInteriorDoors() {
-  const rows = house.interiorDoors
-    .map((d) => `  { label:${str(d.label)}, wallAt:${num(d.wallAt)}, orientation:${str(d.orientation)}, center:${num(d.center)}, width:${num(d.width)}, floor:${d.floor} }`)
-    .join(",\n");
-  return `const INTERIOR_DOORS = [\n${rows}\n];`;
+  const rows = interiorDoors.items.map((d) => {
+    const profile = doorWindowByType[d.type];
+    if (!profile) throw new Error(`interior-doors.json: ${d.id} が未知のtype「${d.type}」を参照している`);
+    const parts = [
+      `id:${str(d.id)}`, `type:${str(d.type)}`, `category:${str(profile.category)}`, `operation:${str(profile.operation)}`, `label:${str(d.label)}`, `wallAt:${num(d.wallAt)}`,
+      `orientation:${str(d.orientation)}`, `center:${num(d.center)}`,
+      `width:${num(d.widthOverride ?? profile.width)}`,
+      `height:${num(d.heightOverride ?? profile.height)}`,
+      `floor:${d.floor}`,
+    ];
+    if (d.hingeSide) parts.push(`hingeSide:${str(d.hingeSide)}`);
+    if (d.swingDir) parts.push(`swingDir:${str(d.swingDir)}`);
+    if (d.slideDir) parts.push(`slideDir:${str(d.slideDir)}`);
+    parts.push(`status:${str(d.status)}`);
+    return withNote(`  { ${parts.join(", ")} },`, d.note);
+  });
+  return `const INTERIOR_DOORS = [\n${rows.join("\n")}\n];`;
 }
 
 function bbox(polygon) {
@@ -178,7 +225,8 @@ function buildFurnitureItems() {
 
 const banner = `// ============================================================================
 // 自動生成ファイル。手で編集しないこと。
-// 生成元: data/house.json / data/furniture-catalog.json / data/furniture.json
+// 生成元: data/house.json / data/furniture-catalog.json / data/furniture.json /
+//        data/door-catalog.json / data/window-catalog.json / data/openings.json / data/interior-doors.json
 //        （このリポジトリの正本）
 // 生成コマンド: node scripts/build-web-data.mjs
 // これらのJSONを編集したら、このファイルを再生成してからブラウザで確認すること。
@@ -197,6 +245,8 @@ const output = [
   "",
   buildFloor1(),
   buildFloor2(),
+  "",
+  buildDoorWindowCatalog(),
   "",
   buildOpenings(),
   "",
@@ -222,7 +272,7 @@ if (mode === "--check") {
   const normalize = (s) => (s == null ? s : s.replace(/\r\n/g, "\n"));
   const current = fs.existsSync(outPath) ? fs.readFileSync(outPath, "utf8") : null;
   if (normalize(current) === normalize(output)) {
-    console.log("generated/house-data.js is up to date with data/house.json / furniture-catalog.json / furniture.json.");
+    console.log("generated/house-data.js is up to date with data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json.");
     process.exit(0);
   }
   console.error("generated/house-data.js is STALE. Run: node scripts/build-web-data.mjs");
@@ -231,4 +281,4 @@ if (mode === "--check") {
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, output, "utf8");
-console.log(`Wrote ${path.relative(root, outPath)} from data/house.json / furniture-catalog.json / furniture.json.`);
+console.log(`Wrote ${path.relative(root, outPath)} from data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json.`);

@@ -3,7 +3,7 @@
   "$id": "https://ryuka.example/schemas/house.schema.json",
   "title": "Ryuka house digital twin",
   "type": "object",
-  "required": ["schemaVersion", "units", "coordinateSystem", "levels", "defaults", "footprints", "openings", "interiorDoors", "specialWalls", "roofs", "rooms", "walls"],
+  "required": ["schemaVersion", "units", "coordinateSystem", "levels", "defaults", "footprints", "specialWalls", "roofs", "rooms", "walls"],
   "properties": {
     "schemaVersion": { "const": "1.0.0" },
     "units": { "const": "m" },
@@ -23,8 +23,6 @@
       }
     },
     "footprints": { "type": "array", "items": { "$ref": "#/$defs/rect" } },
-    "openings": { "type": "array", "items": { "$ref": "#/$defs/opening" } },
-    "interiorDoors": { "type": "array", "items": { "$ref": "#/$defs/interiorDoor" } },
     "specialWalls": { "type": "array", "items": { "type": "object", "required": ["id", "x", "z0", "z1", "level", "topY"], "properties": { "note": { "type": "string" } } } },
     "roofs": {
       "type": "array",
@@ -54,25 +52,6 @@
         "id": { "type": "string", "minLength": 1 }, "level": { "type": "integer", "minimum": 1 },
         "x0": { "type": "number" }, "x1": { "type": "number" }, "z0": { "type": "number" }, "z1": { "type": "number" },
         "status": { "enum": ["verified", "derived", "estimated"] }
-      }
-    },
-    "opening": {
-      "type": "object",
-      "required": ["id", "face", "offset", "width", "height", "sill", "level", "kind", "label", "status"],
-      "properties": {
-        "id": { "type": "string" }, "face": { "enum": ["N", "S", "E", "W"] }, "offset": { "type": "number" },
-        "wallX": { "type": "number" }, "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 },
-        "sill": { "type": "number", "minimum": 0 }, "level": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["door", "window"] },
-        "label": { "type": "string" }, "status": { "enum": ["verified", "derived", "estimated"] }, "note": { "type": "string" }
-      }
-    },
-    "interiorDoor": {
-      "type": "object",
-      "required": ["id", "label", "wallAt", "orientation", "center", "width", "floor", "status"],
-      "properties": {
-        "id": { "type": "string" }, "label": { "type": "string" }, "wallAt": { "type": "number" },
-        "orientation": { "enum": ["H", "V"] }, "center": { "type": "number" }, "width": { "type": "number", "exclusiveMinimum": 0 },
-        "floor": { "type": "integer", "minimum": 1 }, "status": { "enum": ["verified", "derived", "estimated"] }
       }
     },
     "room": {

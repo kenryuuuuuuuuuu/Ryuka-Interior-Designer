@@ -10,17 +10,21 @@
 - `index.html` — GitHub PagesのルートURL用リダイレクト（`interior-white-model.html`へ転送するだけ）
 - `manifest.webmanifest` / `sw.js` / `icon.svg` — PWA化（ホーム画面に追加・オフライン起動）用の設定一式
 - `vendor/three.min.js` — Three.js本体のローカル同梱コピー（オフラインでも動くように、CDN参照ではなくここから読み込む）
-- `data/house.json` — 建物データの正本。寸法・開口部・室内ドア・部屋・壁・屋根
+- `data/house.json` — 建物データの正本。寸法・部屋・壁・屋根
 - `data/house.schema.json` — `house.json`のデータ契約（JSON Schema）
 - `data/furniture-catalog.json` — 家具・設備の「型」ライブラリ（種類ごとの標準寸法・形状指定）
 - `data/furniture.json` — 家具・設備の配置（どこに何を置くか）。正本
 - `data/furniture.schema.json` — `furniture.json`のデータ契約（JSON Schema）
+- `data/door-catalog.json` / `data/window-catalog.json` — 窓・ドアの「型」ライブラリ（種類ごとの標準寸法・開閉方式）
+- `data/openings.json` — 外部の窓・ドアの配置。正本
+- `data/interior-doors.json` — 室内ドアの配置。正本
 - `data/electrical.json` — 次フェーズ（電気設備）用の領域。現在は空
-- `generated/house-data.js` — `house.json`・`furniture-catalog.json`・`furniture.json`から自動生成されるHTML表示用データ（手で編集しない）
+- `generated/house-data.js` — 上記JSON群から自動生成されるHTML表示用データ（手で編集しない）
 - `scripts/build-web-data.mjs` — 上記JSON群 → `generated/house-data.js` の生成スクリプト
-- `blender/build_house.py` — `house.json`からBlender白模型を再生成するスクリプト（家具は対象外。HTML側だけで扱う方針）
+- `blender/build_house.py` — `house.json`・`door-catalog.json`・`window-catalog.json`・`openings.json`・`interior-doors.json`からBlender白模型を再生成するスクリプト（家具は対象外。HTML側だけで扱う方針）
 - `tests/validate_house.py` — `house.json`の整合性チェック（依存ライブラリなしで動作）
 - `tests/validate_furniture.py` — 家具データの整合性チェック
+- `tests/validate_openings.py` — 窓・ドアデータの整合性チェック
 
 ## 使い方
 
@@ -38,6 +42,7 @@ GitHub Pagesで公開している。スマホのブラウザで開き、共有�
 - 上部中央のモード切替：「俯瞰」（自由回転）／「平面図」（真上からの正射投影、寸法比較用）／「内覧」（一人称視点で歩ける。玄関を選ぶとその場所からスタートし、壁に当たり判定がある。デスクトップはWASD/矢印キー移動＋ドラッグで視点操作、スマホはバーチャルジョイスティック＋ドラッグ）
 - メニュー内チェックボックス：レイヤーごとの表示切替（室内間仕切り・家具設備・窓ドア・防音壁・屋根・室内ドア位置・寸法値・部屋ラベル・家具ラベル・910mmグリッド）。部屋ラベルと家具ラベルは別々にON/OFFできる。内覧モード中は概算レイヤーの代わりに実壁・天井を表示するが、家具は内覧モード中も表示される
 - 平面図モードで右上「✎ 家具編集」：家具をクリック/タップで選択し、ドラッグで移動。選択中に表示されるパネルから90度回転・幅/奥行/高さの変更ができる。編集内容はブラウザに自動保存されるが、それは下書き。「furniture.jsonを書き出す」でダウンロードしたJSONを`data/furniture.json`に上書きしてコミットするまでは正本に反映されない
+- 平面図モードで右上「✎ 窓・ドア編集」：窓・ドアをクリック/タップで選択し、壁に沿ってドラッグでスライド（家具と違い、壁の外へは動かせない）。選択中に表示されるパネルから種類切替・幅/高さ/シル高の変更・開き勝手の変更ができる。「openings.json」「interior-doors.json」の書き出しボタンでダウンロードしたJSONをそれぞれ`data/openings.json`・`data/interior-doors.json`に上書きしてコミットするまでは正本に反映されない。家具編集とは同時にONにできない
 
 ### 建物の寸法を変更する
 
