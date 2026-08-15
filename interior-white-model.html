@@ -197,8 +197,8 @@
 
   <div class="section-title">表示フロア</div>
   <div id="floorToggle">
-    <button id="btnBoth" class="active">両方</button>
-    <button id="btn1F">1F</button>
+    <button id="btnBoth">両方</button>
+    <button id="btn1F" class="active">1F</button>
     <button id="btn2F">2F</button>
   </div>
   <div class="sub" style="margin:6px 0 0;">1F/2F切替時、選択していない階は非表示になります。内覧モード中はスポーン地点で階が決まります。</div>
@@ -1165,20 +1165,10 @@ updateFurnitureBar();
 // outSign: 壁に直交する方向のうち、どちらが「外開き(swingDir:'out')」に対応するか（+1/-1）。
 //   外部の窓・ドアはface(N/S/E/W)から一意に決まる。室内ドアは「外」の概念がないため+1固定（簡易表現）
 // hingeSide/swingDir(開き戸) または slideDir(引き戸) が未確定(undefined)の場合は扉本体を描かない
-function addDoorLeaf({ orientation, alongFrom, alongTo, wallCoord, baseY, height, hingeSide, swingDir, slideDir, outSign=1, mat, edgeMat, grp }){
-  const thick = 0.04;
-  const w = alongTo - alongFrom;
-  if(slideDir){
-    const shiftSign = slideDir==='L' ? -1 : 1;
-    const a0 = alongFrom + shiftSign*w, a1 = alongTo + shiftSign*w;
-    if(orientation==='H') boxWire(a0, a1, baseY, baseY+height, wallCoord-thick/2, wallCoord+thick/2, mat, edgeMat, grp, 3);
-    else boxWire(wallCoord-thick/2, wallCoord+thick/2, baseY, baseY+height, a0, a1, mat, edgeMat, grp, 3);
-    return;
-  }
-  if(!hingeSide || !swingDir) return;
-  const hingeAt = hingeSide==='L' ? alongFrom : alongTo;
-  const alongSign = hingeSide==='L' ? 1 : -1; // 閉じた状態で蝶番から扉が伸びる向き（沿い方向）
-  const openSign = swingDir==='out' ? outSign : -outSign; // 開いた状態で扉が伸びる向き（壁に直交する方向）
+// 開き戸1枚ぶんの扉本体（直線）と床面の開閉軌跡（円弧）を描画する。
+// hingeAt=蝶番の位置（沿い方向の座標）、alongSign=蝶番から扉が閉位置で伸びる向き（+1/-1）、
+// openSign=壁に直交する方向のうち扉が開く向き（+1/-1）、w=この1枚の扉の幅
+function drawSwingLeaf({ orientation, hingeAt, alongSign, wallCoord, baseY, openSign, w, edgeMat, grp }){
   const n0 = wallCoord, n1 = wallCoord + openSign*w;
   // 開いた状態の扉本体は、枠（閉位置、ピンクの太い箱）とは区別し、開閉軌跡と同じ黒線・同じ太さの
   // 直線で表現する（boxWire()は内部でtoScene()により建物中心(CX,CZ)ぶん再センタリングしているため、
@@ -1202,6 +1192,72 @@ function addDoorLeaf({ orientation, alongFrom, alongTo, wallCoord, baseY, height
   const arcLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts), edgeMat);
   arcLine.renderOrder = 3;
   grp.add(arcLine);
+}
+// 折れ戸1組(2枚)の扉本体（ハの字に折れた2本の直線）を描画する。
+// hingeAt=固定側蝶番の位置、alongSign=蝶番から自由端へ向かう沿い方向(+1/-1)、
+// openSign=壁に直交する方向のうち折れ戸が張り出す向き(+1/-1)、w=この1組の開口幅
+// 建具表の図記号を模し、自由端(C)は沿い方向にw/2進んだ壁面上の位置とし、
+// 折れ点(B)はA-B=B-C=A-C(=w/2)の正三角形になる位置（壁から(w/2)*sin60°張り出す）に置く
+function drawFoldLeaf({ orientation, hingeAt, alongSign, wallCoord, baseY, openSign, w, edgeMat, grp }){
+  const side = w/2;
+  const aAlong = hingeAt, aNormal = wallCoord;
+  const cAlong = hingeAt + alongSign*side, cNormal = wallCoord;
+  const bAlong = hingeAt + alongSign*side/2, bNormal = wallCoord + openSign*side*Math.sin(Math.PI/3);
+  const [ax,az] = orientation==='H' ? toScene(aAlong, aNormal) : toScene(aNormal, aAlong);
+  const [bx,bz] = orientation==='H' ? toScene(bAlong, bNormal) : toScene(bNormal, bAlong);
+  const [cx,cz] = orientation==='H' ? toScene(cAlong, cNormal) : toScene(cNormal, cAlong);
+  const leafLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(ax, baseY+0.01, az),
+    new THREE.Vector3(bx, baseY+0.01, bz),
+    new THREE.Vector3(cx, baseY+0.01, cz),
+  ]), edgeMat);
+  leafLine.renderOrder = 3;
+  grp.add(leafLine);
+}
+function addDoorLeaf({ orientation, alongFrom, alongTo, wallCoord, baseY, height, operation, hingeSide, swingDir, slideDir, outSign=1, mat, edgeMat, grp }){
+  const thick = 0.04;
+  const w = alongTo - alongFrom;
+  if(operation==='slide'){
+    if(!slideDir) return;
+    const shiftSign = slideDir==='L' ? -1 : 1;
+    const a0 = alongFrom + shiftSign*w, a1 = alongTo + shiftSign*w;
+    if(orientation==='H') boxWire(a0, a1, baseY, baseY+height, wallCoord-thick/2, wallCoord+thick/2, mat, edgeMat, grp, 3);
+    else boxWire(wallCoord-thick/2, wallCoord+thick/2, baseY, baseY+height, a0, a1, mat, edgeMat, grp, 3);
+    return;
+  }
+  if(operation==='double-swing'){
+    // 両開き戸：開口の両端(alongFrom/alongTo)それぞれを蝶番にした2枚の扉が、
+    // 同じ方向(swingDir)へ左右対称に開く（建築図面の両開き戸記号と同じ見た目）
+    if(!swingDir) return;
+    const half = w/2;
+    const openSign = swingDir==='out' ? outSign : -outSign;
+    drawSwingLeaf({ orientation, hingeAt: alongFrom, alongSign: 1, wallCoord, baseY, openSign, w: half, edgeMat, grp });
+    drawSwingLeaf({ orientation, hingeAt: alongTo, alongSign: -1, wallCoord, baseY, openSign, w: half, edgeMat, grp });
+    return;
+  }
+  if(operation==='fold'){
+    // 片開き折れ戸：開口の片側(hingeSide)を固定蝶番にした1組の折れ戸
+    if(!hingeSide || !swingDir) return;
+    const hingeAt = hingeSide==='L' ? alongFrom : alongTo;
+    const alongSign = hingeSide==='L' ? 1 : -1;
+    const openSign = swingDir==='out' ? outSign : -outSign;
+    drawFoldLeaf({ orientation, hingeAt, alongSign, wallCoord, baseY, openSign, w, edgeMat, grp });
+    return;
+  }
+  if(operation==='double-fold'){
+    // 両開き折れ戸：開口の両端それぞれを固定蝶番にした2組の折れ戸
+    if(!swingDir) return;
+    const half = w/2;
+    const openSign = swingDir==='out' ? outSign : -outSign;
+    drawFoldLeaf({ orientation, hingeAt: alongFrom, alongSign: 1, wallCoord, baseY, openSign, w: half, edgeMat, grp });
+    drawFoldLeaf({ orientation, hingeAt: alongTo, alongSign: -1, wallCoord, baseY, openSign, w: half, edgeMat, grp });
+    return;
+  }
+  if(operation!=='swing' || !hingeSide || !swingDir) return;
+  const hingeAt = hingeSide==='L' ? alongFrom : alongTo;
+  const alongSign = hingeSide==='L' ? 1 : -1; // 閉じた状態で蝶番から扉が伸びる向き（沿い方向）
+  const openSign = swingDir==='out' ? outSign : -outSign; // 開いた状態で扉が伸びる向き（壁に直交する方向）
+  drawSwingLeaf({ orientation, hingeAt, alongSign, wallCoord, baseY, openSign, w, edgeMat, grp });
 }
 
 // ---- 開口（アーチ）の枠：天端が円弧の平板を1枚描画する ----
@@ -1250,7 +1306,8 @@ function saveDoorWindowEdits(){ try{ localStorage.setItem(DOOR_WINDOW_EDITS_KEY,
 function cleanupHandFields(eff){
   // typeを切り替えた際、旧operationのhingeSide/swingDir/slideDirが残っていても
   // 現在のoperationに合わないものは無視する（addDoorLeafの分岐と矛盾しないように）
-  if(eff.operation==='swing'){ delete eff.slideDir; }
+  if(eff.operation==='swing' || eff.operation==='fold'){ delete eff.slideDir; }
+  else if(eff.operation==='double-swing' || eff.operation==='double-fold'){ delete eff.hingeSide; delete eff.slideDir; }
   else if(eff.operation==='slide'){ delete eff.hingeSide; delete eff.swingDir; }
   else { delete eff.hingeSide; delete eff.swingDir; delete eff.slideDir; }
   return eff;
@@ -1365,7 +1422,7 @@ function placeInteriorDoor(d){
   }
   addDoorLeaf({
     orientation: d.orientation, alongFrom: d.center-d.width/2, alongTo: d.center+d.width/2, wallCoord: d.wallAt,
-    baseY, height: d.height, hingeSide: d.hingeSide, swingDir: d.swingDir, slideDir: d.slideDir,
+    baseY, height: d.height, operation: d.operation, hingeSide: d.hingeSide, swingDir: d.swingDir, slideDir: d.slideDir,
     mat: mats.door, edgeMat: mats.doorEdge, grp: holder,
   });
   grp.add(holder);
@@ -1415,7 +1472,7 @@ function placeOpening(o){
   }
   if(o.category==='door'){
     addDoorLeaf({
-      orientation, alongFrom, alongTo, wallCoord, baseY: baseFl, height: o.h, outSign,
+      orientation, alongFrom, alongTo, wallCoord, baseY: baseFl, height: o.h, outSign, operation: o.operation,
       hingeSide: o.hingeSide, swingDir: o.swingDir, slideDir: o.slideDir,
       mat: mats.extDoor, edgeMat: mats.doorEdge, grp: holder,
     });
@@ -1518,11 +1575,15 @@ function doorFieldKey(logicalField, isExterior){
 }
 function renderHandControls(eff){
   const area = document.getElementById('dpHandArea');
-  if(eff.operation==='swing'){
+  if(eff.operation==='swing' || eff.operation==='fold'){
     area.innerHTML = `
       <div class="hand-label">蝶番側</div>
       <div class="hand-row"><button data-hand="hingeSide" data-val="L" class="${eff.hingeSide==='L'?'active':''}">左（L）</button><button data-hand="hingeSide" data-val="R" class="${eff.hingeSide==='R'?'active':''}">右（R）</button></div>
       <div class="hand-label">開く向き</div>
+      <div class="hand-row"><button data-hand="swingDir" data-val="in" class="${eff.swingDir==='in'?'active':''}">内開き</button><button data-hand="swingDir" data-val="out" class="${eff.swingDir==='out'?'active':''}">外開き</button></div>`;
+  } else if(eff.operation==='double-swing' || eff.operation==='double-fold'){
+    area.innerHTML = `
+      <div class="hand-label">開く向き（両側とも同じ向きに開く）</div>
       <div class="hand-row"><button data-hand="swingDir" data-val="in" class="${eff.swingDir==='in'?'active':''}">内開き</button><button data-hand="swingDir" data-val="out" class="${eff.swingDir==='out'?'active':''}">外開き</button></div>`;
   } else if(eff.operation==='slide'){
     area.innerHTML = `
@@ -1572,7 +1633,8 @@ function applyDoorTypeChange(newType){
   const patch = { type: newType, operation: profile.operation };
   if(sel.isExterior){ patch.w = profile.width; patch.h = profile.height; patch.sill = profile.sill; }
   else { patch.width = profile.width; patch.height = profile.height; }
-  if(profile.operation==='swing'){ patch.hingeSide = 'R'; patch.swingDir = 'in'; }
+  if(profile.operation==='swing' || profile.operation==='fold'){ patch.hingeSide = 'R'; patch.swingDir = 'in'; }
+  else if(profile.operation==='double-swing' || profile.operation==='double-fold'){ patch.swingDir = 'in'; }
   else if(profile.operation==='slide'){ patch.slideDir = 'R'; }
   doorWindowEdits[selectedDoorWindowId] = {...(doorWindowEdits[selectedDoorWindowId]||{}), ...patch};
   saveDoorWindowEdits();
@@ -1706,7 +1768,7 @@ document.getElementById('chkLabels').onchange = refreshLabelVis;
 document.getElementById('chkFurnitureLabels').onchange = refreshLabelVis;
 document.getElementById('chkGrid').onchange = e=> grid.visible = e.target.checked;
 
-let floorMode = 'both';
+let floorMode = '1F';
 function applyFloorMode(){
   // 薄く表示ではなく完全に非表示にする（うすい表示だと紛らわしいとの指摘、2026-08-14）
   const show1 = floorMode !== '2F', show2 = floorMode !== '1F';

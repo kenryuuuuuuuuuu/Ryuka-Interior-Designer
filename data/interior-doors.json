@@ -114,7 +114,7 @@
       "center": 2.28,
       "floor": 1,
       "slideDir": "R",
-      "label": "LDK(キッチン部)⟷廊下+収納",
+      "label": "LDK(キッチン部)⟷廊下",
       "status": "verified"
     },
     {
@@ -125,7 +125,7 @@
       "center": 16,
       "floor": 1,
       "slideDir": "R",
-      "label": "ファミリークローク⟷廊下+収納",
+      "label": "ファミリークローク⟷廊下",
       "status": "verified"
     },
     {
@@ -148,7 +148,7 @@
       "center": 16.84,
       "floor": 1,
       "slideDir": "L",
-      "label": "廊下+収納⟷脱衣室",
+      "label": "廊下⟷脱衣室",
       "status": "verified"
     },
     {
@@ -247,6 +247,30 @@
       "label": "土間⟷SC",
       "status": "estimated",
       "note": "新規(2026-08-15)：施主指摘により「土間・シューズクローク」を右の壁(x=13.651)から1200mmの位置(x=12.451)で分割。境界全体を開口とし、壁のないドアなしの開口として配置。room-1f-09/room-1f-20の境界と一致させること"
+    },
+    {
+      "id": "door-022",
+      "type": "door-open",
+      "wallAt": 1.82,
+      "orientation": "H",
+      "center": 15.016,
+      "floor": 1,
+      "label": "階段⟷パントリー",
+      "status": "estimated",
+      "note": "新規(2026-08-15)：施主指摘により「階段（曲がり階段）＋パントリー」の南東1マスを分離した際、南側1辺を壁のない開口として配置。room-1f-10/room-1f-21の境界と一致させること"
+    },
+    {
+      "id": "door-023",
+      "type": "door-fold",
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 16.836,
+      "floor": 1,
+      "hingeSide": "R",
+      "swingDir": "in",
+      "label": "廊下⟷収納",
+      "status": "estimated",
+      "note": "新規(2026-08-15)：施主指摘により「廊下＋収納」の北東1マスを分離した際、南側1辺を片開き折れ戸として配置（当初は両開き戸としたが、施主指摘により片開き折れ戸に変更）。room-1f-13/room-1f-22の境界と一致させること"
     }
   ]
 }

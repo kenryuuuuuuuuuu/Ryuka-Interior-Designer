@@ -100,7 +100,7 @@ def main():
         for field in ("type", "label", "category", "operation", "width", "height", "sill"):
             assert field in t, f"{t.get('type', '?')} に{field}がない"
         assert t["category"] in ("door", "window"), f"{t['type']}: 不正なcategory"
-        assert t["operation"] in ("swing", "slide", "fixed", "openable", "open", "open-arch"), f"{t['type']}: 不正なoperation"
+        assert t["operation"] in ("swing", "double-swing", "fold", "double-fold", "slide", "fixed", "openable", "open", "open-arch"), f"{t['type']}: 不正なoperation"
         assert t["width"] > 0 and t["height"] > 0 and t["sill"] >= 0, f"{t['type']}: 寸法が不正"
         if t["operation"] == "open-arch":
             assert t.get("archRise", 0) > 0, f"{t['type']}: open-archはarchRiseが正の数であること"
@@ -127,8 +127,9 @@ def main():
             assert o["sillOverride"] >= 0, f"{o['id']}: sillOverrideは0以上であること"
         if profile["category"] == "door" and profile["operation"] not in ("open", "open-arch"):
             has_swing = "hingeSide" in o and "swingDir" in o
+            has_double_swing = profile["operation"] in ("double-swing", "double-fold") and "swingDir" in o
             has_slide = "slideDir" in o
-            assert has_swing or has_slide, f"{o['id']}: ドアはhingeSide+swingDir、またはslideDirのいずれかが必要"
+            assert has_swing or has_double_swing or has_slide, f"{o['id']}: ドアはhingeSide+swingDir、swingDir(両開き)、またはslideDirのいずれかが必要"
         w = effective(o, "width", "widthOverride", profile)
         assert check_opening_within_footprint(o, w, footprints), f"{o['id']}: 対応するfootprintの面からはみ出している"
 
@@ -157,8 +158,9 @@ def main():
         else:
             if profile["operation"] not in ("open", "open-arch"):
                 has_swing = "hingeSide" in d and "swingDir" in d
+                has_double_swing = profile["operation"] in ("double-swing", "double-fold") and "swingDir" in d
                 has_slide = "slideDir" in d
-                assert has_swing or has_slide, f"{d['id']}: hingeSide+swingDir、またはslideDirのいずれかが必要"
+                assert has_swing or has_double_swing or has_slide, f"{d['id']}: hingeSide+swingDir、swingDir(両開き)、またはslideDirのいずれかが必要"
             w = effective(d, "width", "widthOverride", profile)
             assert check_door_within_wall(d, w, walls), f"{d['id']}: 対応する壁エンティティの範囲からはみ出している"
 

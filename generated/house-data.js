@@ -24,6 +24,9 @@ const DOOR_WINDOW_CATALOG = {
   'door-hinged': { label:'室内開き戸', category:'door', operation:'swing', width:0.8, height:2, sill:0 },
   'door-hinged-wide': { label:'室内開き戸（広幅）', category:'door', operation:'swing', width:0.91, height:2, sill:0 },
   'door-louver': { label:'ルーバー戸', category:'door', operation:'swing', width:0.85, height:2.33, sill:0 },
+  'door-double-swing': { label:'両開き戸', category:'door', operation:'double-swing', width:0.91, height:2, sill:0 },
+  'door-fold': { label:'片開き折れ戸', category:'door', operation:'fold', width:0.91, height:2, sill:0 },
+  'door-double-fold': { label:'両開き折れ戸', category:'door', operation:'double-fold', width:1.82, height:2, sill:0 },
   'door-slide': { label:'引き戸', category:'door', operation:'slide', width:0.8, height:2, sill:0 },
   'door-open': { label:'開口', category:'door', operation:'open', width:0.91, height:2, sill:0 },
   'door-open-arch': { label:'開口（アーチ）', category:'door', operation:'open-arch', width:0.91, height:2.1, sill:0, archRise:0.3 },
@@ -68,10 +71,10 @@ const INTERIOR_DOORS = [
   { id:'door-007', type:'door-hinged', category:'door', operation:'swing', label:'自宅玄関・ホール⟷LDK', orientation:'H', wallAt:2.73, center:9.56, width:0.8, height:2, floor:1, hingeSide:'L', swingDir:'in', status:'verified' },
   { id:'door-008', type:'door-hinged-wide', category:'door', operation:'swing', label:'自宅玄関⟷土間', orientation:'V', wallAt:10.92, center:0.94, width:0.91, height:2, floor:1, hingeSide:'L', swingDir:'out', status:'verified' },
   { id:'door-009', type:'door-slide', category:'door', operation:'slide', label:'SC⟷LDK', orientation:'H', wallAt:2.275, center:13.2, width:0.8, height:2, floor:1, slideDir:'L', status:'verified' },
-  { id:'door-010', type:'door-slide', category:'door', operation:'slide', label:'LDK(キッチン部)⟷廊下+収納', orientation:'V', wallAt:15.471, center:2.28, width:0.8, height:2, floor:1, slideDir:'R', status:'verified' },
-  { id:'door-011', type:'door-slide', category:'door', operation:'slide', label:'ファミリークローク⟷廊下+収納', orientation:'H', wallAt:1.82, center:16, width:0.8, height:2, floor:1, slideDir:'R', status:'verified' },
+  { id:'door-010', type:'door-slide', category:'door', operation:'slide', label:'LDK(キッチン部)⟷廊下', orientation:'V', wallAt:15.471, center:2.28, width:0.8, height:2, floor:1, slideDir:'R', status:'verified' },
+  { id:'door-011', type:'door-slide', category:'door', operation:'slide', label:'ファミリークローク⟷廊下', orientation:'H', wallAt:1.82, center:16, width:0.8, height:2, floor:1, slideDir:'R', status:'verified' },
   { id:'door-012', type:'door-hinged-wide', category:'door', operation:'swing', label:'トイレ(東)⟷洗面(東)', orientation:'H', wallAt:2.73, center:17.75, width:0.91, height:2, floor:1, hingeSide:'L', swingDir:'in', status:'verified' },
-  { id:'door-013', type:'door-slide', category:'door', operation:'slide', label:'廊下+収納⟷脱衣室', orientation:'H', wallAt:3.64, center:16.84, width:0.8, height:2, floor:1, slideDir:'L', status:'verified' },
+  { id:'door-013', type:'door-slide', category:'door', operation:'slide', label:'廊下⟷脱衣室', orientation:'H', wallAt:3.64, center:16.84, width:0.8, height:2, floor:1, slideDir:'L', status:'verified' },
   { id:'door-014', type:'door-hinged-wide', category:'door', operation:'swing', label:'脱衣室⟷UB(東)', orientation:'V', wallAt:17.291, center:4.58, width:0.91, height:2, floor:1, hingeSide:'L', swingDir:'out', status:'verified' },
   { id:'door-015', type:'door-hinged-wide', category:'door', operation:'swing', label:'脱衣室⟷南土間', orientation:'H', wallAt:6.37, center:16.83, width:0.91, height:2, floor:1, hingeSide:'L', swingDir:'out', status:'verified' },
   { id:'door-016', type:'door-hinged-wide', category:'door', operation:'swing', label:'トイレ(2F)⟷廊下(2F)', orientation:'H', wallAt:1.82, center:13.2, width:0.91, height:2, floor:2, hingeSide:'L', swingDir:'out', status:'verified' },
@@ -80,6 +83,8 @@ const INTERIOR_DOORS = [
   { id:'door-019', type:'door-hinged-wide', category:'door', operation:'swing', label:'廊下(2F)⟷夫婦寝室', orientation:'H', wallAt:2.73, center:15.93, width:0.91, height:2, floor:2, hingeSide:'L', swingDir:'out', status:'verified' },
   { id:'door-020', type:'door-open', category:'door', operation:'open', label:'自宅玄関⟷自宅ホール（斜め框）', orientation:'D', x0:9.1, z0:1.365, x1:10.92, z1:1.82, width:0.91, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：施主指摘により斜め框（目分量の角度）に、壁のないドアなしの開口として配置。room-1f-08/room-1f-19の境界と一致させること。施主指摘により角度を緩やかに変更後、同じ角度のまま0.455下へ平行移動
   { id:'door-021', type:'door-open', category:'door', operation:'open', label:'土間⟷SC', orientation:'V', wallAt:12.451, center:1.365, width:1.82, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：施主指摘により「土間・シューズクローク」を右の壁(x=13.651)から1200mmの位置(x=12.451)で分割。境界全体を開口とし、壁のないドアなしの開口として配置。room-1f-09/room-1f-20の境界と一致させること
+  { id:'door-022', type:'door-open', category:'door', operation:'open', label:'階段⟷パントリー', orientation:'H', wallAt:1.82, center:15.016, width:0.91, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：施主指摘により「階段（曲がり階段）＋パントリー」の南東1マスを分離した際、南側1辺を壁のない開口として配置。room-1f-10/room-1f-21の境界と一致させること
+  { id:'door-023', type:'door-fold', category:'door', operation:'fold', label:'廊下⟷収納', orientation:'H', wallAt:2.73, center:16.836, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'estimated' }, // 新規(2026-08-15)：施主指摘により「廊下＋収納」の北東1マスを分離した際、南側1辺を片開き折れ戸として配置（当初は両開き戸としたが、施主指摘により片開き折れ戸に変更）。room-1f-13/room-1f-22の境界と一致させること
 ];
 
 const WALLS = [
@@ -101,6 +106,8 @@ const WALLS = [
   { id:'wall-1f-016', level:1, x0:15.471, x1:15.471, z0:0, z1:6.37, orientation:'V' },
   { id:'wall-1f-017', level:1, x0:17.291, x1:17.291, z0:1.82, z1:6.37, orientation:'V' },
   { id:'wall-1f-018', level:1, x0:12.451, x1:12.451, z0:0.455, z1:2.275, orientation:'V' },
+  { id:'wall-1f-019', level:1, x0:14.561, x1:15.471, z0:1.82, z1:1.82, orientation:'H' },
+  { id:'wall-1f-020', level:1, x0:16.381, x1:17.291, z0:2.73, z1:2.73, orientation:'H' },
   { id:'wall-2f-001', level:2, x0:12.74, x1:16.38, z0:1.82, z1:1.82, orientation:'H' },
   { id:'wall-2f-002', level:2, x0:12.74, x1:19.11, z0:2.73, z1:2.73, orientation:'H' },
   { id:'wall-2f-003', level:2, x0:13.651, x1:13.651, z0:0, z1:1.82, orientation:'V' },
@@ -122,10 +129,12 @@ const ROOMS_APPROX = {
     { name:'自宅ホール', x0:9.1, x1:10.92, z0:1.365, z1:2.73, poly:[[9.1,1.365],[10.92,1.82],[10.92,2.73],[9.1,2.73]], conf:'低', note:'新規(2026-08-15)：施主指摘により斜め框で「自宅玄関・ホール」（旧room-1f-08）を分割して新設。境界は斜め框（door-020、開口のみで壁なし）。施主指摘により角度を緩やかに変更後、同じ角度のまま0.455下へ平行移動（(9.100,1.365)-(10.920,1.820)）' },
     { name:'土間', x0:10.92, x1:12.451, z0:0.455, z1:2.275, conf:'低', note:'訂正(2026-08-13)：施主指摘により南端をz=2.730→2.275に縮小(0.5マス分をLD側へ移管)。2026-08-15：施主指摘により「土間・シューズクローク」を右の壁(x=13.651)から1200mmの位置(x=12.451)で分割し「土間」に改称。境界に壁はなく開口のみ（door-021）' },
     { name:'SC', x0:12.451, x1:13.651, z0:0, z1:2.275, poly:[[12.451,0.455],[12.74,0.455],[12.74,0],[13.651,0],[13.651,2.275],[12.451,2.275]], conf:'低', note:'新規(2026-08-15)：施主指摘により「土間・シューズクローク」（旧room-1f-09）を右の壁(x=13.651)から1200mmの位置(x=12.451)で分割して新設。境界は開口のみ（door-021、壁なし）。ラベルは施主指摘により「SC」と表記' },
-    { name:'階段（曲がり階段）＋パントリー', x0:13.651, x1:15.471, z0:0, z1:1.82, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)に確定' },
+    { name:'階段（曲がり階段）', x0:13.651, x1:15.471, z0:0, z1:1.82, poly:[[13.651,0],[15.471,0],[15.471,0.91],[14.561,0.91],[14.561,1.82],[13.651,1.82]], conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)に確定。2026-08-15：施主指摘により南東の1マス(0.91×0.91)を「パントリー」（room-1f-21）として分離' },
+    { name:'パントリー', x0:14.561, x1:15.471, z0:0.91, z1:1.82, conf:'低', note:'新規(2026-08-15)：施主指摘により「階段（曲がり階段）＋パントリー」（旧room-1f-10）の南東1マス(0.91×0.91)を分離して新設。南側1辺は壁のない開口（door-022）' },
     { name:'LDK', x0:7.28, x1:15.471, z0:1.82, z1:6.37, poly:[[7.28,2.73],[10.92,2.73],[10.92,2.275],[13.651,2.275],[13.651,1.82],[15.471,1.82],[15.471,6.37],[7.28,6.37]], conf:'高', note:'確定(2026-08-13)：施主指摘によりLD＋キッチンを統合しLDKに変更。北端が3段階（z=2.730→2.275→1.820）の階段状になっているのが実際の間取り' },
     { name:'ファミリークローク', x0:15.471, x1:19.11, z0:0, z1:1.82, conf:'高', note:'確定(2026-08-13)：施主指摘により4マス×2マス(3.640m×1.820m)、東側全幅で確定' },
-    { name:'廊下＋収納', x0:15.471, x1:17.291, z0:1.82, z1:3.64, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)で確定。西列' },
+    { name:'廊下', x0:15.471, x1:17.291, z0:1.82, z1:3.64, poly:[[15.471,1.82],[16.381,1.82],[16.381,2.73],[17.291,2.73],[17.291,3.64],[15.471,3.64]], conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)で確定。西列。2026-08-15：施主指摘により北東の1マス(0.91×0.91)を「収納」（room-1f-22）として分離' },
+    { name:'収納', x0:16.381, x1:17.291, z0:1.82, z1:2.73, conf:'低', note:'新規(2026-08-15)：施主指摘により「廊下＋収納」（旧room-1f-13）の北東1マス(0.91×0.91)を分離して新設。南側1辺は両開き戸（door-023）' },
     { name:'トイレ(東)', x0:17.291, x1:19.11, z0:1.82, z1:2.73, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×1マス(1.820m×0.910m)で確定。東列' },
     { name:'洗面(東)', x0:17.291, x1:19.11, z0:2.73, z1:4.095, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×1.5マス(1.820m×1.365m)で確定。東列' },
     { name:'脱衣室', x0:15.471, x1:17.291, z0:3.64, z1:6.37, conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×3マス(1.820m×2.730m)で確定。西列' },

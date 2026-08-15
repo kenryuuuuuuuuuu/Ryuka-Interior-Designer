@@ -94,13 +94,14 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 ## 窓・ドア（door-window）
 
 - `data/door-catalog.json`・`data/window-catalog.json`：窓・ドアの「型」。`type`（キー）ごとに`label`・`category`（`door`／`window`）・`operation`・標準寸法（`width`/`height`/`sill`）を持つ。furniture-catalog.jsonと同じ考え方
-  - ドアの`operation`：`swing`=開き戸／`slide`=引き戸／`open`=ドアなしの開口／`open-arch`=ドアなしの開口（天端アーチ）。窓は`openable`=開閉可／`fixed`=FIX
+  - ドアの`operation`：`swing`=開き戸／`double-swing`=両開き戸／`fold`=片開き折れ戸／`double-fold`=両開き折れ戸／`slide`=引き戸／`open`=ドアなしの開口／`open-arch`=ドアなしの開口（天端アーチ）。窓は`openable`=開閉可／`fixed`=FIX
   - `open-arch`のみ`archRise`（円弧が占める高さ）を追加で持つ。`height`はアーチ頂部までの全高で、springline（円弧が始まる高さ）は`height-archRise`
 - `data/openings.json`：外部（外壁）の窓・ドアの配置インスタンス。`type`でカタログを参照し、`face`（N/S/E/W）＋`offset`（その面に沿った建物ローカル座標の絶対値。**中心ではなく開始端（西端/北端）**）で位置を表す。E/W面は`wallX`を省略すると建物端（x=0またはx=19.11）とみなす
 - `data/interior-doors.json`：室内ドアの配置インスタンス。`type`でカタログを参照し、`wallAt`（壁の固定座標）＋`orientation`（H/V）＋`center`（壁沿いの位置、こちらは中心）で位置を表す
   - **`orientation:'D'`（斜め壁）**：`wallAt`/`center`の代わりに`x0`/`z0`/`x1`/`z1`（始点・終点、建物ローカル座標）で位置を表す。壁のない開口（`operation:open`/`open-arch`）専用の想定で、開き戸・引き戸（`hingeSide`/`swingDir`/`slideDir`）や壁線スライド編集（Stage 2 UI）の対象外。`interior-white-model.html`の`placeDiagonalInteriorDoor()`が、始点・終点を結ぶ厚みのない平板で描画する
 - どちらも任意で`widthOverride`/`heightOverride`/`sillOverride`（このインスタンスだけ標準寸法から変える場合）を持つ
-- **ドアの開き勝手**：`operation:swing`の型を使うインスタンスは`hingeSide`（`L`/`R`、蝶番側）＋`swingDir`（`in`/`out`）、`operation:slide`なら`slideDir`（`L`/`R`、引き込み方向）を持つ。`operation:open`/`open-arch`（ドアなしの開口）はどちらも不要（扉本体を描かない）。外部の窓・ドア（`openings.json`）は`face`（N/S/E/W）から「外側」の方向が一意に決まるため、`swingDir:'out'`は文字通り建物の外側へ開く向きになる。室内ドア（`interior-doors.json`）には「外」の概念がないため、`swingDir`は「壁を挟んでどちら向きに開くか」を軸ベースで簡易表現したものにとどまる。隣接する部屋同士の内外関係までは今のデータモデルにはない（見た目を見ながら調整する運用）
+- **ドアの開き勝手**：`operation:swing`の型を使うインスタンスは`hingeSide`（`L`/`R`、蝶番側）＋`swingDir`（`in`/`out`）、`operation:double-swing`（両開き戸）は`swingDir`のみ（両端をそれぞれ蝶番にした2枚の扉が左右対称に開くため`hingeSide`は不要）、`operation:slide`なら`slideDir`（`L`/`R`、引き込み方向）を持つ。`operation:fold`（片開き折れ戸）は`swing`と同じく`hingeSide`+`swingDir`、`operation:double-fold`（両開き折れ戸）は`double-swing`と同じく`swingDir`のみ。`operation:open`/`open-arch`（ドアなしの開口）はどちらも不要（扉本体を描かない）。外部の窓・ドア（`openings.json`）は`face`（N/S/E/W）から「外側」の方向が一意に決まるため、`swingDir:'out'`は文字通り建物の外側へ開く向きになる。室内ドア（`interior-doors.json`）には「外」の概念がないため、`swingDir`は「壁を挟んでどちら向きに開くか」を軸ベースで簡易表現したものにとどまる。隣接する部屋同士の内外関係までは今のデータモデルにはない（見た目を見ながら調整する運用）
+- **折れ戸（`fold`/`double-fold`）の描画**：`interior-white-model.html`の`drawFoldLeaf()`が、建具表の図記号（開口の片側または両側を蝶番にした折れ線）を模して描く。蝶番側の固定点A・開口幅の中点にあたる自由端C（ともに壁面上）・折れ点Bの3点を、A-B=B-C=A-C（=開口幅/2）の正三角形になるよう配置し（Bは壁から`(開口幅/2)*sin60°`張り出す）、A→B→Cの2本の折れ線として描画する。`double-fold`は両端をそれぞれ蝶番にした2組の`drawFoldLeaf()`呼び出しで表現する（`double-swing`を`drawSwingLeaf()`2回で表現するのと同じパターン）
 - **開口（アーチ）の描画**：`interior-white-model.html`の`archOpeningMesh()`が、天端が円弧になった平板（厚みのない板、door系マテリアルは両面表示なので厚みなしでも見える）を描く。平面図（真上から）ではアーチかどうかは見た目に出ないため、俯瞰・内覧モードで確認すること
   - 現在の室内ドア19件はすべて開き戸として移行しており、`hingeSide`/`swingDir`は施工会社の建具表が未確認のため暫定値（[STATUS.md](STATUS.md)の未解決事項を参照）
 - `house.json`から2026-08-15に分離した（元は`openings`/`interiorDoors`という配列としてhouse.json内にあった）。理由は、家具編集の「書き出しボタンでファイルを上書き」という運用を安全に行うため。house.jsonに残したままだと、書き出しは`rooms`/`walls`/`roofs`等を含むファイル全体が対象になり、ブラウザ側が保持していない付帯情報を巻き込んで構造データを壊すリスクがある
