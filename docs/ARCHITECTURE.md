@@ -4,12 +4,16 @@
 
 ## 正本と生成パイプライン
 
-**`data/house.json` がこのリポジトリの唯一の正本（Single Source of Truth）。** 建物の寸法・開口部・部屋・壁はすべてここで管理し、Three.js表示用データとBlenderモデルの両方をここから生成する。**家具・設備の配置は`data/furniture.json`（型のライブラリは`data/furniture-catalog.json`）が正本で、こちらはHTML側（Three.js）でのみ扱い、Blenderへは今のところ生成しない**（施主の判断：配置の試行錯誤はインタラクティブ性が命なのでHTML側で詰める。詳細は[BACKGROUND.md](BACKGROUND.md)の変更履歴ログ参照）。
+**`data/house.json` がこのリポジトリの唯一の正本（Single Source of Truth）。** 建物の寸法・部屋・壁・屋根はすべてここで管理し、Three.js表示用データとBlenderモデルの両方をここから生成する。**家具・設備の配置は`data/furniture.json`（型のライブラリは`data/furniture-catalog.json`）が正本で、こちらはHTML側（Three.js）でのみ扱い、Blenderへは今のところ生成しない**（施主の判断：配置の試行錯誤はインタラクティブ性が命なのでHTML側で詰める。詳細は[BACKGROUND.md](BACKGROUND.md)の変更履歴ログ参照）。**窓・ドアの配置は`data/openings.json`（外部）・`data/interior-doors.json`（室内、型のライブラリはドアが`data/door-catalog.json`・窓が`data/window-catalog.json`）が正本で、こちらはThree.js・Blenderの両方が読み込む**（外壁・室内壁の開口の切り欠きに使うため）。窓・ドアは2026-08-15に`house.json`から分離した（元は`openings`/`interiorDoors`という配列としてhouse.json内にあった）。`blender/build_house.py`は`data/house.json`と同じディレクトリにある`door-catalog.json`/`window-catalog.json`/`openings.json`/`interior-doors.json`を自動的に読み込む
 
 ```
 data/house.json（建物データの正本）
 data/furniture-catalog.json（家具・設備の型ライブラリ）
 data/furniture.json（家具・設備の配置インスタンス）
+data/door-catalog.json（ドアの型ライブラリ）
+data/window-catalog.json（窓の型ライブラリ）
+data/openings.json（外部の窓・ドアの配置インスタンス）
+data/interior-doors.json（室内ドアの配置インスタンス）
     │
     ├─ node scripts/build-web-data.mjs
     │      ↓
@@ -19,7 +23,7 @@ data/furniture.json（家具・設備の配置インスタンス）
     │
     └─ blender --background --python blender/build_house.py -- --input data/house.json --output build/ryuka-white-model.blend
            ↓
-       Blenderモデル（house.jsonのみが対象。家具は未対応）
+       Blenderモデル（house.json + door-catalog.json/window-catalog.json/openings.json/interior-doors.jsonが対象。家具は未対応）
 ```
 
 2026-08-14以前は逆方向（`interior-white-model.html` → `sync-house-from-html.mjs` → `house.json`）だった。HTMLに建物データを手で埋め込み、それをスクリプトが逆解析してJSONへ同期する構造で、rooms/wallsだけは同期対象外という無理のある例外を抱えていた。今は house.json 側を直接編集する一方向パイプラインに変更済み（詳細は [BACKGROUND.md 5章](BACKGROUND.md#5-変更履歴ログ)）。
@@ -38,18 +42,24 @@ data/furniture.json（家具・設備の配置インスタンス）
 
 | ファイル | 役割 |
 |---|---|
-| `data/house.json` | 建物データの正本。寸法・開口部・室内ドア・部屋・壁・屋根 |
+| `data/house.json` | 建物データの正本。寸法・部屋・壁・屋根 |
 | `data/house.schema.json` | `house.json` のデータ契約（JSON Schema、Draft 2020-12） |
 | `data/furniture-catalog.json` | 家具・設備の「型」のライブラリ（種類ごとの標準寸法・形状指定） |
 | `data/furniture.json` | 家具・設備の配置インスタンス（どこに何を置くか）。正本 |
 | `data/furniture.schema.json` | `furniture.json` のデータ契約（JSON Schema） |
+| `data/door-catalog.json` / `data/window-catalog.json` | 窓・ドアの「型」のライブラリ（種類ごとの標準寸法・開閉方式） |
+| `data/openings.json` | 外部の窓・ドアの配置インスタンス。正本 |
+| `data/openings.schema.json` | `openings.json` のデータ契約（JSON Schema） |
+| `data/interior-doors.json` | 室内ドアの配置インスタンス。正本 |
+| `data/interior-doors.schema.json` | `interior-doors.json` のデータ契約（JSON Schema） |
 | `data/electrical.json` | 次フェーズ（電気設備）用の領域。現在は空 |
-| `scripts/build-web-data.mjs` | `house.json` / `furniture-catalog.json` / `furniture.json` → `generated/house-data.js` を生成する |
+| `scripts/build-web-data.mjs` | 上記の正本ファイル群 → `generated/house-data.js` を生成する |
 | `generated/house-data.js` | 生成物。`interior-white-model.html` が `<script src>` で読み込む |
 | `interior-white-model.html` | Three.js製の内装白模型。表示・操作ロジックのみを持つ。単体でブラウザに開ける |
-| `blender/build_house.py` | `house.json` からBlender白模型を再生成するスクリプト（家具は対象外） |
+| `blender/build_house.py` | `house.json`・`door-catalog.json`・`window-catalog.json`・`openings.json`・`interior-doors.json`からBlender白模型を再生成するスクリプト（家具は対象外） |
 | `tests/validate_house.py` | `house.json` の整合性チェック（依存ライブラリなしで動作） |
 | `tests/validate_furniture.py` | `furniture-catalog.json` / `furniture.json` の整合性チェック（house.jsonのroomsとの照合含む） |
+| `tests/validate_openings.py` | `door-catalog.json` / `window-catalog.json` / `openings.json` / `interior-doors.json` の整合性チェック（house.jsonのfootprints/wallsとの照合含む） |
 | `index.html` | GitHub PagesのルートURL用リダイレクト。`interior-white-model.html`へ転送するだけ |
 | `manifest.webmanifest` / `sw.js` / `icon.svg` | PWA化（ホーム画面追加・オフライン起動）の設定一式。詳細は下記「公開（GitHub Pages / PWA）」 |
 | `vendor/three.min.js` | Three.js本体のローカル同梱コピー（CDN非依存。オフライン起動のため） |
@@ -77,6 +87,19 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
   - 「furniture.jsonを書き出す」ボタンで、編集を反映した完全なJSONをダウンロードできる。**これを`data/furniture.json`に上書きしてコミットするのが、正本を更新する唯一の手段。** ダウンロードするだけではリポジトリには反映されない
   - 「編集をすべて取り消す」でlocalStorageの下書きを破棄し、`data/furniture.json`の内容に戻せる
 
+## 窓・ドア（door-window）
+
+- `data/door-catalog.json`・`data/window-catalog.json`：窓・ドアの「型」。`type`（キー）ごとに`label`・`category`（`door`／`window`）・`operation`・標準寸法（`width`/`height`/`sill`）を持つ。furniture-catalog.jsonと同じ考え方
+  - ドアの`operation`：`swing`=開き戸／`slide`=引き戸／`open`=ドアなしの開口／`open-arch`=ドアなしの開口（天端アーチ）。窓は`openable`=開閉可／`fixed`=FIX
+  - `open-arch`のみ`archRise`（円弧が占める高さ）を追加で持つ。`height`はアーチ頂部までの全高で、springline（円弧が始まる高さ）は`height-archRise`
+- `data/openings.json`：外部（外壁）の窓・ドアの配置インスタンス。`type`でカタログを参照し、`face`（N/S/E/W）＋`offset`（その面に沿った建物ローカル座標の絶対値。**中心ではなく開始端（西端/北端）**）で位置を表す。E/W面は`wallX`を省略すると建物端（x=0またはx=19.11）とみなす
+- `data/interior-doors.json`：室内ドアの配置インスタンス。`type`でカタログを参照し、`wallAt`（壁の固定座標）＋`orientation`（H/V）＋`center`（壁沿いの位置、こちらは中心）で位置を表す
+- どちらも任意で`widthOverride`/`heightOverride`/`sillOverride`（このインスタンスだけ標準寸法から変える場合）を持つ
+- **ドアの開き勝手**：`operation:swing`の型を使うインスタンスは`hingeSide`（`L`/`R`、蝶番側）＋`swingDir`（`in`/`out`）、`operation:slide`なら`slideDir`（`L`/`R`、引き込み方向）を持つ。`operation:open`/`open-arch`（ドアなしの開口）はどちらも不要（扉本体を描かない）。外部の窓・ドア（`openings.json`）は`face`（N/S/E/W）から「外側」の方向が一意に決まるため、`swingDir:'out'`は文字通り建物の外側へ開く向きになる。室内ドア（`interior-doors.json`）には「外」の概念がないため、`swingDir`は「壁を挟んでどちら向きに開くか」を軸ベースで簡易表現したものにとどまる。隣接する部屋同士の内外関係までは今のデータモデルにはない（見た目を見ながら調整する運用）
+- **開口（アーチ）の描画**：`interior-white-model.html`の`archOpeningMesh()`が、天端が円弧になった平板（厚みのない板、door系マテリアルは両面表示なので厚みなしでも見える）を描く。平面図（真上から）ではアーチかどうかは見た目に出ないため、俯瞰・内覧モードで確認すること
+  - 現在の室内ドア19件はすべて開き戸として移行しており、`hingeSide`/`swingDir`は施工会社の建具表が未確認のため暫定値（[STATUS.md](STATUS.md)の未解決事項を参照）
+- `house.json`から2026-08-15に分離した（元は`openings`/`interiorDoors`という配列としてhouse.json内にあった）。理由は、家具編集の「書き出しボタンでファイルを上書き」という運用を安全に行うため。house.jsonに残したままだと、書き出しは`rooms`/`walls`/`roofs`等を含むファイル全体が対象になり、ブラウザ側が保持していない付帯情報を巻き込んで構造データを壊すリスクがある
+
 ## 変更手順
 
 ### 建物の寸法・間取りを変更する
@@ -91,7 +114,7 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
    blender --background --python blender/build_house.py -- --input data/house.json --output build/ryuka-white-model.blend
    ```
 
-要素を追加・削除する場合は、その配列（`footprints` / `openings` / `interiorDoors` / `rooms` / `walls` など）の中で一意なIDを新規発番し、`status` を適切に設定すること。`walls` は上記「rooms / walls について」の注意を確認する。
+要素を追加・削除する場合は、その配列（`footprints` / `rooms` / `walls` など）の中で一意なIDを新規発番し、`status` を適切に設定すること。`walls` は上記「rooms / walls について」の注意を確認する。窓・ドアは`house.json`ではなく`data/openings.json`/`data/interior-doors.json`側で管理する（下記「窓・ドアの種類を追加する、または直接JSONを編集する」参照）。
 
 ### 家具・設備の位置・向き・サイズを調整する（Web UI、推奨）
 
@@ -107,6 +130,13 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 3. `python tests/validate_furniture.py` で検証する
 4. `node scripts/build-web-data.mjs` で再生成し、ブラウザで確認する
 
+### 窓・ドアの種類を追加する、または直接JSONを編集する
+
+1. 新しい種類を置きたい場合は `data/door-catalog.json`（ドア）または`data/window-catalog.json`（窓）に`type`を追加する
+2. `data/openings.json`（外部）または`data/interior-doors.json`（室内）の `items` に配置を追加・編集する。ドアは型の`operation`に応じて`hingeSide`+`swingDir`（開き戸）または`slideDir`（引き戸）を設定する（`open`/`open-arch`は不要）
+3. `python tests/validate_openings.py` で検証する（型の参照・寸法・壁/footprintとの整合をチェックする）
+4. `node scripts/build-web-data.mjs` で再生成し、ブラウザで確認する
+
 ### HTML表示だけを変更する（カメラ・色・メニュー・レイアウト等）
 
 `interior-white-model.html` を直接編集してよい。`data/house.json` の再生成は不要。ただし `<script src="generated/house-data.js">` より後ろの部分（Three.jsセットアップ以降）のみを触ること。データ定義部分はもう存在しない。
@@ -119,11 +149,12 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 
 1. `python tests/validate_house.py` が通ること
 2. `python tests/validate_furniture.py` が通ること
-3. `node scripts/build-web-data.mjs --check` が「up to date」と報告すること（生成物のコミット漏れがないか）
-4. Blenderが利用可能なら、上記のBlender生成コマンドが正常終了すること
-5. Blenderの上面正射投影ビューと、Three.js側の平面図モード（910mmグリッド）を見比べて整合を確認する
-6. 4つの1F求積ゾーン、2Fフットプリント、階高、開口部、室内ドア、部屋数、壁数、防音壁、屋根（1F片流れ2枚＋2F切妻1式）を数の上で確認する（現在の数はSTATUS.mdに記載）
-7. 不整合を見つけたら `house.json` 側のデータ問題として記録する。生成された `generated/house-data.js` やBlenderジオメトリを直接手で編集しない
+3. `python tests/validate_openings.py` が通ること
+4. `node scripts/build-web-data.mjs --check` が「up to date」と報告すること（生成物のコミット漏れがないか）
+5. Blenderが利用可能なら、上記のBlender生成コマンドが正常終了すること
+6. Blenderの上面正射投影ビューと、Three.js側の平面図モード（910mmグリッド）を見比べて整合を確認する
+7. 4つの1F求積ゾーン、2Fフットプリント、階高、開口部、室内ドア、部屋数、壁数、防音壁、屋根（1F片流れ2枚＋2F切妻1式）を数の上で確認する（現在の数はSTATUS.mdに記載）
+8. 不整合を見つけたら、該当する正本ファイル（`house.json`/`openings.json`/`interior-doors.json`等）側のデータ問題として記録する。生成された `generated/house-data.js` やBlenderジオメトリを直接手で編集しない
 
 ## 公開（GitHub Pages / PWA）
 

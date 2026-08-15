@@ -10,17 +10,21 @@
 - `index.html` — GitHub PagesのルートURL用リダイレクト（`interior-white-model.html`へ転送するだけ）
 - `manifest.webmanifest` / `sw.js` / `icon.svg` — PWA化（ホーム画面に追加・オフライン起動）用の設定一式
 - `vendor/three.min.js` — Three.js本体のローカル同梱コピー（オフラインでも動くように、CDN参照ではなくここから読み込む）
-- `data/house.json` — 建物データの正本。寸法・開口部・室内ドア・部屋・壁・屋根
+- `data/house.json` — 建物データの正本。寸法・部屋・壁・屋根
 - `data/house.schema.json` — `house.json`のデータ契約（JSON Schema）
 - `data/furniture-catalog.json` — 家具・設備の「型」ライブラリ（種類ごとの標準寸法・形状指定）
 - `data/furniture.json` — 家具・設備の配置（どこに何を置くか）。正本
 - `data/furniture.schema.json` — `furniture.json`のデータ契約（JSON Schema）
+- `data/door-catalog.json` / `data/window-catalog.json` — 窓・ドアの「型」ライブラリ（種類ごとの標準寸法・開閉方式）
+- `data/openings.json` — 外部の窓・ドアの配置。正本
+- `data/interior-doors.json` — 室内ドアの配置。正本
 - `data/electrical.json` — 次フェーズ（電気設備）用の領域。現在は空
-- `generated/house-data.js` — `house.json`・`furniture-catalog.json`・`furniture.json`から自動生成されるHTML表示用データ（手で編集しない）
+- `generated/house-data.js` — 上記JSON群から自動生成されるHTML表示用データ（手で編集しない）
 - `scripts/build-web-data.mjs` — 上記JSON群 → `generated/house-data.js` の生成スクリプト
-- `blender/build_house.py` — `house.json`からBlender白模型を再生成するスクリプト（家具は対象外。HTML側だけで扱う方針）
+- `blender/build_house.py` — `house.json`・`door-catalog.json`・`window-catalog.json`・`openings.json`・`interior-doors.json`からBlender白模型を再生成するスクリプト（家具は対象外。HTML側だけで扱う方針）
 - `tests/validate_house.py` — `house.json`の整合性チェック（依存ライブラリなしで動作）
 - `tests/validate_furniture.py` — 家具データの整合性チェック
+- `tests/validate_openings.py` — 窓・ドアデータの整合性チェック
 
 ## 使い方
 

@@ -57,6 +57,8 @@ CAD原本がないため、施主がマイホームクラウドの画面やこ�
 | `Ryuka-Landscape-Designer`の`data/fixed-site-data.js`にも同じfl1/fl2の誤りがある | 同リポジトリのコメントに「基礎高0.500」と明記されており、`fl1`という変数名でありながら実際は基礎高を表す値として設計されていたと判明。当リポジトリのHTMLは元々ここからLEVELSをコピーしていたため、誤りごと引き継いでいた | 当リポジトリでは4章の通り立面図の実測値に修正済み。`Ryuka-Landscape-Designer`側は未修正（別リポジトリのため対象外）。今後同リポジトリの値を参照する際はfl1/fl2が基礎高基準である点に注意 |
 | `node scripts/build-web-data.mjs --check`が、実際にはgenerated/house-data.jsが最新でもSTALEと誤判定することがある | WindowsのGit（`core.autocrlf`）が`.js`ファイルをチェックアウト時にCRLFへ変換するが、Node.jsの`fs.writeFileSync`はLFで書き出す。ファイル内容は実質同じでも、生の文字列比較では改行コードの違いだけで不一致になる | 比較前に`\r\n`を`\n`へ正規化するよう`--check`のロジックを修正（2026-08-15） |
 | 表示フロアを1F/2Fに限定していても、非表示側の家具がクリック選択されてしまう | Three.js(r128)の`Raycaster.intersectObject`は`Object3D.visible:false`のオブジェクトを自動的には除外しない。`groups.furniture2`を非表示にしていても、レイキャストは素通りしてヒットする | ヒットしたオブジェクトから祖先を辿り、`visible:false`のノードがあれば除外する`isEffectivelyVisible()`を追加（2026-08-15） |
+| `house.json`から`openings`/`interiorDoors`を分離した際、`blender/build_house.py`が旧構造（`data["openings"]`等がhouse.json直下に存在する前提）のまま壊れかけた | データを複数ファイルに分割する変更は、`interior-white-model.html`側の生成パイプライン（`build-web-data.mjs`）だけでなく、Blender側の読み込みロジックも同時に見直す必要があることを見落としやすい。`blender/build_house.py`は開発環境にBlender未導入のため実行確認ができず、気づきにくい | `load_data()`で分離後の3ファイルを読み込み、型カタログを解決してから旧構造と同じ形（`data["openings"]`等）に合成する互換レイヤーを追加（2026-08-15）。**データファイルを分割・移動する変更をするときは、grepで参照箇所を全て洗い出してから着手すること**（今回はBlenderスクリプトを見落としていた） |
+| `openings.json`の`offset`は面に沿った「開始端」（西端/北端）であり、窓の中心座標ではない | `note`欄に「中心4.381」等の記載があり中心値だと錯覚しやすいが、実際の中心はoffset+width/2。検証スクリプトを新規に書いた際、offsetを中心として扱い誤ったバグを混入させかけた | 実際の描画ロジック（`x0=o.lx; x1=o.lx+o.w`）を確認してから検証ロジックを実装するよう徹底（2026-08-15） |
 
 ## 4. 作業上の約束事
 
@@ -126,3 +128,38 @@ CAD原本がないため、施主がマイホームクラウドの画面やこ�
 - 移動はマウス/タッチ共通のポインターイベントで実装。正射投影カメラのレイと家具の床面（floor level）との交点を解析的に求めて建物ローカル座標に変換している
 - 選択中の家具は`THREE.BoxHelper`で黄色い枠を表示。回転・移動はメッシュを直接動かす軽量な更新、幅/奥行/高さの変更は形状を作り直す必要があるためその家具だけ再構築する、という使い分けにした
 - 副次的に見つけた不具合：`node scripts/build-web-data.mjs --check`が、生成物の内容が同じでも改行コード（LF/CRLF）の違いだけでSTALEと誤判定することがあった。Windows環境のGitがチェックアウト時にCRLFへ変換する一方、Node.jsは書き出し時にLFを使うため。比較前に正規化するよう修正（3章の表も参照）
+
+### 2026-08-15：窓・ドアの配置（第1段階：型・データ分離・扉本体の描画）
+
+家具編集機能が好評だったことを受け、施主から「同じ要領でドア（種類・位置・サイズ）と窓（種類・位置・サイズ・高さ）も編集したい。ただし間仕切り線上をスライドする形にしてほしい」と相談を受けた。実装方針を提案し合意形成した上で`feature/opening-editor`ブランチで着手（「壁線スライド」という新しい編集の仕組みを試行錯誤しながら作る規模の大きい作業のため、[AGENTS.md](../AGENTS.md)の基準に沿ってブランチを切った）。
+
+合意した方針の要点：
+1. `house.json`の`openings`（外部の窓・ドア）・`interiorDoors`（室内ドア）を、家具と同じ「カタログ＋配置インスタンス」形式に再編し、`data/door-window-catalog.json`（型）・`data/openings.json`・`data/interior-doors.json`として`house.json`から分離する（型カタログは当初1ファイルにまとめたが、後日ドア・窓で分割。詳細は本節末尾を参照）
+2. 開き戸の開き勝手（`hingeSide`/`swingDir`）・引き戸の引き込み方向（`slideDir`）をデータに持たせ、平面図上に扉本体・開閉軌跡を描画する
+3. 第1段階（今回）はデータ移行と表示のみ。Web UI編集（壁線スライド、第2段階）は別途
+
+今回やったこと：
+
+- 既存38件（外部の窓・ドア19件、室内ドア19件）を、9種類の型（`door-entrance`/`door-hinged`/`door-hinged-wide`/`door-louver`/`window-waist`/`window-full`/`window-small`/`window-fixed-small`/`window-fixed-high`）に振り分けて移行。個々の実測寸法は`widthOverride`等で維持し、データの精度は落としていない
+- 室内ドア19件は全て開き戸として仮設定。`hingeSide`（蝶番の左右）と`swingDir`（内開き/外開き）は建具表が未入手のため暫定値（`hingeSide`は全件'R'固定、`swingDir`はトイレ・UBに面するドアだけ「そちらから出る向き」に設定し、それ以外は固定値）。**建具表入手後に見直しが必要**（[STATUS.md](STATUS.md)に記載）
+- 室内ドアの高さが、それまで`interior-white-model.html`と`blender/build_house.py`の双方にハードコード（1.9m/2.0m）されていたのを、初めてデータ化（`interior-doors.json`の型のデフォルト高さ、または`heightOverride`）
+- `interior-white-model.html`に開き戸・引き戸の扉本体（`addDoorLeaf()`）を追加。開き戸は蝶番位置から90度開いた状態の板と、床面の開閉軌跡（円弧）を描画。引き戸は壁沿いに1枚分スライドさせた位置に板を描画
+- `tests/validate_openings.py`を新設。型の参照・寸法に加え、各開口が対応する壁/footprintの範囲内に収まっているかを機械検証する（室内ドアは既存の壁突合せロジックを踏襲、外部の窓・ドアは今回新たに追加した検証）
+- `blender/build_house.py`が`house.json`直下の`openings`/`interiorDoors`を直接参照していたため、データ分離によって壊れかけているのを発見・修正（`load_data()`で分離後の3ファイルを読み込み、旧構造と同じ形に合成する互換レイヤーを追加。詳細は3章の教訓の表）
+- Web UI編集（壁線スライド・種類切替・幅/高さ変更）は第2段階として未着手
+
+同じセッション内で、施主から「`door-window-catalog.json`でドアと窓のカタログを1つにまとめている意味はあるか。furnitureのように、ドアで一式・窓で一式という形にファイル構成を分けた方が管理しやすいのでは」という質問を受けた。
+
+検討の結果、**「分ける軸が2つあり、それぞれ別の理由で決まる」**という整理で合意した。
+
+- **カタログ（型のライブラリ）は種類（ドア/窓）で分ける**：`data/door-catalog.json`・`data/window-catalog.json`に分割。理由は、施工会社の建具表・サッシ表が実務上も別表であることが多く、ドアと窓は「共通スキーマ」というだけで本質的には別物（ドアは開き勝手が主題、窓は開閉可否が主題）だったため。当初「furniture-catalog.jsonがcategoryフィールド1つで済ませている」ことを理由に1ファイルにまとめていたが、これは技術都合寄りの判断だったと振り返って認めた
+- **配置インスタンス（`openings.json`）は位置決めの仕組み（外周/内部）で分けたまま維持する**：exterior側の窓・ドアは`face`+`offset`という位置決めの仕組みが共通で、壁の開口切り欠き処理（`build_exterior_walls`等）や将来の同一壁上の重なりチェックで窓・ドアを同時に扱う必要があるため、無理に分けるとビルドスクリプト側の複雑さが増すだけと判断した
+
+`data/door-window-catalog.json`は削除し、`data/door-catalog.json`（4種類）・`data/window-catalog.json`（5種類）に分割。`scripts/build-web-data.mjs`・`blender/build_house.py`・`tests/validate_openings.py`はいずれも2ファイルを読み込んでマージする形に変更した。
+
+さらに同じセッションで、施主から「実際の間取りで使うドアの種類として、開口・開口（アーチ）・引き戸を追加してほしい」との依頼を受けた。
+
+- `door-catalog.json`に3型追加：`door-slide`（引き戸、`operation:slide`）、`door-open`（ドアなしの開口、`operation:open`）、`door-open-arch`（ドアなしの開口・天端アーチ、`operation:open-arch`、追加で`archRise`フィールドを持つ）
+- `open`/`open-arch`は`hingeSide`/`swingDir`/`slideDir`を持たせない（`addDoorLeaf()`が扉本体を描かない既存の分岐をそのまま利用できた）。`tests/validate_openings.py`の「開き勝手必須」チェックもこの2種は除外するよう修正
+- `open-arch`専用に`archOpeningMesh()`を新設。天端が円弧になった厚みのない平板（door系マテリアルはside:DoubleSideのため厚みなしでも両面から見える）を`THREE.Shape`+`ShapeGeometry`で描画する。orientation別の回転（H=回転なし、V=`rotation.y=-90°`）はtoScene()の符号と合わせて事前に数式で導出し、一時的にテスト用ドアデータ（`data/interior-doors.json`に仮追加→確認後に削除）を使って俯瞰モードのスクリーンショットで実際に検証した
+- 既存19件の室内ドアをこれらの新しい方式に割り当てる作業（どのドアが実際は引き戸/開口/開口アーチなのか）は建具表が未入手のため未着手（[STATUS.md](STATUS.md)参照）

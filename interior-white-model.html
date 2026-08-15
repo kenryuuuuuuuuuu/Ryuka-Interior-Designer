@@ -697,7 +697,7 @@ function cutGaps(segs, gaps){
 function doorGapsForLevel(level){
   const gaps = [];
   OPENINGS.forEach(o=>{
-    if(o.kind!=='door' || o.level!==level) return;
+    if(o.category!=='door' || o.level!==level) return;
     if(o.face==='N') gaps.push({orientation:'H', at:(level===2?FLOOR2.z0:segAtX(o.lx).z0), from:o.lx, to:o.lx+o.w});
     else if(o.face==='S') gaps.push({orientation:'H', at:(level===2?FLOOR2.z1:segAtX(o.lx).z1), from:o.lx, to:o.lx+o.w});
     else if(o.face==='E') gaps.push({orientation:'V', at:(o.x!==undefined?o.x:19.110), from:o.lz, to:o.lz+o.w});
@@ -1084,12 +1084,91 @@ updateFurnitureBar();
   });
 });
 
+// ---- ドア本体（開き勝手・引き込み方向の表現） ----
+// orientation: 'H'=z一定の壁を横切る(沿い方向=x, 壁に直交する方向=z)、'V'=x一定の壁を横切る(沿い方向=z, 直交=x)
+// outSign: 壁に直交する方向のうち、どちらが「外開き(swingDir:'out')」に対応するか（+1/-1）。
+//   外部の窓・ドアはface(N/S/E/W)から一意に決まる。室内ドアは「外」の概念がないため+1固定（簡易表現）
+// hingeSide/swingDir(開き戸) または slideDir(引き戸) が未確定(undefined)の場合は扉本体を描かない
+function addDoorLeaf({ orientation, alongFrom, alongTo, wallCoord, baseY, height, hingeSide, swingDir, slideDir, outSign=1, mat, edgeMat, grp }){
+  const thick = 0.04;
+  const w = alongTo - alongFrom;
+  if(slideDir){
+    const shiftSign = slideDir==='L' ? -1 : 1;
+    const a0 = alongFrom + shiftSign*w, a1 = alongTo + shiftSign*w;
+    if(orientation==='H') boxWire(a0, a1, baseY, baseY+height, wallCoord-thick/2, wallCoord+thick/2, mat, edgeMat, grp, 3);
+    else boxWire(wallCoord-thick/2, wallCoord+thick/2, baseY, baseY+height, a0, a1, mat, edgeMat, grp, 3);
+    return;
+  }
+  if(!hingeSide || !swingDir) return;
+  const hingeAt = hingeSide==='L' ? alongFrom : alongTo;
+  const alongSign = hingeSide==='L' ? 1 : -1; // 閉じた状態で蝶番から扉が伸びる向き（沿い方向）
+  const openSign = swingDir==='out' ? outSign : -outSign; // 開いた状態で扉が伸びる向き（壁に直交する方向）
+  const n0 = wallCoord, n1 = wallCoord + openSign*w;
+  // 開いた状態の扉本体は、枠（閉位置、ピンクの太い箱）とは区別し、開閉軌跡と同じ黒線・同じ太さの
+  // 直線で表現する（boxWire()は内部でtoScene()により建物中心(CX,CZ)ぶん再センタリングしているため、
+  // ここでも同じ変換を通してからVector3化すること。忘れると建物の外に散らばって表示される）
+  const [lfx,lfz] = orientation==='H' ? toScene(hingeAt, n0) : toScene(n0, hingeAt);
+  const [ltx,ltz] = orientation==='H' ? toScene(hingeAt, n1) : toScene(n1, hingeAt);
+  const leafLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(lfx, baseY+0.01, lfz), new THREE.Vector3(ltx, baseY+0.01, ltz),
+  ]), edgeMat);
+  leafLine.renderOrder = 3;
+  grp.add(leafLine);
+  // 床面の開閉軌跡（0度=壁面に沿う閉位置 → 90度=壁に直交する開位置）
+  const segs = 12, arcPts = [];
+  for(let i=0;i<=segs;i++){
+    const t = i/segs * Math.PI/2;
+    const along = hingeAt + alongSign*w*Math.cos(t);
+    const normal = wallCoord + openSign*w*Math.sin(t);
+    const [sx,sz] = orientation==='H' ? toScene(along, normal) : toScene(normal, along);
+    arcPts.push(new THREE.Vector3(sx, baseY+0.01, sz));
+  }
+  const arcLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts), edgeMat);
+  arcLine.renderOrder = 3;
+  grp.add(arcLine);
+}
+
+// ---- 開口（アーチ）の枠：天端が円弧の平板を1枚描画する ----
+// 通常の枠(boxWire)は直方体だが、アーチはシンプルに「厚みのない平板」で表現する
+// （door系マテリアルはside:DoubleSideのため、厚みがなくても両面から見える）。
+// orientation別の回転はtoScene()の符号と合わせて事前に検証済み：
+//   H: 回転なし、位置は toScene(沿い中心, wallCoord)
+//   V: rotation.y=-90°、位置は toScene(wallCoord, 沿い中心)
+function archOpeningMesh({ orientation, alongFrom, alongTo, wallCoord, baseY, springHeight, archRise, mat, edgeMat, grp }){
+  const w = alongTo - alongFrom, hw = w/2;
+  const shape = new THREE.Shape();
+  shape.moveTo(-hw, 0);
+  shape.lineTo(-hw, springHeight);
+  const segs = 16;
+  for(let i=0;i<=segs;i++){
+    const ang = Math.PI - (i/segs)*Math.PI; // PI(左端)→0(右端)
+    shape.lineTo(hw*Math.cos(ang), springHeight + archRise*Math.sin(ang));
+  }
+  shape.lineTo(hw, 0);
+  shape.closePath();
+  const geo = new THREE.ShapeGeometry(shape);
+  const mesh = new THREE.Mesh(geo, mat);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat);
+  const alongCenter = (alongFrom+alongTo)/2;
+  if(orientation==='H'){
+    const [sx,sz] = toScene(alongCenter, wallCoord);
+    mesh.position.set(sx, baseY, sz);
+  } else {
+    mesh.rotation.y = -Math.PI/2;
+    const [sx,sz] = toScene(wallCoord, alongCenter);
+    mesh.position.set(sx, baseY, sz);
+  }
+  edges.position.copy(mesh.position);
+  edges.rotation.copy(mesh.rotation);
+  mesh.renderOrder = 3; edges.renderOrder = 3.5;
+  grp.add(mesh); grp.add(edges);
+}
+
 // ---- 室内ドア（確定：施主指摘の青丸位置） ----
 INTERIOR_DOORS.forEach(d=>{
   const baseY = d.floor===1 ? LEVELS.fl1 : LEVELS.fl2;
   const mats = d.floor===1 ? M1 : M2;
   const grp = d.floor===1 ? groups.doors1 : groups.doors2;
-  const doorH = 1.9; // 人の目線でも見える高さまで立ち上げる(実ドア高さの目安)
   const thick = 0.06;
   let x0,x1,z0,z1;
   if(d.orientation==='H'){ // z一定の壁を横切る -> x方向に開口幅
@@ -1099,31 +1178,63 @@ INTERIOR_DOORS.forEach(d=>{
     x0 = d.wallAt - thick/2; x1 = d.wallAt + thick/2;
     z0 = d.center - d.width/2; z1 = d.center + d.width/2;
   }
-  boxWire(x0, x1, baseY, baseY+doorH, z0, z1, mats.door, mats.doorEdge, grp, 3);
+  if(d.operation==='open-arch'){
+    const archRise = DOOR_WINDOW_CATALOG[d.type].archRise;
+    archOpeningMesh({
+      orientation: d.orientation, alongFrom: d.center-d.width/2, alongTo: d.center+d.width/2, wallCoord: d.wallAt,
+      baseY, springHeight: d.height-archRise, archRise, mat: mats.door, edgeMat: mats.doorEdge, grp,
+    });
+  } else {
+    boxWire(x0, x1, baseY, baseY+d.height, z0, z1, mats.door, mats.doorEdge, grp, 3);
+  }
+  addDoorLeaf({
+    orientation: d.orientation, alongFrom: d.center-d.width/2, alongTo: d.center+d.width/2, wallCoord: d.wallAt,
+    baseY, height: d.height, hingeSide: d.hingeSide, swingDir: d.swingDir, slideDir: d.slideDir,
+    mat: mats.door, edgeMat: mats.doorEdge, grp,
+  });
 });
 
 // ---- 開口部（確定） ----
 OPENINGS.forEach(o=>{
   const baseFl = (o.level===2) ? LEVELS.fl2 : LEVELS.fl1;
   const y0 = baseFl + o.sill, y1 = y0 + o.h;
-  let x0,x1,z0,z1;
+  let x0,x1,z0,z1, orientation, alongFrom, alongTo, wallCoord, outSign;
   if(o.face==='N'){
     const seg = o.level===2 ? FLOOR2 : segAtX(o.lx);
     x0=o.lx; x1=o.lx+o.w; z0=seg.z0-0.03; z1=seg.z0+0.03;
+    orientation='H'; alongFrom=o.lx; alongTo=o.lx+o.w; wallCoord=seg.z0; outSign=-1; // 北壁の外側は-z方向
   } else if(o.face==='S'){
     const seg = o.level===2 ? FLOOR2 : segAtX(o.lx);
     x0=o.lx; x1=o.lx+o.w; z0=seg.z1-0.03; z1=seg.z1+0.03;
+    orientation='H'; alongFrom=o.lx; alongTo=o.lx+o.w; wallCoord=seg.z1; outSign=1; // 南壁の外側は+z方向
   } else if(o.face==='E'){
     const wallX = o.x!==undefined ? o.x : 19.110;
     x0=wallX-0.03; x1=wallX+0.03; z0=o.lz; z1=o.lz+o.w;
+    orientation='V'; alongFrom=o.lz; alongTo=o.lz+o.w; wallCoord=wallX; outSign=1; // 東壁の外側は+x方向
   } else { // W
     const wallX = o.x!==undefined ? o.x : 0;
     x0=wallX-0.03; x1=wallX+0.03; z0=o.lz; z1=o.lz+o.w;
+    orientation='V'; alongFrom=o.lz; alongTo=o.lz+o.w; wallCoord=wallX; outSign=-1; // 西壁の外側は-x方向
   }
   const mats = (o.level===2) ? M2 : M1;
   const grp = (o.level===2) ? groups.openings2 : groups.openings1;
-  const mat = (o.kind==='door') ? mats.extDoor : mats.opening;
-  boxWire(x0,x1,y0,y1,z0,z1, mat, null, grp, 3);
+  const mat = (o.category==='door') ? mats.extDoor : mats.opening;
+  if(o.category==='door' && o.operation==='open-arch'){
+    const archRise = DOOR_WINDOW_CATALOG[o.type].archRise;
+    archOpeningMesh({
+      orientation, alongFrom, alongTo, wallCoord, baseY: y0, springHeight: o.h-archRise, archRise,
+      mat: mats.extDoor, edgeMat: mats.doorEdge, grp,
+    });
+  } else {
+    boxWire(x0,x1,y0,y1,z0,z1, mat, null, grp, 3);
+  }
+  if(o.category==='door'){
+    addDoorLeaf({
+      orientation, alongFrom, alongTo, wallCoord, baseY: baseFl, height: o.h, outSign,
+      hingeSide: o.hingeSide, swingDir: o.swingDir, slideDir: o.slideDir,
+      mat: mats.extDoor, edgeMat: mats.doorEdge, grp,
+    });
+  }
 });
 
 // ---- 地面グリッド ----

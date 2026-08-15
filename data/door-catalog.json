@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "1.0.0",
+  "units": "m",
+  "note": "ドアの「型」のライブラリ。data/furniture-catalog.json と同じ考え方。operationはswing(開き戸)/slide(引き戸)/open(ドアなしの開口)/open-arch(ドアなしの開口・アーチ天端)。個々の配置（data/openings.json の category:door の項目 / data/interior-doors.json）はwidthOverride等でこの標準寸法から自由に変えられる。open系はhingeSide/swingDir/slideDirを持たせない（扉本体を描かない）。open-archのheightはアーチ頂部までの全高、archRiseはそのうち円弧が占める高さ（springline=height-archRise）。窓の型は data/window-catalog.json を参照。",
+  "types": [
+    {
+      "type": "door-entrance",
+      "label": "玄関ドア",
+      "category": "door",
+      "operation": "swing",
+      "width": 0.95,
+      "height": 2.33,
+      "sill": 0,
+      "note": "断熱玄関ドアの一般的な寸法"
+    },
+    {
+      "type": "door-hinged",
+      "label": "室内開き戸",
+      "category": "door",
+      "operation": "swing",
+      "width": 0.8,
+      "height": 2,
+      "sill": 0,
+      "note": "トイレ・洗面等、間口の狭い水回りに使う開き戸"
+    },
+    {
+      "type": "door-hinged-wide",
+      "label": "室内開き戸（広幅）",
+      "category": "door",
+      "operation": "swing",
+      "width": 0.91,
+      "height": 2,
+      "sill": 0,
+      "note": "910mmモジュールの部屋境界に使う開き戸"
+    },
+    {
+      "type": "door-louver",
+      "label": "ルーバー戸",
+      "category": "door",
+      "operation": "swing",
+      "width": 0.85,
+      "height": 2.33,
+      "sill": 0,
+      "note": "土間・収納等の通気を兼ねたルーバー付き開き戸"
+    },
+    {
+      "type": "door-slide",
+      "label": "引き戸",
+      "category": "door",
+      "operation": "slide",
+      "width": 0.8,
+      "height": 2,
+      "sill": 0,
+      "note": "壁沿いに引き込む片引き戸の一般的な寸法"
+    },
+    {
+      "type": "door-open",
+      "label": "開口",
+      "category": "door",
+      "operation": "open",
+      "width": 0.91,
+      "height": 2,
+      "sill": 0,
+      "note": "ドア本体を設けない開口部（部屋境界の通り抜け）"
+    },
+    {
+      "type": "door-open-arch",
+      "label": "開口（アーチ）",
+      "category": "door",
+      "operation": "open-arch",
+      "width": 0.91,
+      "height": 2.1,
+      "archRise": 0.3,
+      "sill": 0,
+      "note": "ドア本体を設けず、天端をアーチ状にした開口部"
+    }
+  ]
+}

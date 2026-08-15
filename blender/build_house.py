@@ -23,6 +23,34 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_INPUT = SCRIPT_DIR.parent / "data" / "house.json"
 
 
+def load_data(input_path: Path) -> dict:
+    """house.jsonに加えて、同じディレクトリのdoor-catalog.json/window-catalog.json/
+    openings.json/interior-doors.json（2026-08-15にhouse.jsonから分離）を読み込み、
+    型のカタログを解決した上で従来通りdata["openings"]/data["interiorDoors"]（width/
+    height/sillがフラットなフィールドとして展開された形）に合成する。これにより、
+    このファイルの下流のロジック（build_exterior_walls等）は分離前と同じ形でデータを扱える。
+    """
+    with input_path.open(encoding="utf-8") as stream:
+        data = json.load(stream)
+    root = input_path.parent
+    door_catalog = json.loads((root / "door-catalog.json").read_text(encoding="utf-8"))
+    window_catalog = json.loads((root / "window-catalog.json").read_text(encoding="utf-8"))
+    by_type = {t["type"]: t for t in door_catalog["types"] + window_catalog["types"]}
+    openings_raw = json.loads((root / "openings.json").read_text(encoding="utf-8"))["items"]
+    doors_raw = json.loads((root / "interior-doors.json").read_text(encoding="utf-8"))["items"]
+
+    def resolve(item, fields):
+        profile = by_type[item["type"]]
+        out = dict(item)
+        for field, override_key in fields:
+            out[field] = item.get(override_key, profile[field])
+        return out
+
+    data["openings"] = [resolve(o, [("width", "widthOverride"), ("height", "heightOverride"), ("sill", "sillOverride")]) for o in openings_raw]
+    data["interiorDoors"] = [resolve(d, [("width", "widthOverride"), ("height", "heightOverride")]) for d in doors_raw]
+    return data
+
+
 def cli_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
@@ -118,11 +146,9 @@ def build_exterior_walls(data, coll, mat):
 def build_interior_walls(data, coll, mat):
     """data['walls'](部屋ポリゴンから重複統合した壁芯データ)から室内壁を生成する。
     同じ壁の上にある室内ドア(interiorDoors)を自動検出し、開口として切り欠く。
-    ドア高さは建具表が未入手のため暫定値(2.0m)。実データが揃い次第、
-    interiorDoorsにheightフィールドを足して置き換えること。
+    ドア高さはdata/interior-doors.json（型のデフォルトまたはheightOverride）から取得する。
     """
     thickness = data["defaults"].get("interiorWallThickness", 0.06)
-    placeholder_door_height = 2.0
     for wall in data["walls"]:
         base = level_y(data, wall["level"])
         height = data["defaults"]["ceilingHeight"]
@@ -137,7 +163,7 @@ def build_interior_walls(data, coll, mat):
             else:
                 if abs(d["wallAt"] - wall["x0"]) < 0.01 and wall["z0"] - 0.01 <= lo and hi <= wall["z1"] + 0.01:
                     doors_on_wall.append(d)
-        cuts = [(d["center"] - d["width"] / 2, d["center"] + d["width"] / 2, 0, placeholder_door_height) for d in doors_on_wall]
+        cuts = [(d["center"] - d["width"] / 2, d["center"] + d["width"] / 2, 0, d["height"]) for d in doors_on_wall]
         if wall["orientation"] == "H":
             for i, (a, b, low, high) in enumerate(wall_segments(wall["x0"], wall["x1"], base, height, cuts)):
                 box(f"{wall['id']}-{i:02d}", a, b, wall["z0"]-thickness/2, wall["z0"]+thickness/2, low, high, coll, mat)
@@ -196,7 +222,7 @@ def build(data):
     build_exterior_walls(data, walls, white)
     build_interior_walls(data, interior_walls, interior_white)
     for door in data["interiorDoors"]:
-        base, thick, height = level_y(data, door["floor"]), 0.03, 1.9
+        base, thick, height = level_y(data, door["floor"]), 0.03, door["height"]
         if door["orientation"] == "H":
             box(door["id"], door["center"]-door["width"]/2, door["center"]+door["width"]/2, door["wallAt"]-thick, door["wallAt"]+thick, base, base+height, markers, marker)
         else:
@@ -214,8 +240,7 @@ def build(data):
 
 def main():
     args = cli_args()
-    with args.input.resolve().open(encoding="utf-8") as stream:
-        data = json.load(stream)
+    data = load_data(args.input.resolve())
     build(data)
     if args.output:
         output = args.output.resolve()
