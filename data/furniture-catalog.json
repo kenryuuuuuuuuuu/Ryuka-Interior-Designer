@@ -129,6 +129,17 @@
       "note": "ソファの前に置く背の低いセンターテーブルの一般的な寸法"
     },
     {
+      "type": "counter-table",
+      "label": "カウンターテーブル",
+      "category": "furniture",
+      "shape": "table",
+      "width": 0.65,
+      "depth": 0.35,
+      "height": 1.0,
+      "clearance": 0.4,
+      "note": "カフェにあるような窓際向けの、幅が短く天板の高いカウンターテーブル。奥行をコンパクトにして窓沿いの狭いスペースに収める想定"
+    },
+    {
       "type": "sofa-2seat",
       "label": "2人掛けソファ",
       "category": "furniture",

@@ -64,6 +64,11 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 
 - `data/furniture-catalog.json`：家具・設備の「型」。`type`（キー）ごとに`label`・`category`（`fixture`=施工会社が設置する造作／`furniture`=後から置く家具）・`shape`（下記）・標準寸法（`width`/`depth`/`height`）・`clearance`（前面等に必要な最小空き）を持つ
 - `data/furniture.json`：配置インスタンス。`type`でカタログを参照し、`x`/`z`（footprint中心、建物ローカル座標）・`level`・`rotation`・任意で`widthOverride`等（このインスタンスだけ標準寸法から変える場合）を持つ
+- **`label`の命名規則（配置インスタンスの`label`のみ。カタログ側の`label`＝型の一般名はこの限りではない）**：部屋が増えるほど平面図上でラベルが密集するため、部屋名・棟名（民泊／自宅／1F／2F／部屋の呼称など）はラベルに含めない。部屋自体のラベルで既に表示されているため冗長になる
+  - 同じ部屋の中に同じ`type`が複数あり、用途が同じグループに属する場合（例：ダイニングチェア4脚）：「椅子1」「椅子2」…と連番を付ける
+  - 同じ部屋の中に同じ`type`が複数あるが、用途のグループが異なる場合（例：ダイニングの椅子とは別に、カウンターテーブル用の椅子がある）：連番ではなく「椅子（カウンター）」のように短い用途名を括弧で付ける
+  - 見た目・仕様が変わる型の違い（便器の「タンク付き」「タンクレス」など）はラベルに残す。これは立地情報ではなく機能情報のため
+  - 例：「テレビボード（民泊LDK）」→「テレビボード」、「便器（1F民泊・タンク付き）」→「便器（タンク付き）」
 - **見た目は既製3Dモデル（GLB等）を使わず、箱・円柱の組み合わせで作る。** サイズを自由に変えられること、PWAのオフライン保存が軽いことを優先した判断（詳細は[BACKGROUND.md](BACKGROUND.md)）。組み方は`interior-white-model.html`の`FURNITURE_SHAPES`（`shape`名 → 描画関数のマップ）で定義する。新しい家具の種類を追加する場合は、カタログに`type`を追加し、対応する`shape`が`FURNITURE_SHAPES`になければ関数も追加する
 - **`rotation`は0/90/180/270度のみ。** 斜め配置は当たり判定の実装コストに見合わないため対象外とした（将来必要になれば再検討）
 - **Web UI上での配置編集（第2段階、`interior-white-model.html`内に実装）**：平面図モードで「✎ 家具編集」ボタンをONにすると、家具のクリック/タップ選択→ドラッグ移動、パネルからの90度回転・幅/奥行/高さ変更ができる
@@ -98,7 +103,7 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 ### 家具・設備の種類を追加する、または直接JSONを編集する
 
 1. 新しい種類を置きたい場合は `data/furniture-catalog.json` に`type`を追加する（`shape`が既存のものと違う形なら`interior-white-model.html`の`FURNITURE_SHAPES`にも描画関数を追加する）
-2. `data/furniture.json` の `items` に配置を追加・編集する。`room`は`house.json`の`rooms`のidを参照させると、`tests/validate_furniture.py`が部屋の外形と大きく外れていないか機械チェックしてくれる
+2. `data/furniture.json` の `items` に配置を追加・編集する。`room`は`house.json`の`rooms`のidを参照させると、`tests/validate_furniture.py`が部屋の外形と大きく外れていないか機械チェックしてくれる。`label`は上記「`label`の命名規則」に従うこと
 3. `python tests/validate_furniture.py` で検証する
 4. `node scripts/build-web-data.mjs` で再生成し、ブラウザで確認する
 
