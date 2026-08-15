@@ -92,7 +92,7 @@
       "floor": 1,
       "hingeSide": "L",
       "swingDir": "out",
-      "label": "自宅玄関・ホール⟷土間・シューズクローク",
+      "label": "自宅玄関⟷土間",
       "status": "verified"
     },
     {
@@ -103,7 +103,7 @@
       "center": 13.2,
       "floor": 1,
       "slideDir": "L",
-      "label": "土間・シューズクローク⟷LDK",
+      "label": "SC⟷LDK",
       "status": "verified"
     },
     {
@@ -235,6 +235,18 @@
       "label": "自宅玄関⟷自宅ホール（斜め框）",
       "status": "estimated",
       "note": "新規(2026-08-15)：施主指摘により斜め框（目分量の角度）に、壁のないドアなしの開口として配置。room-1f-08/room-1f-19の境界と一致させること。施主指摘により角度を緩やかに変更後、同じ角度のまま0.455下へ平行移動"
+    },
+    {
+      "id": "door-021",
+      "type": "door-open",
+      "wallAt": 12.451,
+      "orientation": "V",
+      "center": 1.365,
+      "widthOverride": 1.82,
+      "floor": 1,
+      "label": "土間⟷SC",
+      "status": "estimated",
+      "note": "新規(2026-08-15)：施主指摘により「土間・シューズクローク」を右の壁(x=13.651)から1200mmの位置(x=12.451)で分割。境界全体を開口とし、壁のないドアなしの開口として配置。room-1f-09/room-1f-20の境界と一致させること"
     }
   ]
 }

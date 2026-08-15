@@ -1352,6 +1352,14 @@ function placeInteriorDoor(d){
       orientation: d.orientation, alongFrom: d.center-d.width/2, alongTo: d.center+d.width/2, wallCoord: d.wallAt,
       baseY, springHeight: d.height-archRise, archRise, mat: mats.door, edgeMat: mats.doorEdge, grp: holder,
     });
+  } else if(d.operation==='open'){
+    // ドア本体を持たない開口(door-open)は、斜め框の開口と同じく、ドア色(ピンク)の
+    // 塗りつぶしは使わず黒い枠線だけで表現する（実際にドアが設置されていると誤解しないように）
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(x1-x0, d.height, z1-z0)), mats.doorEdge);
+    const [ecx,ecz] = toScene((x0+x1)/2, (z0+z1)/2);
+    edges.position.set(ecx, baseY+d.height/2, ecz);
+    edges.renderOrder = 3.5;
+    holder.add(edges);
   } else {
     boxWire(x0, x1, baseY, baseY+d.height, z0, z1, mats.door, mats.doorEdge, holder, 3);
   }
@@ -1395,6 +1403,13 @@ function placeOpening(o){
       orientation, alongFrom, alongTo, wallCoord, baseY: y0, springHeight: o.h-archRise, archRise,
       mat: mats.extDoor, edgeMat: mats.doorEdge, grp: holder,
     });
+  } else if(o.category==='door' && o.operation==='open'){
+    // ドア本体を持たない開口(door-open)は、ドア色(ピンク)の塗りつぶしは使わず黒い枠線だけで表現する
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(x1-x0, y1-y0, z1-z0)), mats.doorEdge);
+    const [ecx,ecz] = toScene((x0+x1)/2, (z0+z1)/2);
+    edges.position.set(ecx, (y0+y1)/2, ecz);
+    edges.renderOrder = 3.5;
+    holder.add(edges);
   } else {
     boxWire(x0,x1,y0,y1,z0,z1, mat, null, holder, 3);
   }
