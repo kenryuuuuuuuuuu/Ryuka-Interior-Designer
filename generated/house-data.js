@@ -157,10 +157,10 @@ const FURNITURE_ITEMS = [
   { id:'fur-001', type:'vanity', level:1, x:0.29, z:3.26, rotation:270, width:0.75, depth:0.53, height:1.9, label:'洗面化粧台', status:'estimated', room:'room-1f-03' },
   { id:'fur-002', type:'washing-machine', level:1, x:0.34, z:4.19, rotation:0, width:0.64, depth:0.72, height:1.05, label:'洗濯機', status:'estimated', room:'room-1f-03' },
   { id:'fur-003', type:'bathtub', level:1, x:0.92, z:5.96, rotation:0, width:1.82, depth:0.8, height:0.6, label:'浴槽', status:'estimated', room:'room-1f-04' },
-  { id:'fur-036', type:'bed-single', level:1, x:3.4, z:2.68, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド1', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更
-  { id:'fur-037', type:'bed-single', level:1, x:4.57, z:2.68, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド2', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更
-  { id:'fur-041', type:'desk', level:1, x:6.3, z:1.21, rotation:0, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、北壁沿いの空きスペースにワークデスクを新規配置
-  { id:'fur-042', type:'chair', level:1, x:6.3, z:1.85, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、デスク用の椅子を新規配置
+  { id:'fur-036', type:'bed-single', level:1, x:4.23, z:2.64, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド1', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更
+  { id:'fur-037', type:'bed-single', level:1, x:5.42, z:2.67, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド2', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)により、セミダブル1台からシングル2台へ変更
+  { id:'fur-041', type:'desk', level:1, x:6.9, z:1.47, rotation:90, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)によりワークデスクを新規配置
+  { id:'fur-042', type:'chair', level:1, x:6.46, z:1.49, rotation:90, width:0.45, depth:0.5, height:0.85, label:'椅子', status:'estimated', room:'room-1f-05' }, // 施主指摘(2026-08-15)によりデスク用の椅子を新規配置
   { id:'fur-005', type:'wardrobe', level:1, x:6.89, z:3.04, rotation:90, width:1.2, depth:0.6, height:1.8, label:'ワードローブ', status:'estimated', room:'room-1f-05' },
   { id:'fur-006', type:'kitchen-counter', level:1, x:6.87, z:5.43, rotation:270, width:1.8, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-06' },
   { id:'fur-007', type:'refrigerator', level:1, x:6.86, z:4.06, rotation:90, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫', status:'estimated', room:'room-1f-06' },
@@ -170,8 +170,8 @@ const FURNITURE_ITEMS = [
   { id:'fur-011', type:'sofa-2seat', level:1, x:3.54, z:4.14, rotation:0, width:1.5, depth:0.85, height:0.8, label:'ソファ', status:'estimated', room:'room-1f-06' },
   { id:'fur-012', type:'tv-board', level:1, x:2.05, z:5.22, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-1f-06' },
   { id:'fur-038', type:'coffee-table', level:1, x:3.54, z:4.87, rotation:0, width:1, depth:0.5, height:0.4, label:'ローテーブル', status:'estimated', room:'room-1f-06' }, // 施主指摘(2026-08-15)によりソファ前に新規配置
-  { id:'fur-043', type:'counter-table', level:1, x:3.9, z:6.02, rotation:90, width:0.65, depth:0.35, height:1, label:'カウンターテーブル', status:'estimated', room:'room-1f-06' }, // 施主指摘(2026-08-15)により、南側腰窓(op-006)際にカフェ風のカウンターテーブルを新規配置。窓に向かって縦に置く向き
-  { id:'fur-044', type:'chair', level:1, x:3.9, z:5.4, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子（カウンター）', status:'estimated', room:'room-1f-06' }, // 施主指摘(2026-08-15)により、カウンターテーブル用の椅子を新規配置
+  { id:'fur-043', type:'counter-table', level:1, x:3.6, z:6.14, rotation:180, width:1.7, depth:0.35, height:1, label:'カウンターテーブル', status:'estimated', room:'room-1f-06' }, // 施主指摘(2026-08-15)により南窓際にカフェ風のカウンターテーブルを新規配置
+  { id:'fur-044', type:'chair', level:1, x:3.46, z:5.97, rotation:180, width:0.45, depth:0.7, height:0.85, label:'椅子（カウンター）', status:'estimated', room:'room-1f-06' }, // 施主指摘(2026-08-15)により、カウンターテーブル用の椅子を新規配置
   { id:'fur-013', type:'kitchen-counter', level:1, x:13.63, z:5.08, rotation:90, width:2.55, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-11' },
   { id:'fur-014', type:'refrigerator', level:1, x:15.11, z:5.99, rotation:180, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫', status:'estimated', room:'room-1f-11' },
   { id:'fur-015', type:'dining-table-6', level:1, x:12.08, z:4.69, rotation:0, width:1.4, depth:0.85, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-11' },
