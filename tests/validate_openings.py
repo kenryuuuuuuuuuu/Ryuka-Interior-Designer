@@ -18,7 +18,7 @@ HOUSE = ROOT / "data" / "house.json"
 
 VALID_STATUS = {"verified", "derived", "estimated"}
 VALID_FACE = {"N", "S", "E", "W"}
-VALID_ORIENTATION = {"H", "V"}
+VALID_ORIENTATION = {"H", "V", "D"}  # D=斜め壁（x0/z0/x1/z1で始点・終点を指定）
 TOL = 0.01  # m。浮動小数の誤差許容
 EW_TOL = 0.2  # m。E/W面のfootprint照合はゾーン区分の近似値との比較なのでゆるめに取る
 
@@ -146,12 +146,21 @@ def main():
         for override in ("widthOverride", "heightOverride"):
             if override in d:
                 assert d[override] > 0, f"{d['id']}: {override}は正の数であること"
-        if profile["operation"] not in ("open", "open-arch"):
-            has_swing = "hingeSide" in d and "swingDir" in d
-            has_slide = "slideDir" in d
-            assert has_swing or has_slide, f"{d['id']}: hingeSide+swingDir、またはslideDirのいずれかが必要"
-        w = effective(d, "width", "widthOverride", profile)
-        assert check_door_within_wall(d, w, walls), f"{d['id']}: 対応する壁エンティティの範囲からはみ出している"
+        if d["orientation"] == "D":
+            # 斜め壁：wallAt/centerではなくx0/z0/x1/z1で始点・終点を指定する。壁のない
+            # 開口(open/open-arch)のみ想定しているため、開き勝手は不要でWALLSとの
+            # 突合せも行わない（rooms→wallsの自動変換は軸に沿った壁しか扱えないため）
+            for key in ("x0", "z0", "x1", "z1"):
+                assert key in d, f"{d['id']}: orientation:Dは{key}が必要"
+            length = ((d["x1"] - d["x0"]) ** 2 + (d["z1"] - d["z0"]) ** 2) ** 0.5
+            assert length > 0.1, f"{d['id']}: 始点・終点の距離が短すぎる"
+        else:
+            if profile["operation"] not in ("open", "open-arch"):
+                has_swing = "hingeSide" in d and "swingDir" in d
+                has_slide = "slideDir" in d
+                assert has_swing or has_slide, f"{d['id']}: hingeSide+swingDir、またはslideDirのいずれかが必要"
+            w = effective(d, "width", "widthOverride", profile)
+            assert check_door_within_wall(d, w, walls), f"{d['id']}: 対応する壁エンティティの範囲からはみ出している"
 
     print(f"openings/interior-doors: {len(types)} types in catalog, {len(o_items)} exterior + {len(d_items)} interior door/window instances - checks passed")
 

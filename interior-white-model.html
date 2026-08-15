@@ -1304,7 +1304,34 @@ function wallRangeForOpening(o){
 }
 
 const doorWindowMeshes = new Map(); // id -> { holder, isExterior }
+// 斜め壁（orientation:'D'）の開口。今のところ door-open/door-open-arch のような
+// 「扉本体を持たない」種類のみを想定し、開き戸・引き戸の軌跡計算は行わない。
+// H/V専用のwallRangeForInteriorDoor()・moveSelectedDoorWindowTo()の対象外（壁線
+// スライド編集はサポートしない。位置を変える場合はJSONを直接編集すること）。
+function placeDiagonalInteriorDoor(d){
+  const baseY = d.floor===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const mats = d.floor===1 ? M1 : M2;
+  const grp = d.floor===1 ? groups.doors1 : groups.doors2;
+  const holder = new THREE.Group();
+  holder.userData.doorWindowId = d.id;
+  const dx = d.x1-d.x0, dz = d.z1-d.z0;
+  const len = Math.hypot(dx, dz);
+  const theta = Math.atan2(-dz, dx); // toScene()は平行移動のみのため、建物ローカルの向きがそのままシーンの向きになる
+  const thick = 0.06;
+  const geo = new THREE.BoxGeometry(len, d.height, thick);
+  // ドア本体を持たない開口(door-open系)であることを示すため、ドア色(ピンク)の
+  // 塗りつぶしは使わず、通常の開口と同じ黒い枠線だけで表現する
+  const [sx,sz] = toScene((d.x0+d.x1)/2, (d.z0+d.z1)/2);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), mats.doorEdge);
+  edges.position.set(sx, baseY+d.height/2, sz);
+  edges.rotation.y = theta;
+  edges.renderOrder = 3.5;
+  holder.add(edges);
+  grp.add(holder);
+  doorWindowMeshes.set(d.id, { holder, isExterior:false });
+}
 function placeInteriorDoor(d){
+  if(d.orientation==='D') return placeDiagonalInteriorDoor(d);
   const baseY = d.floor===1 ? LEVELS.fl1 : LEVELS.fl2;
   const mats = d.floor===1 ? M1 : M2;
   const grp = d.floor===1 ? groups.doors1 : groups.doors2;
@@ -1441,6 +1468,7 @@ function moveSelectedDoorWindowTo(clientX, clientY){
     doorWindowEdits[selectedDoorWindowId] = {...(doorWindowEdits[selectedDoorWindowId]||{}), [field]: round2(along-halfW)};
   } else {
     const eff = effectiveInteriorDoor(sel.base);
+    if(eff.orientation==='D') return; // 斜め壁は壁線スライド編集の対象外
     const range = wallRangeForInteriorDoor(eff);
     const alongIsX = eff.orientation==='H';
     let along = alongIsX ? (p.x+CX) : (p.z+CZ);
@@ -1504,11 +1532,17 @@ function updateDoorPanel(){
   const typeSel = document.getElementById('dpType');
   typeSel.innerHTML = Object.entries(DOOR_WINDOW_CATALOG).filter(([k,p])=>p.category===eff.category)
     .map(([k,p])=>`<option value="${k}"${k===eff.type?' selected':''}>${p.label}</option>`).join('');
+  const isDiagonal = !sel.isExterior && eff.orientation==='D';
   document.getElementById('dpWidth').value = sel.isExterior ? eff.w : eff.width;
   document.getElementById('dpHeight').value = sel.isExterior ? eff.h : eff.height;
+  document.getElementById('dpWidth').disabled = isDiagonal;
+  document.getElementById('dpHeight').disabled = isDiagonal;
   document.getElementById('dpSillLabel').style.display = sel.isExterior ? '' : 'none';
   if(sel.isExterior) document.getElementById('dpSill').value = eff.sill;
   renderHandControls(eff);
+  if(isDiagonal){
+    document.getElementById('dpHandArea').innerHTML = `<div class="hand-label">斜め壁の開口です。位置・幅は壁線スライド編集の対象外（data/interior-doors.jsonを直接編集）</div>`;
+  }
   panel.style.display = 'block';
 }
 function updateDoorBar(){
