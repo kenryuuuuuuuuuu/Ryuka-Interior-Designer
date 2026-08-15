@@ -1279,7 +1279,27 @@ function levelZRange(level){
   return [Math.min(...arr.map(f=>f.z0)), Math.max(...arr.map(f=>f.z1))];
 }
 function wallRangeForOpening(o){
-  if(o.face==='N' || o.face==='S') return [(o.level===2?FLOOR2:segAtX(o.lx)).x0, (o.level===2?FLOOR2:segAtX(o.lx)).x1];
+  if(o.face==='N' || o.face==='S'){
+    const current = o.level===2 ? FLOOR2 : segAtX(o.lx);
+    // footprintは求積図のゾーン区分であり、隣接区画が同じ辺(z0/z1)を共有していれば
+    // 実際には1本の連続した壁であることが多い（tests/validate_openings.pyの
+    // check_opening_within_footprintと同じ考え方）。現在の区画だけで範囲を区切ると、
+    // 区画の継ぎ目(例:x=9.100)を越えた瞬間に可動範囲が切り替わり、越えた側から
+    // 元の区画側へドラッグで戻れなくなる「片道の罠」になるため、同じ辺を共有し
+    // x方向に隙間なくつながっている区画をすべて合わせた範囲を返す。
+    const edgeKey = o.face==='N' ? 'z0' : 'z1';
+    const arr = o.level===2 ? [FLOOR2] : FLOOR1;
+    const candidates = arr.filter(f => Math.abs(f[edgeKey]-current[edgeKey])<0.01);
+    let x0 = current.x0, x1 = current.x1, changed = true;
+    while(changed){
+      changed = false;
+      for(const f of candidates){
+        if(Math.abs(f.x1-x0)<0.01 && f.x0<x0){ x0=f.x0; changed=true; }
+        if(Math.abs(f.x0-x1)<0.01 && f.x1>x1){ x1=f.x1; changed=true; }
+      }
+    }
+    return [x0, x1];
+  }
   return levelZRange(o.level); // E/W面はfootprintの厳密な壁単位までは分解していないため、階全体のz範囲でゆるく制約する
 }
 
