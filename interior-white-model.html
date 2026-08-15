@@ -119,6 +119,35 @@
       font-size:11.5px;cursor:pointer;white-space:nowrap;}
   #furnitureBar #fbClearAll{background:#e2e5e8;color:#4a5158;}
 
+  /* ---- 窓・ドアの配置編集（平面図モード限定） ---- */
+  #doorEditToggle{background:rgba(255,255,255,.94);border:none;border-radius:11px;padding:9px 14px;
+      font-size:12.5px;font-weight:600;color:#4a5158;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.18);
+      display:none;white-space:nowrap;}
+  #doorEditToggle.active{background:var(--accent);color:#fff;}
+  #doorEditHint{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:20;display:none;
+      background:rgba(20,26,32,.7);color:#fff;font-size:11.5px;padding:6px 12px;border-radius:8px;
+      pointer-events:none;white-space:nowrap;max-width:92vw;text-overflow:ellipsis;overflow:hidden;}
+  #doorPanel{position:fixed;right:12px;bottom:12px;z-index:22;display:none;width:240px;
+      background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
+      padding:14px 16px;box-shadow:0 8px 28px rgba(20,30,40,.2);font-size:12.5px;color:var(--ink);}
+  #doorPanel .fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
+      font-weight:700;}
+  #doorPanel .fp-head button{background:none;border:none;color:var(--sub);cursor:pointer;font-size:14px;
+      padding:2px 4px;}
+  #doorPanel select{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:6px 8px;
+      font-size:12px;color:var(--ink);background:#fff;}
+  .hand-label{font-size:10.5px;color:var(--sub);margin:8px 0 4px;}
+  .hand-row{display:flex;gap:6px;}
+  .hand-row button{flex:1;background:#f2f4f6;border:1.5px solid var(--line);border-radius:8px;padding:6px;
+      font-size:11.5px;cursor:pointer;color:var(--ink);}
+  .hand-row button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  #doorBar{position:fixed;left:12px;bottom:12px;z-index:22;display:none;align-items:center;gap:8px;
+      background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:12px;padding:9px 12px;
+      box-shadow:0 8px 24px rgba(20,30,40,.18);font-size:11.5px;color:var(--sub);flex-wrap:wrap;max-width:88vw;}
+  #doorBar button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px;
+      font-size:11.5px;cursor:pointer;white-space:nowrap;}
+  #doorBar #dbClearAll{background:#e2e5e8;color:#4a5158;}
+
   #spawnOverlay{position:fixed;inset:0;z-index:30;background:rgba(18,22,26,.55);display:none;
       align-items:center;justify-content:center;padding:20px;}
   #spawnCard{background:#fff;border-radius:18px;padding:26px 26px 22px;max-width:420px;width:100%;
@@ -156,8 +185,10 @@
     <button id="modeWalk" data-mode="walk">🚶 内覧</button>
   </div>
   <button id="editToggle" title="家具の配置を編集（平面図モード限定）">✎ 家具編集</button>
+  <button id="doorEditToggle" title="窓・ドアの配置を編集（平面図モード限定）">✎ 窓・ドア編集</button>
 </div>
 <div id="editHint">家具をタップ/クリックで選択→ドラッグで移動。選択中は下のパネルで回転・サイズ変更</div>
+<div id="doorEditHint">窓・ドアをタップ/クリックで選択→壁に沿ってドラッグでスライド。選択中は下のパネルで種類・サイズ・開き勝手を変更</div>
 
 <div id="ui">
   <h1>自宅新築プロジェクト 内装白模型 v0.1</h1>
@@ -235,6 +266,32 @@
   <span id="fbCount"></span>
   <button id="fbExport">⬇ furniture.jsonを書き出す</button>
   <button id="fbClearAll">編集をすべて取り消す</button>
+</div>
+
+<!-- ---- 窓・ドア編集パネル（平面図モード・編集トグルON時のみ） ---- -->
+<div id="doorPanel">
+  <div class="fp-head">
+    <span id="dpLabel">-</span>
+    <button id="dpClose" title="選択解除">✕</button>
+  </div>
+  <div class="fp-row">
+    <select id="dpType"></select>
+  </div>
+  <div class="fp-row fp-dims">
+    <label>幅<input type="number" id="dpWidth" step="0.05" min="0.05"></label>
+    <label>高さ<input type="number" id="dpHeight" step="0.05" min="0.05"></label>
+    <label id="dpSillLabel">シル高<input type="number" id="dpSill" step="0.05" min="0"></label>
+  </div>
+  <div id="dpHandArea"></div>
+  <div class="fp-row">
+    <button id="dpReset">この項目をリセット</button>
+  </div>
+</div>
+<div id="doorBar">
+  <span id="dbCount"></span>
+  <button id="dbExportOpenings">⬇ openings.json</button>
+  <button id="dbExportDoors">⬇ interior-doors.json</button>
+  <button id="dbClearAll">編集をすべて取り消す</button>
 </div>
 
 <!-- ---- スポーン地点選択オーバーレイ ---- -->
@@ -330,6 +387,11 @@ let dragPlaneY = 0;
 const editRaycaster = new THREE.Raycaster();
 const editPointerNDC = new THREE.Vector2();
 let selectionHelper = null;
+// ---- 窓・ドアの配置編集（第2段階）の状態。家具編集と排他（同時にON にはしない） ----
+let doorEditMode = false;
+let selectedDoorWindowId = null;
+let draggingDoorWindow = false;
+let doorSelectionHelper = null;
 
 function ndcFromClient(clientX, clientY){
   const rect = renderer.domElement.getBoundingClientRect();
@@ -392,9 +454,12 @@ function moveSelectedFurnitureTo(clientX, clientY){
 function setEditMode(on){
   editMode = on;
   if(!on){ setSelectedFurniture(null); draggingFurniture=false; }
-  else if(!document.getElementById('chkFurniture').checked){
-    document.getElementById('chkFurniture').checked = true;
-    furnitureAll.visible = true;
+  else {
+    setDoorEditMode(false); // 家具編集と窓・ドア編集は排他
+    if(!document.getElementById('chkFurniture').checked){
+      document.getElementById('chkFurniture').checked = true;
+      furnitureAll.visible = true;
+    }
   }
   document.getElementById('editToggle').classList.toggle('active', editMode);
   document.getElementById('furniturePanel').style.display = (editMode && selectedFurnitureId) ? 'block' : 'none';
@@ -408,12 +473,21 @@ renderer.domElement.addEventListener('pointerdown', e=>{
   if(mode!=='orbit' && mode!=='top') return;
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   if(activePointers.size===2){
-    dragging = false; draggingFurniture = false; // 2本指になったら単指ドラッグは止める
+    dragging = false; draggingFurniture = false; draggingDoorWindow = false; // 2本指になったら単指ドラッグは止める
     const [p1,p2] = [...activePointers.values()];
     pinchDist = Math.hypot(p1.x-p2.x, p1.y-p2.y);
     return;
   }
-  if(mode==='top' && editMode){
+  if(mode==='top' && doorEditMode){
+    const id = pickDoorWindowAt(e.clientX, e.clientY);
+    selectDoorWindow(id);
+    if(id){
+      const sel = findDoorWindowBase(id);
+      dragPlaneY = sel.isExterior ? (sel.base.level===1 ? LEVELS.fl1 : LEVELS.fl2) : (sel.base.floor===1 ? LEVELS.fl1 : LEVELS.fl2);
+      draggingDoorWindow = true;
+      return; // 窓・ドアを選択した場合はカメラのパンを発生させない
+    }
+  } else if(mode==='top' && editMode){
     const id = pickFurnitureAt(e.clientX, e.clientY);
     setSelectedFurniture(id);
     if(id){
@@ -430,6 +504,7 @@ window.addEventListener('pointerup', e=>{
   if(activePointers.size<2) pinchDist = null;
   dragging=false;
   if(draggingFurniture){ draggingFurniture=false; saveFurnitureEdits(); }
+  if(draggingDoorWindow){ draggingDoorWindow=false; saveDoorWindowEdits(); }
   onWalkPointerUp(e);
 });
 window.addEventListener('pointermove', e=>{
@@ -443,6 +518,7 @@ window.addEventListener('pointermove', e=>{
     return;
   }
   if(draggingFurniture){ moveSelectedFurnitureTo(e.clientX, e.clientY); return; }
+  if(draggingDoorWindow){ moveSelectedDoorWindowTo(e.clientX, e.clientY); return; }
   if(!dragging) return;
   const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
   if(mode==='top'){
@@ -1164,11 +1240,56 @@ function archOpeningMesh({ orientation, alongFrom, alongTo, wallCoord, baseY, sp
   grp.add(mesh); grp.add(edges);
 }
 
-// ---- 室内ドア（確定：施主指摘の青丸位置） ----
-INTERIOR_DOORS.forEach(d=>{
+// ---- 窓・ドアの配置編集（第2段階）：diffだけをlocalStorageに保存する（家具編集と同じ考え方） ----
+// OPENINGS/INTERIOR_DOORS（生成データ）はこのセッションでは書き換えず、差分を
+// doorWindowEdits に持ち、effectiveOpening()/effectiveInteriorDoor() で重ねて描画する。
+const DOOR_WINDOW_EDITS_KEY = 'ryuka-door-window-edits-v1';
+let doorWindowEdits = {};
+try { doorWindowEdits = JSON.parse(localStorage.getItem(DOOR_WINDOW_EDITS_KEY) || '{}') || {}; } catch(e){ doorWindowEdits = {}; }
+function saveDoorWindowEdits(){ try{ localStorage.setItem(DOOR_WINDOW_EDITS_KEY, JSON.stringify(doorWindowEdits)); } catch(e){} }
+function cleanupHandFields(eff){
+  // typeを切り替えた際、旧operationのhingeSide/swingDir/slideDirが残っていても
+  // 現在のoperationに合わないものは無視する（addDoorLeafの分岐と矛盾しないように）
+  if(eff.operation==='swing'){ delete eff.slideDir; }
+  else if(eff.operation==='slide'){ delete eff.hingeSide; delete eff.swingDir; }
+  else { delete eff.hingeSide; delete eff.swingDir; delete eff.slideDir; }
+  return eff;
+}
+function effectiveOpening(item){ const e = doorWindowEdits[item.id]; return cleanupHandFields(e ? {...item, ...e} : {...item}); }
+function effectiveInteriorDoor(item){ const e = doorWindowEdits[item.id]; return cleanupHandFields(e ? {...item, ...e} : {...item}); }
+function findDoorWindowBase(id){
+  const o = OPENINGS.find(x=>x.id===id);
+  if(o) return { base:o, isExterior:true };
+  const d = INTERIOR_DOORS.find(x=>x.id===id);
+  if(d) return { base:d, isExterior:false };
+  return null;
+}
+// 壁線スライドの可動範囲。室内ドアはWALLS（重複統合済みの壁芯データ）、外部の窓・ドアは
+// footprints（求積図のゾーン区分）から、対応する壁の区間を求める（tests/validate_openings.pyと同じ考え方）
+function wallRangeForInteriorDoor(d){
+  for(const w of WALLS){
+    if(w.level!==d.floor || w.orientation!==d.orientation) continue;
+    if(d.orientation==='H' && Math.abs(w.z0-d.wallAt)<0.01) return [w.x0, w.x1];
+    if(d.orientation==='V' && Math.abs(w.x0-d.wallAt)<0.01) return [w.z0, w.z1];
+  }
+  return null;
+}
+function levelZRange(level){
+  const arr = level===2 ? [FLOOR2] : FLOOR1;
+  return [Math.min(...arr.map(f=>f.z0)), Math.max(...arr.map(f=>f.z1))];
+}
+function wallRangeForOpening(o){
+  if(o.face==='N' || o.face==='S') return [(o.level===2?FLOOR2:segAtX(o.lx)).x0, (o.level===2?FLOOR2:segAtX(o.lx)).x1];
+  return levelZRange(o.level); // E/W面はfootprintの厳密な壁単位までは分解していないため、階全体のz範囲でゆるく制約する
+}
+
+const doorWindowMeshes = new Map(); // id -> { holder, isExterior }
+function placeInteriorDoor(d){
   const baseY = d.floor===1 ? LEVELS.fl1 : LEVELS.fl2;
   const mats = d.floor===1 ? M1 : M2;
   const grp = d.floor===1 ? groups.doors1 : groups.doors2;
+  const holder = new THREE.Group();
+  holder.userData.doorWindowId = d.id;
   const thick = 0.06;
   let x0,x1,z0,z1;
   if(d.orientation==='H'){ // z一定の壁を横切る -> x方向に開口幅
@@ -1182,22 +1303,26 @@ INTERIOR_DOORS.forEach(d=>{
     const archRise = DOOR_WINDOW_CATALOG[d.type].archRise;
     archOpeningMesh({
       orientation: d.orientation, alongFrom: d.center-d.width/2, alongTo: d.center+d.width/2, wallCoord: d.wallAt,
-      baseY, springHeight: d.height-archRise, archRise, mat: mats.door, edgeMat: mats.doorEdge, grp,
+      baseY, springHeight: d.height-archRise, archRise, mat: mats.door, edgeMat: mats.doorEdge, grp: holder,
     });
   } else {
-    boxWire(x0, x1, baseY, baseY+d.height, z0, z1, mats.door, mats.doorEdge, grp, 3);
+    boxWire(x0, x1, baseY, baseY+d.height, z0, z1, mats.door, mats.doorEdge, holder, 3);
   }
   addDoorLeaf({
     orientation: d.orientation, alongFrom: d.center-d.width/2, alongTo: d.center+d.width/2, wallCoord: d.wallAt,
     baseY, height: d.height, hingeSide: d.hingeSide, swingDir: d.swingDir, slideDir: d.slideDir,
-    mat: mats.door, edgeMat: mats.doorEdge, grp,
+    mat: mats.door, edgeMat: mats.doorEdge, grp: holder,
   });
-});
-
-// ---- 開口部（確定） ----
-OPENINGS.forEach(o=>{
+  grp.add(holder);
+  doorWindowMeshes.set(d.id, { holder, isExterior:false });
+}
+function placeOpening(o){
   const baseFl = (o.level===2) ? LEVELS.fl2 : LEVELS.fl1;
   const y0 = baseFl + o.sill, y1 = y0 + o.h;
+  const mats = (o.level===2) ? M2 : M1;
+  const grp = (o.level===2) ? groups.openings2 : groups.openings1;
+  const holder = new THREE.Group();
+  holder.userData.doorWindowId = o.id;
   let x0,x1,z0,z1, orientation, alongFrom, alongTo, wallCoord, outSign;
   if(o.face==='N'){
     const seg = o.level===2 ? FLOOR2 : segAtX(o.lx);
@@ -1216,26 +1341,283 @@ OPENINGS.forEach(o=>{
     x0=wallX-0.03; x1=wallX+0.03; z0=o.lz; z1=o.lz+o.w;
     orientation='V'; alongFrom=o.lz; alongTo=o.lz+o.w; wallCoord=wallX; outSign=-1; // 西壁の外側は-x方向
   }
-  const mats = (o.level===2) ? M2 : M1;
-  const grp = (o.level===2) ? groups.openings2 : groups.openings1;
   const mat = (o.category==='door') ? mats.extDoor : mats.opening;
   if(o.category==='door' && o.operation==='open-arch'){
     const archRise = DOOR_WINDOW_CATALOG[o.type].archRise;
     archOpeningMesh({
       orientation, alongFrom, alongTo, wallCoord, baseY: y0, springHeight: o.h-archRise, archRise,
-      mat: mats.extDoor, edgeMat: mats.doorEdge, grp,
+      mat: mats.extDoor, edgeMat: mats.doorEdge, grp: holder,
     });
   } else {
-    boxWire(x0,x1,y0,y1,z0,z1, mat, null, grp, 3);
+    boxWire(x0,x1,y0,y1,z0,z1, mat, null, holder, 3);
   }
   if(o.category==='door'){
     addDoorLeaf({
       orientation, alongFrom, alongTo, wallCoord, baseY: baseFl, height: o.h, outSign,
       hingeSide: o.hingeSide, swingDir: o.swingDir, slideDir: o.slideDir,
-      mat: mats.extDoor, edgeMat: mats.doorEdge, grp,
+      mat: mats.extDoor, edgeMat: mats.doorEdge, grp: holder,
     });
   }
-});
+  grp.add(holder);
+  doorWindowMeshes.set(o.id, { holder, isExterior:true });
+}
+function removeDoorWindowMesh(id){
+  const entry = doorWindowMeshes.get(id);
+  if(!entry) return;
+  if(entry.holder.parent) entry.holder.parent.remove(entry.holder);
+  doorWindowMeshes.delete(id);
+}
+function rebuildDoorWindow(id, isExterior){
+  const sel = findDoorWindowBase(id);
+  if(!sel) return;
+  removeDoorWindowMesh(id);
+  if(isExterior) placeOpening(effectiveOpening(sel.base));
+  else placeInteriorDoor(effectiveInteriorDoor(sel.base));
+}
+INTERIOR_DOORS.forEach(d=> placeInteriorDoor(effectiveInteriorDoor(d)));
+OPENINGS.forEach(o=> placeOpening(effectiveOpening(o)));
+
+// ---- 窓・ドア編集：選択・壁線スライド ----
+function pickDoorWindowAt(clientX, clientY){
+  editRaycaster.setFromCamera(ndcFromClient(clientX, clientY), orthoCam);
+  const hits = editRaycaster.intersectObjects([openingsAll, doorsAll], true);
+  for(const hit of hits){
+    if(!isEffectivelyVisible(hit.object)) continue;
+    let obj = hit.object;
+    while(obj){
+      if(obj.userData && obj.userData.doorWindowId) return obj.userData.doorWindowId;
+      obj = obj.parent;
+    }
+  }
+  return null;
+}
+function selectDoorWindow(id){
+  selectedDoorWindowId = id;
+  if(doorSelectionHelper){ scene.remove(doorSelectionHelper); doorSelectionHelper = null; }
+  if(id){
+    const entry = doorWindowMeshes.get(id);
+    if(entry){
+      doorSelectionHelper = new THREE.BoxHelper(entry.holder, 0xffcf3a);
+      doorSelectionHelper.renderOrder = 10;
+      scene.add(doorSelectionHelper);
+    }
+  }
+  updateDoorPanel();
+}
+function moveSelectedDoorWindowTo(clientX, clientY){
+  if(!selectedDoorWindowId) return;
+  const sel = findDoorWindowBase(selectedDoorWindowId);
+  if(!sel) return;
+  const p = groundPointAt(clientX, clientY, dragPlaneY);
+  if(!p) return;
+  if(sel.isExterior){
+    const eff = effectiveOpening(sel.base);
+    const range = wallRangeForOpening(eff);
+    const alongIsX = (eff.face==='N' || eff.face==='S');
+    let along = alongIsX ? (p.x+CX) : (p.z+CZ);
+    const halfW = eff.w/2;
+    if(range) along = Math.min(Math.max(along, range[0]+halfW), range[1]-halfW);
+    const field = alongIsX ? 'lx' : 'lz';
+    doorWindowEdits[selectedDoorWindowId] = {...(doorWindowEdits[selectedDoorWindowId]||{}), [field]: round2(along-halfW)};
+  } else {
+    const eff = effectiveInteriorDoor(sel.base);
+    const range = wallRangeForInteriorDoor(eff);
+    const alongIsX = eff.orientation==='H';
+    let along = alongIsX ? (p.x+CX) : (p.z+CZ);
+    const halfW = eff.width/2;
+    if(range) along = Math.min(Math.max(along, range[0]+halfW), range[1]-halfW);
+    doorWindowEdits[selectedDoorWindowId] = {...(doorWindowEdits[selectedDoorWindowId]||{}), center: round2(along)};
+  }
+  rebuildDoorWindow(selectedDoorWindowId, sel.isExterior);
+  selectDoorWindow(selectedDoorWindowId);
+  updateDoorPanel();
+  updateDoorBar();
+}
+function setDoorEditMode(on){
+  doorEditMode = on;
+  if(!on){ selectDoorWindow(null); draggingDoorWindow=false; }
+  else {
+    setEditMode(false); // 家具編集と窓・ドア編集は排他
+    if(!document.getElementById('chkOpenings').checked){ document.getElementById('chkOpenings').checked=true; openingsAll.visible=true; }
+    if(!document.getElementById('chkDoors').checked){ document.getElementById('chkDoors').checked=true; doorsAll.visible=true; }
+  }
+  document.getElementById('doorEditToggle').classList.toggle('active', doorEditMode);
+  document.getElementById('doorPanel').style.display = (doorEditMode && selectedDoorWindowId) ? 'block' : 'none';
+  document.getElementById('doorEditHint').style.display = doorEditMode ? 'block' : 'none';
+  document.getElementById('doorBar').style.display = doorEditMode ? 'flex' : 'none';
+}
+
+// ---- 窓・ドア編集パネルの表示・操作 ----
+function doorFieldKey(logicalField, isExterior){
+  if(logicalField==='sill') return isExterior ? 'sill' : null;
+  if(isExterior) return logicalField==='width' ? 'w' : 'h';
+  return logicalField; // 室内ドアは width/height のまま
+}
+function renderHandControls(eff){
+  const area = document.getElementById('dpHandArea');
+  if(eff.operation==='swing'){
+    area.innerHTML = `
+      <div class="hand-label">蝶番側</div>
+      <div class="hand-row"><button data-hand="hingeSide" data-val="L" class="${eff.hingeSide==='L'?'active':''}">左（L）</button><button data-hand="hingeSide" data-val="R" class="${eff.hingeSide==='R'?'active':''}">右（R）</button></div>
+      <div class="hand-label">開く向き</div>
+      <div class="hand-row"><button data-hand="swingDir" data-val="in" class="${eff.swingDir==='in'?'active':''}">内開き</button><button data-hand="swingDir" data-val="out" class="${eff.swingDir==='out'?'active':''}">外開き</button></div>`;
+  } else if(eff.operation==='slide'){
+    area.innerHTML = `
+      <div class="hand-label">引き込み方向</div>
+      <div class="hand-row"><button data-hand="slideDir" data-val="L" class="${eff.slideDir==='L'?'active':''}">左（L）</button><button data-hand="slideDir" data-val="R" class="${eff.slideDir==='R'?'active':''}">右（R）</button></div>`;
+  } else if(eff.category==='door'){
+    area.innerHTML = `<div class="hand-label">この種類は扉本体がありません（開口のみ）</div>`;
+  } else {
+    area.innerHTML = ''; // 窓には開き勝手の概念がない
+  }
+  area.querySelectorAll('button[data-hand]').forEach(btn=>{
+    btn.onclick = ()=> setHand(btn.dataset.hand, btn.dataset.val);
+  });
+}
+function updateDoorPanel(){
+  const panel = document.getElementById('doorPanel');
+  if(!doorEditMode || !selectedDoorWindowId){ panel.style.display = 'none'; return; }
+  const sel = findDoorWindowBase(selectedDoorWindowId);
+  if(!sel){ panel.style.display = 'none'; return; }
+  const eff = sel.isExterior ? effectiveOpening(sel.base) : effectiveInteriorDoor(sel.base);
+  document.getElementById('dpLabel').textContent = eff.label || eff.type;
+  const typeSel = document.getElementById('dpType');
+  typeSel.innerHTML = Object.entries(DOOR_WINDOW_CATALOG).filter(([k,p])=>p.category===eff.category)
+    .map(([k,p])=>`<option value="${k}"${k===eff.type?' selected':''}>${p.label}</option>`).join('');
+  document.getElementById('dpWidth').value = sel.isExterior ? eff.w : eff.width;
+  document.getElementById('dpHeight').value = sel.isExterior ? eff.h : eff.height;
+  document.getElementById('dpSillLabel').style.display = sel.isExterior ? '' : 'none';
+  if(sel.isExterior) document.getElementById('dpSill').value = eff.sill;
+  renderHandControls(eff);
+  panel.style.display = 'block';
+}
+function updateDoorBar(){
+  const n = Object.keys(doorWindowEdits).length;
+  document.getElementById('dbCount').textContent = n>0 ? `編集済み: ${n}件` : '編集なし';
+}
+function applyDoorTypeChange(newType){
+  if(!selectedDoorWindowId) return;
+  const sel = findDoorWindowBase(selectedDoorWindowId);
+  if(!sel) return;
+  const profile = DOOR_WINDOW_CATALOG[newType];
+  const patch = { type: newType, operation: profile.operation };
+  if(sel.isExterior){ patch.w = profile.width; patch.h = profile.height; patch.sill = profile.sill; }
+  else { patch.width = profile.width; patch.height = profile.height; }
+  if(profile.operation==='swing'){ patch.hingeSide = 'R'; patch.swingDir = 'in'; }
+  else if(profile.operation==='slide'){ patch.slideDir = 'R'; }
+  doorWindowEdits[selectedDoorWindowId] = {...(doorWindowEdits[selectedDoorWindowId]||{}), ...patch};
+  saveDoorWindowEdits();
+  rebuildDoorWindow(selectedDoorWindowId, sel.isExterior);
+  selectDoorWindow(selectedDoorWindowId);
+  updateDoorPanel();
+  updateDoorBar();
+}
+function applyDoorDimEdit(logicalField, value){
+  if(!selectedDoorWindowId) return;
+  const v = parseFloat(value);
+  const okRange = logicalField==='sill' ? v>=0 : v>0;
+  if(!okRange || Number.isNaN(v)) return;
+  const sel = findDoorWindowBase(selectedDoorWindowId);
+  if(!sel) return;
+  const key = doorFieldKey(logicalField, sel.isExterior);
+  if(!key) return;
+  doorWindowEdits[selectedDoorWindowId] = {...(doorWindowEdits[selectedDoorWindowId]||{}), [key]: round2(v)};
+  saveDoorWindowEdits();
+  rebuildDoorWindow(selectedDoorWindowId, sel.isExterior);
+  selectDoorWindow(selectedDoorWindowId);
+  updateDoorBar();
+}
+function setHand(field, value){
+  if(!selectedDoorWindowId) return;
+  doorWindowEdits[selectedDoorWindowId] = {...(doorWindowEdits[selectedDoorWindowId]||{}), [field]: value};
+  saveDoorWindowEdits();
+  const sel = findDoorWindowBase(selectedDoorWindowId);
+  rebuildDoorWindow(selectedDoorWindowId, sel.isExterior);
+  selectDoorWindow(selectedDoorWindowId);
+  updateDoorBar();
+}
+function resetSelectedDoorWindow(){
+  if(!selectedDoorWindowId) return;
+  const sel = findDoorWindowBase(selectedDoorWindowId);
+  delete doorWindowEdits[selectedDoorWindowId];
+  saveDoorWindowEdits();
+  if(sel) rebuildDoorWindow(selectedDoorWindowId, sel.isExterior);
+  selectDoorWindow(selectedDoorWindowId);
+  updateDoorPanel();
+  updateDoorBar();
+}
+function downloadJSON(payload, filename){
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportOpeningsJSON(){
+  const items = OPENINGS.map(base=>{
+    const eff = effectiveOpening(base);
+    const cat = DOOR_WINDOW_CATALOG[eff.type];
+    const out = { id: base.id, type: eff.type, face: base.face };
+    out.offset = round2((base.face==='N'||base.face==='S') ? eff.lx : eff.lz);
+    if(base.x !== undefined) out.wallX = base.x;
+    out.level = base.level;
+    if(round2(eff.w) !== round2(cat.width)) out.widthOverride = round2(eff.w);
+    if(round2(eff.h) !== round2(cat.height)) out.heightOverride = round2(eff.h);
+    if(round2(eff.sill) !== round2(cat.sill)) out.sillOverride = round2(eff.sill);
+    if(eff.hingeSide) out.hingeSide = eff.hingeSide;
+    if(eff.swingDir) out.swingDir = eff.swingDir;
+    if(eff.slideDir) out.slideDir = eff.slideDir;
+    out.label = base.label;
+    out.status = base.status;
+    return out;
+  });
+  downloadJSON({
+    schemaVersion:'1.0.0', units:'m',
+    note: '外部の窓・ドアの配置インスタンス。type は data/door-catalog.json / data/window-catalog.json の type を参照する。face(N/S/E/W)+offset で位置を表す（offsetはその面に沿った建物ローカル座標の絶対値）。hingeSide/swingDirはドア(category:door)のみ意味を持つ。ブラウザの配置編集機能から書き出したファイル。data/openings.json に上書きしてコミットすること。',
+    items,
+  }, 'openings.json');
+}
+function exportInteriorDoorsJSON(){
+  const items = INTERIOR_DOORS.map(base=>{
+    const eff = effectiveInteriorDoor(base);
+    const cat = DOOR_WINDOW_CATALOG[eff.type];
+    const out = { id: base.id, type: eff.type, wallAt: base.wallAt, orientation: base.orientation, center: round2(eff.center), floor: base.floor };
+    if(round2(eff.width) !== round2(cat.width)) out.widthOverride = round2(eff.width);
+    if(round2(eff.height) !== round2(cat.height)) out.heightOverride = round2(eff.height);
+    if(eff.hingeSide) out.hingeSide = eff.hingeSide;
+    if(eff.swingDir) out.swingDir = eff.swingDir;
+    if(eff.slideDir) out.slideDir = eff.slideDir;
+    out.label = base.label;
+    out.status = base.status;
+    return out;
+  });
+  downloadJSON({
+    schemaVersion:'1.0.0', units:'m',
+    note: '室内ドアの配置インスタンス。type は data/door-catalog.json の type を参照する。wallAt+orientation+center で位置を表す（wallAtは壁の固定座標、centerはその壁沿いの位置）。ブラウザの配置編集機能から書き出したファイル。data/interior-doors.json に上書きしてコミットすること。',
+    items,
+  }, 'interior-doors.json');
+}
+document.getElementById('dpClose').onclick = ()=> selectDoorWindow(null);
+document.getElementById('dpType').onchange = e=> applyDoorTypeChange(e.target.value);
+document.getElementById('dpWidth').onchange = e=> applyDoorDimEdit('width', e.target.value);
+document.getElementById('dpHeight').onchange = e=> applyDoorDimEdit('height', e.target.value);
+document.getElementById('dpSill').onchange = e=> applyDoorDimEdit('sill', e.target.value);
+document.getElementById('dpReset').onclick = resetSelectedDoorWindow;
+document.getElementById('dbExportOpenings').onclick = exportOpeningsJSON;
+document.getElementById('dbExportDoors').onclick = exportInteriorDoorsJSON;
+document.getElementById('dbClearAll').onclick = ()=>{
+  if(Object.keys(doorWindowEdits).length===0) return;
+  if(!confirm('窓・ドアの編集内容をすべて取り消し、元の配置に戻します。よろしいですか？')) return;
+  const ids = Object.keys(doorWindowEdits);
+  doorWindowEdits = {};
+  saveDoorWindowEdits();
+  ids.forEach(id=>{ const sel=findDoorWindowBase(id); if(sel) rebuildDoorWindow(id, sel.isExterior); });
+  selectDoorWindow(null);
+  updateDoorBar();
+};
+document.getElementById('doorEditToggle').onclick = ()=> setDoorEditMode(!doorEditMode);
+updateDoorBar();
 
 // ---- 地面グリッド ----
 const grid = new THREE.GridHelper(36.4, 40, 0x9aa4ab, 0xc7ced3); // 1マス=910mm(建築モジュール)
@@ -1335,7 +1717,9 @@ function applyModeChrome(m){
   document.getElementById('moveHint').style.display = (m==='walk' && !isTouchDevice) ? 'block' : 'none';
   document.getElementById('joyBase').style.display = (m==='walk' && isTouchDevice) ? 'block' : 'none';
   document.getElementById('editToggle').style.display = m==='top' ? 'inline-block' : 'none';
+  document.getElementById('doorEditToggle').style.display = m==='top' ? 'inline-block' : 'none';
   if(m!=='top' && editMode) setEditMode(false); // 家具編集は平面図モード限定
+  if(m!=='top' && doorEditMode) setDoorEditMode(false); // 窓・ドア編集も平面図モード限定
 }
 
 function openSpawnOverlay(){ document.getElementById('spawnOverlay').style.display = 'flex'; }
@@ -1469,6 +1853,7 @@ function animate(){
   if(mode==='walk'){ updateWalkMovement(dt); activeCam = walkCamera; }
   else activeCam = (mode==='top') ? orthoCam : camera;
   if(selectionHelper) selectionHelper.update(); // ドラッグ中の選択枠を追従させる
+  if(doorSelectionHelper) doorSelectionHelper.update();
   renderer.render(scene, activeCam);
   updateLabels(activeCam);
 }

@@ -35,49 +35,49 @@ const DOOR_WINDOW_CATALOG = {
 };
 
 const OPENINGS = [
-  { id:'op-001', type:'door-entrance', category:'door', operation:'swing', face:'N', lx:0.91, w:0.95, h:2.33, sill:0, level:1, hingeSide:'R', swingDir:'out', label:'民泊 玄関ドア' }, // 訂正(2026-08-13)：施主指摘の青線(中心1.35m)に合わせ、トイレ|玄関の壁(x=0.910)起点に修正
-  { id:'op-002', type:'window-waist', category:'window', operation:'openable', face:'N', lx:3.5, w:1.76, h:1.03, sill:1.33, level:1, label:'民泊 北窓' }, // 訂正(2026-08-13)：施主指摘の青線位置(中心4.381)に合わせ左へ移動
-  { id:'op-003', type:'door-entrance', category:'door', operation:'swing', face:'N', lx:9.535, w:0.95, h:2.33, sill:0, level:1, hingeSide:'R', swingDir:'out', label:'自宅 玄関ドア' }, // 訂正(2026-08-13)：施主指摘により自宅玄関・ホール(x:9.100-10.920)の中心(10.010)に配置
-  { id:'op-004', type:'window-fixed-small', category:'window', operation:'fixed', face:'N', lx:11.048, w:0.71, h:1, sill:1, level:1, label:'土間・シューズクローク フィックス窓' }, // 新規(2026-08-13)：施主指摘の青線位置。A2区画(北壁z=0.455)に該当。高さ・シル高は仮値のため要確認
-  { id:'op-005', type:'window-fixed-high', category:'window', operation:'fixed', face:'N', lx:13.699, w:1.716, h:0.45, sill:1.97, level:2, label:'2階 階段北窓' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。階段(2F)モジュール(13.651-15.470)内に収まる
-  { id:'op-006', type:'window-waist', category:'window', operation:'openable', face:'S', lx:3.585, w:1.77, h:1.03, sill:1.22, level:1, label:'民泊 腰窓' },
-  { id:'op-007', type:'window-fixed-small', category:'window', operation:'fixed', face:'S', lx:5.88, w:0.7, h:0.56, sill:1.69, level:1, label:'民泊 小窓' },
-  { id:'op-008', type:'window-waist', category:'window', operation:'openable', face:'S', lx:9.2, w:1.8, h:1.03, sill:1.25, level:1, label:'自宅 腰窓' },
-  { id:'op-009', type:'window-small', category:'window', operation:'openable', face:'S', lx:10.15, w:0.7, h:0.96, sill:1.29, level:1, label:'自宅 小窓（西）' },
-  { id:'op-010', type:'window-full', category:'window', operation:'openable', face:'S', lx:11.665, w:1.73, h:2.26, sill:0.19, level:1, label:'自宅LDK 掃き出し窓' },
-  { id:'op-011', type:'window-small', category:'window', operation:'openable', face:'S', lx:14.62, w:0.7, h:0.96, sill:1.29, level:1, label:'自宅 小窓（東）' },
-  { id:'op-012', type:'window-waist', category:'window', operation:'openable', face:'S', lx:13.681, w:1.568, h:0.96, sill:1.32, level:2, label:'2階 南窓①(子供部屋1)' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。子供部屋1の右下に位置
-  { id:'op-013', type:'window-waist', category:'window', operation:'openable', face:'S', lx:16.375, w:1.771, h:0.96, sill:1.32, level:2, label:'2階 南窓②(夫婦寝室)' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。夫婦寝室南側の中央
-  { id:'op-014', type:'window-waist', category:'window', operation:'openable', face:'E', lz:0.923, w:1.623, h:0.97, sill:1.28, level:2, label:'2階 東窓①(子供部屋2)' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ上へ移動。子供部屋2東側の中央付近
-  { id:'op-015', type:'window-waist', category:'window', operation:'openable', face:'E', lz:3.745, w:1.457, h:0.97, sill:1.28, level:2, label:'2階 東窓②(夫婦寝室)' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ上へ移動。夫婦寝室東側の中央付近
-  { id:'op-016', type:'window-fixed-high', category:'window', operation:'fixed', face:'E', lz:3.065, w:0.81, h:0.36, sill:2.23, level:1, label:'1階 東の細長窓' },
-  { id:'op-017', type:'door-louver', category:'door', operation:'swing', face:'E', lz:7, w:0.85, h:2.33, sill:0, level:1, hingeSide:'R', swingDir:'out', label:'南土間 東のルーバー戸' },
-  { id:'op-018', type:'window-fixed-small', category:'window', operation:'fixed', face:'W', lz:1.95, x:12.74, w:0.65, h:0.6, sill:1.86, level:2, label:'2階 廊下西窓' }, // 訂正(2026-08-13)：はみ出し指摘により廊下(2F)の中心(z=2.275)を基準に、両側0.38m前後の余裕を持たせて再配置
-  { id:'op-019', type:'window-fixed-high', category:'window', operation:'fixed', face:'W', lz:3.2, w:0.85, h:0.35, sill:2, level:1, label:'洗面脱衣室 天井近くフィックス窓' }, // 訂正(2026-08-13)：施主指摘により旧「平屋 西の細長窓」(lz:3.895)を削除し、新規に天井近くの位置(sill=2.0)へ細長いフィックス窓を配置
+  { id:'op-001', type:'door-entrance', category:'door', operation:'swing', face:'N', lx:0.91, w:0.95, h:2.33, sill:0, level:1, hingeSide:'R', swingDir:'out', label:'民泊 玄関ドア', status:'verified' }, // 訂正(2026-08-13)：施主指摘の青線(中心1.35m)に合わせ、トイレ|玄関の壁(x=0.910)起点に修正
+  { id:'op-002', type:'window-waist', category:'window', operation:'openable', face:'N', lx:3.5, w:1.76, h:1.03, sill:1.33, level:1, label:'民泊 北窓', status:'verified' }, // 訂正(2026-08-13)：施主指摘の青線位置(中心4.381)に合わせ左へ移動
+  { id:'op-003', type:'door-entrance', category:'door', operation:'swing', face:'N', lx:9.535, w:0.95, h:2.33, sill:0, level:1, hingeSide:'R', swingDir:'out', label:'自宅 玄関ドア', status:'verified' }, // 訂正(2026-08-13)：施主指摘により自宅玄関・ホール(x:9.100-10.920)の中心(10.010)に配置
+  { id:'op-004', type:'window-fixed-small', category:'window', operation:'fixed', face:'N', lx:11.048, w:0.71, h:1, sill:1, level:1, label:'土間・シューズクローク フィックス窓', status:'estimated' }, // 新規(2026-08-13)：施主指摘の青線位置。A2区画(北壁z=0.455)に該当。高さ・シル高は仮値のため要確認
+  { id:'op-005', type:'window-fixed-high', category:'window', operation:'fixed', face:'N', lx:13.699, w:1.716, h:0.45, sill:1.97, level:2, label:'2階 階段北窓', status:'verified' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。階段(2F)モジュール(13.651-15.470)内に収まる
+  { id:'op-006', type:'window-waist', category:'window', operation:'openable', face:'S', lx:3.585, w:1.77, h:1.03, sill:1.22, level:1, label:'民泊 腰窓', status:'verified' },
+  { id:'op-007', type:'window-fixed-small', category:'window', operation:'fixed', face:'S', lx:5.88, w:0.7, h:0.56, sill:1.69, level:1, label:'民泊 小窓', status:'verified' },
+  { id:'op-008', type:'window-waist', category:'window', operation:'openable', face:'S', lx:9.2, w:1.8, h:1.03, sill:1.25, level:1, label:'自宅 腰窓', status:'verified' },
+  { id:'op-009', type:'window-small', category:'window', operation:'openable', face:'S', lx:10.15, w:0.7, h:0.96, sill:1.29, level:1, label:'自宅 小窓（西）', status:'verified' },
+  { id:'op-010', type:'window-full', category:'window', operation:'openable', face:'S', lx:11.665, w:1.73, h:2.26, sill:0.19, level:1, label:'自宅LDK 掃き出し窓', status:'verified' },
+  { id:'op-011', type:'window-small', category:'window', operation:'openable', face:'S', lx:14.62, w:0.7, h:0.96, sill:1.29, level:1, label:'自宅 小窓（東）', status:'verified' },
+  { id:'op-012', type:'window-waist', category:'window', operation:'openable', face:'S', lx:13.681, w:1.568, h:0.96, sill:1.32, level:2, label:'2階 南窓①(子供部屋1)', status:'verified' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。子供部屋1の右下に位置
+  { id:'op-013', type:'window-waist', category:'window', operation:'openable', face:'S', lx:16.375, w:1.771, h:0.96, sill:1.32, level:2, label:'2階 南窓②(夫婦寝室)', status:'verified' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ左へ移動。夫婦寝室南側の中央
+  { id:'op-014', type:'window-waist', category:'window', operation:'openable', face:'E', lz:0.923, w:1.623, h:0.97, sill:1.28, level:2, label:'2階 東窓①(子供部屋2)', status:'verified' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ上へ移動。子供部屋2東側の中央付近
+  { id:'op-015', type:'window-waist', category:'window', operation:'openable', face:'E', lz:3.745, w:1.457, h:0.97, sill:1.28, level:2, label:'2階 東窓②(夫婦寝室)', status:'verified' }, // 訂正(2026-08-13)：施主指摘の青線位置に合わせ上へ移動。夫婦寝室東側の中央付近
+  { id:'op-016', type:'window-fixed-high', category:'window', operation:'fixed', face:'E', lz:3.065, w:0.81, h:0.36, sill:2.23, level:1, label:'1階 東の細長窓', status:'verified' },
+  { id:'op-017', type:'door-louver', category:'door', operation:'swing', face:'E', lz:7, w:0.85, h:2.33, sill:0, level:1, hingeSide:'R', swingDir:'out', label:'南土間 東のルーバー戸', status:'verified' },
+  { id:'op-018', type:'window-fixed-small', category:'window', operation:'fixed', face:'W', lz:1.95, x:12.74, w:0.65, h:0.6, sill:1.86, level:2, label:'2階 廊下西窓', status:'verified' }, // 訂正(2026-08-13)：はみ出し指摘により廊下(2F)の中心(z=2.275)を基準に、両側0.38m前後の余裕を持たせて再配置
+  { id:'op-019', type:'window-fixed-high', category:'window', operation:'fixed', face:'W', lz:3.2, w:0.85, h:0.35, sill:2, level:1, label:'洗面脱衣室 天井近くフィックス窓', status:'verified' }, // 訂正(2026-08-13)：施主指摘により旧「平屋 西の細長窓」(lz:3.895)を削除し、新規に天井近くの位置(sill=2.0)へ細長いフィックス窓を配置
 ];
 
 const SOUND_WALL = { x:7.28, z0:0.91, z1:6.37, level:1, topY:LEVELS.eaveLow }; // 西端から7,280mm(910mm×8マス)。施主指摘により修正（2026-08-13）
 
 const INTERIOR_DOORS = [
-  { id:'door-001', type:'door-hinged', operation:'swing', label:'トイレ⟷玄関', wallAt:0.91, orientation:'V', center:2.33, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'out' },
-  { id:'door-002', type:'door-hinged', operation:'swing', label:'玄関⟷洗面脱衣室', wallAt:2.73, orientation:'H', center:1.355, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-003', type:'door-hinged', operation:'swing', label:'洗面脱衣室⟷UB', wallAt:4.55, orientation:'H', center:1.371, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-004', type:'door-hinged', operation:'swing', label:'玄関⟷LDK張り出し', wallAt:2.73, orientation:'H', center:2.274, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-005', type:'door-hinged', operation:'swing', label:'玄関⟷洋室', wallAt:2.73, orientation:'V', center:2.329, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-006', type:'door-hinged-wide', operation:'swing', label:'ヌック⟷LDK', wallAt:2.73, orientation:'H', center:8.218, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-007', type:'door-hinged-wide', operation:'swing', label:'自宅玄関・ホール⟷LDK', wallAt:2.73, orientation:'H', center:9.555, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-008', type:'door-hinged-wide', operation:'swing', label:'自宅玄関・ホール⟷土間・シューズクローク', wallAt:10.92, orientation:'V', center:0.91, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-009', type:'door-hinged-wide', operation:'swing', label:'土間・シューズクローク⟷LDK', wallAt:2.275, orientation:'H', center:13.195, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-010', type:'door-hinged-wide', operation:'swing', label:'LDK(キッチン部)⟷廊下+収納', wallAt:15.471, orientation:'V', center:2.275, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-011', type:'door-hinged-wide', operation:'swing', label:'ファミリークローク⟷廊下+収納', wallAt:1.82, orientation:'H', center:16, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-012', type:'door-hinged-wide', operation:'swing', label:'トイレ(東)⟷洗面(東)', wallAt:2.73, orientation:'H', center:17.746, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'out' },
-  { id:'door-013', type:'door-hinged-wide', operation:'swing', label:'廊下+収納⟷脱衣室', wallAt:3.64, orientation:'H', center:16.836, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-014', type:'door-hinged-wide', operation:'swing', label:'脱衣室⟷UB(東)', wallAt:17.291, orientation:'V', center:4.584, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-015', type:'door-hinged-wide', operation:'swing', label:'脱衣室⟷南土間', wallAt:6.37, orientation:'H', center:16.836, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in' },
-  { id:'door-016', type:'door-hinged-wide', operation:'swing', label:'トイレ(2F)⟷廊下(2F)', wallAt:1.82, orientation:'H', center:13.195, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'out' },
-  { id:'door-017', type:'door-hinged-wide', operation:'swing', label:'廊下(2F)⟷子供部屋1', wallAt:2.73, orientation:'H', center:15.015, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'in' },
-  { id:'door-018', type:'door-hinged-wide', operation:'swing', label:'廊下(2F)⟷子供部屋2', wallAt:16.38, orientation:'V', center:2.275, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'in' },
-  { id:'door-019', type:'door-hinged-wide', operation:'swing', label:'廊下(2F)⟷夫婦寝室', wallAt:2.73, orientation:'H', center:15.925, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'in' },
+  { id:'door-001', type:'door-hinged', operation:'swing', label:'トイレ⟷玄関', wallAt:0.91, orientation:'V', center:2.33, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'out', status:'verified' },
+  { id:'door-002', type:'door-hinged', operation:'swing', label:'玄関⟷洗面脱衣室', wallAt:2.73, orientation:'H', center:1.355, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-003', type:'door-hinged', operation:'swing', label:'洗面脱衣室⟷UB', wallAt:4.55, orientation:'H', center:1.371, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-004', type:'door-hinged', operation:'swing', label:'玄関⟷LDK張り出し', wallAt:2.73, orientation:'H', center:2.274, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-005', type:'door-hinged', operation:'swing', label:'玄関⟷洋室', wallAt:2.73, orientation:'V', center:2.329, width:0.8, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-006', type:'door-hinged-wide', operation:'swing', label:'ヌック⟷LDK', wallAt:2.73, orientation:'H', center:8.218, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-007', type:'door-hinged-wide', operation:'swing', label:'自宅玄関・ホール⟷LDK', wallAt:2.73, orientation:'H', center:9.555, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-008', type:'door-hinged-wide', operation:'swing', label:'自宅玄関・ホール⟷土間・シューズクローク', wallAt:10.92, orientation:'V', center:0.91, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-009', type:'door-hinged-wide', operation:'swing', label:'土間・シューズクローク⟷LDK', wallAt:2.275, orientation:'H', center:13.195, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-010', type:'door-hinged-wide', operation:'swing', label:'LDK(キッチン部)⟷廊下+収納', wallAt:15.471, orientation:'V', center:2.275, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-011', type:'door-hinged-wide', operation:'swing', label:'ファミリークローク⟷廊下+収納', wallAt:1.82, orientation:'H', center:16, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-012', type:'door-hinged-wide', operation:'swing', label:'トイレ(東)⟷洗面(東)', wallAt:2.73, orientation:'H', center:17.746, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'out', status:'verified' },
+  { id:'door-013', type:'door-hinged-wide', operation:'swing', label:'廊下+収納⟷脱衣室', wallAt:3.64, orientation:'H', center:16.836, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-014', type:'door-hinged-wide', operation:'swing', label:'脱衣室⟷UB(東)', wallAt:17.291, orientation:'V', center:4.584, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-015', type:'door-hinged-wide', operation:'swing', label:'脱衣室⟷南土間', wallAt:6.37, orientation:'H', center:16.836, width:0.91, height:2, floor:1, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-016', type:'door-hinged-wide', operation:'swing', label:'トイレ(2F)⟷廊下(2F)', wallAt:1.82, orientation:'H', center:13.195, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'out', status:'verified' },
+  { id:'door-017', type:'door-hinged-wide', operation:'swing', label:'廊下(2F)⟷子供部屋1', wallAt:2.73, orientation:'H', center:15.015, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-018', type:'door-hinged-wide', operation:'swing', label:'廊下(2F)⟷子供部屋2', wallAt:16.38, orientation:'V', center:2.275, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'in', status:'verified' },
+  { id:'door-019', type:'door-hinged-wide', operation:'swing', label:'廊下(2F)⟷夫婦寝室', wallAt:2.73, orientation:'H', center:15.925, width:0.91, height:2, floor:2, hingeSide:'R', swingDir:'in', status:'verified' },
 ];
 
 const WALLS = [

@@ -163,3 +163,18 @@ CAD原本がないため、施主がマイホームクラウドの画面やこ�
 - `open`/`open-arch`は`hingeSide`/`swingDir`/`slideDir`を持たせない（`addDoorLeaf()`が扉本体を描かない既存の分岐をそのまま利用できた）。`tests/validate_openings.py`の「開き勝手必須」チェックもこの2種は除外するよう修正
 - `open-arch`専用に`archOpeningMesh()`を新設。天端が円弧になった厚みのない平板（door系マテリアルはside:DoubleSideのため厚みなしでも両面から見える）を`THREE.Shape`+`ShapeGeometry`で描画する。orientation別の回転（H=回転なし、V=`rotation.y=-90°`）はtoScene()の符号と合わせて事前に数式で導出し、一時的にテスト用ドアデータ（`data/interior-doors.json`に仮追加→確認後に削除）を使って俯瞰モードのスクリーンショットで実際に検証した
 - 既存19件の室内ドアをこれらの新しい方式に割り当てる作業（どのドアが実際は引き戸/開口/開口アーチなのか）は建具表が未入手のため未着手（[STATUS.md](STATUS.md)参照）
+
+### 2026-08-15：窓・ドアの配置（第2段階：Web UI編集）
+
+同じブランチ（`feature/opening-editor`）のまま、家具編集（第2段階）と同じ要領のWeb UI編集を実装した。家具と違い「間仕切り線上をスライドする形にしてほしい」というのが当初からの要望だったため、実装は以下の点で家具編集と異なる。
+
+- **自由な2D移動ではなく、壁線上の1次元スライドに制約する。** `wallRangeForInteriorDoor()`（室内ドア、`WALLS`の該当壁を参照）・`wallRangeForOpening()`（外部の窓・ドア、`footprints`の該当面を参照）で可動範囲を求め、ドラッグ中はその範囲にクランプする。ロジックは`tests/validate_openings.py`の壁突合せチェックと同じ考え方を流用した
+- **家具編集とは同時にONにできない（排他）。** 選択・ラベル用のRaycasterやポインターイベントを家具と共有しているため、同時に両方ONだとどちらを操作しているか曖昧になる
+- 種類（`type`）を切り替えると、幅/高さ/シル高は新しい型の標準値にリセットされ、開き勝手も新しい`operation`に応じたものに切り替わる（開き戸⇔引き戸で`hingeSide`/`swingDir`⇔`slideDir`が入れ替わる）。これは`cleanupHandFields()`で、現在の`operation`に合わない開き勝手フィールドをeffective計算の最後に取り除くことで実現した
+- データが`openings.json`/`interior-doors.json`の2ファイルに分かれているため、書き出しボタンも2つ用意した
+
+実装にあたり、家具編集（`furnitureAll`・`furnitureMeshes`・`furnitureEdits`等）のコードを詳しく読み込み、同じ設計（差分オブジェクト＋`effective*()`関数＋localStorage下書き＋書き出しボタン）を踏襲した。窓・ドアの描画は元々`INTERIOR_DOORS.forEach`/`OPENINGS.forEach`内で直接メッシュをグループに追加していたため、家具の`placeFurnitureItem()`と同じ「`holder`グループにまとめて`userData.doorWindowId`を持たせる」形に作り替え、選択・削除・再構築ができるようにした。
+
+副次的に、`scripts/build-web-data.mjs`の`buildOpenings()`/`buildInteriorDoors()`に`status`フィールドが含まれていなかった（家具の`buildFurnitureItems()`にはあるのに漏れていた）ことに気づき、書き出し機能の実装と同時に追加した（`status`は`openings.schema.json`/`interior-doors.schema.json`で必須のため、書き出したJSONが正本のスキーマを満たすために必要）。
+
+ブラウザでの実機確認（Playwright経由）で、家具編集との排他制御・選択・壁線ドラッグ・壁の範囲でのクランプ・種類切替・開き勝手変更・書き出したJSONの`tests/validate_openings.py`通過・リセット/一括リセットの一通りの動作を確認した。バーの編集件数表示がドラッグ直後に更新されない小さな不具合を見つけて修正した。

@@ -99,6 +99,12 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 - **開口（アーチ）の描画**：`interior-white-model.html`の`archOpeningMesh()`が、天端が円弧になった平板（厚みのない板、door系マテリアルは両面表示なので厚みなしでも見える）を描く。平面図（真上から）ではアーチかどうかは見た目に出ないため、俯瞰・内覧モードで確認すること
   - 現在の室内ドア19件はすべて開き戸として移行しており、`hingeSide`/`swingDir`は施工会社の建具表が未確認のため暫定値（[STATUS.md](STATUS.md)の未解決事項を参照）
 - `house.json`から2026-08-15に分離した（元は`openings`/`interiorDoors`という配列としてhouse.json内にあった）。理由は、家具編集の「書き出しボタンでファイルを上書き」という運用を安全に行うため。house.jsonに残したままだと、書き出しは`rooms`/`walls`/`roofs`等を含むファイル全体が対象になり、ブラウザ側が保持していない付帯情報を巻き込んで構造データを壊すリスクがある
+- **Web UI上での配置編集（第2段階、`interior-white-model.html`内に実装）**：平面図モードで「✎ 窓・ドア編集」ボタンをONにすると、窓・ドアのクリック/タップ選択→壁に沿ったドラッグでスライドができる。家具編集とは仕組みが異なる点が2つある
+  - **自由な2D移動ではなく、壁線上の1次元スライドに制約される。** 室内ドアは`WALLS`（重複統合済みの壁芯データ）、外部の窓・ドアは`footprints`（求積図のゾーン区分）から対応する壁の区間を求め、その範囲内にクランプする（`wallRangeForInteriorDoor()`/`wallRangeForOpening()`。ロジックは`tests/validate_openings.py`の壁突合せチェックと同じ考え方）。「別の壁・別の面へ移動」はドラッグでは扱わない
+  - **家具編集と同時にはONにできない（排他）。** `setDoorEditMode(true)`は`setEditMode(false)`を呼び、逆も同様
+  - パネルからは種類（`type`）の切替、幅/高さ/シル高の変更、開き勝手（開き戸は蝶番側+開く向き、引き戸は引き込み方向）の変更ができる。種類を切り替えると寸法は新しい型の標準値にリセットされ、`operation`が変われば開き勝手の項目も対応するものに切り替わる（例：開き戸→引き戸で`hingeSide`/`swingDir`は無視され`slideDir`が使われる）
+  - 編集内容は`OPENINGS`/`INTERIOR_DOORS`（生成データ、正本ではない）を直接書き換えず、`doorWindowEdits`という差分オブジェクトとして持ち、`effectiveOpening()`/`effectiveInteriorDoor()`で重ねて描画する。ブラウザの`localStorage`（キー`ryuka-door-window-edits-v1`）に自動保存される、あくまで作業中の下書きという位置づけは家具編集と同じ
+  - 「openings.json」「interior-doors.json」の2つの書き出しボタンで、それぞれ編集を反映した完全なJSONをダウンロードできる。データが2ファイルに分かれているため、家具のような単一の書き出しボタンにはしていない。**これらを`data/openings.json`・`data/interior-doors.json`に上書きしてコミットするのが、正本を更新する唯一の手段**
 
 ## 変更手順
 
@@ -129,6 +135,13 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 2. `data/furniture.json` の `items` に配置を追加・編集する。`room`は`house.json`の`rooms`のidを参照させると、`tests/validate_furniture.py`が部屋の外形と大きく外れていないか機械チェックしてくれる。`label`は上記「`label`の命名規則」に従うこと
 3. `python tests/validate_furniture.py` で検証する
 4. `node scripts/build-web-data.mjs` で再生成し、ブラウザで確認する
+
+### 窓・ドアの位置・種類・サイズを調整する（Web UI、推奨）
+
+1. ブラウザで平面図モードを開き、「✎ 窓・ドア編集」をONにする
+2. 窓・ドアをクリック/タップで選択→壁に沿ってドラッグでスライド（壁の外へは出せない）。パネルから種類切替・幅/高さ/シル高の変更・開き勝手の変更ができる（編集は自動的にlocalStorageへ下書き保存される）
+3. 決まったら「openings.json」「interior-doors.json」の両方（編集した方だけでよい）を書き出し、リポジトリの`data/openings.json`・`data/interior-doors.json`を上書きする
+4. `python tests/validate_openings.py` で検証し、`node scripts/build-web-data.mjs` で再生成してコミットする
 
 ### 窓・ドアの種類を追加する、または直接JSONを編集する
 

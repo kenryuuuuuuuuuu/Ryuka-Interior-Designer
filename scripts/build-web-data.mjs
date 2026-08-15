@@ -101,7 +101,7 @@ function buildOpenings() {
     if (o.hingeSide) parts.push(`hingeSide:${str(o.hingeSide)}`);
     if (o.swingDir) parts.push(`swingDir:${str(o.swingDir)}`);
     if (o.slideDir) parts.push(`slideDir:${str(o.slideDir)}`);
-    parts.push(`label:${str(o.label)}`);
+    parts.push(`label:${str(o.label)}`, `status:${str(o.status)}`);
     return withNote(`  { ${parts.join(", ")} },`, o.note);
   });
   return `const OPENINGS = [\n${rows.join("\n")}\n];`;
@@ -128,6 +128,7 @@ function buildInteriorDoors() {
     if (d.hingeSide) parts.push(`hingeSide:${str(d.hingeSide)}`);
     if (d.swingDir) parts.push(`swingDir:${str(d.swingDir)}`);
     if (d.slideDir) parts.push(`slideDir:${str(d.slideDir)}`);
+    parts.push(`status:${str(d.status)}`);
     return withNote(`  { ${parts.join(", ")} },`, d.note);
   });
   return `const INTERIOR_DOORS = [\n${rows.join("\n")}\n];`;
