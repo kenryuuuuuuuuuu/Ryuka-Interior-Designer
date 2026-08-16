@@ -17,6 +17,13 @@
   :root{
     --accent:#3a6ea5; --accent-dark:#2f5a87; --ink:#222b32; --sub:#6b7480;
     --panel-bg:rgba(255,255,255,.94); --line:#e4e7ea; --radius:14px;
+    /* iPhoneのノッチ/Dynamic Island・ホームインジケーターとUIが重ならないための余白。
+       viewport-fit=cover（<meta name="viewport">参照）と組み合わせて初めて実際の値が入る。
+       非対応環境（Android・PC等）では0pxになるので、常にこの変数を使っておけば安全 */
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
   }
   html,body{margin:0;padding:0;overflow:hidden;background:#dfe4e8;font-family:"Hiragino Sans","Noto Sans JP",sans-serif;
       -webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
@@ -24,9 +31,9 @@
   * { box-sizing:border-box; }
 
   /* ---- 左パネル ---- */
-  #ui{position:fixed;top:64px;left:12px;background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
+  #ui{position:fixed;top:calc(var(--safe-t) + 64px);left:calc(var(--safe-l) + 12px);background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
       padding:16px 18px;box-shadow:0 8px 28px rgba(20,30,40,.16);width:300px;font-size:13px;color:var(--ink);
-      max-height:calc(100vh - 84px);overflow-y:auto;transition:transform .18s ease,opacity .18s ease;}
+      max-height:calc(100vh - var(--safe-t) - var(--safe-b) - 84px);overflow-y:auto;transition:transform .18s ease,opacity .18s ease;}
   #ui h1{font-size:14.5px;margin:0 0 4px;font-weight:700;letter-spacing:.01em;}
   #ui .sub{font-size:11.5px;color:var(--sub);margin-bottom:10px;line-height:1.55;}
   #ui .section-title{font-size:11px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;
@@ -42,7 +49,7 @@
   #ui.hidden{transform:translateX(-8px);opacity:0;pointer-events:none;}
 
   /* ---- 上部バー ---- */
-  #topBar{position:fixed;top:12px;left:12px;right:12px;z-index:20;display:flex;align-items:center;
+  #topBar{position:fixed;top:calc(var(--safe-t) + 12px);left:calc(var(--safe-l) + 12px);right:calc(var(--safe-r) + 12px);z-index:20;display:flex;align-items:center;
       justify-content:space-between;gap:10px;pointer-events:none;}
   #topBar > *{pointer-events:auto;}
   #menuToggle{background:var(--accent);color:#fff;border:none;border-radius:10px;width:40px;height:40px;
@@ -61,7 +68,7 @@
   #floorToggle button:not(.active):hover{background:#eef1f4;}
   #floorToggle.disabled{opacity:.4;pointer-events:none;}
 
-  #tip{position:fixed;bottom:10px;left:12px;font-size:11px;color:#555;background:rgba(255,255,255,.85);
+  #tip{position:fixed;bottom:calc(var(--safe-b) + 10px);left:calc(var(--safe-l) + 12px);font-size:11px;color:#555;background:rgba(255,255,255,.85);
        padding:6px 10px;border-radius:6px;max-width:min(94vw,520px);}
   .labelDiv{position:absolute;color:#222;font-size:11px;background:rgba(255,255,255,.82);
             padding:1px 5px;border-radius:4px;white-space:nowrap;pointer-events:none;transform:translate(-50%,-50%);
@@ -71,23 +78,23 @@
       padding:1px 4px;border:1px solid rgba(255,255,255,.15);font-family:monospace;}
 
   /* ---- 内覧（一人称）モード ---- */
-  #walkHud{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:22;display:none;
+  #walkHud{position:fixed;top:calc(var(--safe-t) + 12px);left:50%;transform:translateX(-50%);z-index:22;display:none;
       align-items:center;gap:10px;background:rgba(20,26,32,.72);color:#fff;padding:8px 10px 8px 16px;
       border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.28);font-size:12.5px;backdrop-filter:blur(4px);}
-  #walkHud .room{font-weight:600;}
+  #walkHud .room{font-weight:600;white-space:nowrap;}
   #walkHud button{background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:8px;padding:7px 11px;
       font-size:12px;cursor:pointer;white-space:nowrap;}
   #walkHud button:hover{background:rgba(255,255,255,.24);}
   #crosshair{position:fixed;top:50%;left:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;
       background:rgba(255,255,255,.85);box-shadow:0 0 0 1.5px rgba(0,0,0,.35);z-index:21;display:none;pointer-events:none;}
-  #moveHint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:21;display:none;
+  #moveHint{position:fixed;bottom:calc(var(--safe-b) + 14px);left:50%;transform:translateX(-50%);z-index:21;display:none;
       background:rgba(20,26,32,.66);color:#fff;font-size:11.5px;padding:6px 12px;border-radius:8px;pointer-events:none;
       white-space:nowrap;}
-  #minimap{position:fixed;top:62px;right:12px;z-index:20;display:none;width:220px;height:140px;
+  #minimap{position:fixed;top:calc(var(--safe-t) + 62px);right:calc(var(--safe-r) + 12px);z-index:20;display:none;width:220px;height:140px;
       background:rgba(255,255,255,.92);border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,.22);
       cursor:pointer;}
 
-  #joyBase{position:fixed;left:26px;bottom:26px;width:104px;height:104px;border-radius:50%;
+  #joyBase{position:fixed;left:calc(var(--safe-l) + 26px);bottom:calc(var(--safe-b) + 26px);width:104px;height:104px;border-radius:50%;
       background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.5);z-index:21;display:none;
       touch-action:none;}
   #joyKnob{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
@@ -98,10 +105,10 @@
       font-size:12.5px;font-weight:600;color:#4a5158;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.18);
       display:none;white-space:nowrap;}
   #editToggle.active{background:var(--accent);color:#fff;}
-  #editHint{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:20;display:none;
+  #editHint{position:fixed;top:calc(var(--safe-t) + 60px);left:50%;transform:translateX(-50%);z-index:20;display:none;
       background:rgba(20,26,32,.7);color:#fff;font-size:11.5px;padding:6px 12px;border-radius:8px;
       pointer-events:none;white-space:nowrap;max-width:92vw;text-overflow:ellipsis;overflow:hidden;}
-  #furniturePanel{position:fixed;right:12px;bottom:12px;z-index:22;display:none;width:240px;
+  #furniturePanel{position:fixed;right:calc(var(--safe-r) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;width:240px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
       padding:14px 16px;box-shadow:0 8px 28px rgba(20,30,40,.2);font-size:12.5px;color:var(--ink);}
   #furniturePanel .fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
@@ -115,7 +122,7 @@
   .fp-dims{display:flex;gap:6px;}
   .fp-dims label{flex:1;font-size:10.5px;color:var(--sub);display:flex;flex-direction:column;gap:3px;}
   .fp-dims input{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:5px 6px;font-size:12px;}
-  #furnitureBar{position:fixed;left:12px;bottom:12px;z-index:22;display:none;align-items:center;gap:8px;
+  #furnitureBar{position:fixed;left:calc(var(--safe-l) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;align-items:center;gap:8px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:12px;padding:9px 12px;
       box-shadow:0 8px 24px rgba(20,30,40,.18);font-size:11.5px;color:var(--sub);flex-wrap:wrap;max-width:88vw;}
   #furnitureBar button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px;
@@ -127,10 +134,10 @@
       font-size:12.5px;font-weight:600;color:#4a5158;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.18);
       display:none;white-space:nowrap;}
   #doorEditToggle.active{background:var(--accent);color:#fff;}
-  #doorEditHint{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:20;display:none;
+  #doorEditHint{position:fixed;top:calc(var(--safe-t) + 60px);left:50%;transform:translateX(-50%);z-index:20;display:none;
       background:rgba(20,26,32,.7);color:#fff;font-size:11.5px;padding:6px 12px;border-radius:8px;
       pointer-events:none;white-space:nowrap;max-width:92vw;text-overflow:ellipsis;overflow:hidden;}
-  #doorPanel{position:fixed;right:12px;bottom:12px;z-index:22;display:none;width:240px;
+  #doorPanel{position:fixed;right:calc(var(--safe-r) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;width:240px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
       padding:14px 16px;box-shadow:0 8px 28px rgba(20,30,40,.2);font-size:12.5px;color:var(--ink);}
   #doorPanel .fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
@@ -144,7 +151,7 @@
   .hand-row button{flex:1;background:#f2f4f6;border:1.5px solid var(--line);border-radius:8px;padding:6px;
       font-size:11.5px;cursor:pointer;color:var(--ink);}
   .hand-row button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
-  #doorBar{position:fixed;left:12px;bottom:12px;z-index:22;display:none;align-items:center;gap:8px;
+  #doorBar{position:fixed;left:calc(var(--safe-l) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;align-items:center;gap:8px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:12px;padding:9px 12px;
       box-shadow:0 8px 24px rgba(20,30,40,.18);font-size:11.5px;color:var(--sub);flex-wrap:wrap;max-width:88vw;}
   #doorBar button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px;
@@ -152,7 +159,8 @@
   #doorBar #dbClearAll{background:#e2e5e8;color:#4a5158;}
 
   #spawnOverlay{position:fixed;inset:0;z-index:30;background:rgba(18,22,26,.55);display:none;
-      align-items:center;justify-content:center;padding:20px;}
+      align-items:center;justify-content:center;
+      padding:calc(var(--safe-t) + 20px) calc(var(--safe-r) + 20px) calc(var(--safe-b) + 20px) calc(var(--safe-l) + 20px);}
   #spawnCard{background:#fff;border-radius:18px;padding:26px 26px 22px;max-width:420px;width:100%;
       box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;}
   #spawnCard h2{margin:0 0 4px;font-size:16.5px;color:var(--ink);}
@@ -168,11 +176,28 @@
       text-decoration:underline;}
 
   @media (max-width:640px){
-    #ui{left:10px;right:10px;width:auto;top:auto;bottom:12px;max-height:52vh;}
-    #topBar{top:10px;left:10px;right:10px;}
+    #ui{left:calc(var(--safe-l) + 10px);right:calc(var(--safe-r) + 10px);width:auto;top:auto;bottom:calc(var(--safe-b) + 12px);max-height:52vh;}
+    /* 平面図モードでは#editToggle・#doorEditToggleも表示され、幅の狭い画面では
+       justify-content:space-betweenのまま折り返せず、右端のボタンが画面外に
+       はみ出して押せなくなっていた（ページ自体はスクロールしない設定のため、
+       はみ出した分は永久に届かない）。折り返しを許可して2行以上になっても
+       全ボタンに指が届くようにする */
+    #topBar{top:calc(var(--safe-t) + 10px);left:calc(var(--safe-l) + 10px);right:calc(var(--safe-r) + 10px);
+        flex-wrap:wrap;justify-content:flex-start;row-gap:8px;}
     #modeSwitch button{padding:8px 10px;font-size:11.5px;}
     #floorToggle button{padding:8px 9px;font-size:11.5px;}
+    #editToggle,#doorEditToggle{padding:8px 12px;font-size:11.5px;}
     #tip{display:none;}
+    /* 内覧モードのHUD（部屋名＋ボタン3つ）は、幅の狭い画面では1行に収まらず、
+       .roomがflexで極端に押しつぶされて1文字ずつ縦に折り返ってしまっていた。
+       折り返しを許可し、#topBar（同じ上端に表示されるモード切替ボタン）とも
+       高さで重ならないよう、#topBarの下（#minimapと同じ高さ）に位置をずらす */
+    #walkHud{top:calc(var(--safe-t) + 62px);flex-wrap:wrap;justify-content:center;
+        max-width:calc(100vw - var(--safe-l) - var(--safe-r) - 24px);row-gap:6px;padding:8px 12px;}
+    #walkHud button{padding:7px 9px;font-size:11px;}
+    /* ミニマップは#walkHud（折り返して複数行になりうる）と同じ右上に置くと隠れてしまうため、
+       スマホでは画面の空いている右下（バーチャルジョイスティックの反対側）へ移す */
+    #minimap{top:auto;right:calc(var(--safe-r) + 12px);bottom:calc(var(--safe-b) + 12px);width:150px;height:96px;}
   }
 </style>
 </head>

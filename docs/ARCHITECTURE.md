@@ -270,6 +270,15 @@ data/interior-doors.json（室内ドアの配置インスタンス）
 - `sw.js`はHTML/JSをネットワーク優先・キャッシュフォールバックで扱う。**`house.json`を変更してPagesに反映した後は、`sw.js`の`CACHE`定数（バージョン文字列）を更新すること。** 更新しないと、既にホーム画面に追加したユーザーの端末に古いキャッシュが残り続ける場合がある
 - `file://`で直接開いたときはService Workerを登録しない（`location.protocol.startsWith("http")`でガード）
 
+### iPhoneのノッチ・ホームインジケーターとUIの重なり対策（`--safe-t`等）
+
+`display:"standalone"`（PWA）＋`<meta name="viewport" content="...,viewport-fit=cover">`の組み合わせでは、Webページの描画領域がノッチ／Dynamic Island／ホームインジケーターの下（＝ステータスバーの裏）まで拡張される。そのため、`top:12px`のような固定オフセットだけで配置した要素は、実際にはステータスバーの背後に隠れて押せなくなる（2026-08-16、施主指摘：「メニューの表示が画面の上部に全て寄っていることで...メニュー全般が押せないようになっています」）。
+
+- `:root`に`--safe-t`/`--safe-r`/`--safe-b`/`--safe-l`という4つのCSS変数を定義し、それぞれ`env(safe-area-inset-top, 0px)`等を参照する。`viewport-fit=cover`のない環境（Android・PC等）やCSS環境変数非対応ブラウザでは自動的に`0px`にフォールバックするため、常にこれらの変数を使っておけば安全（Chromiumでの開発・検証時は常に`0px`になり実機のノッチ値は再現できないため、実際の見え方は最終的に実機のiPhoneで確認する必要がある）
+- 画面の四隅・上下端に固定配置されているUI（`#topBar`・`#ui`・`#walkHud`・`#minimap`・`#tip`・`#moveHint`・`#joyBase`・家具/窓ドア編集パネル・`#spawnOverlay`）はすべて、素の`12px`のようなオフセットを`calc(var(--safe-t) + 12px)`のような形に置き換えてある
+- あわせて、スマホ幅（`@media (max-width:640px)`）で見つかった2つの別の不具合も修正した。(1) 内覧モードのHUD（部屋名＋ボタン3つ）が1行に収まらず、部屋名のテキストが1文字ずつ縦に折り返っていた（`white-space:nowrap`を追加し、`flex-wrap:wrap`で折り返しを許可）。(2) 平面図モードの`#topBar`（`justify-content:space-between`で折り返さない設定）に「窓・ドア編集」ボタンまで並ぶと画面幅に収まらず、はみ出した分がページスクロール無効（`overflow:hidden`）のため物理的に押せなくなっていた（`flex-wrap:wrap`に変更し、はみ出す場合は2行目に折り返すようにした）
+- `#minimap`は、スマホでは`#walkHud`と同じ右上に置くと折り返した`#walkHud`と重なってしまうため、`@media`内で右下（バーチャルジョイスティックの反対側の空きスペース）へ移すオーバーライドを追加した
+
 ## 移行状況
 
 - HTML側の生成データ読み込みへの切り替え：完了（2026-08-14）
