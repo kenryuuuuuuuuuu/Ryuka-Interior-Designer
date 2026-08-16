@@ -3,7 +3,7 @@
   "$id": "https://ryuka.example/schemas/house.schema.json",
   "title": "Ryuka house digital twin",
   "type": "object",
-  "required": ["schemaVersion", "units", "coordinateSystem", "levels", "defaults", "footprints", "specialWalls", "roofs", "rooms", "walls"],
+  "required": ["schemaVersion", "units", "coordinateSystem", "levels", "defaults", "footprints", "specialWalls", "roofs", "rooms"],
   "properties": {
     "schemaVersion": { "const": "1.0.0" },
     "units": { "const": "m" },
@@ -24,6 +24,7 @@
     },
     "footprints": { "type": "array", "items": { "$ref": "#/$defs/rect" } },
     "specialWalls": { "type": "array", "items": { "type": "object", "required": ["id", "x", "z0", "z1", "level", "topY"], "properties": { "note": { "type": "string" } } } },
+    "guardWalls": { "type": "array", "items": { "$ref": "#/$defs/guardWall" } },
     "roofs": {
       "type": "array",
       "items": {
@@ -42,9 +43,9 @@
       }
     },
     "rooms": { "type": "array", "items": { "$ref": "#/$defs/room" } },
-    "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" } },
     "stairs": { "type": "array", "items": { "$ref": "#/$defs/stair" } }
   },
+  "$comment": "walls（内壁）は正本から廃止した。roomsの各部屋ポリゴンが辺を共有する区間から scripts/build-web-data.mjs が自動導出し、generated/interior-walls.json に書き出す（$defs/wall はそのファイルの形状の説明として残す）。詳細は docs/ARCHITECTURE.md「rooms / walls について」を参照",
   "$defs": {
     "rect": {
       "type": "object",
@@ -72,6 +73,17 @@
         "x0": { "type": "number" }, "x1": { "type": "number" }, "z0": { "type": "number" }, "z1": { "type": "number" },
         "orientation": { "enum": ["H", "V"] }, "status": { "enum": ["verified", "derived", "estimated"] },
         "sourceRooms": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "guardWall": {
+      "type": "object",
+      "required": ["id", "label", "level", "orientation", "at", "from", "to", "height", "status"],
+      "properties": {
+        "id": { "type": "string" }, "label": { "type": "string" }, "level": { "type": "integer", "minimum": 1 },
+        "orientation": { "enum": ["H", "V"] },
+        "at": { "type": "number" }, "from": { "type": "number" }, "to": { "type": "number" },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "status": { "enum": ["verified", "derived", "estimated"] }, "note": { "type": "string" }
       }
     },
     "stair": {

@@ -61,6 +61,10 @@ const OPENINGS = [
 
 const SOUND_WALL = { x:7.28, z0:0.91, z1:6.37, level:1, topY:LEVELS.eaveLow }; // 西端から7,280mm(910mm×8マス)。施主指摘により修正（2026-08-13）
 
+const GUARD_WALLS = [
+  { id:'guard-2f-01', label:'階段吹き抜け 腰壁', level:2, orientation:'H', at:1.82, from:13.651, to:14.561, height:1.5, status:'estimated' }, // 新規(2026-08-16)：施主指摘（俯瞰スクリーンショットに赤線で図示）により新設。room-2f-02（階段(2F)、stair.openingと同一形状の吹き抜け）の南辺(z=1.82)のうち、door-030（階段(2F)⟷廊下(2F)、全幅1.819m開放）で壁のない開口になっている区間の西側半分（x:13.651-14.561）に、床から1.5mの腰壁を追加。この区間は階段経路の廻り部分の真上にあたり、2F床面より大きく低い位置しかない（＝実際にはまだ2Fの床がない吹き抜け）ため、施主指摘の通りガードなしでは廊下から誤って落下しうる。東側半分（x:14.561-15.471、階段経路の最後の直進＝上端の着地部分の真上）は、実際に階段へ出入りする通路として腰壁を設けず開放したまま残した。壁の高さ・区間の境界は目分量の推測値（要施工確認）
+];
+
 const INTERIOR_DOORS = [
   { id:'door-001', type:'door-slide', category:'door', operation:'slide', label:'トイレ⟷玄関', orientation:'V', wallAt:0.91, center:2.33, width:0.8, height:2, floor:1, slideDir:'L', status:'verified' },
   { id:'door-002', type:'door-hinged', category:'door', operation:'swing', label:'玄関⟷洗面脱衣室', orientation:'H', wallAt:2.73, center:2.26, width:0.8, height:2, floor:1, hingeSide:'L', swingDir:'out', status:'verified' },
@@ -92,40 +96,45 @@ const INTERIOR_DOORS = [
   { id:'door-028', type:'door-open', category:'door', operation:'open', label:'夫婦寝室⟷書斎', orientation:'H', wallAt:3.64, center:17.75, width:2.73, height:2, floor:2, status:'estimated' },
   { id:'door-029', type:'door-open', category:'door', operation:'open', label:'LDK⟷階段', orientation:'H', wallAt:1.82, center:14.106, width:0.91, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：階段の実体表現にあたり新設。階段の直進部分（西側柱状部分）はLDKに向けて壁のない開口で開放されているリビング階段として配置。room-1f-10/room-1f-11の境界と一致させること
   { id:'door-030', type:'door-open', category:'door', operation:'open', label:'階段(2F)⟷廊下(2F)', orientation:'H', wallAt:1.82, center:14.5605, width:1.819, height:2, floor:2, status:'estimated' }, // 新規(2026-08-15)：階段の実体表現にあたり新設。2F階段室の全幅を廊下(2F)に向けて壁のない開口で開放。room-2f-02/room-2f-03の境界と一致させること
+  { id:'door-031', type:'door-open', category:'door', operation:'open', label:'廊下⟷洗面(東)', orientation:'V', wallAt:17.291, center:3.185, width:0.91, height:2, floor:1, status:'estimated' }, // 新規(2026-08-16)：施主指摘により追加（前回配置し忘れていた）。room-1f-13/room-1f-15の共有区間(z:2.73-3.64、幅0.91)全体を壁のない開口で開放
 ];
 
 const WALLS = [
-  { id:'wall-1f-001', level:1, x0:13.651, x1:19.11, z0:1.82, z1:1.82, orientation:'H' },
-  { id:'wall-1f-002', level:1, x0:10.92, x1:13.651, z0:2.275, z1:2.275, orientation:'H' },
-  { id:'wall-1f-003', level:1, x0:0, x1:2.73, z0:2.73, z1:2.73, orientation:'H' },
-  { id:'wall-1f-004', level:1, x0:7.28, x1:10.92, z0:2.73, z1:2.73, orientation:'H' },
-  { id:'wall-1f-005', level:1, x0:17.291, x1:19.11, z0:2.73, z1:2.73, orientation:'H' },
-  { id:'wall-1f-006', level:1, x0:15.471, x1:17.291, z0:3.64, z1:3.64, orientation:'H' },
-  { id:'wall-1f-007', level:1, x0:2.73, x1:7.28, z0:3.691, z1:3.691, orientation:'H' },
-  { id:'wall-1f-008', level:1, x0:17.291, x1:19.11, z0:4.095, z1:4.095, orientation:'H' },
-  { id:'wall-1f-009', level:1, x0:0, x1:1.82, z0:4.55, z1:4.55, orientation:'H' },
-  { id:'wall-1f-010', level:1, x0:16.38, x1:19.11, z0:6.37, z1:6.37, orientation:'H' },
-  { id:'wall-1f-011', level:1, x0:0.91, x1:0.91, z0:0.91, z1:2.73, orientation:'V' },
-  { id:'wall-1f-012', level:1, x0:1.82, x1:1.82, z0:2.73, z1:6.37, orientation:'V' },
-  { id:'wall-1f-013', level:1, x0:2.73, x1:2.73, z0:0.91, z1:3.691, orientation:'V' },
-  { id:'wall-1f-014', level:1, x0:10.92, x1:10.92, z0:0.455, z1:2.73, orientation:'V' },
-  { id:'wall-1f-015', level:1, x0:13.651, x1:13.651, z0:0, z1:2.275, orientation:'V' },
-  { id:'wall-1f-016', level:1, x0:15.471, x1:15.471, z0:0, z1:6.37, orientation:'V' },
-  { id:'wall-1f-017', level:1, x0:17.291, x1:17.291, z0:1.82, z1:6.37, orientation:'V' },
-  { id:'wall-1f-018', level:1, x0:12.451, x1:12.451, z0:0.455, z1:2.275, orientation:'V' },
-  { id:'wall-1f-019', level:1, x0:14.561, x1:15.471, z0:1.82, z1:1.82, orientation:'H' },
-  { id:'wall-1f-020', level:1, x0:16.381, x1:17.291, z0:2.73, z1:2.73, orientation:'H' },
-  { id:'wall-1f-021', level:1, x0:6.37, x1:6.37, z0:2.326, z1:3.691, orientation:'V' },
-  { id:'wall-1f-022', level:1, x0:0.91, x1:2.73, z0:1.82, z1:1.82, orientation:'H' },
-  { id:'wall-2f-001', level:2, x0:12.74, x1:16.38, z0:1.82, z1:1.82, orientation:'H' },
-  { id:'wall-2f-002', level:2, x0:12.74, x1:19.11, z0:2.73, z1:2.73, orientation:'H' },
-  { id:'wall-2f-003', level:2, x0:13.651, x1:13.651, z0:0, z1:1.82, orientation:'V' },
-  { id:'wall-2f-004', level:2, x0:15.47, x1:15.47, z0:0, z1:1.82, orientation:'V' },
-  { id:'wall-2f-005', level:2, x0:15.47, x1:15.47, z0:2.73, z1:6.37, orientation:'V' },
-  { id:'wall-2f-006', level:2, x0:16.38, x1:16.38, z0:1.82, z1:2.73, orientation:'V' },
-  { id:'wall-2f-007', level:2, x0:12.74, x1:14.56, z0:3.64, z1:3.64, orientation:'H' },
-  { id:'wall-2f-008', level:2, x0:16.38, x1:16.38, z0:0, z1:1.82, orientation:'V' },
-  { id:'wall-2f-009', level:2, x0:16.38, x1:19.11, z0:3.64, z1:3.64, orientation:'H' }
+  { id:'wall-1f-auto-001', level:1, x0:0.91, x1:0.91, z0:0.91, z1:2.73, orientation:'V' },
+  { id:'wall-1f-auto-002', level:1, x0:0, x1:2.73, z0:2.73, z1:2.73, orientation:'H' },
+  { id:'wall-1f-auto-003', level:1, x0:7.28, x1:10.92, z0:2.73, z1:2.73, orientation:'H' },
+  { id:'wall-1f-auto-004', level:1, x0:16.381, x1:19.11, z0:2.73, z1:2.73, orientation:'H' },
+  { id:'wall-1f-auto-005', level:1, x0:0.91, x1:2.73, z0:1.82, z1:1.82, orientation:'H' },
+  { id:'wall-1f-auto-006', level:1, x0:13.651, x1:19.11, z0:1.82, z1:1.82, orientation:'H' },
+  { id:'wall-1f-auto-007', level:1, x0:2.73, x1:2.73, z0:0.91, z1:3.691, orientation:'V' },
+  { id:'wall-1f-auto-008', level:1, x0:0, x1:1.82, z0:4.55, z1:4.55, orientation:'H' },
+  { id:'wall-1f-auto-009', level:1, x0:1.82, x1:1.82, z0:2.73, z1:6.37, orientation:'V' },
+  { id:'wall-1f-auto-010', level:1, x0:6.37, x1:7.28, z0:2.326, z1:2.326, orientation:'H' },
+  { id:'wall-1f-auto-011', level:1, x0:6.37, x1:6.37, z0:2.326, z1:3.691, orientation:'V' },
+  { id:'wall-1f-auto-012', level:1, x0:2.73, x1:7.28, z0:3.691, z1:3.691, orientation:'H' },
+  { id:'wall-1f-auto-013', level:1, x0:7.28, x1:7.28, z0:0.91, z1:6.37, orientation:'V' },
+  { id:'wall-1f-auto-014', level:1, x0:9.1, x1:9.1, z0:0.91, z1:2.73, orientation:'V' },
+  { id:'wall-1f-auto-015', level:1, x0:10.92, x1:10.92, z0:0.455, z1:2.73, orientation:'V' },
+  { id:'wall-1f-auto-016', level:1, x0:12.451, x1:12.451, z0:0.455, z1:2.275, orientation:'V' },
+  { id:'wall-1f-auto-017', level:1, x0:10.92, x1:13.651, z0:2.275, z1:2.275, orientation:'H' },
+  { id:'wall-1f-auto-018', level:1, x0:13.651, x1:13.651, z0:0, z1:2.275, orientation:'V' },
+  { id:'wall-1f-auto-019', level:1, x0:14.561, x1:15.471, z0:0.91, z1:0.91, orientation:'H' },
+  { id:'wall-1f-auto-020', level:1, x0:14.561, x1:14.561, z0:0.91, z1:1.82, orientation:'V' },
+  { id:'wall-1f-auto-021', level:1, x0:15.471, x1:15.471, z0:0, z1:6.37, orientation:'V' },
+  { id:'wall-1f-auto-022', level:1, x0:16.381, x1:16.381, z0:1.82, z1:2.73, orientation:'V' },
+  { id:'wall-1f-auto-023', level:1, x0:17.291, x1:17.291, z0:1.82, z1:6.37, orientation:'V' },
+  { id:'wall-1f-auto-024', level:1, x0:15.471, x1:17.291, z0:3.64, z1:3.64, orientation:'H' },
+  { id:'wall-1f-auto-025', level:1, x0:17.291, x1:19.11, z0:4.095, z1:4.095, orientation:'H' },
+  { id:'wall-1f-auto-026', level:1, x0:16.38, x1:19.11, z0:6.37, z1:6.37, orientation:'H' },
+  { id:'wall-2f-auto-001', level:2, x0:13.651, x1:13.651, z0:0, z1:1.82, orientation:'V' },
+  { id:'wall-2f-auto-002', level:2, x0:12.74, x1:16.38, z0:1.82, z1:1.82, orientation:'H' },
+  { id:'wall-2f-auto-003', level:2, x0:15.47, x1:15.47, z0:0, z1:1.82, orientation:'V' },
+  { id:'wall-2f-auto-004', level:2, x0:15.47, x1:15.47, z0:2.73, z1:6.37, orientation:'V' },
+  { id:'wall-2f-auto-005', level:2, x0:12.74, x1:19.11, z0:2.73, z1:2.73, orientation:'H' },
+  { id:'wall-2f-auto-006', level:2, x0:16.38, x1:16.38, z0:0, z1:3.64, orientation:'V' },
+  { id:'wall-2f-auto-007', level:2, x0:12.74, x1:14.56, z0:3.64, z1:3.64, orientation:'H' },
+  { id:'wall-2f-auto-008', level:2, x0:16.38, x1:19.11, z0:3.64, z1:3.64, orientation:'H' },
+  { id:'wall-2f-auto-009', level:2, x0:14.56, x1:14.56, z0:2.73, z1:3.64, orientation:'V' }
 ];
 
 const ROOMS_APPROX = {

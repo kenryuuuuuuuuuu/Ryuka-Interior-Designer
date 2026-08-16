@@ -59,20 +59,24 @@ data/interior-doors.json（室内ドアの配置インスタンス）
 | `blender/build_house.py` | `house.json`・`door-catalog.json`・`window-catalog.json`・`openings.json`・`interior-doors.json`からBlender白模型を再生成するスクリプト（家具は対象外） |
 | `tests/validate_house.py` | `house.json` の整合性チェック（依存ライブラリなしで動作） |
 | `tests/validate_furniture.py` | `furniture-catalog.json` / `furniture.json` の整合性チェック（house.jsonのroomsとの照合含む） |
-| `tests/validate_openings.py` | `door-catalog.json` / `window-catalog.json` / `openings.json` / `interior-doors.json` の整合性チェック（house.jsonのfootprints/wallsとの照合含む） |
+| `tests/validate_openings.py` | `door-catalog.json` / `window-catalog.json` / `openings.json` / `interior-doors.json` の整合性チェック（house.jsonのfootprints、および`generated/interior-walls.json`との照合含む。実行前に`node scripts/build-web-data.mjs`が必要） |
 | `index.html` | GitHub PagesのルートURL用リダイレクト。`interior-white-model.html`へ転送するだけ |
 | `manifest.webmanifest` / `sw.js` / `icon.svg` | PWA化（ホーム画面追加・オフライン起動）の設定一式。詳細は下記「公開（GitHub Pages / PWA）」 |
 | `vendor/three.min.js` | Three.js本体のローカル同梱コピー（CDN非依存。オフライン起動のため） |
 
 ## rooms / walls について
 
-`rooms`（部屋の輪郭ポリゴン）は間取りの一次情報。`walls`（重複を除いた壁芯データ、Blenderのみが使用）は `rooms` から人手＋半自動で重複統合・外壁除外して作られた二次情報で、`rooms` を編集しても自動追従しない。`rooms` を編集した場合は、影響する `walls` エントリ（`sourceRooms` に対象の部屋ラベルを含むもの）を手動で見直すこと。将来的にはこの変換も自動化したい（[STATUS.md](STATUS.md) の未解決事項を参照）。
+`rooms`（部屋の輪郭ポリゴン）が間取りの唯一の正本。**`walls`（壁芯データ）は`data/house.json`には存在しない**（2026-08-16に廃止）。かつては`rooms`とは別に`walls`を人手で保守していたが、部屋を分割するたびに更新を忘れる事故が繰り返し起きたため（内覧モードで「壁があったりなかったり」という不具合の主因になった。詳細は[BACKGROUND.md](BACKGROUND.md)）、`rooms`だけを唯一の情報源とし、壁は毎回機械的に導出する方式に統一した。
 
-Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は使わない。`walls` はBlenderの `build_house.py` だけが使う。
+- **導出ロジックは`scripts/build-web-data.mjs`の`deriveInteriorWalls()`に一箇所だけ実装されている。** 同じレベル（1F/2F）の全部屋ポリゴンを総当たりし、2部屋が軸に沿った辺（H/V）を共有している区間を「内壁」として抽出する。同一直線上で隙間なく連続する区間は1本にまとめる（`mergeCollinearWalls()`。3部屋以上が同じ直線に並ぶ通し壁が、部屋ペアごとに細切れになって、その上のドア幅がどの区間にも収まらないと誤判定される問題への対策）。斜めの辺（x0/x1もz0/z1も一致しない辺）は対象外で、`orientation:'D'`（斜め框など）はこれまで通り`data/interior-doors.json`側で個別に表現する
+- 建物の外周壁は対象外（Three.js側の`exteriorSegmentsForLevel()`、Blender側の`build_exterior_walls()`が別途`footprints`+`openings`から導出する。こちらは元々`rooms`とは独立した仕組み）
+- ドアによる開口の切り欠きも、この導出処理では行わない（消費側＝Three.jsの`doorGapsForLevel()`/`cutGaps()`、Blenderの`build_interior_walls()`が、それぞれ`data/interior-doors.json`を見て壁生成時に切り欠く。これは元の設計を踏襲している）
+- 導出結果は`generated/interior-walls.json`として書き出される（`node scripts/build-web-data.mjs`で再生成、`generated/house-data.js`と同様に**手で編集しないコミット対象の生成物**）。Three.js側は`generated/house-data.js`内の`WALLS`定数として、Blender側（`blender/build_house.py`の`load_data()`）はこのJSONを直接読み込む形でそれぞれ利用する。**壁の導出ロジックをPythonで再実装することはしない**（HTML側とBlender側の壁がズレるリスクを避けるため、単一の実装をJSON経由で共有する）
+- `rooms`を分割・追加・移動したら、`node scripts/build-web-data.mjs`を再実行するだけで、Three.js・Blender双方の壁が自動的に追従する（手動更新の手順が不要になった）
 
-`rooms`の`polygon`は矩形・L字（軸に沿った頂点のみ）が基本だが、斜め框のような斜めの境界線を持つ部屋も表現できる（`polyWire()`はThree.js側で任意の多角形を描画できるため）。ただし`rooms`→`walls`変換（Blender用）は軸に沿った壁しか扱えないため、斜めの境界を持つ部屋を追加した場合は`walls`側の対応する更新ができない（Blenderは現状未使用のため実害は小さいが、[STATUS.md](STATUS.md)に記録しておくこと）。
+`rooms`の`polygon`は矩形・L字（軸に沿った頂点のみ）が基本だが、斜め框のような斜めの境界線を持つ部屋も表現できる（`polyWire()`はThree.js側で任意の多角形を描画できるため）。斜めの辺は壁の自動導出の対象外なので、そのような境界には必ず`data/interior-doors.json`側で`orientation:'D'`の開口を用意すること。
 
-**間取りの精細化（部屋の分割）の進め方**：家具・窓ドアのような「既存の枠内で位置を調整する」編集とは異なり、部屋を分割する作業（例：1つの部屋を2部屋に割る、部屋の中に収納区画を切り出す）はトポロジーそのものを変える。編集モードは作らず、施主からスクリーンショット＋書き込み線などで指示を受け、`rooms`を直接編集する方式にしている（検討の経緯は[BACKGROUND.md](BACKGROUND.md)参照）。
+**間取りの精細化（部屋の分割）の進め方**：家具・窓ドアのような「既存の枠内で位置を調整する」編集とは異なり、部屋を分割する作業（例：1つの部屋を2部屋に割る、部屋の中に収納区画を切り出す）はトポロジーそのものを変える。編集モードは作らず、施主からスクリーンショット＋書き込み線などで指示を受け、`rooms`を直接編集する方式にしている（検討の経緯は[BACKGROUND.md](BACKGROUND.md)参照）。部屋を分割したら、境界上にドアを置くのか（`data/interior-doors.json`に登録）、ただの壁のままにするのか（何もしない。壁は自動的にできる）を決めるだけでよく、以前のように`walls`エントリを別途追加する必要はない。
 
 ## 家具・設備（furniture）
 
@@ -126,11 +130,47 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
   - `stairPointAt(path, s)`：経路上の弧長`s`における位置・進行方向（単位ベクトル）を返す
   - `stairLayout(stair)`：`totalSteps`等分した各段の境界点・中点をまとめて返す。3D段差ジオメトリ（`boxWireRotated()`で進行方向に向きを合わせた箱を段数ぶん積み上げる）と、平面図記号（各段境界に直交する踏み面線＋左右の側線＋UP/DN矢印とラベル）の両方がこのレイアウトを共用する
   - 3Dの段差ジオメトリは常時表示（`groups_stairs`、俯瞰・平面図・内覧のいずれでも同じ実体を見せる）。平面図記号は`groups.approx1`/`groups.approx2`に追加され、1F側の平面には「UP」（levelFromから見た上り方向）、2F側の平面には「DN」（levelToから見た下り方向）を表示する
+    - 輪郭線マテリアル`stairEdgeMat`は通常の深度テスト（`depthTest`のデフォルト`true`）のまま使う。他の平面図線画用マテリアル（`approxEdge`等、内覧モードでは非表示になる`groups.approx1/2`専用）と違い、階段の実体は内覧モードでも常時sceneに存在するため、`depthTest:false`にすると手前の壁を無視して輪郭線が透けて見えてしまう（2026-08-16、施主指摘で発覚・修正。3章の教訓の表参照）
   - 2F側の床（`groups.floor2`）・内覧モードの1F天井面（`walkGroup`内、`FLOOR1`ゾーンの天井プレーン）は、`rectMinusRect()`で`stair.opening`ぶんの矩形を差し引いてから描画し、階段の吹き抜けを実際に素通しで見えるようにする
   - **階段下（`hiddenBelow`）の平面図表現**：階段が`levelFrom`側の別の部屋（例：パントリー）の真上を通る区間は、その部屋の天井裏に隠れて`levelFrom`側からは実際には見えない。建築図面で「上階の構造物が下階の天井裏に隠れている」ことを示す破線の慣習にならい、`levelFrom`側の平面図記号（踏み面線・側線・UP矢印）のうち`hiddenBelow`矩形の内側を通る区間だけを`addStairPlanLine()`が`THREE.LineDashedMaterial`（`stairPlanDashedMat`）で破線描画する。`levelTo`側の平面ではその階段区間自体がその階の実体そのものなので、常に実線（`stairPlanMat`）。あわせて、下に隠れる部屋（room-1f-21）のラベルに「（階段下）」を付記し、階段下収納であることを文字でも明示している
   - **内覧モードでの歩行**：`stairProgressAt(x,z,currentLevel)`が、現在位置が階段の経路（`width/2`＋余白0.35m以内）に乗っているかを判定し、乗っていれば経路上の進捗`t`(0=levelFrom側、1=levelTo側)とその高さ`y`を返す。`updateWalkCamera()`はこの`y`をそのまま目線の高さの基準にする（`walkLevel`の2値ではなく連続的に補間される）ため、階段を歩くと滑らかに視点が上下する。`updateWalkMovement()`は`t<0.5`か否かで`walkLevel`（床・家具の表示切替に使う離散値）を切り替える。当たり判定自体は各階の`wallSegmentsByLevel[walkLevel]`をそのまま使う（階段室専用の特別扱いはしていない）ため、1F側はroom-1f-10のL字型の実壁で、2F側はroom-2f-02の矩形の実壁で、それぞれ自然に囲われる
+    - **`stair.opening`による範囲の絞り込み**：`stairProgressAt()`は、まず`inRect(x,z,stair.opening)`（`opening`が定義されている場合のみ）で足切りしてから経路との距離判定を行う。これがないと、経路の端点（例：終端の直進部分）付近で、壁を挟んだ隣室が`width/2+STAIR_CORRIDOR_MARGIN`（合計0.805m）以内に入ってしまい、そこを歩いているだけで「階段に乗っている」と誤判定されることがある（2026-08-16、施主指摘：自宅LDKから東の廊下(room-1f-13)へ抜けようとすると突然2Fへワープする不具合。廊下の南西角(15.471,1.82)が階段の終端直進部分(x=15.016)からわずか0.455mしか離れておらず、壁1枚を挟んで誤検知していた）。`stair.opening`は元々2F床の吹き抜け穴として定義されている矩形だが、1Fの階段室（room-1f-10∪room-1f-21）の外接範囲でもあるため、この用途にもそのまま転用できる
     - `currentLevel`引数は`hiddenBelow`の判定に使う。まだ登っていない状態（`currentLevel===stair.levelFrom`）で`hiddenBelow`の矩形内に入った場合は「階段の上を歩いている」のではなく「階段下の部屋を、その部屋自身のドアから歩いている」ということなので、階段としては扱わない（経路との幾何的な近さだけで判定すると、パントリーの中を歩いているだけなのに天井裏を通る階段の一部に引っ張られて視点が浮いてしまうため）。既にlevelToまで登り切っている（`currentLevel!==stair.levelFrom`）場合は、この矩形内でも通常どおり経路の補間高さを使う
   - 階段の下端（LDKへの開口、`door-029`）・上端（廊下(2F)への開口、`door-030`）は、他の room 分割と同じ`operation:'open'`の室内ドアとして`data/interior-doors.json`に登録してある。これがないと内覧モードで階段へ出入りできない（壁で塞がれてしまう）
+
+### 腰壁（guardWalls、吹き抜けの転落防止）
+
+`data/house.json`の`guardWalls`配列：`rooms`の隣接関係からは導出されない、独立した壁データ（`specialWalls`＝防音壁と同じ位置づけ）。階段の吹き抜け（`stair.opening`）は、`door-030`（階段(2F)⟷廊下(2F)）が全幅を壁のない開口にしているため、そのままでは2Fの廊下から吹き抜けへ誤って踏み込める状態になっていた（2026-08-16、施主が俯瞰スクリーンショットに赤線で図示して指摘：「いまのままだと2階から1階に飛び降りれてしまうような状態」）。吹き抜けの南辺(z=1.82、x:13.651-15.47)のうち、階段経路の最後の直進（x:14.561-15.471、上端の着地部分の真上）を除いた西側（x:13.651-14.561、階段の廻り部分の真上＝まだ2F床がない吹き抜け）に、床から1.5mの腰壁（`guard-2f-01`）を追加した。東側は実際に階段へ出入りする通路として開放したまま残している。
+
+- **フィールド**：`{id, label, level, orientation('H'|'V'), at, from, to, height, status, note}`。`orientation`/`at`/`from`/`to`は壁セグメントと同じ規約（`H`＝z一定、`from`/`to`はx範囲。`V`＝x一定、`from`/`to`はz範囲）
+- **`scripts/build-web-data.mjs`**：`buildGuardWalls()`が`GUARD_WALLS`定数を生成する（`buildSoundWall()`と同様、`house.guardWalls`をほぼそのまま整形するだけ）
+- **`interior-white-model.html`側の使われ方**：
+  - **当たり判定**：`wallSegmentsByLevel`構築時、防音壁と同じ位置（`cutGaps()`の後）に`{orientation, at, from, to, thick:INTERIOR_WALL_T, guardHeight:g.height}`として追加する。`resolveWalk()`・`segListBlocked()`は`thick`しか見ないため、既存のロジックを一切変更せずにそのまま転落防止の当たり判定として機能する
+  - **内覧モードの見た目**：壁メッシュ生成ループ（`wallSegmentsByLevel[level].forEach(...)`）の先頭で`s.guardHeight!==undefined`を判定し、天井（`CEIL_H`）ではなく`guardHeight`までの高さで描画してから`return`する（窓の切り欠き判定はスキップ）。これにより、当たり判定は壁と同等でも、見た目は腰の高さで途切れた低い壁になり、吹き抜けを覗き込める
+  - **俯瞰・平面図の見た目**：`GUARD_WALLS.forEach(...)`が、通常の`ROOMS_APPROX`と同じ`mats.approx`/`mats.approxEdge`を使い、`groups.approx1/2`（1F/2F表示切替・内覧モードでの非表示に自動的に連動する）へ`boxWire()`で追加する。真上から見る平面図モードでは高さの違いは見えない（他の壁と同じ塗りで、区間だけが目印になる）が、俯瞰（オービット）モードでは低い壁として見える
+
+## 内覧モード（walk）
+
+俯瞰・平面図の間取りを実際に歩いて体験できることを目的としたモード。壁の当たり判定は上記「rooms / walls について」の自動導出壁（`wallSegmentsByLevel`）を使い、これに加えてドアの扉本体（近づくと開く演出）と家具の当たり判定を持つ。
+
+- **窓（`windowGapsForLevel()`）**：ドアと同じ`OPENINGS`配列に含まれるが、`category`が`'door'`以外（`'window'`）のものは、壁を全高では切り欠かない。`openingWallGeom(o, level)`（面(N/S/E/W)から`{orientation, at, from, to}`を求める、ドア・窓で共通のヘルパー）に`sill`（下端高さ）・`h`（窓の高さ）を加えたものを`windowGapsByLevel`として一度だけ計算しておき、壁メッシュ生成時（後述）に使う。`wallSegmentsByLevel`（当たり判定用）には含めないため、窓のある位置は今まで通り実体としては壁のまま＝通り抜けられない（窓を開けて出入りする、という状態までは表現しない）
+  - 壁メッシュ生成（`[1,2].forEach(level=>{...})`）では、各壁セグメントの範囲に重なる窓があれば、そのセグメントを「沿い方向(u)×高さ方向(v、床からの相対高さ)」の矩形とみなし、階段の吹き抜け穴と同じ`rectMinusRect()`を使って窓の帯（`u:[from,to]`, `v:[sill, sill+h]`）を切り欠いた残りの矩形群を壁として描画する。窓自体の範囲には、半透明の水色（`walkWindowMat`）＋枠線（`walkWindowFrameMat`）のガラス面を追加し、内覧モードでも「ここに窓がある」とわかるようにする（すりガラス風の半透明で、外の様子がうっすら透けて見える）
+- **開口（アーチ、`addWalkArchInfill()`）**：`doorGapsForLevel()`自体はアーチ開口（`operation:'open-arch'`）も他の開口と同じ「壁を全高で切り欠いた矩形の通路」として扱う（当たり判定上はこれで十分。弧の形まで衝突判定はしない）。そのままだと内覧モードでは天井まで抜けた四角い開口に見えてしまうため、`archOpeningMesh()`と同じ弧の式を使って、弧の外側（左右の迫り持ち＝スパンドレル部分。頂点で接するため`archSpandrelShapes()`が左右別々のシェイプとして返す）と、弧の頂点からドアの高さ・天井高の差ぶんの垂れ壁を、壁と同じ色・厚みで追加描画し、アーチらしい輪郭を内覧モードでも再現する。`INTERIOR_DOORS`・`OPENINGS`（`category==='door'`）の両方の`open-arch`に対応する
+- **ドアの扉本体（`interior-white-model.html`、`walkDoorAnimators`）**：平面図モードのドア記号（`groups.doors1/2`・`groups.openings1/2`）は内覧モードでは非表示にしている（`enterWalkMode()`）代わりに、`addWalkDoorLeaves()`が実際に厚み(0.04m)のある扉パネルを閉位置で`walkGroup`に常設する。`data/interior-doors.json`・`data/openings.json`の`operation`が`swing`/`fold`/`double-swing`/`double-fold`/`slide`のものだけが対象（`open`/`open-arch`/窓は扉本体を持たないので何も作らない）
+  - 開き戸は`addWalkSwingLeaf()`が、蝶番位置を原点にしたグループを`rotation.y`で回転させて開閉する。閉位置・開位置の角度は、沿い方向／壁に直交する方向の単位ベクトルから`Math.atan2()`で求める（`boxWireRotated()`と同じ「ローカル+Zがワールド(sinθ,cosθ)方向を向く」規約）。2つの角度の差が180度を超える組み合わせ（蝶番側・開く向きの取り方によっては起こりうる）で遠回りに回転しないよう、`shortAngleLerp()`で最短経路を補間する
+  - 両開き戸は、開口の両端をそれぞれ蝶番にした2枚の`addWalkSwingLeaf()`呼び出し（平面図記号の`double-swing`表現と同じパターン）。引き戸は`addWalkSlideLeaf()`が沿い方向に平行移動する
+  - **折れ戸・両開き折れ戸（`addWalkFoldLeaf()`）は、実際の2枚折れの機構をそのまま再現する**（2026-08-16、当初は開き戸と同じ回転運動で近似していたが、施主指摘によりモーションを作り直した）。蝶番(A、`hingeAt`)を壁に固定した親グループ（パネル1、長さ`L=w/2`）の子に、Aから局所距離Lの位置（＝折れ点B）を原点にした孫グループ（パネル2、同じ長さL）をぶら下げる構成にし、パネル2をパネル1に対して**常に逆向きに2倍の角度**で回転させる（鏡映の関係）。この幾何拘束により、自由端(C)は常に壁面の延長線上（沿い方向の直線上）に留まったまま、折れ点Bだけが壁から張り出す、という実際の折れ戸と同じ動きになる。開いた状態の折れ角は、平面図の折れ戸記号（`drawFoldLeaf()`、A-B=B-C=A-C=w/2の正三角形）と同じ60度（全開=90度に対して2/3）を終点にし、平面図・内覧の見た目を揃えている。両開き折れ戸は、開口の両端をそれぞれ固定蝶番にした2組の`addWalkFoldLeaf()`呼び出し（閉状態では両者が開口中央で合わさる）
+  - 毎フレーム`updateWalkDoors(dt)`が、プレイヤー座標(`walkPos`)と各ドアの中心（`anchorX`/`anchorZ`）との距離を測り、`WALK_DOOR_OPEN_RADIUS`（1.8m）以内なら開き位置、それ以外なら閉じ位置へなめらかにイージングする（`t`：0=閉、1=開）。別の階にいる間（`level !== walkLevel`）は`t`を強制的に0に戻す
+  - **通行そのものはドアの開閉状態と無関係**：施主指示により、壁側の開口（`doorGapsForLevel()`）は今まで通り常に開いたままで、扉パネルはあくまで見た目の演出。「閉まっている間は通れない」という厳密な当たり判定は実装していない
+- **家具の当たり判定（`furnitureSegmentsByLevel`）**：家具の回転は0/90/180/270度のみ（`data/furniture.json`の前提）なので、回転後の外形は必ず軸に沿った矩形になる。`FURNITURE_ITEMS`の各アイテムについて、回転に応じて`width`/`depth`を入れ替えた実効矩形を求め、その4辺を壁と同じ「線分＋当たり判定半径」の仕組み（`segListBlocked()`、旧`resolveWalk()`内の`blockedBy()`を独立関数化したもの）にそのまま追加する（厚みは0＝辺そのものが家具の表面）。「物との距離が狭いか広いか」を体感できるように、家具の種類を問わず一律に当たり判定の対象にしている
+- **三人称視点（`walkView`）**：マインクラフト風に、キャラクターを背後から追従するカメラで空間の広さ・狭さを外から把握できるモード。内覧モードのHUDのボタン（🧍）または`V`キーで一人称（`'first'`）と切り替える（`toggleWalkView()`、モードに入るたびに一人称にリセットされる）
+  - **キャラクターモデル（`walkCharacterGroup`）**：成人男性の平均身長170cmを想定した簡易ブロック体型（脚0.85m＋胴0.55m＋頭0.30m）。あくまでスケールの目安であり、実際の体型・服装は表現しない。局所座標は足元をy=0、正面を+Z向きとして組み、`group.rotation.y = walkYaw`をそのまま使えるようにしている（`boxWireRotated()`や扉の開閉演出と同じ「ローカル+Zがワールド(sinθ,cosθ)方向を向く」規約）。一人称モードでは非表示（`updateWalkCamera()`が`walkView`に応じて`visible`を切り替える）
+  - **カメラ位置**：注視点（キャラの頭部付近、床から`THIRD_PERSON_TARGET_HEIGHT`=1.5m）から、一人称と同じ`(fx,fy,fz)`のforwardベクトルの逆方向へ`THIRD_PERSON_DISTANCE`=1.7m離れた位置に**常に固定**する。`walkPitch`で見上げ・見下ろしすると、その分カメラも上下に弧を描くように動く（forwardベクトルを一人称・三人称で共用しているため）
+  - **壁・家具への追従による自動ズームは行わない**：当初は壁・家具に応じてカメラ距離を自動的に詰める実装（`pointBlocked()`で衝突判定し、ぶつかる手前まで距離を縮める）だったが、この家は部屋の中央でも壁・家具まで1m未満のことが多く、歩くたびにカメラがズームイン/アウトを繰り返して落ち着かないと施主から指摘があり、距離を常に一定にする方式に変更した（2026-08-16）。壁にめり込む場合はそのまま許容する（カメラが壁の裏側に回り込み、壁の内側の面が大写しになることはあるが、通行や当たり判定には影響しない）。距離自体も当初の3.2mから1.7mに詰めた（施主指摘）
+- **ミニマップ（`drawMinimap()`）**：画面右上に、現在階（`walkLevel`）の平面図とプレイヤーの位置・向きを表示する2Dキャンバス（`#minimap`、Three.jsの3D描画とは独立した`CanvasRenderingContext2D`）。クリックでその場所へワープできる
+  - 壁の線は`wallSegmentsByLevel[walkLevel]`（当たり判定・壁メッシュ生成と同じ導出結果）をそのまま使うため、実際に歩ける壁の配置と常に一致する。表示範囲は`FLOOR1`/`FLOOR2`の外接矩形から`floorBounds()`で求め、階段で階を跨ぐと自動的に表示階が切り替わる
+  - `minimapTransform(level)`が建物ローカル座標⇔キャンバスピクセル座標の変換（アスペクト比を保った単純な拡大縮小＋中央寄せ）を提供する。プレイヤーは点＋`walkYaw`方向の短い線（一人称・三人称のforwardベクトルと同じ`(sin(walkYaw), cos(walkYaw))`の向き）で表示する
+  - クリック時は、クリック位置を`minimapTransform().toWorld()`で建物ローカル座標に変換し、`segListBlocked()`で壁の中でないか確認してから`walkPos`を直接書き換える（＝視線方向はそのまま、位置だけ瞬間移動）。壁の中をクリックした場合は何もしない
 
 ## 変更手順
 
@@ -146,7 +186,7 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
    blender --background --python blender/build_house.py -- --input data/house.json --output build/ryuka-white-model.blend
    ```
 
-要素を追加・削除する場合は、その配列（`footprints` / `rooms` / `walls` など）の中で一意なIDを新規発番し、`status` を適切に設定すること。`walls` は上記「rooms / walls について」の注意を確認する。窓・ドアは`house.json`ではなく`data/openings.json`/`data/interior-doors.json`側で管理する（下記「窓・ドアの種類を追加する、または直接JSONを編集する」参照）。
+要素を追加・削除する場合は、その配列（`footprints` / `rooms` など）の中で一意なIDを新規発番し、`status` を適切に設定すること。壁（`walls`）は`rooms`から自動導出されるため、`rooms`を編集するだけでよい（上記「rooms / walls について」参照）。窓・ドアは`house.json`ではなく`data/openings.json`/`data/interior-doors.json`側で管理する（下記「窓・ドアの種類を追加する、または直接JSONを編集する」参照）。
 
 ### 家具・設備の位置・向き・サイズを調整する（Web UI、推奨）
 
@@ -209,4 +249,4 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 
 - HTML側の生成データ読み込みへの切り替え：完了（2026-08-14）
 - `web/` ディレクトリへの本格的なビューア分離（Three.jsコードと表示ロジックを `data/house.json` から完全に切り離す）：未着手。当面は `interior-white-model.html` 内のThree.jsロジックをそのまま維持する
-- rooms→walls変換の自動化：未着手
+- rooms→walls変換の自動化：完了（2026-08-16。`scripts/build-web-data.mjs`が`rooms`から機械的に導出し、`data/house.json`の手動保守`walls`配列は廃止した）

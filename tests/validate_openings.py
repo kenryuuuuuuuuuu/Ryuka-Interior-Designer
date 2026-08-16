@@ -1,8 +1,10 @@
 """Dependency-free checks for data/door-catalog.json, data/window-catalog.json,
 data/openings.json, data/interior-doors.json.
 
-house.json 側の footprints/walls と整合しているかも確認する（壁を「越えて」宙に浮いた
-窓・ドアがないことの機械的な保証）。詳細は docs/ARCHITECTURE.md を参照。
+house.json 側の footprints、および rooms から自動導出された内壁
+（generated/interior-walls.json、node scripts/build-web-data.mjs で生成）と
+整合しているかも確認する（壁を「越えて」宙に浮いた窓・ドアがないことの機械的な保証）。
+実行前に必ず node scripts/build-web-data.mjs を実行しておくこと。詳細は docs/ARCHITECTURE.md を参照。
 """
 
 import json
@@ -15,6 +17,7 @@ WINDOW_CATALOG = ROOT / "data" / "window-catalog.json"
 OPENINGS = ROOT / "data" / "openings.json"
 INTERIOR_DOORS = ROOT / "data" / "interior-doors.json"
 HOUSE = ROOT / "data" / "house.json"
+INTERIOR_WALLS = ROOT / "generated" / "interior-walls.json"
 
 VALID_STATUS = {"verified", "derived", "estimated"}
 VALID_FACE = {"N", "S", "E", "W"}
@@ -108,7 +111,9 @@ def main():
     by_type = {t["type"]: t for t in types}
 
     footprints = house["footprints"]
-    walls = house["walls"]
+    # 内壁は data/house.json の rooms から自動導出したもの（node scripts/build-web-data.mjs で
+    # generated/interior-walls.json に書き出される）。このスクリプトの実行前に必ず再生成しておくこと。
+    walls = json.loads(INTERIOR_WALLS.read_text(encoding="utf-8"))["walls"]
 
     assert openings["schemaVersion"] == "1.0.0"
     o_items = openings["items"]
