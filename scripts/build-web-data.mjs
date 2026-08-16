@@ -219,6 +219,100 @@ function buildRoofs() {
   return `const ROOFS = [\n${rows}\n];`;
 }
 
+// 矩形(2D、{x0,x1,z0,z1})からholeを引いた残り（最大4分割）を返す。
+// interior-white-model.html側のrectMinusRect()と同じアルゴリズムだが、build-web-data.mjs
+// (Node.js)側で勾配天井の区画分解に使うため、依存を増やさないようここにも同じロジックを持つ
+// （どちらも「矩形の引き算」という単純な純関数で、ロジックがズレて困る類のものではない）
+function subtractRect2D(r, hole) {
+  if (hole.x1 <= r.x0 || hole.x0 >= r.x1 || hole.z1 <= r.z0 || hole.z0 >= r.z1) return [r];
+  const hx0 = Math.max(hole.x0, r.x0), hx1 = Math.min(hole.x1, r.x1);
+  const hz0 = Math.max(hole.z0, r.z0), hz1 = Math.min(hole.z1, r.z1);
+  const out = [];
+  if (r.z0 < hz0) out.push({ x0: r.x0, x1: r.x1, z0: r.z0, z1: hz0 });
+  if (hz1 < r.z1) out.push({ x0: r.x0, x1: r.x1, z0: hz1, z1: r.z1 });
+  if (r.x0 < hx0) out.push({ x0: r.x0, x1: hx0, z0: hz0, z1: hz1 });
+  if (hx1 < r.x1) out.push({ x0: hx1, x1: r.x1, z0: hz0, z1: hz1 });
+  return out;
+}
+
+// 軸並行多角形（isRectilinear()前提）をz方向の走査線で矩形群に分解する。
+// 各z帯（隣り合う頂点z座標の間）について、その帯の中点zと交わる垂直辺（x一定）のx座標を
+// 集めてソートし、2つずつペアにしてx範囲とする（奇数番目→偶数番目が「中の区間」になる、
+// 標準的な走査線アルゴリズム）
+function decomposeRectilinearPolygon(polygon) {
+  const zs = [...new Set(polygon.map(([, z]) => z))].sort((a, b) => a - b);
+  const rects = [];
+  for (let i = 0; i < zs.length - 1; i++) {
+    const zMid = (zs[i] + zs[i + 1]) / 2;
+    const xs = [];
+    for (let j = 0; j < polygon.length; j++) {
+      const [x1, z1] = polygon[j];
+      const [x2, z2] = polygon[(j + 1) % polygon.length];
+      if (Math.abs(x1 - x2) < 1e-6 && ((z1 <= zMid && z2 > zMid) || (z2 <= zMid && z1 > zMid))) xs.push(x1);
+    }
+    xs.sort((a, b) => a - b);
+    for (let k = 0; k < xs.length; k += 2) {
+      if (xs[k + 1] - xs[k] > 1e-6) rects.push({ x0: xs[k], x1: xs[k + 1], z0: zs[i], z1: zs[i + 1] });
+    }
+  }
+  return rects;
+}
+
+// 施主指摘(2026-08-16)により、片流れ屋根がかかる範囲は天井を屋根なりの勾配天井にする。
+// rooms の `ceiling:"sloped"` フラグが付いた部屋だけを対象に、部屋のポリゴンを矩形群に分解し
+// (decomposeRectilinearPolygon)、各矩形を片流れ屋根(roofs[].kind==='lean_to')のfootprintと
+// 突き合わせて「屋根がかかる(sloped)区画」と「かからない(flat、2階直下など)区画」に分ける。
+// 屋根が複数（roof-a1/roof-a2）ある場合も、区画ごとに正しい方の勾配式を参照できるよう、
+// 交差した屋根のbase/pitch/thicknessをそのまま区画に持たせる
+function computeSlopedCeilingPieces() {
+  const fpById = Object.fromEntries(house.footprints.map((f) => [f.id, f]));
+  const leanToRoofs = house.roofs
+    .filter((r) => r.kind === "lean_to")
+    .map((r) => ({ footprint: fpById[r.footprintId], base: r.baseAtZMinus0_5, pitch: r.pitch, thickness: r.thickness }));
+  const pieces = [];
+  house.rooms
+    .filter((r) => r.ceiling === "sloped")
+    .forEach((room) => {
+      decomposeRectilinearPolygon(room.polygon).forEach((band) => {
+        let remaining = [band];
+        leanToRoofs.forEach((roof) => {
+          const next = [];
+          remaining.forEach((r) => {
+            const ix0 = Math.max(r.x0, roof.footprint.x0), ix1 = Math.min(r.x1, roof.footprint.x1);
+            const iz0 = Math.max(r.z0, roof.footprint.z0), iz1 = Math.min(r.z1, roof.footprint.z1);
+            if (ix1 - ix0 > 1e-6 && iz1 - iz0 > 1e-6) {
+              pieces.push({
+                roomId: room.id, x0: ix0, x1: ix1, z0: iz0, z1: iz1,
+                sloped: true, base: roof.base, pitch: roof.pitch, roofThickness: roof.thickness,
+              });
+              subtractRect2D(r, { x0: ix0, x1: ix1, z0: iz0, z1: iz1 }).forEach((rr) => next.push(rr));
+            } else {
+              next.push(r);
+            }
+          });
+          remaining = next;
+        });
+        remaining.forEach((r) => pieces.push({ roomId: room.id, x0: r.x0, x1: r.x1, z0: r.z0, z1: r.z1, sloped: false }));
+      });
+    });
+  return pieces;
+}
+
+function buildSlopedCeiling() {
+  const pieces = computeSlopedCeilingPieces();
+  const rows = pieces
+    .map((p) => {
+      const fields = [
+        `roomId:${str(p.roomId)}`, `x0:${num(p.x0)}`, `x1:${num(p.x1)}`, `z0:${num(p.z0)}`, `z1:${num(p.z1)}`, `sloped:${p.sloped}`,
+      ];
+      if (p.sloped) fields.push(`base:${num(p.base)}`, `pitch:${num(p.pitch)}`, `roofThickness:${num(p.roofThickness)}`);
+      return `  { ${fields.join(", ")} }`;
+    })
+    .join(",\n");
+  const allowance = `const CEILING_ALLOWANCE = ${num(house.defaults.ceilingAllowance ?? 0.15)}; // 垂木・断熱・仕上げの見込み(m)。屋根裏面からこの分だけ勾配天井を下げる`;
+  return `${allowance}\nconst SLOPED_CEILING_PIECES = [\n${rows}\n];`;
+}
+
 // room polygonの各辺のうち、軸に沿った辺（H/V）だけを抽出する。斜めの辺
 // （x0!==x1 かつ z0!==z1）は壁を導出しない対象で、data/interior-doors.jsonの
 // orientation:'D'（斜め框など）で個別に表現する前提
@@ -414,6 +508,8 @@ const output = [
   buildRoomsApprox(),
   "",
   buildRoofs(),
+  "",
+  buildSlopedCeiling(),
   "",
   buildStairs(),
   "",

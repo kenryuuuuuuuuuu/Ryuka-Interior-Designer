@@ -146,7 +146,7 @@ const ROOMS_APPROX = {
     { name:'UB(民泊)', x0:0, x1:1.82, z0:4.55, z1:6.37, conf:'中', note:'面積3.31㎡相当。洗面脱衣室と同幅と仮定' },
     { name:'洋室', x0:2.73, x1:7.28, z0:0.91, z1:3.691, poly:[[2.73,0.91],[7.28,0.91],[7.28,2.326],[6.37,2.326],[6.37,3.691],[2.73,3.691]], conf:'低', note:'訂正(2026-08-13)：西端をx=2.730に戻し、洋室|LDK境界z=3.691で再検算。箱面積12.60㎡は実際11.18㎡に近い（+13%）。x=1.820-2.730×z=2.730-6.370の範囲(洗面所/浴室の東側)は未モデル化の欠き（LDK側に含まれる可能性）。ラベルから面積表記は削除(2026-08-13)。追記(2026-08-15)：施主指摘により南東の横1マス×縦1.5マス(x:6.37-7.28,z:2.326-3.691)を「収納」（room-1f-23）として分離、L字形状に変更' },
     { name:'収納', x0:6.37, x1:7.28, z0:2.326, z1:3.691, conf:'低', note:'新規(2026-08-15)：施主指摘により「洋室」の南東1マス(0.91×1.365)を分離。西側1辺を両開き戸（door-024）として配置。room-1f-05の境界と一致させること' },
-    { name:'LDK(民泊)', x0:1.82, x1:7.28, z0:2.73, z1:6.37, poly:[[1.82,2.73],[2.73,2.73],[2.73,3.691],[7.28,3.691],[7.28,6.37],[1.82,6.37]], conf:'高', note:'施主指摘(2026-08-13)によりLDK本体＋張り出し部をL字ポリゴンとして統合。内部の継ぎ目線は表示されない。ラベルから面積表記は削除(2026-08-13)。自宅側のLDKと区別するため「(民泊)」を付記' },
+    { name:'LDK(民泊)', x0:1.82, x1:7.28, z0:2.73, z1:6.37, poly:[[1.82,2.73],[2.73,2.73],[2.73,3.691],[7.28,3.691],[7.28,6.37],[1.82,6.37]], conf:'高', note:'施主指摘(2026-08-13)によりLDK本体＋張り出し部をL字ポリゴンとして統合。内部の継ぎ目線は表示されない。ラベルから面積表記は削除(2026-08-13)。自宅側のLDKと区別するため「(民泊)」を付記。追記(2026-08-16)：施主指摘により、片流れ屋根（roof-a1）がかかる範囲は天井高を屋根なりの勾配天井にすることになった（`ceiling:"sloped"`）。詳細はdocs/ARCHITECTURE.md「勾配天井（ceiling:sloped）」を参照' },
     { name:'ヌック', x0:7.28, x1:9.1, z0:0.91, z1:2.73, conf:'高', note:'床面はFL+200mm（施工会社図面表記の一段上がった小上がり）。訂正(2026-08-13)：マイホームクラウド画像で西端が防音壁位置(x=7.280)から始まると判明（前回のx=9.100は誤り）。幅1.820m確定・奥行は面積3.31㎡から逆算(1.819m)しz1=2.730とほぼ一致。ラベルから面積表記は削除(2026-08-13)' },
     { name:'自宅玄関', x0:9.1, x1:10.92, z0:0.455, z1:1.82, poly:[[9.1,0.455],[10.92,0.455],[10.92,1.82],[9.1,1.365]], conf:'低', note:'施主指摘(2026-08-13)により赤枠の座標をピクセル解析。旧「自宅玄関・土間・ホール」から西半分を分離。2026-08-15：施主指摘により斜め框（目分量の角度）で「自宅玄関・ホール」を分割。角度は概算のため`estimated`。施主指摘により当初の(9.100,0.910)-(10.920,1.820)から(9.100,0.910)-(10.920,1.365)へ緩やかに変更後、同じ角度のまま0.455下（南）へ平行移動し(9.100,1.365)-(10.920,1.820)に' },
     { name:'自宅ホール', x0:9.1, x1:10.92, z0:1.365, z1:2.73, poly:[[9.1,1.365],[10.92,1.82],[10.92,2.73],[9.1,2.73]], conf:'低', note:'新規(2026-08-15)：施主指摘により斜め框で「自宅玄関・ホール」（旧room-1f-08）を分割して新設。境界は斜め框（door-020、開口のみで壁なし）。施主指摘により角度を緩やかに変更後、同じ角度のまま0.455下へ平行移動（(9.100,1.365)-(10.920,1.820)）' },
@@ -154,7 +154,7 @@ const ROOMS_APPROX = {
     { name:'SC', x0:12.451, x1:13.651, z0:0, z1:2.275, poly:[[12.451,0.455],[12.74,0.455],[12.74,0],[13.651,0],[13.651,2.275],[12.451,2.275]], conf:'低', note:'新規(2026-08-15)：施主指摘により「土間・シューズクローク」（旧room-1f-09）を右の壁(x=13.651)から1200mmの位置(x=12.451)で分割して新設。境界は開口のみ（door-021、壁なし）。ラベルは施主指摘により「SC」と表記' },
     { name:'階段（曲がり階段）', x0:13.651, x1:15.471, z0:0, z1:1.82, poly:[[13.651,0],[15.471,0],[15.471,0.91],[14.561,0.91],[14.561,1.82],[13.651,1.82]], conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)に確定。2026-08-15：施主指摘により南東の1マス(0.91×0.91)を「パントリー」（room-1f-21）として分離' },
     { name:'パントリー（階段下）', x0:14.561, x1:15.471, z0:0.91, z1:1.82, conf:'低', note:'新規(2026-08-15)：施主指摘により「階段（曲がり階段）＋パントリー」（旧room-1f-10）の南東1マス(0.91×0.91)を分離して新設。南側1辺は壁のない開口（door-022）。追記(2026-08-15)：階段の廻り部分（stair-1f-01）の真上を通ることが判明したため、ラベルに「（階段下）」を付記。1F平面図では階段の踏み面線がこの区画の上を破線（hiddenBelow）で通過する' },
-    { name:'LDK', x0:7.28, x1:15.471, z0:1.82, z1:6.37, poly:[[7.28,2.73],[10.92,2.73],[10.92,2.275],[13.651,2.275],[13.651,1.82],[15.471,1.82],[15.471,6.37],[7.28,6.37]], conf:'高', note:'確定(2026-08-13)：施主指摘によりLD＋キッチンを統合しLDKに変更。北端が3段階（z=2.730→2.275→1.820）の階段状になっているのが実際の間取り' },
+    { name:'LDK', x0:7.28, x1:15.471, z0:1.82, z1:6.37, poly:[[7.28,2.73],[10.92,2.73],[10.92,2.275],[13.651,2.275],[13.651,1.82],[15.471,1.82],[15.471,6.37],[7.28,6.37]], conf:'高', note:'確定(2026-08-13)：施主指摘によりLD＋キッチンを統合しLDKに変更。北端が3段階（z=2.730→2.275→1.820）の階段状になっているのが実際の間取り。追記(2026-08-16)：施主指摘により、片流れ屋根（roof-a1/roof-a2）がかかる範囲（x:7.28-12.74）は天井高を屋根なりの勾配天井にすることになった（`ceiling:"sloped"`）。2階の直下にあたる東側（x:12.74-15.471）は屋根がかからないためフラットな天井のまま。詳細はdocs/ARCHITECTURE.md「勾配天井（ceiling:sloped）」を参照' },
     { name:'ファミリークローク', x0:15.471, x1:19.11, z0:0, z1:1.82, conf:'高', note:'確定(2026-08-13)：施主指摘により4マス×2マス(3.640m×1.820m)、東側全幅で確定' },
     { name:'廊下', x0:15.471, x1:17.291, z0:1.82, z1:3.64, poly:[[15.471,1.82],[16.381,1.82],[16.381,2.73],[17.291,2.73],[17.291,3.64],[15.471,3.64]], conf:'高', note:'確定(2026-08-13)：施主指摘により2マス×2マス(1.820m角)で確定。西列。2026-08-15：施主指摘により北東の1マス(0.91×0.91)を「収納」（room-1f-22）として分離' },
     { name:'収納', x0:16.381, x1:17.291, z0:1.82, z1:2.73, conf:'低', note:'新規(2026-08-15)：施主指摘により「廊下＋収納」（旧room-1f-13）の北東1マス(0.91×0.91)を分離して新設。南側1辺は両開き戸（door-023）' },
@@ -181,6 +181,18 @@ const ROOFS = [
   { id:'roof-a1', kind:'lean_to', x0:0, x1:9.1, zNorth:0.41, zSouth:7.28, pitch:0.15, thickness:0.15, base:3.4 },
   { id:'roof-a2', kind:'lean_to', x0:9.1, x1:12.74, zNorth:-0.045, zSouth:7.28, pitch:0.15, thickness:0.15, base:3.4 },
   { id:'roof-2f-gable', kind:'gable', x0:12.52, x1:19.33, zNorth:-0.558, zRidge:3.185, zSouth:6.928, yEave:6.3, yRidge:7.423, thickness:0.18 }
+];
+
+const CEILING_ALLOWANCE = 0.15; // 垂木・断熱・仕上げの見込み(m)。屋根裏面からこの分だけ勾配天井を下げる
+const SLOPED_CEILING_PIECES = [
+  { roomId:'room-1f-06', x0:1.82, x1:2.73, z0:2.73, z1:3.691, sloped:true, base:3.4, pitch:0.15, roofThickness:0.15 },
+  { roomId:'room-1f-06', x0:1.82, x1:7.28, z0:3.691, z1:6.37, sloped:true, base:3.4, pitch:0.15, roofThickness:0.15 },
+  { roomId:'room-1f-11', x0:13.651, x1:15.471, z0:1.82, z1:2.275, sloped:false },
+  { roomId:'room-1f-11', x0:10.92, x1:12.74, z0:2.275, z1:2.73, sloped:true, base:3.4, pitch:0.15, roofThickness:0.15 },
+  { roomId:'room-1f-11', x0:12.74, x1:15.471, z0:2.275, z1:2.73, sloped:false },
+  { roomId:'room-1f-11', x0:7.28, x1:9.1, z0:2.73, z1:6.37, sloped:true, base:3.4, pitch:0.15, roofThickness:0.15 },
+  { roomId:'room-1f-11', x0:9.1, x1:12.74, z0:2.73, z1:6.37, sloped:true, base:3.4, pitch:0.15, roofThickness:0.15 },
+  { roomId:'room-1f-11', x0:12.74, x1:15.471, z0:2.73, z1:6.37, sloped:false }
 ];
 
 const STAIRS = [
@@ -221,18 +233,18 @@ const FURNITURE_ITEMS = [
   { id:'fur-001', type:'vanity', level:1, x:0.29, z:3.26, rotation:270, width:0.75, depth:0.53, height:1.9, label:'洗面化粧台', status:'estimated', room:'room-1f-03' },
   { id:'fur-002', type:'washing-machine', level:1, x:0.34, z:4.19, rotation:0, width:0.64, depth:0.72, height:1.05, label:'洗濯機', status:'estimated', room:'room-1f-03' },
   { id:'fur-003', type:'bathtub', level:1, x:0.92, z:5.96, rotation:0, width:1.82, depth:0.8, height:0.6, label:'浴槽', status:'estimated', room:'room-1f-04' },
-  { id:'fur-036', type:'bed-single', level:1, x:3.9, z:2.67, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド1', status:'estimated', room:'room-1f-05' },
-  { id:'fur-037', type:'bed-single', level:1, x:5.07, z:2.69, rotation:180, width:0.97, depth:1.95, height:0.5, label:'ベッド2', status:'estimated', room:'room-1f-05' },
+  { id:'fur-036', type:'bed-single', level:1, x:3.84, z:2.69, rotation:180, width:0.9, depth:1.9, height:0.5, label:'ベッド1', status:'estimated', room:'room-1f-05' },
+  { id:'fur-037', type:'bed-single', level:1, x:5.05, z:2.68, rotation:180, width:0.9, depth:1.9, height:0.5, label:'ベッド2', status:'estimated', room:'room-1f-05' },
   { id:'fur-041', type:'desk', level:1, x:6.9, z:1.47, rotation:90, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-1f-05' },
-  { id:'fur-042', type:'chair', level:1, x:6.46, z:1.49, rotation:90, width:0.45, depth:0.5, height:0.85, label:'椅子', status:'estimated', room:'room-1f-05' },
+  { id:'fur-042', type:'chair', level:1, x:6.46, z:1.49, rotation:270, width:0.45, depth:0.5, height:0.85, label:'椅子', status:'estimated', room:'room-1f-05' },
   { id:'fur-006', type:'kitchen-counter', level:1, x:6.87, z:5.43, rotation:90, width:1.8, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-06' },
   { id:'fur-007', type:'refrigerator', level:1, x:6.86, z:4.06, rotation:90, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫', status:'estimated', room:'room-1f-06' },
-  { id:'fur-008', type:'dining-table-4', level:1, x:5.24, z:5.22, rotation:0, width:1.2, depth:0.8, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-06' },
-  { id:'fur-009', type:'chair', level:1, x:5.26, z:4.82, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子1', status:'estimated', room:'room-1f-06' },
-  { id:'fur-010', type:'chair', level:1, x:5.26, z:5.66, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子2', status:'estimated', room:'room-1f-06' },
-  { id:'fur-011', type:'sofa-2seat', level:1, x:3.54, z:4.14, rotation:0, width:1.5, depth:0.85, height:0.8, label:'ソファ', status:'estimated', room:'room-1f-06' },
+  { id:'fur-008', type:'dining-table-4', level:1, x:5.36, z:5.06, rotation:0, width:0.8, depth:0.8, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-06' },
+  { id:'fur-009', type:'chair', level:1, x:5.39, z:4.61, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子1', status:'estimated', room:'room-1f-06' },
+  { id:'fur-010', type:'chair', level:1, x:5.36, z:5.56, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子2', status:'estimated', room:'room-1f-06' },
+  { id:'fur-011', type:'sofa-2seat', level:1, x:3.74, z:4.05, rotation:0, width:1.4, depth:0.7, height:0.7, label:'ソファ', status:'estimated', room:'room-1f-06' },
   { id:'fur-012', type:'tv-board', level:1, x:2.05, z:5.22, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-1f-06' },
-  { id:'fur-038', type:'coffee-table', level:1, x:3.53, z:5.07, rotation:0, width:0.8, depth:0.4, height:0.4, label:'ローテーブル', status:'estimated', room:'room-1f-06' },
+  { id:'fur-038', type:'coffee-table', level:1, x:3.66, z:4.9, rotation:0, width:0.5, depth:0.4, height:0.4, label:'ローテーブル', status:'estimated', room:'room-1f-06' },
   { id:'fur-043', type:'counter-table', level:1, x:3.67, z:6.11, rotation:180, width:1.7, depth:0.35, height:1, label:'カウンターテーブル', status:'estimated', room:'room-1f-06' },
   { id:'fur-044', type:'chair', level:1, x:3.7, z:6.01, rotation:180, width:0.45, depth:0.7, height:0.85, label:'椅子（カウンター）', status:'estimated', room:'room-1f-06' },
   { id:'fur-013', type:'kitchen-counter', level:1, x:13.63, z:5.08, rotation:270, width:2.55, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-11' },

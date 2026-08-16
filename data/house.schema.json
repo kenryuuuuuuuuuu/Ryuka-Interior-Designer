@@ -19,7 +19,8 @@
       "properties": {
         "ceilingHeight": { "type": "number", "exclusiveMinimum": 0 },
         "wallThickness": { "type": "number", "exclusiveMinimum": 0 },
-        "interiorWallThickness": { "type": "number", "exclusiveMinimum": 0 }
+        "interiorWallThickness": { "type": "number", "exclusiveMinimum": 0 },
+        "ceilingAllowance": { "type": "number", "exclusiveMinimum": 0 }
       }
     },
     "footprints": { "type": "array", "items": { "$ref": "#/$defs/rect" } },
@@ -62,7 +63,8 @@
       "properties": {
         "id": { "type": "string" }, "level": { "type": "integer", "minimum": 1 }, "label": { "type": "string" },
         "polygon": { "type": "array", "minItems": 3, "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 } },
-        "status": { "enum": ["verified", "derived", "estimated"] }, "note": { "type": "string" }
+        "status": { "enum": ["verified", "derived", "estimated"] }, "note": { "type": "string" },
+        "ceiling": { "enum": ["sloped"] }
       }
     },
     "wall": {

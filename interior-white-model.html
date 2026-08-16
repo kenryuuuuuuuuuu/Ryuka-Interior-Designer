@@ -17,6 +17,13 @@
   :root{
     --accent:#3a6ea5; --accent-dark:#2f5a87; --ink:#222b32; --sub:#6b7480;
     --panel-bg:rgba(255,255,255,.94); --line:#e4e7ea; --radius:14px;
+    /* iPhoneのノッチ/Dynamic Island・ホームインジケーターとUIが重ならないための余白。
+       viewport-fit=cover（<meta name="viewport">参照）と組み合わせて初めて実際の値が入る。
+       非対応環境（Android・PC等）では0pxになるので、常にこの変数を使っておけば安全 */
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
   }
   html,body{margin:0;padding:0;overflow:hidden;background:#dfe4e8;font-family:"Hiragino Sans","Noto Sans JP",sans-serif;
       -webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
@@ -24,9 +31,9 @@
   * { box-sizing:border-box; }
 
   /* ---- 左パネル ---- */
-  #ui{position:fixed;top:64px;left:12px;background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
+  #ui{position:fixed;top:calc(var(--safe-t) + 64px);left:calc(var(--safe-l) + 12px);background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
       padding:16px 18px;box-shadow:0 8px 28px rgba(20,30,40,.16);width:300px;font-size:13px;color:var(--ink);
-      max-height:calc(100vh - 84px);overflow-y:auto;transition:transform .18s ease,opacity .18s ease;}
+      max-height:calc(100vh - var(--safe-t) - var(--safe-b) - 84px);overflow-y:auto;transition:transform .18s ease,opacity .18s ease;}
   #ui h1{font-size:14.5px;margin:0 0 4px;font-weight:700;letter-spacing:.01em;}
   #ui .sub{font-size:11.5px;color:var(--sub);margin-bottom:10px;line-height:1.55;}
   #ui .section-title{font-size:11px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;
@@ -42,7 +49,7 @@
   #ui.hidden{transform:translateX(-8px);opacity:0;pointer-events:none;}
 
   /* ---- 上部バー ---- */
-  #topBar{position:fixed;top:12px;left:12px;right:12px;z-index:20;display:flex;align-items:center;
+  #topBar{position:fixed;top:calc(var(--safe-t) + 12px);left:calc(var(--safe-l) + 12px);right:calc(var(--safe-r) + 12px);z-index:20;display:flex;align-items:center;
       justify-content:space-between;gap:10px;pointer-events:none;}
   #topBar > *{pointer-events:auto;}
   #menuToggle{background:var(--accent);color:#fff;border:none;border-radius:10px;width:40px;height:40px;
@@ -61,7 +68,7 @@
   #floorToggle button:not(.active):hover{background:#eef1f4;}
   #floorToggle.disabled{opacity:.4;pointer-events:none;}
 
-  #tip{position:fixed;bottom:10px;left:12px;font-size:11px;color:#555;background:rgba(255,255,255,.85);
+  #tip{position:fixed;bottom:calc(var(--safe-b) + 10px);left:calc(var(--safe-l) + 12px);font-size:11px;color:#555;background:rgba(255,255,255,.85);
        padding:6px 10px;border-radius:6px;max-width:min(94vw,520px);}
   .labelDiv{position:absolute;color:#222;font-size:11px;background:rgba(255,255,255,.82);
             padding:1px 5px;border-radius:4px;white-space:nowrap;pointer-events:none;transform:translate(-50%,-50%);
@@ -71,23 +78,23 @@
       padding:1px 4px;border:1px solid rgba(255,255,255,.15);font-family:monospace;}
 
   /* ---- 内覧（一人称）モード ---- */
-  #walkHud{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:22;display:none;
+  #walkHud{position:fixed;top:calc(var(--safe-t) + 12px);left:50%;transform:translateX(-50%);z-index:22;display:none;
       align-items:center;gap:10px;background:rgba(20,26,32,.72);color:#fff;padding:8px 10px 8px 16px;
       border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.28);font-size:12.5px;backdrop-filter:blur(4px);}
-  #walkHud .room{font-weight:600;}
+  #walkHud .room{font-weight:600;white-space:nowrap;}
   #walkHud button{background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:8px;padding:7px 11px;
       font-size:12px;cursor:pointer;white-space:nowrap;}
   #walkHud button:hover{background:rgba(255,255,255,.24);}
   #crosshair{position:fixed;top:50%;left:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;
       background:rgba(255,255,255,.85);box-shadow:0 0 0 1.5px rgba(0,0,0,.35);z-index:21;display:none;pointer-events:none;}
-  #moveHint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:21;display:none;
+  #moveHint{position:fixed;bottom:calc(var(--safe-b) + 14px);left:50%;transform:translateX(-50%);z-index:21;display:none;
       background:rgba(20,26,32,.66);color:#fff;font-size:11.5px;padding:6px 12px;border-radius:8px;pointer-events:none;
       white-space:nowrap;}
-  #minimap{position:fixed;top:62px;right:12px;z-index:20;display:none;width:220px;height:140px;
+  #minimap{position:fixed;top:calc(var(--safe-t) + 62px);right:calc(var(--safe-r) + 12px);z-index:20;display:none;width:220px;height:140px;
       background:rgba(255,255,255,.92);border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,.22);
       cursor:pointer;}
 
-  #joyBase{position:fixed;left:26px;bottom:26px;width:104px;height:104px;border-radius:50%;
+  #joyBase{position:fixed;left:calc(var(--safe-l) + 26px);bottom:calc(var(--safe-b) + 26px);width:104px;height:104px;border-radius:50%;
       background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.5);z-index:21;display:none;
       touch-action:none;}
   #joyKnob{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
@@ -98,10 +105,10 @@
       font-size:12.5px;font-weight:600;color:#4a5158;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.18);
       display:none;white-space:nowrap;}
   #editToggle.active{background:var(--accent);color:#fff;}
-  #editHint{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:20;display:none;
+  #editHint{position:fixed;top:calc(var(--safe-t) + 60px);left:50%;transform:translateX(-50%);z-index:20;display:none;
       background:rgba(20,26,32,.7);color:#fff;font-size:11.5px;padding:6px 12px;border-radius:8px;
       pointer-events:none;white-space:nowrap;max-width:92vw;text-overflow:ellipsis;overflow:hidden;}
-  #furniturePanel{position:fixed;right:12px;bottom:12px;z-index:22;display:none;width:240px;
+  #furniturePanel{position:fixed;right:calc(var(--safe-r) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;width:240px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
       padding:14px 16px;box-shadow:0 8px 28px rgba(20,30,40,.2);font-size:12.5px;color:var(--ink);}
   #furniturePanel .fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
@@ -115,7 +122,7 @@
   .fp-dims{display:flex;gap:6px;}
   .fp-dims label{flex:1;font-size:10.5px;color:var(--sub);display:flex;flex-direction:column;gap:3px;}
   .fp-dims input{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:5px 6px;font-size:12px;}
-  #furnitureBar{position:fixed;left:12px;bottom:12px;z-index:22;display:none;align-items:center;gap:8px;
+  #furnitureBar{position:fixed;left:calc(var(--safe-l) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;align-items:center;gap:8px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:12px;padding:9px 12px;
       box-shadow:0 8px 24px rgba(20,30,40,.18);font-size:11.5px;color:var(--sub);flex-wrap:wrap;max-width:88vw;}
   #furnitureBar button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px;
@@ -127,10 +134,10 @@
       font-size:12.5px;font-weight:600;color:#4a5158;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.18);
       display:none;white-space:nowrap;}
   #doorEditToggle.active{background:var(--accent);color:#fff;}
-  #doorEditHint{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:20;display:none;
+  #doorEditHint{position:fixed;top:calc(var(--safe-t) + 60px);left:50%;transform:translateX(-50%);z-index:20;display:none;
       background:rgba(20,26,32,.7);color:#fff;font-size:11.5px;padding:6px 12px;border-radius:8px;
       pointer-events:none;white-space:nowrap;max-width:92vw;text-overflow:ellipsis;overflow:hidden;}
-  #doorPanel{position:fixed;right:12px;bottom:12px;z-index:22;display:none;width:240px;
+  #doorPanel{position:fixed;right:calc(var(--safe-r) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;width:240px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
       padding:14px 16px;box-shadow:0 8px 28px rgba(20,30,40,.2);font-size:12.5px;color:var(--ink);}
   #doorPanel .fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
@@ -144,7 +151,7 @@
   .hand-row button{flex:1;background:#f2f4f6;border:1.5px solid var(--line);border-radius:8px;padding:6px;
       font-size:11.5px;cursor:pointer;color:var(--ink);}
   .hand-row button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
-  #doorBar{position:fixed;left:12px;bottom:12px;z-index:22;display:none;align-items:center;gap:8px;
+  #doorBar{position:fixed;left:calc(var(--safe-l) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;align-items:center;gap:8px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:12px;padding:9px 12px;
       box-shadow:0 8px 24px rgba(20,30,40,.18);font-size:11.5px;color:var(--sub);flex-wrap:wrap;max-width:88vw;}
   #doorBar button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px;
@@ -152,7 +159,8 @@
   #doorBar #dbClearAll{background:#e2e5e8;color:#4a5158;}
 
   #spawnOverlay{position:fixed;inset:0;z-index:30;background:rgba(18,22,26,.55);display:none;
-      align-items:center;justify-content:center;padding:20px;}
+      align-items:center;justify-content:center;
+      padding:calc(var(--safe-t) + 20px) calc(var(--safe-r) + 20px) calc(var(--safe-b) + 20px) calc(var(--safe-l) + 20px);}
   #spawnCard{background:#fff;border-radius:18px;padding:26px 26px 22px;max-width:420px;width:100%;
       box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;}
   #spawnCard h2{margin:0 0 4px;font-size:16.5px;color:var(--ink);}
@@ -168,11 +176,28 @@
       text-decoration:underline;}
 
   @media (max-width:640px){
-    #ui{left:10px;right:10px;width:auto;top:auto;bottom:12px;max-height:52vh;}
-    #topBar{top:10px;left:10px;right:10px;}
+    #ui{left:calc(var(--safe-l) + 10px);right:calc(var(--safe-r) + 10px);width:auto;top:auto;bottom:calc(var(--safe-b) + 12px);max-height:52vh;}
+    /* 平面図モードでは#editToggle・#doorEditToggleも表示され、幅の狭い画面では
+       justify-content:space-betweenのまま折り返せず、右端のボタンが画面外に
+       はみ出して押せなくなっていた（ページ自体はスクロールしない設定のため、
+       はみ出した分は永久に届かない）。折り返しを許可して2行以上になっても
+       全ボタンに指が届くようにする */
+    #topBar{top:calc(var(--safe-t) + 10px);left:calc(var(--safe-l) + 10px);right:calc(var(--safe-r) + 10px);
+        flex-wrap:wrap;justify-content:flex-start;row-gap:8px;}
     #modeSwitch button{padding:8px 10px;font-size:11.5px;}
     #floorToggle button{padding:8px 9px;font-size:11.5px;}
+    #editToggle,#doorEditToggle{padding:8px 12px;font-size:11.5px;}
     #tip{display:none;}
+    /* 内覧モードのHUD（部屋名＋ボタン3つ）は、幅の狭い画面では1行に収まらず、
+       .roomがflexで極端に押しつぶされて1文字ずつ縦に折り返ってしまっていた。
+       折り返しを許可し、#topBar（同じ上端に表示されるモード切替ボタン）とも
+       高さで重ならないよう、#topBarの下（#minimapと同じ高さ）に位置をずらす */
+    #walkHud{top:calc(var(--safe-t) + 62px);flex-wrap:wrap;justify-content:center;
+        max-width:calc(100vw - var(--safe-l) - var(--safe-r) - 24px);row-gap:6px;padding:8px 12px;}
+    #walkHud button{padding:7px 9px;font-size:11px;}
+    /* ミニマップは#walkHud（折り返して複数行になりうる）と同じ右上に置くと隠れてしまうため、
+       スマホでは画面の空いている右下（バーチャルジョイスティックの反対側）へ移す */
+    #minimap{top:auto;right:calc(var(--safe-r) + 12px);bottom:calc(var(--safe-b) + 12px);width:150px;height:96px;}
   }
 </style>
 </head>
@@ -900,6 +925,123 @@ function resolveWalk(level, x, z, dx, dz){
   return [nx, nz];
 }
 
+// ---- 勾配天井（ceiling:sloped）：任意の(x,z)での天井高・壁の必要高さの計算 ----
+// SLOPED_CEILING_PIECES（対象部屋を矩形群に分解し、片流れ屋根の範囲と交差判定した結果。
+// generated/house-data.js、scripts/build-web-data.mjsのcomputeSlopedCeilingPieces()を参照）を
+// 使って、任意の(x,z)における「その場所の天井高（床からの高さ）」を求める。対象範囲外はCEIL_H
+function slopedCeilingHeightAt(x, z){
+  for(const p of SLOPED_CEILING_PIECES){
+    if(x>=p.x0-1e-6 && x<=p.x1+1e-6 && z>=p.z0-1e-6 && z<=p.z1+1e-6){
+      if(!p.sloped) return CEIL_H;
+      return yAtHiraya(z, p.base, p.pitch) - p.roofThickness/2 - CEILING_ALLOWANCE - LEVELS.fl1;
+    }
+  }
+  return CEIL_H;
+}
+const SLOPED_CEILING_BOUNDS = SLOPED_CEILING_PIECES.reduce((b,p)=>({
+  x0: Math.min(b.x0,p.x0), x1: Math.max(b.x1,p.x1), z0: Math.min(b.z0,p.z0), z1: Math.max(b.z1,p.z1),
+}), { x0:Infinity, x1:-Infinity, z0:Infinity, z1:-Infinity });
+const SLOPE_SAMPLE_EPS = 0.03; // 壁の両側の天井高をサンプリングする際の、壁面からのオフセット(m)
+// 壁セグメントsが勾配天井の対象範囲付近にあるか（ほとんどの壁は対象外なので、まずここで弾く）
+function nearSlopedCeiling(s){
+  if(SLOPED_CEILING_PIECES.length===0) return false;
+  const b = SLOPED_CEILING_BOUNDS, margin = 0.5;
+  if(s.orientation==='H') return s.at>=b.z0-margin && s.at<=b.z1+margin && s.to>=b.x0-margin && s.from<=b.x1+margin;
+  return s.at>=b.x0-margin && s.at<=b.x1+margin && s.to>=b.z0-margin && s.from<=b.z1+margin;
+}
+// H向き(z一定)の壁セグメントを、両側の必要高さが変わるx位置(SLOPED_CEILING_PIECESの境界)で
+// 区間分割し、各区間の必要な高さ(両側のうち高い方)を返す。z一定の壁は片流れ屋根の高さ式が
+// 変化しない（zが同じ＝高さの式も同じ）ため、区間の中では常に一定の高さになる
+function heightRunsForHWall(s){
+  const breaks = new Set([s.from, s.to]);
+  SLOPED_CEILING_PIECES.forEach(p=>{
+    if(p.z0<=s.at+0.2 && p.z1>=s.at-0.2){
+      if(p.x0>s.from && p.x0<s.to) breaks.add(p.x0);
+      if(p.x1>s.from && p.x1<s.to) breaks.add(p.x1);
+    }
+  });
+  const xs = [...breaks].sort((a,b)=>a-b);
+  const runs = [];
+  for(let i=0;i<xs.length-1;i++){
+    const a=xs[i], b=xs[i+1];
+    if(b-a<1e-6) continue;
+    const mid=(a+b)/2;
+    const h1 = slopedCeilingHeightAt(mid, s.at-SLOPE_SAMPLE_EPS);
+    const h2 = slopedCeilingHeightAt(mid, s.at+SLOPE_SAMPLE_EPS);
+    runs.push({from:a, to:b, height:Math.max(h1,h2,CEIL_H)});
+  }
+  return runs;
+}
+// 指定したx（固定）に沿って、zFrom〜zToの範囲を「両側の天井高が変わらない区間」で分割し、
+// 各区間の両端での必要な高さ(両側のうち高い方。floorからの相対高さ)を返す。H向きの
+// heightRunsForHWall()と同じ考え方だが、V向きの壁は区間の中でも高さが連続的に傾斜しうる
+// （z一定ではないため）ので、区間ごとに「両端の高さ」を返し、呼び出し側で直線でつなぐ。
+// 区間の境界ちょうどの点は、フラット側・勾配側のどちらの値になるか曖昧（両方の区画の
+// 端点に同時に該当しうる）なので、境界から少しだけ内側にずらしてサンプリングすることで、
+// 「区間の中では常に片方の式だけが有効」という前提を保証する（これがないと、本来は
+// フラットな区間の端点がたまたま隣の勾配区画の境界と一致し、勾配側の高い値を拾って
+// 区間全体が誤って傾いてしまう）
+function ceilingProfileRuns(x, zFrom, zTo){
+  const breaks = new Set([zFrom, zTo]);
+  SLOPED_CEILING_PIECES.forEach(p=>{
+    if(p.x0<=x+0.2 && p.x1>=x-0.2){
+      if(p.z0>zFrom && p.z0<zTo) breaks.add(p.z0);
+      if(p.z1>zFrom && p.z1<zTo) breaks.add(p.z1);
+    }
+  });
+  const zs = [...breaks].sort((a,b)=>a-b);
+  const heightAt = (z)=> Math.max(slopedCeilingHeightAt(x-SLOPE_SAMPLE_EPS,z), slopedCeilingHeightAt(x+SLOPE_SAMPLE_EPS,z), CEIL_H);
+  const runs = [];
+  for(let i=0;i<zs.length-1;i++){
+    const a=zs[i], b=zs[i+1];
+    if(b-a<1e-6) continue;
+    const inset = Math.min(0.01, (b-a)/3);
+    runs.push({ from:a, to:b, topA:heightAt(a+inset), topB:heightAt(b-inset) });
+  }
+  return runs;
+}
+// V向きの壁の、上端が傾斜したパネル（沿い方向(u)×高さ(v)平面の台形をthickぶん押し出した形）を
+// 1枚作る。archSpandrelShapes()/addWalkArchInfill()と同じ「ローカルXY平面のShapeをZ方向に
+// 押し出し、position+rotation.yで配置する」手法を、傾斜する壁の上端に応用したもの。
+// u軸はfromを原点(u=0)とした相対座標にする（三人称キャラの手足と同様、シェイプの原点と
+// 実際に回転させたい基準点を一致させないと、回転で位置がずれてしまうため）。
+// topA/topBはboxWireのz1引数などと同じく「baseYからの相対高さ」（floorからの相対高さ）で渡す
+// （絶対高さではない。呼び出し側でbaseYを足す必要はなく、この関数がmesh.position.yに
+// baseYそのものを設定するため、シェイプの高さ方向はtopA/topBをそのまま使えばよい）
+function slopedTopWallPanel(at, from, to, baseY, topA, topB, thick, mat, edgeMat, parent){
+  const shape = new THREE.Shape();
+  const w = to - from;
+  shape.moveTo(0, 0); shape.lineTo(0, topA); shape.lineTo(w, topB); shape.lineTo(w, 0); shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled:false });
+  geo.translate(0, 0, -thick/2);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.y = -Math.PI/2;
+  const [sx,sz] = toScene(at, from);
+  mesh.position.set(sx, baseY, sz);
+  parent.add(mesh);
+  if(edgeMat){
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat);
+    edges.rotation.copy(mesh.rotation); edges.position.copy(mesh.position);
+    parent.add(edges);
+  }
+}
+
+// 勾配天井の傾斜パネルを1枚描画する（roofPanel()と同じ「zA/yA→zB/yBの2点を結ぶ傾いた板」だが、
+// 内覧モードの天井は平らな天井パネルと同様に輪郭線を持たないため、roofPanel()は使わず
+// 専用の小さな関数にする（roofPanel()は屋根の描画にedgeMatを必須で使う実装のため流用しない）
+function walkSlopedCeilingPanel(x0,x1,zA,yA,zB,yB, thickness, mat, parent){
+  const dz = zB-zA, dy = yB-yA;
+  const runLen = Math.sqrt(dz*dz+dy*dy);
+  const angle = Math.atan2(dy,dz);
+  const geo = new THREE.BoxGeometry(x1-x0, thickness, runLen);
+  const mesh = new THREE.Mesh(geo, mat);
+  const midX=(x0+x1)/2, midZ=(zA+zB)/2, midY=(yA+yB)/2;
+  const [smx,smz] = toScene(midX, midZ);
+  mesh.position.set(smx, midY, smz);
+  mesh.rotation.x = -angle;
+  parent.add(mesh);
+}
+
 // ---- 内覧モード用の実壁・天井メッシュ（衝突セグメントと同じデータから生成） ----
 const walkGroup = new THREE.Group(); walkGroup.visible = false; scene.add(walkGroup);
 const walkWallMat = new THREE.MeshStandardMaterial({color:0xf6f3ec, side:THREE.DoubleSide});
@@ -921,6 +1063,38 @@ const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一�
     }
     const wins = winGaps.filter(w=> w.orientation===s.orientation && Math.abs(w.at-s.at)<WALL_WINDOW_TOL
       && w.from>=s.from-WALL_WINDOW_TOL && w.to<=s.to+WALL_WINDOW_TOL);
+    // 勾配天井（ceiling:sloped）の対象範囲に接する壁は、天井まで届くよう高さを伸ばす
+    // （両側の天井高のうち高い方。段差はH向きの区間分割、傾斜はV向きの台形パネルで表現する）
+    if(level===1 && nearSlopedCeiling(s)){
+      if(s.orientation==='V'){
+        if(wins.length===0){
+          ceilingProfileRuns(s.at, s.from, s.to).forEach(run=>{
+            if(Math.abs(run.topA-run.topB)<0.01) boxWire(s.at-t, s.at+t, baseY, baseY+run.topA, run.from, run.to, walkWallMat, null, walkGroup);
+            else slopedTopWallPanel(s.at, run.from, run.to, baseY, run.topA, run.topB, s.thick, walkWallMat, walkWallMat, walkGroup);
+          });
+          return;
+        }
+        // 窓付きの傾斜壁は現状のデータには存在しないため未対応（フラットな通常経路へフォールバック）
+      } else {
+        const runs = heightRunsForHWall(s);
+        if(wins.length===0){
+          runs.forEach(run=> boxWire(run.from, run.to, baseY, baseY+run.height, s.at-t, s.at+t, walkWallMat, null, walkGroup));
+          return;
+        }
+        runs.forEach(run=>{
+          const runWins = wins.filter(w=> w.from<run.to-1e-6 && w.to>run.from+1e-6);
+          if(runWins.length===0){ boxWire(run.from, run.to, baseY, baseY+run.height, s.at-t, s.at+t, walkWallMat, null, walkGroup); return; }
+          let rects = [{x0:run.from, x1:run.to, z0:0, z1:run.height}];
+          runWins.forEach(w=>{ rects = rects.flatMap(rr=>rectMinusRect(rr, {x0:w.from, x1:w.to, z0:w.sill, z1:w.sill+w.h})); });
+          rects.forEach(rr=> boxWire(rr.x0, rr.x1, baseY+rr.z0, baseY+rr.z1, s.at-t, s.at+t, walkWallMat, null, walkGroup));
+          runWins.forEach(w=>{
+            const gt = WINDOW_GLASS_THICK/2;
+            boxWire(w.from, w.to, baseY+w.sill, baseY+w.sill+w.h, s.at-gt, s.at+gt, walkWindowMat, walkWindowFrameMat, walkGroup);
+          });
+        });
+        return;
+      }
+    }
     if(wins.length===0){
       if(s.orientation==='H') boxWire(s.from, s.to, baseY, baseY+CEIL_H, s.at-t, s.at+t, walkWallMat, null, walkGroup);
       else boxWire(s.at-t, s.at+t, baseY, baseY+CEIL_H, s.from, s.to, walkWallMat, null, walkGroup);
@@ -943,9 +1117,14 @@ const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一�
   // 階段の吹き抜け：このlevelから上の階へ上る階段があれば、その真上のlevel+1側の
   // 床（＝このlevelから見た天井）に開口の穴を開ける（内覧モードで見上げたときに素通しになる）
   const stairHoles = STAIRS.filter(s=>s.levelFrom===level && s.opening).map(s=>s.opening);
+  // 勾配天井（ceiling:sloped）の範囲も、平らな天井面からは切り欠いて、代わりに傾斜したパネルを
+  // 別途描画する（sloped:falseの区画＝2階直下などは高さが同じCEIL_Hなので、切り欠かず
+  // そのまま平らな天井面に任せてよい。区画の境界線が余計に増えるだけで見た目上のメリットがない）
+  const slopedHoles = level===1 ? SLOPED_CEILING_PIECES.filter(p=>p.sloped).map(p=>({x0:p.x0,x1:p.x1,z0:p.z0,z1:p.z1})) : [];
   (level===1 ? FLOOR1 : [FLOOR2]).forEach(r=>{
     let rects = [r];
     stairHoles.forEach(hole=>{ rects = rects.flatMap(rr=>rectMinusRect(rr, hole)); });
+    slopedHoles.forEach(hole=>{ rects = rects.flatMap(rr=>rectMinusRect(rr, hole)); });
     rects.forEach(rr=>{
       const [sx0,sz0]=toScene(rr.x0,rr.z0), [sx1,sz1]=toScene(rr.x1,rr.z1);
       const cgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
@@ -955,6 +1134,58 @@ const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一�
       walkGroup.add(cmesh);
     });
   });
+  if(level===1){
+    SLOPED_CEILING_PIECES.filter(p=>p.sloped).forEach(p=>{
+      const yN = yAtHiraya(p.z0,p.base,p.pitch) - p.roofThickness/2 - CEILING_ALLOWANCE;
+      const yS = yAtHiraya(p.z1,p.base,p.pitch) - p.roofThickness/2 - CEILING_ALLOWANCE;
+      walkSlopedCeilingPanel(p.x0, p.x1, p.z0, yN, p.z1, yS, 0.02, walkCeilingMat, walkGroup);
+    });
+    // 同じ部屋の中で「勾配」区画と「フラット」区画が壁を挟まずに接する境界（例：自宅LDKの
+    // x=12.74）は、天井の高さが不連続に変わるのに何も塞ぐものがなく、内覧モードで見上げると
+    // 隙間から2階側が見えてしまう（施主指摘：「片流れとフラット天井の境目が抜けて2Fが
+    // 見えてしまっています」）。境界に沿って、フラット天井の高さ(CEIL_H)から勾配天井の
+    // 高さまでを塞ぐ、垂直な「蹴込み」パネルを追加する
+    const piecesByRoom = {};
+    SLOPED_CEILING_PIECES.forEach(p=>{
+      if(!piecesByRoom[p.roomId]) piecesByRoom[p.roomId] = [];
+      piecesByRoom[p.roomId].push(p);
+    });
+    Object.values(piecesByRoom).forEach(pieces=>{
+      const slopedPieces = pieces.filter(p=>p.sloped), flatPieces = pieces.filter(p=>!p.sloped);
+      const riserZRanges = []; // {at, from, to}（V向きの境界線）
+      slopedPieces.forEach(sp=>{
+        flatPieces.forEach(fp=>{
+          [sp.x0, sp.x1].forEach(edge=>{
+            if(Math.abs(edge-fp.x0)>1e-6 && Math.abs(edge-fp.x1)>1e-6) return; // fpと接する境界のみ
+            const z0 = Math.max(sp.z0, fp.z0), z1 = Math.min(sp.z1, fp.z1);
+            if(z1-z0>1e-6) riserZRanges.push({ at:edge, from:z0, to:z1 });
+          });
+        });
+      });
+      const byAt = {};
+      riserZRanges.forEach(r=>{
+        const key = r.at.toFixed(6);
+        if(!byAt[key]) byAt[key] = [];
+        byAt[key].push(r);
+      });
+      Object.entries(byAt).forEach(([atKey, ranges])=>{
+        const at = Number(atKey);
+        ranges.sort((a,b)=>a.from-b.from);
+        const merged = [];
+        ranges.forEach(r=>{
+          const last = merged[merged.length-1];
+          if(last && r.from<=last.to+0.02) last.to = Math.max(last.to, r.to);
+          else merged.push({from:r.from, to:r.to});
+        });
+        merged.forEach(range=>{
+          ceilingProfileRuns(at, range.from, range.to).forEach(run=>{
+            if(run.topA<=CEIL_H+0.01 && run.topB<=CEIL_H+0.01) return; // 段差がない区間は蹴込み不要
+            slopedTopWallPanel(at, run.from, run.to, LEVELS.fl1+CEIL_H, run.topA-CEIL_H, run.topB-CEIL_H, 0.02, walkCeilingMat, null, walkGroup);
+          });
+        });
+      });
+    });
+  }
 });
 
 // ---- 内覧モードのアーチ開口：迫り持ち（スパンドレル）の壁を復元する ----
@@ -988,9 +1219,15 @@ function addWalkArchInfill({ orientation, alongFrom, alongTo, wallAt, baseY, hei
     else { mesh.rotation.y = -Math.PI/2; const [sx,sz]=toScene(wallAt, alongCenter); mesh.position.set(sx, baseY, sz); }
     walkGroup.add(mesh);
   });
-  // 弧の頂点(height)から天井(CEIL_H)までの帯（ドアの高さが天井高より低い分の、通常の垂れ壁）
-  if(height < CEIL_H){
-    const t = thick/2;
+  // 弧の頂点(height)から天井までの帯（ドアの高さが天井高より低い分の、通常の垂れ壁）。
+  // 勾配天井の対象範囲に接する場合（1Fのみ）は、CEIL_Hではなくその場所の実際の天井高まで
+  // 届かせる（H向きのみ対応。現状データにV向きの勾配天井対象アーチは存在しない）
+  const t = thick/2;
+  if(orientation==='H' && baseY===LEVELS.fl1 && nearSlopedCeiling({orientation, at:wallAt, from:alongFrom, to:alongTo})){
+    heightRunsForHWall({orientation:'H', at:wallAt, from:alongFrom, to:alongTo}).forEach(run=>{
+      if(height < run.height) boxWire(run.from, run.to, baseY+height, baseY+run.height, wallAt-t, wallAt+t, walkWallMat, null, walkGroup);
+    });
+  } else if(height < CEIL_H){
     if(orientation==='H') boxWire(alongFrom, alongTo, baseY+height, baseY+CEIL_H, wallAt-t, wallAt+t, walkWallMat, null, walkGroup);
     else boxWire(wallAt-t, wallAt+t, baseY+height, baseY+CEIL_H, alongFrom, alongTo, walkWallMat, null, walkGroup);
   }
@@ -1030,12 +1267,34 @@ function walkCharPart(w, d, cx, cz, y0, y1, mat){
   grp.add(mesh, line);
   return grp;
 }
+// 歩行時に振れる手足（脚・腕）を作る。walkCharPart()と違い、関節（脚なら股関節、腕なら肩）の
+// 高さpivotYを原点にしたグループを返す。このグループのrotation.xを変えることで、関節を
+// 中心に前後（ローカルZ方向）へ振り子のように振れる（tを掛けて歩いていない間は自然に0へ戻す）
+function walkCharLimb(w, d, cx, cz, pivotY, len, mat){
+  const pivot = new THREE.Group();
+  pivot.position.set(cx, pivotY, cz);
+  const geo = new THREE.BoxGeometry(Math.max(w,0.02), Math.max(len,0.02), Math.max(d,0.02));
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(0, -len/2, 0);
+  const line = new THREE.LineSegments(new THREE.EdgesGeometry(geo), walkCharEdgeMat);
+  line.position.copy(mesh.position);
+  pivot.add(mesh, line);
+  return pivot;
+}
+// 肩幅（腕を含めた最大幅）は日本人成人男性の平均的なbideltoid幅（約44-46cm）に合わせている。
+// 胴体の幅(0.36m)に腕(各0.10m)をそのまま外側に足すと肩幅だけで64cmになり実寸より広すぎるため、
+// 腕は自然に立った姿勢を想定して胴体の縁にほぼ重なる位置に置き、全体で約46cmに収める
+// （2026-08-16、施主指摘により調整。調整前は胴体40cm＋腕で肩幅64cmだった）
 const walkCharacterGroup = new THREE.Group();
-walkCharacterGroup.add(walkCharPart(0.14, 0.16, -0.09, 0, 0,    0.85, walkCharMat));  // 左脚
-walkCharacterGroup.add(walkCharPart(0.14, 0.16,  0.09, 0, 0,    0.85, walkCharMat));  // 右脚
-walkCharacterGroup.add(walkCharPart(0.40, 0.20,  0,    0, 0.85, 1.40, walkCharMat));  // 胴
-walkCharacterGroup.add(walkCharPart(0.12, 0.14, -0.26, 0, 0.85, 1.40, walkCharMat));  // 左腕
-walkCharacterGroup.add(walkCharPart(0.12, 0.14,  0.26, 0, 0.85, 1.40, walkCharMat));  // 右腕
+const walkCharLeftLeg = walkCharLimb(0.14, 0.16, -0.09, 0, 0.85, 0.85, walkCharMat);
+const walkCharRightLeg = walkCharLimb(0.14, 0.16, 0.09, 0, 0.85, 0.85, walkCharMat);
+const walkCharLeftArm = walkCharLimb(0.10, 0.14, -0.18, 0, 1.40, 0.55, walkCharMat);
+const walkCharRightArm = walkCharLimb(0.10, 0.14, 0.18, 0, 1.40, 0.55, walkCharMat);
+walkCharacterGroup.add(walkCharLeftLeg);   // 左脚
+walkCharacterGroup.add(walkCharRightLeg);  // 右脚
+walkCharacterGroup.add(walkCharPart(0.36, 0.20,  0,    0, 0.85, 1.40, walkCharMat));  // 胴
+walkCharacterGroup.add(walkCharLeftArm);   // 左腕
+walkCharacterGroup.add(walkCharRightArm);  // 右腕
 walkCharacterGroup.add(walkCharPart(0.24, 0.24,  0,    0, 1.40, 1.70, walkCharHeadMat)); // 頭（頭頂で身長1.70m）
 walkCharacterGroup.visible = false;
 scene.add(walkCharacterGroup);
@@ -2404,6 +2663,11 @@ let walkYaw = 0, walkPitch = 0;
 let walkView = 'first'; // 'first'=一人称 / 'third'=三人称（マインクラフト風の背後追従カメラ）
 const EYE_HEIGHT = 1.55; // 目線の高さ(m、床から)
 const WALK_SPEED = 1.7;  // 歩行速度(m/s)
+const WALK_CYCLE_SPEED = 8;         // 歩行アニメーションの周期の速さ（大きいほど手足が速く動く）
+const WALK_CYCLE_LEG_AMPLITUDE = 0.5;  // 脚の振り角（ラジアン）
+const WALK_CYCLE_ARM_AMPLITUDE = 0.35; // 腕の振り角（ラジアン。脚より小さめにして自然に見せる）
+let walkCyclePhase = 0; // 歩行アニメーションの位相（歩いている間だけ進める）
+let walkCycleAmount = 0; // 0=静止(手足を振らない)〜1=全振幅。動き出す/止まるでなめらかに切り替える
 const THIRD_PERSON_DISTANCE = 1.7;      // 三人称カメラの距離(m、常に一定。壁・家具に応じた自動調整はしない)
 const THIRD_PERSON_TARGET_HEIGHT = 1.5; // 注視点の高さ(m、床から。キャラの頭部付近)
 const STAIR_CORRIDOR_MARGIN = 0.35; // 経路中心線からこの距離以内なら「階段に乗っている」とみなす
@@ -2673,6 +2937,17 @@ function updateWalkMovement(dt){
     const [nx,nz] = resolveWalk(walkLevel, walkPos.x, walkPos.z, dx, dz);
     walkPos.x = nx; walkPos.z = nz;
   }
+  // 三人称視点のキャラクターの手足を、歩いている間だけ振り子のように振る（施主指摘：
+  // 「歩くと手足が動くようにしてほしい」）。walkCycleAmountで、動き出す/止まる時に
+  // 振り角が急に0や最大に切り替わらず、なめらかにフェードするようにする
+  const moving = len > 1e-4;
+  walkCycleAmount += ((moving?1:0) - walkCycleAmount) * Math.min(1, dt*8);
+  if(moving) walkCyclePhase += dt * WALK_CYCLE_SPEED;
+  const swing = Math.sin(walkCyclePhase) * walkCycleAmount;
+  walkCharLeftLeg.rotation.x = swing * WALK_CYCLE_LEG_AMPLITUDE;
+  walkCharRightLeg.rotation.x = -swing * WALK_CYCLE_LEG_AMPLITUDE;
+  walkCharLeftArm.rotation.x = -swing * WALK_CYCLE_ARM_AMPLITUDE; // 右脚と同じ位相（左脚とは逆＝対側協調）
+  walkCharRightArm.rotation.x = swing * WALK_CYCLE_ARM_AMPLITUDE; // 左脚と同じ位相
   // 階段上にいる間は経路の進み具合(t)で現在階を判定し、床・家具の表示をその階に切り替える
   // （t<0.5=まだ下の階、t>=0.5=上の階に到達したとみなす。経路の外にいる間はwalkLevelを維持する）
   const sp = stairProgressAt(walkPos.x, walkPos.z, walkLevel);

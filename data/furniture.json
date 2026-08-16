@@ -54,9 +54,11 @@
       "room": "room-1f-05",
       "label": "ベッド1",
       "level": 1,
-      "x": 3.9,
-      "z": 2.67,
+      "x": 3.84,
+      "z": 2.69,
       "rotation": 180,
+      "widthOverride": 0.9,
+      "depthOverride": 1.9,
       "status": "estimated"
     },
     {
@@ -65,9 +67,11 @@
       "room": "room-1f-05",
       "label": "ベッド2",
       "level": 1,
-      "x": 5.07,
-      "z": 2.69,
+      "x": 5.05,
+      "z": 2.68,
       "rotation": 180,
+      "widthOverride": 0.9,
+      "depthOverride": 1.9,
       "status": "estimated"
     },
     {
@@ -89,7 +93,7 @@
       "level": 1,
       "x": 6.46,
       "z": 1.49,
-      "rotation": 90,
+      "rotation": 270,
       "status": "estimated"
     },
     {
@@ -121,10 +125,10 @@
       "room": "room-1f-06",
       "label": "ダイニングテーブル",
       "level": 1,
-      "x": 5.24,
-      "z": 5.22,
+      "x": 5.36,
+      "z": 5.06,
       "rotation": 0,
-      "widthOverride": 1.2,
+      "widthOverride": 0.8,
       "status": "estimated"
     },
     {
@@ -133,8 +137,8 @@
       "room": "room-1f-06",
       "label": "椅子1",
       "level": 1,
-      "x": 5.26,
-      "z": 4.82,
+      "x": 5.39,
+      "z": 4.61,
       "rotation": 0,
       "status": "estimated"
     },
@@ -144,8 +148,8 @@
       "room": "room-1f-06",
       "label": "椅子2",
       "level": 1,
-      "x": 5.26,
-      "z": 5.66,
+      "x": 5.36,
+      "z": 5.56,
       "rotation": 180,
       "status": "estimated"
     },
@@ -155,9 +159,12 @@
       "room": "room-1f-06",
       "label": "ソファ",
       "level": 1,
-      "x": 3.54,
-      "z": 4.14,
+      "x": 3.74,
+      "z": 4.05,
       "rotation": 0,
+      "widthOverride": 1.4,
+      "depthOverride": 0.7,
+      "heightOverride": 0.7,
       "status": "estimated"
     },
     {
@@ -177,10 +184,10 @@
       "room": "room-1f-06",
       "label": "ローテーブル",
       "level": 1,
-      "x": 3.53,
-      "z": 5.07,
+      "x": 3.66,
+      "z": 4.9,
       "rotation": 0,
-      "widthOverride": 0.8,
+      "widthOverride": 0.5,
       "depthOverride": 0.4,
       "status": "estimated"
     },

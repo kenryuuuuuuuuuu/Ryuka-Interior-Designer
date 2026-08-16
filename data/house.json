@@ -32,7 +32,8 @@
     "ceilingHeight": 2.4,
     "wallThickness": 0.12,
     "ceilingHeightStatus": "estimated",
-    "interiorWallThickness": 0.06
+    "interiorWallThickness": 0.06,
+    "ceilingAllowance": 0.15
   },
   "footprints": [
     {
@@ -324,6 +325,7 @@
       "id": "room-1f-06",
       "level": 1,
       "label": "LDK(民泊)",
+      "ceiling": "sloped",
       "polygon": [
         [
           1.82,
@@ -351,7 +353,7 @@
         ]
       ],
       "status": "verified",
-      "note": "施主指摘(2026-08-13)によりLDK本体＋張り出し部をL字ポリゴンとして統合。内部の継ぎ目線は表示されない。ラベルから面積表記は削除(2026-08-13)。自宅側のLDKと区別するため「(民泊)」を付記"
+      "note": "施主指摘(2026-08-13)によりLDK本体＋張り出し部をL字ポリゴンとして統合。内部の継ぎ目線は表示されない。ラベルから面積表記は削除(2026-08-13)。自宅側のLDKと区別するため「(民泊)」を付記。追記(2026-08-16)：施主指摘により、片流れ屋根（roof-a1）がかかる範囲は天井高を屋根なりの勾配天井にすることになった（`ceiling:\"sloped\"`）。詳細はdocs/ARCHITECTURE.md「勾配天井（ceiling:sloped）」を参照"
     },
     {
       "id": "room-1f-07",
@@ -548,6 +550,7 @@
       "id": "room-1f-11",
       "level": 1,
       "label": "LDK",
+      "ceiling": "sloped",
       "polygon": [
         [
           7.28,
@@ -583,7 +586,7 @@
         ]
       ],
       "status": "verified",
-      "note": "確定(2026-08-13)：施主指摘によりLD＋キッチンを統合しLDKに変更。北端が3段階（z=2.730→2.275→1.820）の階段状になっているのが実際の間取り"
+      "note": "確定(2026-08-13)：施主指摘によりLD＋キッチンを統合しLDKに変更。北端が3段階（z=2.730→2.275→1.820）の階段状になっているのが実際の間取り。追記(2026-08-16)：施主指摘により、片流れ屋根（roof-a1/roof-a2）がかかる範囲（x:7.28-12.74）は天井高を屋根なりの勾配天井にすることになった（`ceiling:\"sloped\"`）。2階の直下にあたる東側（x:12.74-15.471）は屋根がかからないためフラットな天井のまま。詳細はdocs/ARCHITECTURE.md「勾配天井（ceiling:sloped）」を参照"
     },
     {
       "id": "room-1f-12",
