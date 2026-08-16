@@ -793,7 +793,12 @@ function cutGaps(segs, gaps){
   gaps.forEach(g=>{
     result = result.flatMap(s=>{
       if(s.orientation!==g.orientation || Math.abs(s.at-g.at)>0.02) return [s];
-      return subtractRanges([[s.from,s.to]], g.from, g.to).map(([a,b])=>({orientation:s.orientation, at:s.at, from:a, to:b}));
+      // {...s}で元のセグメントの全プロパティ（thick=壁厚など）を引き継ぐ。以前は
+      // orientation/at/from/toだけを再構築していたため、ドアで一度でも切り欠かれた
+      // セグメントはthickがundefinedになり、内覧モードで見た目（NaNジオメトリで
+      // 描画されず透明になる）・当たり判定（PLAYER_RADIUS+NaN/2=NaNで常にすり抜け）の
+      // 両方が壊れていた（ドア・開口の近くの壁だけ「壁が消える」不具合の原因）
+      return subtractRanges([[s.from,s.to]], g.from, g.to).map(([a,b])=>({...s, from:a, to:b}));
     });
   });
   return result;
