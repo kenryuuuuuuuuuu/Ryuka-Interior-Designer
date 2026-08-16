@@ -59,20 +59,24 @@ data/interior-doors.json（室内ドアの配置インスタンス）
 | `blender/build_house.py` | `house.json`・`door-catalog.json`・`window-catalog.json`・`openings.json`・`interior-doors.json`からBlender白模型を再生成するスクリプト（家具は対象外） |
 | `tests/validate_house.py` | `house.json` の整合性チェック（依存ライブラリなしで動作） |
 | `tests/validate_furniture.py` | `furniture-catalog.json` / `furniture.json` の整合性チェック（house.jsonのroomsとの照合含む） |
-| `tests/validate_openings.py` | `door-catalog.json` / `window-catalog.json` / `openings.json` / `interior-doors.json` の整合性チェック（house.jsonのfootprints/wallsとの照合含む） |
+| `tests/validate_openings.py` | `door-catalog.json` / `window-catalog.json` / `openings.json` / `interior-doors.json` の整合性チェック（house.jsonのfootprints、および`generated/interior-walls.json`との照合含む。実行前に`node scripts/build-web-data.mjs`が必要） |
 | `index.html` | GitHub PagesのルートURL用リダイレクト。`interior-white-model.html`へ転送するだけ |
 | `manifest.webmanifest` / `sw.js` / `icon.svg` | PWA化（ホーム画面追加・オフライン起動）の設定一式。詳細は下記「公開（GitHub Pages / PWA）」 |
 | `vendor/three.min.js` | Three.js本体のローカル同梱コピー（CDN非依存。オフライン起動のため） |
 
 ## rooms / walls について
 
-`rooms`（部屋の輪郭ポリゴン）は間取りの一次情報。`walls`（重複を除いた壁芯データ、Blenderのみが使用）は `rooms` から人手＋半自動で重複統合・外壁除外して作られた二次情報で、`rooms` を編集しても自動追従しない。`rooms` を編集した場合は、影響する `walls` エントリ（`sourceRooms` に対象の部屋ラベルを含むもの）を手動で見直すこと。将来的にはこの変換も自動化したい（[STATUS.md](STATUS.md) の未解決事項を参照）。
+`rooms`（部屋の輪郭ポリゴン）が間取りの唯一の正本。**`walls`（壁芯データ）は`data/house.json`には存在しない**（2026-08-16に廃止）。かつては`rooms`とは別に`walls`を人手で保守していたが、部屋を分割するたびに更新を忘れる事故が繰り返し起きたため（内覧モードで「壁があったりなかったり」という不具合の主因になった。詳細は[BACKGROUND.md](BACKGROUND.md)）、`rooms`だけを唯一の情報源とし、壁は毎回機械的に導出する方式に統一した。
 
-Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は使わない。`walls` はBlenderの `build_house.py` だけが使う。
+- **導出ロジックは`scripts/build-web-data.mjs`の`deriveInteriorWalls()`に一箇所だけ実装されている。** 同じレベル（1F/2F）の全部屋ポリゴンを総当たりし、2部屋が軸に沿った辺（H/V）を共有している区間を「内壁」として抽出する。同一直線上で隙間なく連続する区間は1本にまとめる（`mergeCollinearWalls()`。3部屋以上が同じ直線に並ぶ通し壁が、部屋ペアごとに細切れになって、その上のドア幅がどの区間にも収まらないと誤判定される問題への対策）。斜めの辺（x0/x1もz0/z1も一致しない辺）は対象外で、`orientation:'D'`（斜め框など）はこれまで通り`data/interior-doors.json`側で個別に表現する
+- 建物の外周壁は対象外（Three.js側の`exteriorSegmentsForLevel()`、Blender側の`build_exterior_walls()`が別途`footprints`+`openings`から導出する。こちらは元々`rooms`とは独立した仕組み）
+- ドアによる開口の切り欠きも、この導出処理では行わない（消費側＝Three.jsの`doorGapsForLevel()`/`cutGaps()`、Blenderの`build_interior_walls()`が、それぞれ`data/interior-doors.json`を見て壁生成時に切り欠く。これは元の設計を踏襲している）
+- 導出結果は`generated/interior-walls.json`として書き出される（`node scripts/build-web-data.mjs`で再生成、`generated/house-data.js`と同様に**手で編集しないコミット対象の生成物**）。Three.js側は`generated/house-data.js`内の`WALLS`定数として、Blender側（`blender/build_house.py`の`load_data()`）はこのJSONを直接読み込む形でそれぞれ利用する。**壁の導出ロジックをPythonで再実装することはしない**（HTML側とBlender側の壁がズレるリスクを避けるため、単一の実装をJSON経由で共有する）
+- `rooms`を分割・追加・移動したら、`node scripts/build-web-data.mjs`を再実行するだけで、Three.js・Blender双方の壁が自動的に追従する（手動更新の手順が不要になった）
 
-`rooms`の`polygon`は矩形・L字（軸に沿った頂点のみ）が基本だが、斜め框のような斜めの境界線を持つ部屋も表現できる（`polyWire()`はThree.js側で任意の多角形を描画できるため）。ただし`rooms`→`walls`変換（Blender用）は軸に沿った壁しか扱えないため、斜めの境界を持つ部屋を追加した場合は`walls`側の対応する更新ができない（Blenderは現状未使用のため実害は小さいが、[STATUS.md](STATUS.md)に記録しておくこと）。
+`rooms`の`polygon`は矩形・L字（軸に沿った頂点のみ）が基本だが、斜め框のような斜めの境界線を持つ部屋も表現できる（`polyWire()`はThree.js側で任意の多角形を描画できるため）。斜めの辺は壁の自動導出の対象外なので、そのような境界には必ず`data/interior-doors.json`側で`orientation:'D'`の開口を用意すること。
 
-**間取りの精細化（部屋の分割）の進め方**：家具・窓ドアのような「既存の枠内で位置を調整する」編集とは異なり、部屋を分割する作業（例：1つの部屋を2部屋に割る、部屋の中に収納区画を切り出す）はトポロジーそのものを変える。編集モードは作らず、施主からスクリーンショット＋書き込み線などで指示を受け、`rooms`を直接編集する方式にしている（検討の経緯は[BACKGROUND.md](BACKGROUND.md)参照）。
+**間取りの精細化（部屋の分割）の進め方**：家具・窓ドアのような「既存の枠内で位置を調整する」編集とは異なり、部屋を分割する作業（例：1つの部屋を2部屋に割る、部屋の中に収納区画を切り出す）はトポロジーそのものを変える。編集モードは作らず、施主からスクリーンショット＋書き込み線などで指示を受け、`rooms`を直接編集する方式にしている（検討の経緯は[BACKGROUND.md](BACKGROUND.md)参照）。部屋を分割したら、境界上にドアを置くのか（`data/interior-doors.json`に登録）、ただの壁のままにするのか（何もしない。壁は自動的にできる）を決めるだけでよく、以前のように`walls`エントリを別途追加する必要はない。
 
 ## 家具・設備（furniture）
 
@@ -146,7 +150,7 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
    blender --background --python blender/build_house.py -- --input data/house.json --output build/ryuka-white-model.blend
    ```
 
-要素を追加・削除する場合は、その配列（`footprints` / `rooms` / `walls` など）の中で一意なIDを新規発番し、`status` を適切に設定すること。`walls` は上記「rooms / walls について」の注意を確認する。窓・ドアは`house.json`ではなく`data/openings.json`/`data/interior-doors.json`側で管理する（下記「窓・ドアの種類を追加する、または直接JSONを編集する」参照）。
+要素を追加・削除する場合は、その配列（`footprints` / `rooms` など）の中で一意なIDを新規発番し、`status` を適切に設定すること。壁（`walls`）は`rooms`から自動導出されるため、`rooms`を編集するだけでよい（上記「rooms / walls について」参照）。窓・ドアは`house.json`ではなく`data/openings.json`/`data/interior-doors.json`側で管理する（下記「窓・ドアの種類を追加する、または直接JSONを編集する」参照）。
 
 ### 家具・設備の位置・向き・サイズを調整する（Web UI、推奨）
 
@@ -209,4 +213,4 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 
 - HTML側の生成データ読み込みへの切り替え：完了（2026-08-14）
 - `web/` ディレクトリへの本格的なビューア分離（Three.jsコードと表示ロジックを `data/house.json` から完全に切り離す）：未着手。当面は `interior-white-model.html` 内のThree.jsロジックをそのまま維持する
-- rooms→walls変換の自動化：未着手
+- rooms→walls変換の自動化：完了（2026-08-16。`scripts/build-web-data.mjs`が`rooms`から機械的に導出し、`data/house.json`の手動保守`walls`配列は廃止した）

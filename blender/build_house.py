@@ -29,6 +29,13 @@ def load_data(input_path: Path) -> dict:
     型のカタログを解決した上で従来通りdata["openings"]/data["interiorDoors"]（width/
     height/sillがフラットなフィールドとして展開された形）に合成する。これにより、
     このファイルの下流のロジック（build_exterior_walls等）は分離前と同じ形でデータを扱える。
+
+    内壁（data["walls"]）は2026-08-16にhouse.jsonから廃止し、rooms（部屋ポリゴン）を
+    唯一の正本として自動導出する方式に切り替えた。導出ロジックはHTML側
+    （scripts/build-web-data.mjs）にのみ実装されており、ここではその結果である
+    ../generated/interior-walls.json を読み込むだけにする（Pythonでの再実装によって
+    HTML側とBlender側の壁がズレるのを防ぐため）。node scripts/build-web-data.mjs を
+    先に実行しておく必要がある。
     """
     with input_path.open(encoding="utf-8") as stream:
         data = json.load(stream)
@@ -48,6 +55,13 @@ def load_data(input_path: Path) -> dict:
 
     data["openings"] = [resolve(o, [("width", "widthOverride"), ("height", "heightOverride"), ("sill", "sillOverride")]) for o in openings_raw]
     data["interiorDoors"] = [resolve(d, [("width", "widthOverride"), ("height", "heightOverride")]) for d in doors_raw]
+
+    interior_walls_path = root.parent / "generated" / "interior-walls.json"
+    if not interior_walls_path.exists():
+        raise SystemExit(
+            f"{interior_walls_path} が見つかりません。先に `node scripts/build-web-data.mjs` を実行してください。"
+        )
+    data["walls"] = json.loads(interior_walls_path.read_text(encoding="utf-8"))["walls"]
     return data
 
 
@@ -144,7 +158,8 @@ def build_exterior_walls(data, coll, mat):
 
 
 def build_interior_walls(data, coll, mat):
-    """data['walls'](部屋ポリゴンから重複統合した壁芯データ)から室内壁を生成する。
+    """data['walls']（rooms＝部屋ポリゴンから自動導出した壁芯データ。load_data()が
+    generated/interior-walls.json から読み込む）から室内壁を生成する。
     同じ壁の上にある室内ドア(interiorDoors)を自動検出し、開口として切り欠く。
     ドア高さはdata/interior-doors.json（型のデフォルトまたはheightOverride）から取得する。
     """
@@ -222,6 +237,11 @@ def build(data):
     build_exterior_walls(data, walls, white)
     build_interior_walls(data, interior_walls, interior_white)
     for door in data["interiorDoors"]:
+        if door["orientation"] == "D":
+            # 斜め壁（x0/z0/x1/z1で始点・終点を指定する斜め框など）はwallAt/centerを
+            # 持たないため、この単純なマーカー生成の対象外にする（HTML側の
+            # placeDiagonalInteriorDoor()に相当する専用ジオメトリはBlender側では未実装）
+            continue
         base, thick, height = level_y(data, door["floor"]), 0.03, door["height"]
         if door["orientation"] == "H":
             box(door["id"], door["center"]-door["width"]/2, door["center"]+door["width"]/2, door["wallAt"]-thick, door["wallAt"]+thick, base, base+height, markers, marker)

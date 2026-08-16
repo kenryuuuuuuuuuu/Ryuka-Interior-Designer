@@ -748,15 +748,17 @@ function segAtX(lx){ return FLOOR1.find(s=>lx>=s.x0-1e-6 && lx<=s.x1+1e-6) || FL
 // ============================================================================
 // house.json の footprints は求積図のゾーン区分であり、隣接ゾーンの共有辺は
 // 実在する壁ではない（区画境界壁レイヤーを削除した理由と同じ）。ここでは
-// rooms→walls変換時と同じ「区間の引き算」方式で、共有辺を除いた真の外周
-// だけを抽出する。内壁は house.walls（重複統合済みの壁芯データ）をそのまま使う。
+// 「区間の引き算」方式で、共有辺を除いた真の外周だけを抽出する。
+// 内壁（WALLS）は、data/house.json の rooms（部屋ポリゴン）を唯一の正本として
+// scripts/build-web-data.mjs が自動導出したもの（2部屋のポリゴンが辺を共有する
+// 区間＝壁）。手動保守の壁芯データは廃止した。詳細は docs/ARCHITECTURE.md を参照。
 // 当たり判定は壁厚を考慮した円と線分の距離判定（プレイヤー半径+壁厚/2）。
 // 実測の壁位置ではなく概算データからの導出のため、判定自体も概算である。
 function subtractRanges(ranges, cutFrom, cutTo){
   const out = [];
   ranges.forEach(([a,b])=>{
     if(a < cutFrom) out.push([a, Math.min(b,cutFrom)]);
-    if(b > cutTo) out.push([Math.max(a,cutFrom), b]);
+    if(b > cutTo) out.push([Math.max(a,cutTo), b]);
   });
   return out.filter(([a,b])=> b-a > 1e-4);
 }

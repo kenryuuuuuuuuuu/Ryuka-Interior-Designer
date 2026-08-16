@@ -1,0 +1,502 @@
+{
+  "schemaVersion": "1.0.0",
+  "note": "自動生成ファイル。手で編集しないこと。data/house.json の rooms（部屋ポリゴン）から、2部屋が辺を共有する区間を機械的に導出した内壁データ。生成コマンド: node scripts/build-web-data.mjs。interior-white-model.html・blender/build_house.py の両方がこのファイルを読む（ロジックの二重実装を避けるため）。",
+  "walls": [
+    {
+      "id": "wall-1f-auto-001",
+      "level": 1,
+      "x0": 0.91,
+      "x1": 0.91,
+      "z0": 0.91,
+      "z1": 2.73,
+      "orientation": "V",
+      "sourceRooms": [
+        "トイレ(民泊)",
+        "玄関(民泊)",
+        "ホール(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-002",
+      "level": 1,
+      "x0": 0,
+      "x1": 2.73,
+      "z0": 2.73,
+      "z1": 2.73,
+      "orientation": "H",
+      "sourceRooms": [
+        "トイレ(民泊)",
+        "洗面脱衣室",
+        "ホール(民泊)",
+        "LDK(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-003",
+      "level": 1,
+      "x0": 7.28,
+      "x1": 10.92,
+      "z0": 2.73,
+      "z1": 2.73,
+      "orientation": "H",
+      "sourceRooms": [
+        "ヌック",
+        "LDK",
+        "自宅ホール"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-004",
+      "level": 1,
+      "x0": 16.381,
+      "x1": 19.11,
+      "z0": 2.73,
+      "z1": 2.73,
+      "orientation": "H",
+      "sourceRooms": [
+        "廊下",
+        "収納",
+        "トイレ(東)",
+        "洗面(東)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-005",
+      "level": 1,
+      "x0": 0.91,
+      "x1": 2.73,
+      "z0": 1.82,
+      "z1": 1.82,
+      "orientation": "H",
+      "sourceRooms": [
+        "玄関(民泊)",
+        "ホール(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-006",
+      "level": 1,
+      "x0": 13.651,
+      "x1": 19.11,
+      "z0": 1.82,
+      "z1": 1.82,
+      "orientation": "H",
+      "sourceRooms": [
+        "階段（曲がり階段）",
+        "LDK",
+        "パントリー（階段下）",
+        "ファミリークローク",
+        "廊下",
+        "収納",
+        "トイレ(東)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-007",
+      "level": 1,
+      "x0": 2.73,
+      "x1": 2.73,
+      "z0": 0.91,
+      "z1": 3.691,
+      "orientation": "V",
+      "sourceRooms": [
+        "玄関(民泊)",
+        "洋室",
+        "ホール(民泊)",
+        "LDK(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-008",
+      "level": 1,
+      "x0": 0,
+      "x1": 1.82,
+      "z0": 4.55,
+      "z1": 4.55,
+      "orientation": "H",
+      "sourceRooms": [
+        "洗面脱衣室",
+        "UB(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-009",
+      "level": 1,
+      "x0": 1.82,
+      "x1": 1.82,
+      "z0": 2.73,
+      "z1": 6.37,
+      "orientation": "V",
+      "sourceRooms": [
+        "洗面脱衣室",
+        "LDK(民泊)",
+        "UB(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-010",
+      "level": 1,
+      "x0": 6.37,
+      "x1": 7.28,
+      "z0": 2.326,
+      "z1": 2.326,
+      "orientation": "H",
+      "sourceRooms": [
+        "洋室",
+        "収納"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-011",
+      "level": 1,
+      "x0": 6.37,
+      "x1": 6.37,
+      "z0": 2.326,
+      "z1": 3.691,
+      "orientation": "V",
+      "sourceRooms": [
+        "洋室",
+        "収納"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-012",
+      "level": 1,
+      "x0": 2.73,
+      "x1": 7.28,
+      "z0": 3.691,
+      "z1": 3.691,
+      "orientation": "H",
+      "sourceRooms": [
+        "洋室",
+        "LDK(民泊)",
+        "収納"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-013",
+      "level": 1,
+      "x0": 7.28,
+      "x1": 7.28,
+      "z0": 0.91,
+      "z1": 6.37,
+      "orientation": "V",
+      "sourceRooms": [
+        "洋室",
+        "ヌック",
+        "収納",
+        "LDK",
+        "LDK(民泊)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-014",
+      "level": 1,
+      "x0": 9.1,
+      "x1": 9.1,
+      "z0": 0.91,
+      "z1": 2.73,
+      "orientation": "V",
+      "sourceRooms": [
+        "ヌック",
+        "自宅玄関",
+        "自宅ホール"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-015",
+      "level": 1,
+      "x0": 10.92,
+      "x1": 10.92,
+      "z0": 0.455,
+      "z1": 2.73,
+      "orientation": "V",
+      "sourceRooms": [
+        "自宅玄関",
+        "土間",
+        "自宅ホール",
+        "LDK"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-016",
+      "level": 1,
+      "x0": 12.451,
+      "x1": 12.451,
+      "z0": 0.455,
+      "z1": 2.275,
+      "orientation": "V",
+      "sourceRooms": [
+        "土間",
+        "SC"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-017",
+      "level": 1,
+      "x0": 10.92,
+      "x1": 13.651,
+      "z0": 2.275,
+      "z1": 2.275,
+      "orientation": "H",
+      "sourceRooms": [
+        "土間",
+        "LDK",
+        "SC"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-018",
+      "level": 1,
+      "x0": 13.651,
+      "x1": 13.651,
+      "z0": 0,
+      "z1": 2.275,
+      "orientation": "V",
+      "sourceRooms": [
+        "SC",
+        "階段（曲がり階段）",
+        "LDK"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-019",
+      "level": 1,
+      "x0": 14.561,
+      "x1": 15.471,
+      "z0": 0.91,
+      "z1": 0.91,
+      "orientation": "H",
+      "sourceRooms": [
+        "階段（曲がり階段）",
+        "パントリー（階段下）"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-020",
+      "level": 1,
+      "x0": 14.561,
+      "x1": 14.561,
+      "z0": 0.91,
+      "z1": 1.82,
+      "orientation": "V",
+      "sourceRooms": [
+        "階段（曲がり階段）",
+        "パントリー（階段下）"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-021",
+      "level": 1,
+      "x0": 15.471,
+      "x1": 15.471,
+      "z0": 0,
+      "z1": 6.37,
+      "orientation": "V",
+      "sourceRooms": [
+        "階段（曲がり階段）",
+        "ファミリークローク",
+        "パントリー（階段下）",
+        "LDK",
+        "廊下",
+        "脱衣室"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-022",
+      "level": 1,
+      "x0": 16.381,
+      "x1": 16.381,
+      "z0": 1.82,
+      "z1": 2.73,
+      "orientation": "V",
+      "sourceRooms": [
+        "廊下",
+        "収納"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-023",
+      "level": 1,
+      "x0": 17.291,
+      "x1": 17.291,
+      "z0": 1.82,
+      "z1": 6.37,
+      "orientation": "V",
+      "sourceRooms": [
+        "収納",
+        "トイレ(東)",
+        "廊下",
+        "洗面(東)",
+        "脱衣室",
+        "UB(東)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-024",
+      "level": 1,
+      "x0": 15.471,
+      "x1": 17.291,
+      "z0": 3.64,
+      "z1": 3.64,
+      "orientation": "H",
+      "sourceRooms": [
+        "廊下",
+        "脱衣室"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-025",
+      "level": 1,
+      "x0": 17.291,
+      "x1": 19.11,
+      "z0": 4.095,
+      "z1": 4.095,
+      "orientation": "H",
+      "sourceRooms": [
+        "洗面(東)",
+        "UB(東)"
+      ]
+    },
+    {
+      "id": "wall-1f-auto-026",
+      "level": 1,
+      "x0": 16.38,
+      "x1": 19.11,
+      "z0": 6.37,
+      "z1": 6.37,
+      "orientation": "H",
+      "sourceRooms": [
+        "脱衣室",
+        "南土間",
+        "UB(東)"
+      ]
+    },
+    {
+      "id": "wall-2f-auto-001",
+      "level": 2,
+      "x0": 13.651,
+      "x1": 13.651,
+      "z0": 0,
+      "z1": 1.82,
+      "orientation": "V",
+      "sourceRooms": [
+        "トイレ(2F)",
+        "階段(2F)"
+      ]
+    },
+    {
+      "id": "wall-2f-auto-002",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 16.38,
+      "z0": 1.82,
+      "z1": 1.82,
+      "orientation": "H",
+      "sourceRooms": [
+        "トイレ(2F)",
+        "廊下(2F)",
+        "階段(2F)",
+        "クローゼット"
+      ]
+    },
+    {
+      "id": "wall-2f-auto-003",
+      "level": 2,
+      "x0": 15.47,
+      "x1": 15.47,
+      "z0": 0,
+      "z1": 1.82,
+      "orientation": "V",
+      "sourceRooms": [
+        "階段(2F)",
+        "クローゼット"
+      ]
+    },
+    {
+      "id": "wall-2f-auto-004",
+      "level": 2,
+      "x0": 15.47,
+      "x1": 15.47,
+      "z0": 2.73,
+      "z1": 6.37,
+      "orientation": "V",
+      "sourceRooms": [
+        "子供部屋1",
+        "夫婦寝室"
+      ]
+    },
+    {
+      "id": "wall-2f-auto-005",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 19.11,
+      "z0": 2.73,
+      "z1": 2.73,
+      "orientation": "H",
+      "sourceRooms": [
+        "廊下(2F)",
+        "クローゼット",
+        "子供部屋1",
+        "夫婦寝室",
+        "子供部屋2",
+        "書斎"
+      ]
+    },
+    {
+      "id": "wall-2f-auto-006",
+      "level": 2,
+      "x0": 16.38,
+      "x1": 16.38,
+      "z0": 0,
+      "z1": 3.64,
+      "orientation": "V",
+      "sourceRooms": [
+        "子供部屋2",
+        "クローゼット",
+        "廊下(2F)",
+        "夫婦寝室",
+        "書斎"
+      ]
+    },
+    {
+      "id": "wall-2f-auto-007",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 14.56,
+      "z0": 3.64,
+      "z1": 3.64,
+      "orientation": "H",
+      "sourceRooms": [
+        "子供部屋1",
+        "クローゼット"
+      ]
+    },
+    {
+      "id": "wall-2f-auto-008",
+      "level": 2,
+      "x0": 16.38,
+      "x1": 19.11,
+      "z0": 3.64,
+      "z1": 3.64,
+      "orientation": "H",
+      "sourceRooms": [
+        "夫婦寝室",
+        "書斎"
+      ]
+    },
+    {
+      "id": "wall-2f-auto-009",
+      "level": 2,
+      "x0": 14.56,
+      "x1": 14.56,
+      "z0": 2.73,
+      "z1": 3.64,
+      "orientation": "V",
+      "sourceRooms": [
+        "子供部屋1",
+        "クローゼット"
+      ]
+    }
+  ]
+}

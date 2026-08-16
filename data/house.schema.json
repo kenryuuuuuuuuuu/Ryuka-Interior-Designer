@@ -3,7 +3,7 @@
   "$id": "https://ryuka.example/schemas/house.schema.json",
   "title": "Ryuka house digital twin",
   "type": "object",
-  "required": ["schemaVersion", "units", "coordinateSystem", "levels", "defaults", "footprints", "specialWalls", "roofs", "rooms", "walls"],
+  "required": ["schemaVersion", "units", "coordinateSystem", "levels", "defaults", "footprints", "specialWalls", "roofs", "rooms"],
   "properties": {
     "schemaVersion": { "const": "1.0.0" },
     "units": { "const": "m" },
@@ -42,9 +42,9 @@
       }
     },
     "rooms": { "type": "array", "items": { "$ref": "#/$defs/room" } },
-    "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" } },
     "stairs": { "type": "array", "items": { "$ref": "#/$defs/stair" } }
   },
+  "$comment": "walls（内壁）は正本から廃止した。roomsの各部屋ポリゴンが辺を共有する区間から scripts/build-web-data.mjs が自動導出し、generated/interior-walls.json に書き出す（$defs/wall はそのファイルの形状の説明として残す）。詳細は docs/ARCHITECTURE.md「rooms / walls について」を参照",
   "$defs": {
     "rect": {
       "type": "object",

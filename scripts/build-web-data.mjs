@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const housePath = path.join(root, "data", "house.json");
 const outPath = path.join(root, "generated", "house-data.js");
+const interiorWallsOutPath = path.join(root, "generated", "interior-walls.json");
 const mode = process.argv[2] ?? "--write";
 
 if (!["--check", "--write"].includes(mode)) {
@@ -207,8 +208,109 @@ function buildRoofs() {
   return `const ROOFS = [\n${rows}\n];`;
 }
 
+// room polygonの各辺のうち、軸に沿った辺（H/V）だけを抽出する。斜めの辺
+// （x0!==x1 かつ z0!==z1）は壁を導出しない対象で、data/interior-doors.jsonの
+// orientation:'D'（斜め框など）で個別に表現する前提
+function roomAxisEdges(room) {
+  const pts = room.polygon;
+  const edges = [];
+  for (let i = 0; i < pts.length; i++) {
+    const [x0, z0] = pts[i];
+    const [x1, z1] = pts[(i + 1) % pts.length];
+    if (Math.abs(z0 - z1) < 1e-6 && Math.abs(x0 - x1) > 1e-6) {
+      edges.push({ orientation: "H", at: z0, from: Math.min(x0, x1), to: Math.max(x0, x1) });
+    } else if (Math.abs(x0 - x1) < 1e-6 && Math.abs(z0 - z1) > 1e-6) {
+      edges.push({ orientation: "V", at: x0, from: Math.min(z0, z1), to: Math.max(z0, z1) });
+    }
+  }
+  return edges;
+}
+
+// 同じ直線上（level・orientation・atが同じ）で、隙間なく連続する区間を1本にまとめる。
+// 部屋のペアごとに壁を導出すると、3部屋以上が同じ直線に並ぶ壁（例：LDKの北側を貫く
+// 通し壁）が複数の短い区間に分断されてしまい、その上のドア幅がどの区間にも収まらず
+// 「壁からはみ出している」と誤判定される（片道の罠と同種の問題）。実際の壁は部屋の
+// ペア単位ではなく直線単位の構造物なので、ここで隣接区間を統合してから返す。
+function mergeCollinearWalls(rawWalls, level) {
+  const groups = new Map();
+  rawWalls.forEach((w) => {
+    const at = w.orientation === "H" ? w.z0 : w.x0;
+    const key = `${w.orientation}|${at.toFixed(6)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(w);
+  });
+  const merged = [];
+  groups.forEach((group) => {
+    const orientation = group[0].orientation;
+    const at = orientation === "H" ? group[0].z0 : group[0].x0;
+    const sorted = group
+      .map((w) => ({ from: orientation === "H" ? w.x0 : w.z0, to: orientation === "H" ? w.x1 : w.z1, sourceRooms: w.sourceRooms }))
+      .sort((a, b) => a.from - b.from);
+    const groupMerged = [];
+    let current = null;
+    sorted.forEach((seg) => {
+      if (current && seg.from <= current.to + 0.02) {
+        current.to = Math.max(current.to, seg.to);
+        seg.sourceRooms.forEach((r) => current.sourceRooms.add(r));
+      } else {
+        if (current) groupMerged.push(current);
+        current = { from: seg.from, to: seg.to, sourceRooms: new Set(seg.sourceRooms) };
+      }
+    });
+    if (current) groupMerged.push(current);
+    groupMerged.forEach((m) => { m.orientation = orientation; m.at = at; });
+    merged.push(...groupMerged);
+  });
+  let seq = 0;
+  return merged.map((m) => {
+    seq += 1;
+    const id = `wall-${level === 1 ? "1f" : "2f"}-auto-${String(seq).padStart(3, "0")}`;
+    const sourceRooms = Array.from(m.sourceRooms);
+    if (m.orientation === "H") return { id, level, x0: m.from, x1: m.to, z0: m.at, z1: m.at, orientation: "H", sourceRooms };
+    return { id, level, x0: m.at, x1: m.at, z0: m.from, z1: m.to, orientation: "V", sourceRooms };
+  });
+}
+
+// 内壁は「rooms」を唯一の正本として、2部屋のポリゴンが辺を共有している区間から
+// 自動的に導出する（手動保守の data/house.json 内 walls 配列は廃止）。
+// 建物の外周（footprintsの外皮）は、この関数の対象外（HTML側のexteriorSegmentsForLevel()、
+// Blender側のbuild_exterior_walls()が別途、footprints+openingsから導出する）。
+// ドアによる開口の切り欠きも、この時点では行わない（HTML/Blenderの各消費側が
+// data/interior-doors.jsonを見て壁生成時に切り欠く。これは元の設計を踏襲）。
+function deriveInteriorWalls() {
+  let walls = [];
+  [1, 2].forEach((level) => {
+    const rooms = house.rooms.filter((r) => r.level === level);
+    const rawWalls = [];
+    for (let i = 0; i < rooms.length; i++) {
+      const edgesI = roomAxisEdges(rooms[i]);
+      for (let j = i + 1; j < rooms.length; j++) {
+        const edgesJ = roomAxisEdges(rooms[j]);
+        edgesI.forEach((eI) => {
+          edgesJ.forEach((eJ) => {
+            if (eI.orientation !== eJ.orientation || Math.abs(eI.at - eJ.at) > 1e-6) return;
+            const from = Math.max(eI.from, eJ.from);
+            const to = Math.min(eI.to, eJ.to);
+            if (to - from <= 1e-4) return;
+            const sourceRooms = [rooms[i].label, rooms[j].label];
+            if (eI.orientation === "H") {
+              rawWalls.push({ level, x0: from, x1: to, z0: eI.at, z1: eI.at, orientation: "H", sourceRooms });
+            } else {
+              rawWalls.push({ level, x0: eI.at, x1: eI.at, z0: from, z1: to, orientation: "V", sourceRooms });
+            }
+          });
+        });
+      }
+    }
+    walls = walls.concat(mergeCollinearWalls(rawWalls, level));
+  });
+  return walls;
+}
+
+const derivedInteriorWalls = deriveInteriorWalls();
+
 function buildWalls() {
-  const rows = house.walls
+  const rows = derivedInteriorWalls
     .map((w) => `  { id:${str(w.id)}, level:${w.level}, x0:${num(w.x0)}, x1:${num(w.x1)}, z0:${num(w.z0)}, z1:${num(w.z1)}, orientation:${str(w.orientation)} }`)
     .join(",\n");
   return `const WALLS = [\n${rows}\n];`;
@@ -308,19 +410,33 @@ const output = [
   "",
 ].join("\n");
 
+// blender/build_house.py も同じ導出結果を読めるよう、内壁データを素のJSONとしても書き出す
+// （Pythonでの再実装によるロジックのズレを防ぐため、単一の導出処理をJSON経由で共有する）
+const interiorWallsOutput = `${JSON.stringify(
+  {
+    schemaVersion: "1.0.0",
+    note: "自動生成ファイル。手で編集しないこと。data/house.json の rooms（部屋ポリゴン）から、2部屋が辺を共有する区間を機械的に導出した内壁データ。生成コマンド: node scripts/build-web-data.mjs。interior-white-model.html・blender/build_house.py の両方がこのファイルを読む（ロジックの二重実装を避けるため）。",
+    walls: derivedInteriorWalls,
+  },
+  null,
+  2,
+)}\n`;
+
 if (mode === "--check") {
   // Windowsのgit checkoutはCRLFに変換することがあるため、改行コードの違いだけで
   // 誤ってSTALE判定しないよう正規化してから比較する。
   const normalize = (s) => (s == null ? s : s.replace(/\r\n/g, "\n"));
   const current = fs.existsSync(outPath) ? fs.readFileSync(outPath, "utf8") : null;
-  if (normalize(current) === normalize(output)) {
-    console.log("generated/house-data.js is up to date with data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json.");
+  const currentWalls = fs.existsSync(interiorWallsOutPath) ? fs.readFileSync(interiorWallsOutPath, "utf8") : null;
+  if (normalize(current) === normalize(output) && normalize(currentWalls) === normalize(interiorWallsOutput)) {
+    console.log("generated/house-data.js and generated/interior-walls.json are up to date with data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json.");
     process.exit(0);
   }
-  console.error("generated/house-data.js is STALE. Run: node scripts/build-web-data.mjs");
+  console.error("generated/house-data.js or generated/interior-walls.json is STALE. Run: node scripts/build-web-data.mjs");
   process.exit(1);
 }
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, output, "utf8");
-console.log(`Wrote ${path.relative(root, outPath)} from data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json.`);
+fs.writeFileSync(interiorWallsOutPath, interiorWallsOutput, "utf8");
+console.log(`Wrote ${path.relative(root, outPath)} and ${path.relative(root, interiorWallsOutPath)} from data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json.`);
