@@ -136,6 +136,18 @@ data/interior-doors.json（室内ドアの配置インスタンス）
     - `currentLevel`引数は`hiddenBelow`の判定に使う。まだ登っていない状態（`currentLevel===stair.levelFrom`）で`hiddenBelow`の矩形内に入った場合は「階段の上を歩いている」のではなく「階段下の部屋を、その部屋自身のドアから歩いている」ということなので、階段としては扱わない（経路との幾何的な近さだけで判定すると、パントリーの中を歩いているだけなのに天井裏を通る階段の一部に引っ張られて視点が浮いてしまうため）。既にlevelToまで登り切っている（`currentLevel!==stair.levelFrom`）場合は、この矩形内でも通常どおり経路の補間高さを使う
   - 階段の下端（LDKへの開口、`door-029`）・上端（廊下(2F)への開口、`door-030`）は、他の room 分割と同じ`operation:'open'`の室内ドアとして`data/interior-doors.json`に登録してある。これがないと内覧モードで階段へ出入りできない（壁で塞がれてしまう）
 
+## 内覧モード（walk）
+
+俯瞰・平面図の間取りを実際に歩いて体験できることを目的としたモード。壁の当たり判定は上記「rooms / walls について」の自動導出壁（`wallSegmentsByLevel`）を使い、これに加えてドアの扉本体（近づくと開く演出）と家具の当たり判定を持つ。
+
+- **ドアの扉本体（`interior-white-model.html`、`walkDoorAnimators`）**：平面図モードのドア記号（`groups.doors1/2`・`groups.openings1/2`）は内覧モードでは非表示にしている（`enterWalkMode()`）代わりに、`addWalkDoorLeaves()`が実際に厚み(0.04m)のある扉パネルを閉位置で`walkGroup`に常設する。`data/interior-doors.json`・`data/openings.json`の`operation`が`swing`/`fold`/`double-swing`/`double-fold`/`slide`のものだけが対象（`open`/`open-arch`/窓は扉本体を持たないので何も作らない）
+  - 開き戸・折れ戸は`addWalkSwingLeaf()`が、蝶番位置を原点にしたグループを`rotation.y`で回転させて開閉する。閉位置・開位置の角度は、沿い方向／壁に直交する方向の単位ベクトルから`Math.atan2()`で求める（`boxWireRotated()`と同じ「ローカル+Zがワールド(sinθ,cosθ)方向を向く」規約）。2つの角度の差が180度を超える組み合わせ（蝶番側・開く向きの取り方によっては起こりうる）で遠回りに回転しないよう、`shortAngleLerp()`で最短経路を補間する
+  - 両開き戸・両開き折れ戸は、開口の両端をそれぞれ蝶番にした2枚の`addWalkSwingLeaf()`呼び出し（平面図記号の`double-swing`/`double-fold`表現と同じパターン）。引き戸は`addWalkSlideLeaf()`が沿い方向に平行移動する
+  - **折れ戸・両開き折れ戸は、内覧モードでは実際の2枚折れの機構までは再現せず、開き戸・両開き戸と同じ回転運動で近似している**（平面図の記号だけが専用のハの字表現＝`drawFoldLeaf()`を持つ）
+  - 毎フレーム`updateWalkDoors(dt)`が、プレイヤー座標(`walkPos`)と各ドアの中心（`anchorX`/`anchorZ`）との距離を測り、`WALK_DOOR_OPEN_RADIUS`（1.8m）以内なら開き位置、それ以外なら閉じ位置へなめらかにイージングする（`t`：0=閉、1=開）。別の階にいる間（`level !== walkLevel`）は`t`を強制的に0に戻す
+  - **通行そのものはドアの開閉状態と無関係**：施主指示により、壁側の開口（`doorGapsForLevel()`）は今まで通り常に開いたままで、扉パネルはあくまで見た目の演出。「閉まっている間は通れない」という厳密な当たり判定は実装していない
+- **家具の当たり判定（`furnitureSegmentsByLevel`）**：家具の回転は0/90/180/270度のみ（`data/furniture.json`の前提）なので、回転後の外形は必ず軸に沿った矩形になる。`FURNITURE_ITEMS`の各アイテムについて、回転に応じて`width`/`depth`を入れ替えた実効矩形を求め、その4辺を壁と同じ「線分＋当たり判定半径」の仕組み（`resolveWalk()`の`blockedBy()`）にそのまま追加する（厚みは0＝辺そのものが家具の表面）。「物との距離が狭いか広いか」を体感できるように、家具の種類を問わず一律に当たり判定の対象にしている
+
 ## 変更手順
 
 ### 建物の寸法・間取りを変更する

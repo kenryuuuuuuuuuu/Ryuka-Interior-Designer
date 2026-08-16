@@ -825,11 +825,31 @@ const wallSegmentsByLevel = {};
   wallSegmentsByLevel[level] = segs;
 });
 
+// 内覧モードでの家具の当たり判定。家具の回転は0/90/180/270度のみ（data/furniture.jsonの
+// 前提）なので、回転後の外形は必ず軸に沿った矩形になる。壁と同じ「線分＋当たり判定半径」の
+// 仕組みをそのまま流用し、矩形の4辺をそれぞれ1本の壁（厚み0＝辺そのものが表面）として扱う。
+// 「物との距離が狭いか広いか」を体感できるようにする目的なので、家具の種類を問わず一律に
+// 当たり判定の対象にする
+const furnitureSegmentsByLevel = { 1: [], 2: [] };
+FURNITURE_ITEMS.forEach(f=>{
+  const swapped = (f.rotation===90 || f.rotation===270);
+  const w = swapped ? f.depth : f.width;
+  const d = swapped ? f.width : f.depth;
+  const x0=f.x-w/2, x1=f.x+w/2, z0=f.z-d/2, z1=f.z+d/2;
+  const segs = furnitureSegmentsByLevel[f.level];
+  if(!segs) return;
+  segs.push({orientation:'H', at:z0, from:x0, to:x1, thick:0});
+  segs.push({orientation:'H', at:z1, from:x0, to:x1, thick:0});
+  segs.push({orientation:'V', at:x0, from:z0, to:z1, thick:0});
+  segs.push({orientation:'V', at:x1, from:z0, to:z1, thick:0});
+});
+
 const PLAYER_RADIUS = 0.26; // 肩幅ぶんの当たり判定半径(m)
 function resolveWalk(level, x, z, dx, dz){
   const segs = wallSegmentsByLevel[level] || [];
-  function blocked(px,pz){
-    for(const s of segs){
+  const furnitureSegs = furnitureSegmentsByLevel[level] || [];
+  function blockedBy(list, px,pz){
+    for(const s of list){
       const r = PLAYER_RADIUS + s.thick/2;
       let d;
       if(s.orientation==='H'){ const cx=Math.max(s.from, Math.min(px, s.to)); d=Math.hypot(px-cx, pz-s.at); }
@@ -838,6 +858,7 @@ function resolveWalk(level, x, z, dx, dz){
     }
     return false;
   }
+  function blocked(px,pz){ return blockedBy(segs, px,pz) || blockedBy(furnitureSegs, px,pz); }
   let nx = x+dx, nz = z+dz;
   if(blocked(nx, z)) nx = x; // X方向を軸ごとに判定してスライドさせる
   if(blocked(nx, nz)) nz = z;
@@ -1686,6 +1707,154 @@ function rebuildDoorWindow(id, isExterior){
 INTERIOR_DOORS.forEach(d=> placeInteriorDoor(effectiveInteriorDoor(d)));
 OPENINGS.forEach(o=> placeOpening(effectiveOpening(o)));
 
+// ============================================================================
+// 内覧モード：ドアの扉本体（近づくと開く演出）
+// ============================================================================
+// 平面図モードのドア記号（groups.doors1/2・groups.openings1/2）は内覧モードでは
+// 非表示にしている（enterWalkMode()参照）。代わりにここで、実際に厚みのある
+// 扉パネルを閉位置で常設し、プレイヤーが近づくと開き、離れると閉じる演出をする。
+// 施主指示により、これはあくまで見た目の演出であり、通行そのものは扉の開閉状態に
+// 関わらず今まで通り可能（壁側の開口はdoorGapsForLevel()で常に開いている）。
+const walkDoorMat = new THREE.MeshStandardMaterial({color:0xd9c9a3, side:THREE.DoubleSide});
+const walkDoorEdgeMat = new THREE.LineBasicMaterial({color:0x2a2a2a});
+const WALK_DOOR_OPEN_RADIUS = 1.8; // この距離(m)以内に近づくと開き始める
+const WALK_DOOR_ANIM_SPEED = 4; // 開閉のイージング速度（大きいほど素早く開閉する）
+const walkDoorAnimators = []; // {group, kind:'rotate'|'slide', thetaClosed/thetaOpen または closedOffset/openOffset, anchorX, anchorZ, level, t}
+
+// ローカルZ+方向がワールド上どちらを向くか、という角度（boxWireRotated等と同じ規約：
+// rotation.y=θでローカル+Zはワールド(sinθ,cosθ)方向を向く）
+function angleForDir(dx, dz){ return Math.atan2(dx, dz); }
+// 2つの角度の差が180度を超えないよう最短経路で補間する（そのまま線形補間すると
+// 蝶番側と開く向きの組み合わせによっては270度回転する遠回りになってしまうため）
+function shortAngleLerp(a, b, t){
+  let d = b - a;
+  while(d > Math.PI) d -= Math.PI*2;
+  while(d < -Math.PI) d += Math.PI*2;
+  return a + d*t;
+}
+function makeWalkDoorLeafMesh(width, height, thick){
+  const geo = new THREE.BoxGeometry(thick, height, width);
+  const mesh = new THREE.Mesh(geo, walkDoorMat);
+  mesh.position.set(0, height/2, width/2); // 蝶番側の端(ローカルZ=0)を原点に、+Z方向へ扉が伸びる
+  const group = new THREE.Group();
+  group.add(mesh);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), walkDoorEdgeMat);
+  edges.position.copy(mesh.position);
+  group.add(edges);
+  return group;
+}
+// 開き戸・折れ戸1枚ぶんの扉本体を作る（回転して開閉する）。hingeAt=蝶番の位置(沿い方向の座標)、
+// alongSign=蝶番から扉が閉位置で伸びる向き、openSign=開いた状態で扉が伸びる向き（addDoorLeaf/
+// drawSwingLeafと同じ規約）
+function addWalkSwingLeaf(orientation, hingeAt, alongSign, wallCoord, baseY, height, w, thick, openSign, level, anchorX, anchorZ){
+  const group = makeWalkDoorLeafMesh(w, height, thick);
+  const [sx,sz] = orientation==='H' ? toScene(hingeAt, wallCoord) : toScene(wallCoord, hingeAt);
+  group.position.set(sx, baseY, sz);
+  const closedDir = orientation==='H' ? [alongSign, 0] : [0, alongSign];
+  const openDir = orientation==='H' ? [0, openSign] : [openSign, 0];
+  const thetaClosed = angleForDir(closedDir[0], closedDir[1]);
+  const thetaOpen = angleForDir(openDir[0], openDir[1]);
+  group.rotation.y = thetaClosed;
+  walkGroup.add(group);
+  walkDoorAnimators.push({ group, kind:'rotate', thetaClosed, thetaOpen, level, anchorX, anchorZ, t:0 });
+}
+// 引き戸1枚の扉本体を作る（沿い方向にスライドして開閉する）
+function addWalkSlideLeaf(orientation, alongFrom, alongTo, wallCoord, baseY, height, thick, slideDir, level, anchorX, anchorZ){
+  const w = alongTo - alongFrom;
+  const alongCenter = (alongFrom+alongTo)/2;
+  const geo = orientation==='H' ? new THREE.BoxGeometry(w, height, thick) : new THREE.BoxGeometry(thick, height, w);
+  const mesh = new THREE.Mesh(geo, walkDoorMat);
+  const group = new THREE.Group();
+  group.add(mesh);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), walkDoorEdgeMat);
+  group.add(edges);
+  const [sx,sz] = orientation==='H' ? toScene(alongCenter, wallCoord) : toScene(wallCoord, alongCenter);
+  group.position.set(sx, baseY+height/2, sz);
+  walkGroup.add(group);
+  const shiftSign = slideDir==='L' ? -1 : 1;
+  walkDoorAnimators.push({
+    group, kind:'slide', orientation, baseX:sx, baseZ:sz, closedOffset:0, openOffset:shiftSign*w,
+    level, anchorX, anchorZ, t:0,
+  });
+}
+// addDoorLeaf()と同じoperation別の分岐で、内覧モード用の実体を追加する。
+// fold/double-foldは実際の折れ機構までは再現せず、開き戸/両開き戸と同じ回転運動で近似する
+// （平面図の記号だけ専用のハの字表現を持ち、内覧モードでの見た目は簡略化している）
+function addWalkDoorLeaves({ orientation, alongFrom, alongTo, wallCoord, baseY, height, operation, hingeSide, swingDir, slideDir, outSign=1, level }){
+  if(!['swing','fold','double-swing','double-fold','slide'].includes(operation)) return; // open系・窓は扉本体なし
+  const w = alongTo - alongFrom;
+  const thick = 0.04;
+  const [anchorX, anchorZ] = orientation==='H' ? [(alongFrom+alongTo)/2, wallCoord] : [wallCoord, (alongFrom+alongTo)/2];
+  if(operation==='slide'){
+    if(!slideDir) return;
+    addWalkSlideLeaf(orientation, alongFrom, alongTo, wallCoord, baseY, height, thick, slideDir, level, anchorX, anchorZ);
+    return;
+  }
+  if(operation==='double-swing' || operation==='double-fold'){
+    if(!swingDir) return;
+    const half = w/2;
+    const openSign = swingDir==='out' ? outSign : -outSign;
+    addWalkSwingLeaf(orientation, alongFrom, 1, wallCoord, baseY, height, half, thick, openSign, level, anchorX, anchorZ);
+    addWalkSwingLeaf(orientation, alongTo, -1, wallCoord, baseY, height, half, thick, openSign, level, anchorX, anchorZ);
+    return;
+  }
+  if(!hingeSide || !swingDir) return; // swing/fold
+  const hingeAt = hingeSide==='L' ? alongFrom : alongTo;
+  const alongSign = hingeSide==='L' ? 1 : -1;
+  const openSign = swingDir==='out' ? outSign : -outSign;
+  addWalkSwingLeaf(orientation, hingeAt, alongSign, wallCoord, baseY, height, w, thick, openSign, level, anchorX, anchorZ);
+}
+INTERIOR_DOORS.forEach(d=>{
+  if(d.orientation==='D') return; // 斜め壁は対象外（wallAt/centerを持たないため）
+  const eff = effectiveInteriorDoor(d);
+  addWalkDoorLeaves({
+    orientation: eff.orientation, alongFrom: eff.center-eff.width/2, alongTo: eff.center+eff.width/2, wallCoord: eff.wallAt,
+    baseY: eff.floor===1 ? LEVELS.fl1 : LEVELS.fl2, height: eff.height, operation: eff.operation,
+    hingeSide: eff.hingeSide, swingDir: eff.swingDir, slideDir: eff.slideDir, level: eff.floor,
+  });
+});
+OPENINGS.forEach(o=>{
+  if(o.category!=='door') return;
+  const eff = effectiveOpening(o);
+  const baseFl = eff.level===2 ? LEVELS.fl2 : LEVELS.fl1;
+  let orientation, alongFrom, alongTo, wallCoord, outSign;
+  if(eff.face==='N'){
+    const seg = eff.level===2 ? FLOOR2 : segAtX(eff.lx);
+    orientation='H'; alongFrom=eff.lx; alongTo=eff.lx+eff.w; wallCoord=seg.z0; outSign=-1;
+  } else if(eff.face==='S'){
+    const seg = eff.level===2 ? FLOOR2 : segAtX(eff.lx);
+    orientation='H'; alongFrom=eff.lx; alongTo=eff.lx+eff.w; wallCoord=seg.z1; outSign=1;
+  } else if(eff.face==='E'){
+    const wallX = eff.x!==undefined ? eff.x : 19.110;
+    orientation='V'; alongFrom=eff.lz; alongTo=eff.lz+eff.w; wallCoord=wallX; outSign=1;
+  } else {
+    const wallX = eff.x!==undefined ? eff.x : 0;
+    orientation='V'; alongFrom=eff.lz; alongTo=eff.lz+eff.w; wallCoord=wallX; outSign=-1;
+  }
+  addWalkDoorLeaves({
+    orientation, alongFrom, alongTo, wallCoord, baseY: baseFl, height: eff.h, operation: eff.operation,
+    hingeSide: eff.hingeSide, swingDir: eff.swingDir, slideDir: eff.slideDir, outSign, level: eff.level,
+  });
+});
+// 毎フレーム、プレイヤーとの距離に応じて開閉度(t: 0=閉,1=開)をなめらかに近づける
+function updateWalkDoors(dt){
+  walkDoorAnimators.forEach(a=>{
+    if(a.level !== walkLevel){ a.t = 0; } // 別の階にいる間は開閉演出を進めない（閉位置に戻す）
+    else {
+      const dist = Math.hypot(walkPos.x - a.anchorX, walkPos.z - a.anchorZ);
+      const target = dist < WALK_DOOR_OPEN_RADIUS ? 1 : 0;
+      a.t += (target - a.t) * Math.min(1, dt * WALK_DOOR_ANIM_SPEED);
+    }
+    if(a.kind==='rotate'){
+      a.group.rotation.y = shortAngleLerp(a.thetaClosed, a.thetaOpen, a.t);
+    } else {
+      const offset = a.closedOffset + (a.openOffset - a.closedOffset) * a.t;
+      a.group.position.x = a.baseX + (a.orientation==='H' ? offset : 0);
+      a.group.position.z = a.baseZ + (a.orientation==='H' ? 0 : offset);
+    }
+  });
+}
+
 // ---- 窓・ドア編集：選択・壁線スライド ----
 function pickDoorWindowAt(clientX, clientY){
   editRaycaster.setFromCamera(ndcFromClient(clientX, clientY), orthoCam);
@@ -2222,7 +2391,7 @@ function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.1);
   let activeCam;
-  if(mode==='walk'){ updateWalkMovement(dt); activeCam = walkCamera; }
+  if(mode==='walk'){ updateWalkMovement(dt); updateWalkDoors(dt); activeCam = walkCamera; }
   else activeCam = (mode==='top') ? orthoCam : camera;
   if(selectionHelper) selectionHelper.update(); // ドラッグ中の選択枠を追従させる
   if(doorSelectionHelper) doorSelectionHelper.update();
