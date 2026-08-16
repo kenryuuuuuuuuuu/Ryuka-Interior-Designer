@@ -1857,7 +1857,7 @@ const walkDoorMat = new THREE.MeshStandardMaterial({color:0xd9c9a3, side:THREE.D
 const walkDoorEdgeMat = new THREE.LineBasicMaterial({color:0x2a2a2a});
 const WALK_DOOR_OPEN_RADIUS = 1.8; // この距離(m)以内に近づくと開き始める
 const WALK_DOOR_ANIM_SPEED = 4; // 開閉のイージング速度（大きいほど素早く開閉する）
-const walkDoorAnimators = []; // {group, kind:'rotate'|'slide', thetaClosed/thetaOpen または closedOffset/openOffset, anchorX, anchorZ, level, t}
+const walkDoorAnimators = []; // {group, kind:'rotate'|'fold'|'slide', kindごとの角度/オフセット情報, anchorX, anchorZ, level, t}
 
 // ローカルZ+方向がワールド上どちらを向くか、という角度（boxWireRotated等と同じ規約：
 // rotation.y=θでローカル+Zはワールド(sinθ,cosθ)方向を向く）
@@ -1896,6 +1896,45 @@ function addWalkSwingLeaf(orientation, hingeAt, alongSign, wallCoord, baseY, hei
   walkGroup.add(group);
   walkDoorAnimators.push({ group, kind:'rotate', thetaClosed, thetaOpen, level, anchorX, anchorZ, t:0 });
 }
+// 折れ戸1組（2枚）の扉本体を作る。蝶番(A)は壁に固定、自由端(C)は沿い方向に壁面上を
+// スライドする、という実際の折れ戸の機構をそのまま再現する。パネル1(A-B)はhingeAtを
+// 中心に回転し、パネル2(B-C)はその子として折れ点Bに追従しつつ、パネル1に対して
+// 逆向きに2倍の角度で回転する（＝鏡映の関係）。これにより自由端Cは常に壁面上
+// （沿い方向の直線上）に留まり、かつ折れ点Bだけが壁から張り出す
+function addWalkFoldLeaf(orientation, hingeAt, alongSign, wallCoord, baseY, height, w, thick, openSign, level, anchorX, anchorZ){
+  const L = w/2; // パネル1枚ぶんの長さ
+  const panel1 = makeWalkDoorLeafMesh(L, height, thick);
+  const elbow = new THREE.Group();
+  elbow.position.set(0, 0, L); // 折れ点(B)＝パネル1の自由端の位置（ローカル座標）
+  const panel2 = makeWalkDoorLeafMesh(L, height, thick);
+  elbow.add(panel2);
+  const foldGroup = new THREE.Group();
+  foldGroup.add(panel1);
+  foldGroup.add(elbow);
+  const [sx,sz] = orientation==='H' ? toScene(hingeAt, wallCoord) : toScene(wallCoord, hingeAt);
+  foldGroup.position.set(sx, baseY, sz);
+  const closedDir = orientation==='H' ? [alongSign, 0] : [0, alongSign];
+  const openDir = orientation==='H' ? [0, openSign] : [openSign, 0];
+  const thetaClosed = angleForDir(closedDir[0], closedDir[1]);
+  const thetaFullOpen = angleForDir(openDir[0], openDir[1]);
+  let d = thetaFullOpen - thetaClosed;
+  while(d > Math.PI) d -= Math.PI*2;
+  while(d < -Math.PI) d += Math.PI*2;
+  // 平面図の折れ戸記号（drawFoldLeaf）は、A-B=B-C=A-C(=w/2)の正三角形になる位置
+  // （壁からsin60°ぶん張り出す）を「開いた」状態として描いている。これはパネルが
+  // 壁面から60度だけ回転した状態に相当する（closedDirとopenDirは直角なので、
+  // 全開(90度=openDirそのもの)に対して2/3だけ回転させると60度になる）。
+  // 内覧モードのアニメーションも同じ角度を終点にし、平面図と見た目を揃える
+  const FOLD_OPEN_FRACTION = 2/3;
+  const panel1DeltaOpen = d * FOLD_OPEN_FRACTION;
+  const panel2LocalDeltaOpen = -2 * panel1DeltaOpen; // パネル2はパネル1に対して逆向きに2倍回転（鏡映）
+  foldGroup.rotation.y = thetaClosed;
+  walkGroup.add(foldGroup);
+  walkDoorAnimators.push({
+    group: foldGroup, elbow, kind:'fold', thetaClosed, panel1DeltaOpen, panel2LocalDeltaOpen,
+    level, anchorX, anchorZ, t:0,
+  });
+}
 // 引き戸1枚の扉本体を作る（沿い方向にスライドして開閉する）
 function addWalkSlideLeaf(orientation, alongFrom, alongTo, wallCoord, baseY, height, thick, slideDir, level, anchorX, anchorZ){
   const w = alongTo - alongFrom;
@@ -1915,9 +1954,7 @@ function addWalkSlideLeaf(orientation, alongFrom, alongTo, wallCoord, baseY, hei
     level, anchorX, anchorZ, t:0,
   });
 }
-// addDoorLeaf()と同じoperation別の分岐で、内覧モード用の実体を追加する。
-// fold/double-foldは実際の折れ機構までは再現せず、開き戸/両開き戸と同じ回転運動で近似する
-// （平面図の記号だけ専用のハの字表現を持ち、内覧モードでの見た目は簡略化している）
+// addDoorLeaf()と同じoperation別の分岐で、内覧モード用の実体を追加する
 function addWalkDoorLeaves({ orientation, alongFrom, alongTo, wallCoord, baseY, height, operation, hingeSide, swingDir, slideDir, outSign=1, level }){
   if(!['swing','fold','double-swing','double-fold','slide'].includes(operation)) return; // open系・窓は扉本体なし
   const w = alongTo - alongFrom;
@@ -1928,7 +1965,7 @@ function addWalkDoorLeaves({ orientation, alongFrom, alongTo, wallCoord, baseY, 
     addWalkSlideLeaf(orientation, alongFrom, alongTo, wallCoord, baseY, height, thick, slideDir, level, anchorX, anchorZ);
     return;
   }
-  if(operation==='double-swing' || operation==='double-fold'){
+  if(operation==='double-swing'){
     if(!swingDir) return;
     const half = w/2;
     const openSign = swingDir==='out' ? outSign : -outSign;
@@ -1936,10 +1973,22 @@ function addWalkDoorLeaves({ orientation, alongFrom, alongTo, wallCoord, baseY, 
     addWalkSwingLeaf(orientation, alongTo, -1, wallCoord, baseY, height, half, thick, openSign, level, anchorX, anchorZ);
     return;
   }
+  if(operation==='double-fold'){
+    if(!swingDir) return;
+    const half = w/2;
+    const openSign = swingDir==='out' ? outSign : -outSign;
+    addWalkFoldLeaf(orientation, alongFrom, 1, wallCoord, baseY, height, half, thick, openSign, level, anchorX, anchorZ);
+    addWalkFoldLeaf(orientation, alongTo, -1, wallCoord, baseY, height, half, thick, openSign, level, anchorX, anchorZ);
+    return;
+  }
   if(!hingeSide || !swingDir) return; // swing/fold
   const hingeAt = hingeSide==='L' ? alongFrom : alongTo;
   const alongSign = hingeSide==='L' ? 1 : -1;
   const openSign = swingDir==='out' ? outSign : -outSign;
+  if(operation==='fold'){
+    addWalkFoldLeaf(orientation, hingeAt, alongSign, wallCoord, baseY, height, w, thick, openSign, level, anchorX, anchorZ);
+    return;
+  }
   addWalkSwingLeaf(orientation, hingeAt, alongSign, wallCoord, baseY, height, w, thick, openSign, level, anchorX, anchorZ);
 }
 INTERIOR_DOORS.forEach(d=>{
@@ -1985,6 +2034,9 @@ function updateWalkDoors(dt){
     }
     if(a.kind==='rotate'){
       a.group.rotation.y = shortAngleLerp(a.thetaClosed, a.thetaOpen, a.t);
+    } else if(a.kind==='fold'){
+      a.group.rotation.y = a.thetaClosed + a.panel1DeltaOpen * a.t;
+      a.elbow.rotation.y = a.panel2LocalDeltaOpen * a.t;
     } else {
       const offset = a.closedOffset + (a.openOffset - a.closedOffset) * a.t;
       a.group.position.x = a.baseX + (a.orientation==='H' ? offset : 0);
