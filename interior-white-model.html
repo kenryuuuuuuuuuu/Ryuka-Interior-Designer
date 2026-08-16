@@ -225,16 +225,17 @@
   </div>
 </div>
 
-<div id="tip">俯瞰: 左ドラッグ回転／右ドラッグ平行移動／ホイールズーム　｜　平面図: ドラッグ平行移動／ホイールズーム　｜　内覧: WASD移動／ドラッグ視点</div>
+<div id="tip">俯瞰: 左ドラッグ回転／右ドラッグ平行移動／ホイールズーム　｜　平面図: ドラッグ平行移動／ホイールズーム　｜　内覧: WASD移動／ドラッグ視点／Vで三人称切替</div>
 
 <!-- ---- 内覧（一人称）モードのHUD ---- -->
 <div id="walkHud">
   <span class="room">内覧モード</span>
+  <button id="walkToggleView">🧍 三人称に切替</button>
   <button id="walkSwitchSpawn">🚪 玄関を選び直す</button>
   <button id="walkExit">✕ 終了</button>
 </div>
 <div id="crosshair"></div>
-<div id="moveHint">WASD / 矢印キーで移動　｜　ドラッグで視点操作</div>
+<div id="moveHint">WASD / 矢印キーで移動　｜　ドラッグで視点操作　｜　Vキーで一人称/三人称切替</div>
 <div id="joyBase"><div id="joyKnob"></div></div>
 
 <!-- ---- 家具編集パネル（平面図モード・編集トグルON時のみ） ---- -->
@@ -850,20 +851,26 @@ FURNITURE_ITEMS.forEach(f=>{
 });
 
 const PLAYER_RADIUS = 0.26; // 肩幅ぶんの当たり判定半径(m)
+// segList内のいずれかの区間から半径r以内かどうか（プレイヤーの歩行判定・三人称カメラの
+// 壁めり込み防止の両方で使う共通の点-区間距離判定）
+function segListBlocked(list, px, pz, r){
+  for(const s of list){
+    const rr = r + s.thick/2;
+    let d;
+    if(s.orientation==='H'){ const cx=Math.max(s.from, Math.min(px, s.to)); d=Math.hypot(px-cx, pz-s.at); }
+    else { const cz=Math.max(s.from, Math.min(pz, s.to)); d=Math.hypot(px-s.at, pz-cz); }
+    if(d < rr) return true;
+  }
+  return false;
+}
+// (px,pz)が指定レベルの壁・家具のいずれかから半径r以内にあるか（三人称カメラ用）
+function pointBlocked(level, px, pz, r){
+  return segListBlocked(wallSegmentsByLevel[level] || [], px, pz, r) || segListBlocked(furnitureSegmentsByLevel[level] || [], px, pz, r);
+}
 function resolveWalk(level, x, z, dx, dz){
   const segs = wallSegmentsByLevel[level] || [];
   const furnitureSegs = furnitureSegmentsByLevel[level] || [];
-  function blockedBy(list, px,pz){
-    for(const s of list){
-      const r = PLAYER_RADIUS + s.thick/2;
-      let d;
-      if(s.orientation==='H'){ const cx=Math.max(s.from, Math.min(px, s.to)); d=Math.hypot(px-cx, pz-s.at); }
-      else { const cz=Math.max(s.from, Math.min(pz, s.to)); d=Math.hypot(px-s.at, pz-cz); }
-      if(d < r) return true;
-    }
-    return false;
-  }
-  function blocked(px,pz){ return blockedBy(segs, px,pz) || blockedBy(furnitureSegs, px,pz); }
+  function blocked(px,pz){ return segListBlocked(segs, px,pz, PLAYER_RADIUS) || segListBlocked(furnitureSegs, px,pz, PLAYER_RADIUS); }
   let nx = x+dx, nz = z+dz;
   if(blocked(nx, z)) nx = x; // X方向を軸ごとに判定してスライドさせる
   if(blocked(nx, nz)) nz = z;
@@ -897,6 +904,33 @@ const walkCeilingMat = new THREE.MeshStandardMaterial({color:0xfbfaf7, side:THRE
     });
   });
 });
+
+// ---- 三人称視点用のキャラクター（成人男性の平均身長170cmを想定した簡易ブロック体型） ----
+// 内覧モードで空間の広さ・狭さの実感をつかみやすくするための、あくまでスケール目安の人型。
+// 局所座標は足元をy=0、正面を+Z向きとする（boxWireRotated等と同じ回転規約に合わせ、
+// walkYawをそのままgroup.rotation.yに使えるようにするため）
+const walkCharMat = new THREE.MeshStandardMaterial({color:0x4a7fd6, side:THREE.DoubleSide});
+const walkCharHeadMat = new THREE.MeshStandardMaterial({color:0xe8b98a, side:THREE.DoubleSide});
+const walkCharEdgeMat = new THREE.LineBasicMaterial({color:0x1a1a1a});
+function walkCharPart(w, d, cx, cz, y0, y1, mat){
+  const geo = new THREE.BoxGeometry(Math.max(w,0.02), Math.max(y1-y0,0.02), Math.max(d,0.02));
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(cx, (y0+y1)/2, cz);
+  const line = new THREE.LineSegments(new THREE.EdgesGeometry(geo), walkCharEdgeMat);
+  line.position.copy(mesh.position);
+  const grp = new THREE.Group();
+  grp.add(mesh, line);
+  return grp;
+}
+const walkCharacterGroup = new THREE.Group();
+walkCharacterGroup.add(walkCharPart(0.14, 0.16, -0.09, 0, 0,    0.85, walkCharMat));  // 左脚
+walkCharacterGroup.add(walkCharPart(0.14, 0.16,  0.09, 0, 0,    0.85, walkCharMat));  // 右脚
+walkCharacterGroup.add(walkCharPart(0.40, 0.20,  0,    0, 0.85, 1.40, walkCharMat));  // 胴
+walkCharacterGroup.add(walkCharPart(0.12, 0.14, -0.26, 0, 0.85, 1.40, walkCharMat));  // 左腕
+walkCharacterGroup.add(walkCharPart(0.12, 0.14,  0.26, 0, 0.85, 1.40, walkCharMat));  // 右腕
+walkCharacterGroup.add(walkCharPart(0.24, 0.24,  0,    0, 1.40, 1.70, walkCharHeadMat)); // 頭（頭頂で身長1.70m）
+walkCharacterGroup.visible = false;
+scene.add(walkCharacterGroup);
 
 // ---- 1F床スラブ ----
 // FLOOR1は求積図の計算ゾーン(A1〜A4)であり実在する壁ではないため、表示上は
@@ -2197,8 +2231,12 @@ const walkCamera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.05,
 let walkLevel = 1;
 const walkPos = { x:0, z:0 };
 let walkYaw = 0, walkPitch = 0;
+let walkView = 'first'; // 'first'=一人称 / 'third'=三人称（マインクラフト風の背後追従カメラ）
 const EYE_HEIGHT = 1.55; // 目線の高さ(m、床から)
 const WALK_SPEED = 1.7;  // 歩行速度(m/s)
+const THIRD_PERSON_DISTANCE = 3.2;      // 三人称カメラの基準距離(m)
+const THIRD_PERSON_TARGET_HEIGHT = 1.5; // 注視点の高さ(m、床から。キャラの頭部付近)
+const THIRD_PERSON_CLIP_RADIUS = 0.2;   // 三人称カメラが壁・家具にめり込まないための半径(m)
 const STAIR_CORRIDOR_MARGIN = 0.35; // 経路中心線からこの距離以内なら「階段に乗っている」とみなす
 
 // (x,z)がいずれかの階段の経路付近にあるかを判定する。あれば
@@ -2240,12 +2278,43 @@ function currentWalkY(){
 function updateWalkCamera(){
   const baseY = currentWalkY();
   const [sx,sz] = toScene(walkPos.x, walkPos.z);
-  walkCamera.position.set(sx, baseY+EYE_HEIGHT, sz);
   const fx = Math.sin(walkYaw)*Math.cos(walkPitch);
   const fy = Math.sin(walkPitch);
   const fz = Math.cos(walkYaw)*Math.cos(walkPitch);
-  walkCamera.lookAt(sx+fx, baseY+EYE_HEIGHT+fy, sz+fz);
+
+  walkCharacterGroup.visible = (walkView==='third');
+  walkCharacterGroup.position.set(sx, baseY, sz);
+  walkCharacterGroup.rotation.y = walkYaw;
+
+  if(walkView==='third'){
+    const targetY = baseY + THIRD_PERSON_TARGET_HEIGHT;
+    // 注視点(キャラの頭部付近)からforwardと逆向きに離れた位置がカメラの理想位置。
+    // 壁や家具にめり込まないよう、注視点からその方向へ短いステップで進めて衝突判定し、
+    // ぶつかる手前で距離を打ち切る（マインクラフトの三人称カメラと同じ考え方）
+    let dist = THIRD_PERSON_DISTANCE;
+    const STEPS = 24;
+    for(let i=1;i<=STEPS;i++){
+      const t = THIRD_PERSON_DISTANCE * i/STEPS;
+      const px = walkPos.x - fx*t, pz = walkPos.z - fz*t;
+      if(pointBlocked(walkLevel, px, pz, THIRD_PERSON_CLIP_RADIUS)){
+        dist = Math.max(0.4, THIRD_PERSON_DISTANCE * (i-1)/STEPS);
+        break;
+      }
+    }
+    walkCamera.position.set(sx-fx*dist, targetY-fy*dist, sz-fz*dist);
+    walkCamera.lookAt(sx, targetY, sz);
+  } else {
+    walkCamera.position.set(sx, baseY+EYE_HEIGHT, sz);
+    walkCamera.lookAt(sx+fx, baseY+EYE_HEIGHT+fy, sz+fz);
+  }
 }
+function toggleWalkView(){
+  walkView = (walkView==='first') ? 'third' : 'first';
+  document.getElementById('walkToggleView').textContent = (walkView==='first') ? '🧍 三人称に切替' : '👁 一人称に切替';
+  document.getElementById('crosshair').style.display = (walkView==='first') ? 'block' : 'none'; // 三人称では照準の意味がないので隠す
+  updateWalkCamera();
+}
+document.getElementById('walkToggleView').onclick = toggleWalkView;
 
 function applyModeChrome(m){
   Object.entries(modeButtons).forEach(([k,btn])=> btn.classList.toggle('active', k===m));
@@ -2281,6 +2350,9 @@ function restoreLayerVisibility(){
 function enterWalkMode(spawn){
   savedFloorMode = floorMode;
   walkLevel = spawn.level; walkPos.x = spawn.x; walkPos.z = spawn.z; walkYaw = spawn.yaw; walkPitch = 0;
+  walkView = 'first';
+  document.getElementById('walkToggleView').textContent = '🧍 三人称に切替';
+  document.getElementById('crosshair').style.display = 'block';
   // 概算の間仕切り・開口部・防音壁・屋根・グリッドを隠し、実壁+天井+床+家具だけを見せる
   // （家具は「実際に通れるか」を確認する内覧モードの主目的そのものなので隠さない）
   approxAll.visible = false; openingsAll.visible = false; doorsAll.visible = false;
@@ -2306,7 +2378,10 @@ function exitWalkMode(){
 
 // ---- 入力：キーボード（WASD / 矢印キー） ----
 const keys = {};
-window.addEventListener('keydown', e=>{ keys[e.code]=true; });
+window.addEventListener('keydown', e=>{
+  keys[e.code]=true;
+  if(e.code==='KeyV' && !e.repeat && mode==='walk') toggleWalkView();
+});
 window.addEventListener('keyup', e=>{ keys[e.code]=false; });
 
 // ---- 入力：ポインタ（マウスドラッグ／タッチ）でのルック＋バーチャルジョイスティック ----
