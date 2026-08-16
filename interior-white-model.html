@@ -1242,16 +1242,34 @@ function walkCharPart(w, d, cx, cz, y0, y1, mat){
   grp.add(mesh, line);
   return grp;
 }
+// 歩行時に振れる手足（脚・腕）を作る。walkCharPart()と違い、関節（脚なら股関節、腕なら肩）の
+// 高さpivotYを原点にしたグループを返す。このグループのrotation.xを変えることで、関節を
+// 中心に前後（ローカルZ方向）へ振り子のように振れる（tを掛けて歩いていない間は自然に0へ戻す）
+function walkCharLimb(w, d, cx, cz, pivotY, len, mat){
+  const pivot = new THREE.Group();
+  pivot.position.set(cx, pivotY, cz);
+  const geo = new THREE.BoxGeometry(Math.max(w,0.02), Math.max(len,0.02), Math.max(d,0.02));
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(0, -len/2, 0);
+  const line = new THREE.LineSegments(new THREE.EdgesGeometry(geo), walkCharEdgeMat);
+  line.position.copy(mesh.position);
+  pivot.add(mesh, line);
+  return pivot;
+}
 // 肩幅（腕を含めた最大幅）は日本人成人男性の平均的なbideltoid幅（約44-46cm）に合わせている。
 // 胴体の幅(0.36m)に腕(各0.10m)をそのまま外側に足すと肩幅だけで64cmになり実寸より広すぎるため、
 // 腕は自然に立った姿勢を想定して胴体の縁にほぼ重なる位置に置き、全体で約46cmに収める
 // （2026-08-16、施主指摘により調整。調整前は胴体40cm＋腕で肩幅64cmだった）
 const walkCharacterGroup = new THREE.Group();
-walkCharacterGroup.add(walkCharPart(0.14, 0.16, -0.09, 0, 0,    0.85, walkCharMat));  // 左脚
-walkCharacterGroup.add(walkCharPart(0.14, 0.16,  0.09, 0, 0,    0.85, walkCharMat));  // 右脚
+const walkCharLeftLeg = walkCharLimb(0.14, 0.16, -0.09, 0, 0.85, 0.85, walkCharMat);
+const walkCharRightLeg = walkCharLimb(0.14, 0.16, 0.09, 0, 0.85, 0.85, walkCharMat);
+const walkCharLeftArm = walkCharLimb(0.10, 0.14, -0.18, 0, 1.40, 0.55, walkCharMat);
+const walkCharRightArm = walkCharLimb(0.10, 0.14, 0.18, 0, 1.40, 0.55, walkCharMat);
+walkCharacterGroup.add(walkCharLeftLeg);   // 左脚
+walkCharacterGroup.add(walkCharRightLeg);  // 右脚
 walkCharacterGroup.add(walkCharPart(0.36, 0.20,  0,    0, 0.85, 1.40, walkCharMat));  // 胴
-walkCharacterGroup.add(walkCharPart(0.10, 0.14, -0.18, 0, 0.85, 1.40, walkCharMat));  // 左腕
-walkCharacterGroup.add(walkCharPart(0.10, 0.14,  0.18, 0, 0.85, 1.40, walkCharMat));  // 右腕
+walkCharacterGroup.add(walkCharLeftArm);   // 左腕
+walkCharacterGroup.add(walkCharRightArm);  // 右腕
 walkCharacterGroup.add(walkCharPart(0.24, 0.24,  0,    0, 1.40, 1.70, walkCharHeadMat)); // 頭（頭頂で身長1.70m）
 walkCharacterGroup.visible = false;
 scene.add(walkCharacterGroup);
@@ -2620,6 +2638,11 @@ let walkYaw = 0, walkPitch = 0;
 let walkView = 'first'; // 'first'=一人称 / 'third'=三人称（マインクラフト風の背後追従カメラ）
 const EYE_HEIGHT = 1.55; // 目線の高さ(m、床から)
 const WALK_SPEED = 1.7;  // 歩行速度(m/s)
+const WALK_CYCLE_SPEED = 8;         // 歩行アニメーションの周期の速さ（大きいほど手足が速く動く）
+const WALK_CYCLE_LEG_AMPLITUDE = 0.5;  // 脚の振り角（ラジアン）
+const WALK_CYCLE_ARM_AMPLITUDE = 0.35; // 腕の振り角（ラジアン。脚より小さめにして自然に見せる）
+let walkCyclePhase = 0; // 歩行アニメーションの位相（歩いている間だけ進める）
+let walkCycleAmount = 0; // 0=静止(手足を振らない)〜1=全振幅。動き出す/止まるでなめらかに切り替える
 const THIRD_PERSON_DISTANCE = 1.7;      // 三人称カメラの距離(m、常に一定。壁・家具に応じた自動調整はしない)
 const THIRD_PERSON_TARGET_HEIGHT = 1.5; // 注視点の高さ(m、床から。キャラの頭部付近)
 const STAIR_CORRIDOR_MARGIN = 0.35; // 経路中心線からこの距離以内なら「階段に乗っている」とみなす
@@ -2889,6 +2912,17 @@ function updateWalkMovement(dt){
     const [nx,nz] = resolveWalk(walkLevel, walkPos.x, walkPos.z, dx, dz);
     walkPos.x = nx; walkPos.z = nz;
   }
+  // 三人称視点のキャラクターの手足を、歩いている間だけ振り子のように振る（施主指摘：
+  // 「歩くと手足が動くようにしてほしい」）。walkCycleAmountで、動き出す/止まる時に
+  // 振り角が急に0や最大に切り替わらず、なめらかにフェードするようにする
+  const moving = len > 1e-4;
+  walkCycleAmount += ((moving?1:0) - walkCycleAmount) * Math.min(1, dt*8);
+  if(moving) walkCyclePhase += dt * WALK_CYCLE_SPEED;
+  const swing = Math.sin(walkCyclePhase) * walkCycleAmount;
+  walkCharLeftLeg.rotation.x = swing * WALK_CYCLE_LEG_AMPLITUDE;
+  walkCharRightLeg.rotation.x = -swing * WALK_CYCLE_LEG_AMPLITUDE;
+  walkCharLeftArm.rotation.x = -swing * WALK_CYCLE_ARM_AMPLITUDE; // 右脚と同じ位相（左脚とは逆＝対側協調）
+  walkCharRightArm.rotation.x = swing * WALK_CYCLE_ARM_AMPLITUDE; // 左脚と同じ位相
   // 階段上にいる間は経路の進み具合(t)で現在階を判定し、床・家具の表示をその階に切り替える
   // （t<0.5=まだ下の階、t>=0.5=上の階に到達したとみなす。経路の外にいる間はwalkLevelを維持する）
   const sp = stairProgressAt(walkPos.x, walkPos.z, walkLevel);
