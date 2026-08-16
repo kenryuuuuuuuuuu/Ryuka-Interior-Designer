@@ -1280,7 +1280,10 @@ function stairLayout(stair){
   return { path, stepLen, boundaries, mids };
 }
 const stairMat = new THREE.MeshStandardMaterial({color:0xcbb896, side:THREE.DoubleSide});
-const stairEdgeMat = new THREE.LineBasicMaterial({color:0x1a1a1a, transparent:true, opacity:1, depthTest:false});
+// depthTest:false にしない。階段の3D実体(groups_stairs)は俯瞰・平面図・内覧の全モードで
+// 常時sceneに存在するため、他の「平面図の線画」用マテリアル(depthTest:false が前提)と違い、
+// 内覧モードでは手前の壁越しに輪郭線が透けて見えてしまう(壁があるのに階段が見える不具合)。
+const stairEdgeMat = new THREE.LineBasicMaterial({color:0x1a1a1a, transparent:true, opacity:1});
 const stairPlanMat = new THREE.LineBasicMaterial({color:0x1a1a1a, transparent:true, opacity:0.85, depthTest:false});
 // 階段の一部が、その階から見て「別の部屋の天井の上を素通りしている」区間（例：階段下収納の直上）に
 // 使う破線マテリアル。建築図面で「上階の構造が下階の天井裏に隠れて見えない」ことを示す破線の慣習を模す
