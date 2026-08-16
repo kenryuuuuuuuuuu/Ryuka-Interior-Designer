@@ -653,6 +653,42 @@ function boxWire(x0,x1,y0,y1,z0,z1, mat, edgeMat, parent, renderOrder){
   return mesh;
 }
 
+// boxWireのY軸回転版（階段の段差など、進行方向に合わせて向きを変えたい箱に使う）。
+// cx,czは箱の中心（建物ローカル座標）、angleYはラジアン
+function boxWireRotated(cx, cz, angleY, width, depth, y0, y1, mat, edgeMat, parent, renderOrder){
+  const [sx,sz] = toScene(cx, cz);
+  const h = y1-y0;
+  const geo = new THREE.BoxGeometry(Math.max(width,0.02), Math.max(h,0.02), Math.max(depth,0.02));
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(sx, y0+h/2, sz);
+  mesh.rotation.y = angleY;
+  if(renderOrder!==undefined) mesh.renderOrder = renderOrder;
+  parent.add(mesh);
+  if(edgeMat){
+    const edges = new THREE.EdgesGeometry(geo);
+    const line = new THREE.LineSegments(edges, edgeMat);
+    line.position.copy(mesh.position);
+    line.rotation.copy(mesh.rotation);
+    if(renderOrder!==undefined) line.renderOrder = renderOrder+0.5;
+    parent.add(line);
+  }
+  return mesh;
+}
+
+// 矩形r(=\{x0,x1,z0,z1\})から矩形holeを引いた残り（最大4分割の矩形配列）を返す。
+// 2F床スラブ・内覧モードの天井面から階段の吹き抜け穴を切り欠くのに使う。
+function rectMinusRect(r, hole){
+  if(hole.x1<=r.x0 || hole.x0>=r.x1 || hole.z1<=r.z0 || hole.z0>=r.z1) return [r];
+  const hx0=Math.max(hole.x0,r.x0), hx1=Math.min(hole.x1,r.x1);
+  const hz0=Math.max(hole.z0,r.z0), hz1=Math.min(hole.z1,r.z1);
+  const out = [];
+  if(r.z0 < hz0) out.push({x0:r.x0, x1:r.x1, z0:r.z0, z1:hz0});
+  if(hz1 < r.z1) out.push({x0:r.x0, x1:r.x1, z0:hz1, z1:r.z1});
+  if(r.x0 < hx0) out.push({x0:r.x0, x1:hx0, z0:hz0, z1:hz1});
+  if(hx1 < r.x1) out.push({x0:hx1, x1:r.x1, z0:hz0, z1:hz1});
+  return out;
+}
+
 // L字などの多角形の部屋を「1つの図形」として押し出す（内部の継ぎ目に余計な輪郭線が出ないようにする）
 // pts: [[x,z], ...] 建物ローカル座標の頂点リスト（時計回り/反時計回りいずれも可）
 function polyWire(pts, y0, y1, mat, edgeMat, parent, renderOrder){
@@ -827,13 +863,20 @@ const walkCeilingMat = new THREE.MeshStandardMaterial({color:0xfbfaf7, side:THRE
     if(s.orientation==='H') boxWire(s.from, s.to, baseY, baseY+CEIL_H, s.at-t, s.at+t, walkWallMat, null, walkGroup);
     else boxWire(s.at-t, s.at+t, baseY, baseY+CEIL_H, s.from, s.to, walkWallMat, null, walkGroup);
   });
+  // 階段の吹き抜け：このlevelから上の階へ上る階段があれば、その真上のlevel+1側の
+  // 床（＝このlevelから見た天井）に開口の穴を開ける（内覧モードで見上げたときに素通しになる）
+  const stairHoles = STAIRS.filter(s=>s.levelFrom===level && s.opening).map(s=>s.opening);
   (level===1 ? FLOOR1 : [FLOOR2]).forEach(r=>{
-    const [sx0,sz0]=toScene(r.x0,r.z0), [sx1,sz1]=toScene(r.x1,r.z1);
-    const cgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
-    const cmesh = new THREE.Mesh(cgeo, walkCeilingMat);
-    cmesh.rotation.x = Math.PI/2;
-    cmesh.position.set(sx0+(sx1-sx0)/2, baseY+CEIL_H-0.01, sz0+(sz1-sz0)/2);
-    walkGroup.add(cmesh);
+    let rects = [r];
+    stairHoles.forEach(hole=>{ rects = rects.flatMap(rr=>rectMinusRect(rr, hole)); });
+    rects.forEach(rr=>{
+      const [sx0,sz0]=toScene(rr.x0,rr.z0), [sx1,sz1]=toScene(rr.x1,rr.z1);
+      const cgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
+      const cmesh = new THREE.Mesh(cgeo, walkCeilingMat);
+      cmesh.rotation.x = Math.PI/2;
+      cmesh.position.set(sx0+(sx1-sx0)/2, baseY+CEIL_H-0.01, sz0+(sz1-sz0)/2);
+      walkGroup.add(cmesh);
+    });
   });
 });
 
@@ -851,16 +894,20 @@ FLOOR1.forEach(seg=>{
   groups.floor1.add(fmesh);
 });
 
-// ---- 2F床スラブ ----
+// ---- 2F床スラブ（階段の吹き抜け部分は穴を開ける） ----
 {
-  const seg = FLOOR2;
-  const [sx0,sz0]=toScene(seg.x0,seg.z0), [sx1,sz1]=toScene(seg.x1,seg.z1);
-  const fgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
-  const fmesh = new THREE.Mesh(fgeo, M2.floorSlab);
-  fmesh.renderOrder = 0;
-  fmesh.rotation.x = -Math.PI/2;
-  fmesh.position.set(sx0+(sx1-sx0)/2, LEVELS.fl2+0.005, sz0+(sz1-sz0)/2);
-  groups.floor2.add(fmesh);
+  const stairHoles2F = STAIRS.filter(s=>s.levelTo===2 && s.opening).map(s=>s.opening);
+  let rects = [FLOOR2];
+  stairHoles2F.forEach(hole=>{ rects = rects.flatMap(rr=>rectMinusRect(rr, hole)); });
+  rects.forEach(seg=>{
+    const [sx0,sz0]=toScene(seg.x0,seg.z0), [sx1,sz1]=toScene(seg.x1,seg.z1);
+    const fgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
+    const fmesh = new THREE.Mesh(fgeo, M2.floorSlab);
+    fmesh.renderOrder = 0;
+    fmesh.rotation.x = -Math.PI/2;
+    fmesh.position.set(sx0+(sx1-sx0)/2, LEVELS.fl2+0.005, sz0+(sz1-sz0)/2);
+    groups.floor2.add(fmesh);
+  });
 }
 
 // ---- 民泊-自宅 防音壁（確定・1F扱い） ----
@@ -1160,6 +1207,138 @@ updateFurnitureBar();
   });
 });
 
+// ---- 階段（3Dの段差ジオメトリ＋平面図の階段記号） ----
+// data/house.json の stairs（STAIRS）は直進(straight)・廻り(arc)のセグメント列を
+// 「経路」として持つだけで、実際の段ボックス・平面記号の位置はここで導出する。
+// 経路を弧長でtotalSteps等分し、各段の中心位置・進行方向・高さを求める。
+// この経路データは内覧モードの歩行（1F↔2F間の高さ補間）にも共用する。
+function sampleStairPath(stair){
+  const pts = []; let cum = 0;
+  function add(x,z){
+    if(pts.length){ const p=pts[pts.length-1]; cum += Math.hypot(x-p.x, z-p.z); }
+    pts.push({x,z,cum});
+  }
+  stair.segments.forEach(seg=>{
+    if(seg.type==='straight'){
+      if(!pts.length) add(seg.x0, seg.z0);
+      add(seg.x1, seg.z1);
+    } else {
+      const a0 = seg.startAngleDeg*Math.PI/180, a1 = seg.endAngleDeg*Math.PI/180;
+      if(!pts.length) add(seg.pivotX+seg.radius*Math.cos(a0), seg.pivotZ+seg.radius*Math.sin(a0));
+      const n = 16;
+      for(let i=1;i<=n;i++){
+        const a = a0 + (a1-a0)*(i/n);
+        add(seg.pivotX+seg.radius*Math.cos(a), seg.pivotZ+seg.radius*Math.sin(a));
+      }
+    }
+  });
+  return { pts, total: cum };
+}
+// 経路上の弧長sにおける位置と進行方向（単位ベクトル）を返す
+function stairPointAt(path, s){
+  const pts = path.pts;
+  s = Math.max(0, Math.min(path.total, s));
+  for(let i=1;i<pts.length;i++){
+    if(s <= pts[i].cum + 1e-9 || i===pts.length-1){
+      const a=pts[i-1], b=pts[i];
+      const segLen = b.cum-a.cum;
+      const t = segLen>1e-9 ? (s-a.cum)/segLen : 0;
+      const dx=b.x-a.x, dz=b.z-a.z;
+      const len = Math.hypot(dx,dz) || 1;
+      return { x:a.x+dx*t, z:a.z+dz*t, dx:dx/len, dz:dz/len };
+    }
+  }
+  const last = pts[pts.length-1];
+  return { x:last.x, z:last.z, dx:1, dz:0 };
+}
+// 段境界(0..totalSteps)・各段の中点、経路本体をまとめて返す
+function stairLayout(stair){
+  const path = sampleStairPath(stair);
+  const stepLen = path.total / stair.totalSteps;
+  const boundaries = [];
+  for(let k=0;k<=stair.totalSteps;k++) boundaries.push(stairPointAt(path, k*stepLen));
+  const mids = [];
+  for(let k=0;k<stair.totalSteps;k++) mids.push(stairPointAt(path, (k+0.5)*stepLen));
+  return { path, stepLen, boundaries, mids };
+}
+const stairMat = new THREE.MeshStandardMaterial({color:0xcbb896, side:THREE.DoubleSide});
+const stairEdgeMat = new THREE.LineBasicMaterial({color:0x1a1a1a, transparent:true, opacity:1, depthTest:false});
+const stairPlanMat = new THREE.LineBasicMaterial({color:0x1a1a1a, transparent:true, opacity:0.85, depthTest:false});
+// 階段の一部が、その階から見て「別の部屋の天井の上を素通りしている」区間（例：階段下収納の直上）に
+// 使う破線マテリアル。建築図面で「上階の構造が下階の天井裏に隠れて見えない」ことを示す破線の慣習を模す
+const stairPlanDashedMat = new THREE.LineDashedMaterial({color:0x1a1a1a, transparent:true, opacity:0.85, depthTest:false, dashSize:0.06, gapSize:0.05});
+function inRect(x,z,r){ return !!r && x>=r.x0 && x<=r.x1 && z>=r.z0 && z<=r.z1; }
+// pts(=[[x,z],...]の折れ線)を、hiddenRectの内側を通る区間だけ破線にして描画する
+function addStairPlanLine(pts, baseY, grp, hiddenRect){
+  for(let i=1;i<pts.length;i++){
+    const [x0,z0]=pts[i-1], [x1,z1]=pts[i];
+    const hidden = inRect((x0+x1)/2, (z0+z1)/2, hiddenRect);
+    const [s0x,s0z]=toScene(x0,z0), [s1x,s1z]=toScene(x1,z1);
+    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(s0x,baseY+0.02,s0z), new THREE.Vector3(s1x,baseY+0.02,s1z)]);
+    const line = new THREE.Line(geo, hidden ? stairPlanDashedMat : stairPlanMat);
+    if(hidden) line.computeLineDistances();
+    line.renderOrder = 3;
+    grp.add(line);
+  }
+}
+const groups_stairs = new THREE.Group(); scene.add(groups_stairs); // 常時表示（俯瞰・平面図・内覧いずれでも階段の実体を見せる）
+STAIRS.forEach(stair=>{
+  const baseY0 = stair.levelFrom===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const baseY1 = stair.levelTo===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const layout = stairLayout(stair);
+  stair._layout = layout; stair._baseY0 = baseY0; stair._baseY1 = baseY1; // 内覧モードの歩行判定で再利用する
+  const riser = (baseY1-baseY0)/stair.totalSteps;
+  // 3Dの段差ジオメトリ（俯瞰・内覧共通の実体）
+  layout.mids.forEach((p,k)=>{
+    const angleY = Math.atan2(p.dx, p.dz);
+    boxWireRotated(p.x, p.z, angleY, stair.width, layout.stepLen+0.01, baseY0+k*riser, baseY0+(k+1)*riser, stairMat, stairEdgeMat, groups_stairs, 2);
+  });
+  // 平面図の階段記号（踏み面の境界線＋左右の側線）。1F/2Fの両方の平面に表示する
+  [ {floor:stair.levelFrom, baseY:baseY0, grp:(stair.levelFrom===1?groups.approx1:groups.approx2)},
+    {floor:stair.levelTo,   baseY:baseY1, grp:(stair.levelTo===1?groups.approx1:groups.approx2)} ].forEach(({floor,baseY,grp})=>{
+    // levelFrom側の平面でのみ、hiddenBelow（例：階段下収納の直上）の区間を破線にする。
+    // levelTo側では階段全体がその階の実体そのものなので、常に実線
+    const hiddenRect = (floor===stair.levelFrom) ? stair.hiddenBelow : null;
+    const halfW = stair.width/2;
+    const leftPts=[], rightPts=[];
+    layout.boundaries.forEach(p=>{
+      const px=-p.dz, pz=p.dx;
+      const lx=p.x+px*halfW, lz=p.z+pz*halfW, rx=p.x-px*halfW, rz=p.z-pz*halfW;
+      leftPts.push([lx,lz]); rightPts.push([rx,rz]);
+      addStairPlanLine([[lx,lz],[rx,rz]], baseY, grp, hiddenRect);
+    });
+    addStairPlanLine(leftPts, baseY, grp, hiddenRect);
+    addStairPlanLine(rightPts, baseY, grp, hiddenRect);
+    // UP/DN矢印＋ラベル：levelFromの平面ではUP（下→上へ進む向き）、levelToの平面ではDN（上→下へ進む向き）
+    const isUp = floor===stair.levelFrom;
+    const dirLabel = isUp ? 'UP' : 'DN';
+    const N = 24;
+    const arrowPts = [];
+    for(let i=0;i<=N;i++){
+      const s = isUp ? layout.path.total*(i/N) : layout.path.total*(1-i/N);
+      const p = stairPointAt(layout.path, s);
+      arrowPts.push([p.x, p.z]);
+    }
+    addStairPlanLine(arrowPts, baseY, grp, hiddenRect);
+    const tipS = isUp ? layout.path.total : 0;
+    const tip = stairPointAt(layout.path, tipS);
+    const sign = isUp ? 1 : -1;
+    const tdx = tip.dx*sign, tdz = tip.dz*sign;
+    const px = -tdz, pz = tdx;
+    const headLen = 0.18;
+    [1,-1].forEach(side=>{
+      const bx = tip.x - tdx*headLen + px*headLen*0.5*side;
+      const bz = tip.z - tdz*headLen + pz*headLen*0.5*side;
+      addStairPlanLine([[tip.x,tip.z],[bx,bz]], baseY, grp, hiddenRect);
+    });
+    const labelS = isUp ? layout.path.total*0.1 : layout.path.total*0.9;
+    const lp = stairPointAt(layout.path, labelS);
+    const l = makeLabel(dirLabel, lp.x, baseY+0.3, lp.z, false);
+    l.floor = floor;
+    labels.push(l);
+  });
+});
+
 // ---- ドア本体（開き勝手・引き込み方向の表現） ----
 // orientation: 'H'=z一定の壁を横切る(沿い方向=x, 壁に直交する方向=z)、'V'=x一定の壁を横切る(沿い方向=z, 直交=x)
 // outSign: 壁に直交する方向のうち、どちらが「外開き(swingDir:'out')」に対応するか（+1/-1）。
@@ -1266,7 +1445,10 @@ function addDoorLeaf({ orientation, alongFrom, alongTo, wallCoord, baseY, height
 // orientation別の回転はtoScene()の符号と合わせて事前に検証済み：
 //   H: 回転なし、位置は toScene(沿い中心, wallCoord)
 //   V: rotation.y=-90°、位置は toScene(wallCoord, 沿い中心)
-function archOpeningMesh({ orientation, alongFrom, alongTo, wallCoord, baseY, springHeight, archRise, mat, edgeMat, grp }){
+// ドア本体を持たない開口（open-arch）のアーチ形シルエットを黒線のみで描く（open系と同じく
+// ピンクの塗りつぶしは使わない。塗りつぶしありのMeshだと、この板は完全に鉛直＝平面図モードの
+// 真上からの正投影ではほぼ真横向きになり、色を塗っても実質見えなくなってしまうため）
+function archOpeningMesh({ orientation, alongFrom, alongTo, wallCoord, baseY, springHeight, archRise, edgeMat, grp }){
   const w = alongTo - alongFrom, hw = w/2;
   const shape = new THREE.Shape();
   shape.moveTo(-hw, 0);
@@ -1279,21 +1461,18 @@ function archOpeningMesh({ orientation, alongFrom, alongTo, wallCoord, baseY, sp
   shape.lineTo(hw, 0);
   shape.closePath();
   const geo = new THREE.ShapeGeometry(shape);
-  const mesh = new THREE.Mesh(geo, mat);
   const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat);
   const alongCenter = (alongFrom+alongTo)/2;
   if(orientation==='H'){
     const [sx,sz] = toScene(alongCenter, wallCoord);
-    mesh.position.set(sx, baseY, sz);
+    edges.position.set(sx, baseY, sz);
   } else {
-    mesh.rotation.y = -Math.PI/2;
+    edges.rotation.y = -Math.PI/2;
     const [sx,sz] = toScene(wallCoord, alongCenter);
-    mesh.position.set(sx, baseY, sz);
+    edges.position.set(sx, baseY, sz);
   }
-  edges.position.copy(mesh.position);
-  edges.rotation.copy(mesh.rotation);
-  mesh.renderOrder = 3; edges.renderOrder = 3.5;
-  grp.add(mesh); grp.add(edges);
+  edges.renderOrder = 3.5;
+  grp.add(edges);
 }
 
 // ---- 窓・ドアの配置編集（第2段階）：diffだけをlocalStorageに保存する（家具編集と同じ考え方） ----
@@ -1404,10 +1583,20 @@ function placeInteriorDoor(d){
     z0 = d.center - d.width/2; z1 = d.center + d.width/2;
   }
   if(d.operation==='open-arch'){
+    // 平面図モード（真上からの正投影）ではアーチの板自体がほぼ真横向きになり見えなくなるため、
+    // 視認性確保用の枠線を重ねる。ただしアーチ本体と同じ高さの箱にすると、springHeightより上の
+    // 箱の角がアーチの外側にはみ出して見えてしまうため、床面近くの薄い箱に留める
+    // （＝真上から見た範囲は同じだが、俯瞰・内覧ではアーチの輪郭だけが見えるようにする）
+    const markerH = 0.05;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(x1-x0, markerH, z1-z0)), mats.doorEdge);
+    const [ecx,ecz] = toScene((x0+x1)/2, (z0+z1)/2);
+    edges.position.set(ecx, baseY+markerH/2, ecz);
+    edges.renderOrder = 3.5;
+    holder.add(edges);
     const archRise = DOOR_WINDOW_CATALOG[d.type].archRise;
     archOpeningMesh({
       orientation: d.orientation, alongFrom: d.center-d.width/2, alongTo: d.center+d.width/2, wallCoord: d.wallAt,
-      baseY, springHeight: d.height-archRise, archRise, mat: mats.door, edgeMat: mats.doorEdge, grp: holder,
+      baseY, springHeight: d.height-archRise, archRise, edgeMat: mats.doorEdge, grp: holder,
     });
   } else if(d.operation==='open'){
     // ドア本体を持たない開口(door-open)は、斜め框の開口と同じく、ドア色(ピンク)の
@@ -1455,10 +1644,19 @@ function placeOpening(o){
   }
   const mat = (o.category==='door') ? mats.extDoor : mats.opening;
   if(o.category==='door' && o.operation==='open-arch'){
+    // 平面図モードではアーチの板自体がほぼ見えなくなるため、視認性確保用の枠線を重ねる。
+    // アーチ本体と同じ高さの箱にするとspringHeightより上の角がはみ出して見えるため、
+    // 床面近くの薄い箱に留める（俯瞰・内覧ではアーチの輪郭だけが見えるようにする）
+    const markerH = 0.05;
+    const edges0 = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(x1-x0, markerH, z1-z0)), mats.doorEdge);
+    const [ecx,ecz] = toScene((x0+x1)/2, (z0+z1)/2);
+    edges0.position.set(ecx, y0+markerH/2, ecz);
+    edges0.renderOrder = 3.5;
+    holder.add(edges0);
     const archRise = DOOR_WINDOW_CATALOG[o.type].archRise;
     archOpeningMesh({
       orientation, alongFrom, alongTo, wallCoord, baseY: y0, springHeight: o.h-archRise, archRise,
-      mat: mats.extDoor, edgeMat: mats.doorEdge, grp: holder,
+      edgeMat: mats.doorEdge, grp: holder,
     });
   } else if(o.category==='door' && o.operation==='open'){
     // ドア本体を持たない開口(door-open)は、ドア色(ピンク)の塗りつぶしは使わず黒い枠線だけで表現する
@@ -1838,9 +2036,46 @@ const walkPos = { x:0, z:0 };
 let walkYaw = 0, walkPitch = 0;
 const EYE_HEIGHT = 1.55; // 目線の高さ(m、床から)
 const WALK_SPEED = 1.7;  // 歩行速度(m/s)
+const STAIR_CORRIDOR_MARGIN = 0.35; // 経路中心線からこの距離以内なら「階段に乗っている」とみなす
+
+// (x,z)がいずれかの階段の経路付近にあるかを判定する。あれば
+// {stair, t, y}（t=0がlevelFrom側の踏み始め、t=1がlevelTo側の踏み終わり）を返す。
+// 内覧モードでの高さ補間・現在階の判定の両方に使う。
+// currentLevel（呼び出し時点のwalkLevel）は、階段の一部が別の部屋（例：階段下収納）の
+// 真上を通る区間（stair.hiddenBelow）で必要になる。まだ登っていない状態(currentLevel===levelFrom)で
+// その区画に入った場合は、それは階段を登っているのではなく「下の部屋（階段下収納）を歩いている」
+// ということなので、階段としては扱わない（＝床の高さが下の階のまま変わらないようにする）
+function stairProgressAt(x, z, currentLevel){
+  for(const stair of STAIRS){
+    const layout = stair._layout;
+    const pts = layout.path.pts;
+    let best = null;
+    for(let i=1;i<pts.length;i++){
+      const a=pts[i-1], b=pts[i];
+      const abx=b.x-a.x, abz=b.z-a.z;
+      const abLen2 = abx*abx+abz*abz;
+      let t = abLen2>1e-9 ? ((x-a.x)*abx+(z-a.z)*abz)/abLen2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const px=a.x+abx*t, pz=a.z+abz*t;
+      const d = Math.hypot(x-px, z-pz);
+      const s = a.cum + (b.cum-a.cum)*t;
+      if(!best || d<best.d) best = {d, s};
+    }
+    if(best && best.d <= stair.width/2 + STAIR_CORRIDOR_MARGIN){
+      if(currentLevel===stair.levelFrom && inRect(x, z, stair.hiddenBelow)) continue;
+      const tt = layout.path.total>1e-9 ? best.s/layout.path.total : 0;
+      return { stair, t:tt, y: stair._baseY0 + tt*(stair._baseY1-stair._baseY0) };
+    }
+  }
+  return null;
+}
+function currentWalkY(){
+  const sp = stairProgressAt(walkPos.x, walkPos.z, walkLevel);
+  return sp ? sp.y : (walkLevel===1 ? LEVELS.fl1 : LEVELS.fl2);
+}
 
 function updateWalkCamera(){
-  const baseY = walkLevel===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const baseY = currentWalkY();
   const [sx,sz] = toScene(walkPos.x, walkPos.z);
   walkCamera.position.set(sx, baseY+EYE_HEIGHT, sz);
   const fx = Math.sin(walkYaw)*Math.cos(walkPitch);
@@ -1968,6 +2203,17 @@ function updateWalkMovement(dt){
     const dz = (Math.cos(walkYaw)*fwd + Math.sin(walkYaw)*strafe) * dist;
     const [nx,nz] = resolveWalk(walkLevel, walkPos.x, walkPos.z, dx, dz);
     walkPos.x = nx; walkPos.z = nz;
+  }
+  // 階段上にいる間は経路の進み具合(t)で現在階を判定し、床・家具の表示をその階に切り替える
+  // （t<0.5=まだ下の階、t>=0.5=上の階に到達したとみなす。経路の外にいる間はwalkLevelを維持する）
+  const sp = stairProgressAt(walkPos.x, walkPos.z, walkLevel);
+  if(sp){
+    const newLevel = sp.t < 0.5 ? sp.stair.levelFrom : sp.stair.levelTo;
+    if(newLevel !== walkLevel){
+      walkLevel = newLevel;
+      groups.floor1.visible = walkLevel===1; groups.floor2.visible = walkLevel===2;
+      groups.furniture1.visible = walkLevel===1; groups.furniture2.visible = walkLevel===2;
+    }
   }
   updateWalkCamera();
 }

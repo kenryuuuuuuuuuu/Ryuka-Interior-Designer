@@ -325,6 +325,30 @@
       "widthOverride": 2.73,
       "label": "夫婦寝室⟷書斎",
       "status": "estimated"
+    },
+    {
+      "id": "door-029",
+      "type": "door-open",
+      "wallAt": 1.82,
+      "orientation": "H",
+      "center": 14.106,
+      "floor": 1,
+      "widthOverride": 0.91,
+      "label": "LDK⟷階段",
+      "status": "estimated",
+      "note": "新規(2026-08-15)：階段の実体表現にあたり新設。階段の直進部分（西側柱状部分）はLDKに向けて壁のない開口で開放されているリビング階段として配置。room-1f-10/room-1f-11の境界と一致させること"
+    },
+    {
+      "id": "door-030",
+      "type": "door-open",
+      "wallAt": 1.82,
+      "orientation": "H",
+      "center": 14.5605,
+      "floor": 2,
+      "widthOverride": 1.819,
+      "label": "階段(2F)⟷廊下(2F)",
+      "status": "estimated",
+      "note": "新規(2026-08-15)：階段の実体表現にあたり新設。2F階段室の全幅を廊下(2F)に向けて壁のない開口で開放。room-2f-02/room-2f-03の境界と一致させること"
     }
   ]
 }

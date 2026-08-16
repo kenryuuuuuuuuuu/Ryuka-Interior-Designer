@@ -214,6 +214,28 @@ function buildWalls() {
   return `const WALLS = [\n${rows}\n];`;
 }
 
+function buildStairs() {
+  const rows = (house.stairs ?? []).map((s) => {
+    const segRows = s.segments
+      .map((seg) => {
+        if (seg.type === "straight") {
+          return `    { type:'straight', x0:${num(seg.x0)}, z0:${num(seg.z0)}, x1:${num(seg.x1)}, z1:${num(seg.z1)} }`;
+        }
+        return `    { type:'arc', pivotX:${num(seg.pivotX)}, pivotZ:${num(seg.pivotZ)}, radius:${num(seg.radius)}, startAngleDeg:${num(seg.startAngleDeg)}, endAngleDeg:${num(seg.endAngleDeg)} }`;
+      })
+      .join(",\n");
+    const fields = [
+      `id:${str(s.id)}`, `label:${str(s.label)}`, `levelFrom:${s.levelFrom}`, `levelTo:${s.levelTo}`,
+      `width:${num(s.width)}`, `totalSteps:${s.totalSteps}`,
+    ];
+    if (s.opening) fields.push(`opening:{ x0:${num(s.opening.x0)}, x1:${num(s.opening.x1)}, z0:${num(s.opening.z0)}, z1:${num(s.opening.z1)} }`);
+    if (s.hiddenBelow) fields.push(`hiddenBelow:{ x0:${num(s.hiddenBelow.x0)}, x1:${num(s.hiddenBelow.x1)}, z0:${num(s.hiddenBelow.z0)}, z1:${num(s.hiddenBelow.z1)} }`);
+    fields.push(`segments:[\n${segRows}\n  ]`);
+    return withNote(`  { ${fields.join(", ")} },`, s.note);
+  });
+  return `const STAIRS = [\n${rows.join("\n")}\n];`;
+}
+
 function buildFurnitureCatalog() {
   const rows = furnitureCatalog.types
     .map((t) => `  ${str(t.type)}: { label:${str(t.label)}, category:${str(t.category)}, shape:${str(t.shape)}, width:${num(t.width)}, depth:${num(t.depth)}, height:${num(t.height)}, clearance:${num(t.clearance)} }`)
@@ -277,6 +299,8 @@ const output = [
   buildRoomsApprox(),
   "",
   buildRoofs(),
+  "",
+  buildStairs(),
   "",
   buildFurnitureCatalog(),
   "",

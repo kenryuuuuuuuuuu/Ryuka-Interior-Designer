@@ -35,6 +35,19 @@ def main():
             assert wall["x0"] == wall["x1"], f"{wall['id']}: vertical wall must have x0==x1"
             assert wall["z0"] < wall["z1"], f"{wall['id']}: z0 must be < z1"
 
+    for stair in data.get("stairs", []):
+        assert stair["levelTo"] == stair["levelFrom"] + 1, f"{stair['id']}: levelTo must be levelFrom+1"
+        assert stair["totalSteps"] > 0, f"{stair['id']}: totalSteps must be positive"
+        assert stair["status"] in {"verified", "derived", "estimated"}
+        for seg in stair["segments"]:
+            if seg["type"] == "straight":
+                assert (seg["x0"], seg["z0"]) != (seg["x1"], seg["z1"]), f"{stair['id']}: straight segment has zero length"
+            elif seg["type"] == "arc":
+                assert seg["radius"] > 0, f"{stair['id']}: arc radius must be positive"
+                assert seg["startAngleDeg"] != seg["endAngleDeg"], f"{stair['id']}: arc has zero sweep"
+            else:
+                raise AssertionError(f"{stair['id']}: unknown segment type {seg['type']}")
+
     print(f"house.json: Phase 1 checks passed ({len(data['rooms'])} rooms, {len(data['walls'])} walls)")
 
 
