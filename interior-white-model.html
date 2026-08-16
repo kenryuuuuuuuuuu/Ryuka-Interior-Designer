@@ -880,10 +880,6 @@ function segListBlocked(list, px, pz, r){
   }
   return false;
 }
-// (px,pz)が指定レベルの壁・家具のいずれかから半径r以内にあるか（三人称カメラ用）
-function pointBlocked(level, px, pz, r){
-  return segListBlocked(wallSegmentsByLevel[level] || [], px, pz, r) || segListBlocked(furnitureSegmentsByLevel[level] || [], px, pz, r);
-}
 function resolveWalk(level, x, z, dx, dz){
   const segs = wallSegmentsByLevel[level] || [];
   const furnitureSegs = furnitureSegmentsByLevel[level] || [];
@@ -2330,9 +2326,8 @@ let walkYaw = 0, walkPitch = 0;
 let walkView = 'first'; // 'first'=一人称 / 'third'=三人称（マインクラフト風の背後追従カメラ）
 const EYE_HEIGHT = 1.55; // 目線の高さ(m、床から)
 const WALK_SPEED = 1.7;  // 歩行速度(m/s)
-const THIRD_PERSON_DISTANCE = 3.2;      // 三人称カメラの基準距離(m)
+const THIRD_PERSON_DISTANCE = 3.2;      // 三人称カメラの距離(m、常に一定。壁・家具に応じた自動調整はしない)
 const THIRD_PERSON_TARGET_HEIGHT = 1.5; // 注視点の高さ(m、床から。キャラの頭部付近)
-const THIRD_PERSON_CLIP_RADIUS = 0.2;   // 三人称カメラが壁・家具にめり込まないための半径(m)
 const STAIR_CORRIDOR_MARGIN = 0.35; // 経路中心線からこの距離以内なら「階段に乗っている」とみなす
 
 // (x,z)がいずれかの階段の経路付近にあるかを判定する。あれば
@@ -2384,19 +2379,10 @@ function updateWalkCamera(){
 
   if(walkView==='third'){
     const targetY = baseY + THIRD_PERSON_TARGET_HEIGHT;
-    // 注視点(キャラの頭部付近)からforwardと逆向きに離れた位置がカメラの理想位置。
-    // 壁や家具にめり込まないよう、注視点からその方向へ短いステップで進めて衝突判定し、
-    // ぶつかる手前で距離を打ち切る（マインクラフトの三人称カメラと同じ考え方）
-    let dist = THIRD_PERSON_DISTANCE;
-    const STEPS = 24;
-    for(let i=1;i<=STEPS;i++){
-      const t = THIRD_PERSON_DISTANCE * i/STEPS;
-      const px = walkPos.x - fx*t, pz = walkPos.z - fz*t;
-      if(pointBlocked(walkLevel, px, pz, THIRD_PERSON_CLIP_RADIUS)){
-        dist = Math.max(0.4, THIRD_PERSON_DISTANCE * (i-1)/STEPS);
-        break;
-      }
-    }
+    // 注視点(キャラの頭部付近)からforwardと逆向きにTHIRD_PERSON_DISTANCE離れた位置に固定する。
+    // 壁・家具に応じて距離を自動調整すると、歩くたびにカメラがズームイン/アウトを繰り返して
+    // 落ち着かないため（施主指摘）、距離は常に一定にし、壁にめり込む場合はそのまま許容する
+    const dist = THIRD_PERSON_DISTANCE;
     walkCamera.position.set(sx-fx*dist, targetY-fy*dist, sz-fz*dist);
     walkCamera.lookAt(sx, targetY, sz);
   } else {
