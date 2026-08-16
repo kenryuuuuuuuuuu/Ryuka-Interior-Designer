@@ -42,6 +42,7 @@
 - 内覧モードに勾配天井を追加（2026-08-16）：施主から「民泊LDK・自宅LDKのうち片流れ屋根がかかっている範囲は、天井を屋根なりの勾配天井にしてほしい」と指摘があった。`rooms`の2部屋（LDK民泊・LDK自宅）に`ceiling:"sloped"`を付け、片流れ屋根（`roofs`）のデータから天井の高さ・範囲・壁の必要な高さ（段差・傾斜）まですべて自動導出するようにした。天井は屋根裏面そのままではなく、垂木・断熱の見込み（`CEILING_ALLOWANCE`、既定0.15m）を引いた高さ。現時点では内覧モードのみ対応（俯瞰・平面図モードの部屋ボックス、Blenderは未対応）。詳細は[ARCHITECTURE.md「勾配天井（ceiling:sloped）」](ARCHITECTURE.md#勾配天井ceilingsloped)を参照
 - Web公開・PWA化：[https://kenryuuuuuuuuuu.github.io/Ryuka-Interior-Designer/](https://kenryuuuuuuuuuu.github.io/Ryuka-Interior-Designer/) で公開（2026-08-14）。ホーム画面に追加してアプリのように開ける。詳細は[ARCHITECTURE.md「公開」](ARCHITECTURE.md#公開github-pages--pwa)
 - iPhone（PWA）のUIをノッチ・ホームインジケーターに対応（2026-08-16）：施主から「メニューの表示が画面上部に寄っていて、ステータスバー（時計・バッテリー等）に隠れて押せない」と指摘があった。`env(safe-area-inset-*)`をCSS変数化し、画面端に固定配置されている全UIに適用した。あわせて、スマホ幅で見つかった別の不具合（内覧モードHUDの部屋名が1文字ずつ縦に折り返る、平面図モードの「窓・ドア編集」ボタンが画面外にはみ出して押せない）も修正した。詳細は[ARCHITECTURE.md「iPhoneのノッチ・ホームインジケーターとUIの重なり対策」](ARCHITECTURE.md#iphoneのノッチホームインジケーターとuiの重なり対策--safe-t等)を参照
+- スマホの入力操作を2件修正（2026-08-16）：施主から「内覧モードのバーチャルジョイスティックが反応しない」「俯瞰モードで指2本でスライドしてもパンしない」の2点報告があった。(1)ジョイスティックの土台div(`#joyBase`)がcanvasより手前(z-index:21)にあるのに`pointer-events:none`が付いておらず、タッチがdiv自身に吸われて実際の移動処理を持つcanvas側の`pointerdown`ハンドラーに届いていなかった。`pointer-events:none`を追加して修正。(2)俯瞰・平面図モードの2本指操作は指の間隔変化（ピンチズーム）しか見ておらず、2本指の中心点の移動（スライド＝パン）を追跡していなかった。中心点の移動量を追跡し、単指ドラッグと同じパン処理（新設の共通関数`panCamera()`）を呼ぶよう追加した
 
 ## 未解決事項・要確認事項
 

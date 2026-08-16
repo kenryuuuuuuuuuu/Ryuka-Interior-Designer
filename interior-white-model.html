@@ -96,7 +96,10 @@
 
   #joyBase{position:fixed;left:calc(var(--safe-l) + 26px);bottom:calc(var(--safe-b) + 26px);width:104px;height:104px;border-radius:50%;
       background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.5);z-index:21;display:none;
-      touch-action:none;}
+      touch-action:none;pointer-events:none;}
+      /* pointer-events:noneが必須：この見た目上の円はcanvasより手前(z-index:21)にあるため、
+         これがないとタッチがこのdiv自身に吸われてしまい、下のcanvasのpointerdownハンドラー
+         （実際の移動処理・withinJoystick()判定を持つ）に一切届かず操作不能になる（2026-08-16） */
   #joyKnob{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
       background:rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.25);}
 
@@ -389,6 +392,10 @@ let dragging=false, dragButton=0, lastX=0, lastY=0;
 // ピンチズーム：2本指の距離変化をホイールズームと同じ処理に変換する
 const activePointers = new Map();
 let pinchDist = null;
+// 2本指ドラッグでのパン（スライド）：ピンチ（指の間隔変化）はズームだけを見ていて、
+// 2本指の中心点そのものの移動（＝スライド操作）を追跡していなかったため、俯瞰モードで
+// 2本指スライドしても画面が追従しない不具合があった（2026-08-16、施主指摘）
+let pinchMidX = null, pinchMidY = null;
 function applyZoomDelta(delta){
   // delta>0（指を広げた＝ズームイン）でorthoHalfSize/camDistを縮める
   if(mode==='top'){
@@ -396,6 +403,21 @@ function applyZoomDelta(delta){
     updateOrthoFrustum();
   } else if(mode==='orbit'){
     camDist = Math.min(Math.max(camDist - delta*0.06, 4), 70);
+    updateCamera();
+  }
+}
+// パン（平行移動）：平面図モードの単指ドラッグ／俯瞰モードの右ドラッグ／両モードの
+// 2本指ドラッグから共通で呼ばれる
+function panCamera(dx, dy){
+  if(mode==='top'){
+    const worldPerPx = (orthoHalfSize*2)/innerHeight;
+    orthoTarget.x -= dx*worldPerPx;
+    orthoTarget.z -= dy*worldPerPx;
+    updateOrthoCam();
+  } else if(mode==='orbit'){
+    const right = new THREE.Vector3(); camera.getWorldDirection(right); right.cross(camera.up).normalize();
+    camTarget.addScaledVector(right, -dx*0.02);
+    camTarget.y += dy*0.02;
     updateCamera();
   }
 }
@@ -496,6 +518,7 @@ renderer.domElement.addEventListener('pointerdown', e=>{
     dragging = false; draggingFurniture = false; draggingDoorWindow = false; // 2本指になったら単指ドラッグは止める
     const [p1,p2] = [...activePointers.values()];
     pinchDist = Math.hypot(p1.x-p2.x, p1.y-p2.y);
+    pinchMidX = (p1.x+p2.x)/2; pinchMidY = (p1.y+p2.y)/2;
     return;
   }
   if(mode==='top' && doorEditMode){
@@ -521,7 +544,7 @@ renderer.domElement.addEventListener('pointerdown', e=>{
 });
 window.addEventListener('pointerup', e=>{
   activePointers.delete(e.pointerId);
-  if(activePointers.size<2) pinchDist = null;
+  if(activePointers.size<2){ pinchDist = null; pinchMidX = null; pinchMidY = null; }
   dragging=false;
   if(draggingFurniture){ draggingFurniture=false; saveFurnitureEdits(); }
   if(draggingDoorWindow){ draggingDoorWindow=false; saveDoorWindowEdits(); }
@@ -535,6 +558,11 @@ window.addEventListener('pointermove', e=>{
     const dist = Math.hypot(p1.x-p2.x, p1.y-p2.y);
     if(pinchDist!==null) applyZoomDelta(dist-pinchDist);
     pinchDist = dist;
+    // 2本指の中心点の移動でパン（スライド）。指を広げ縮めしつつ同時に動かしても、
+    // ズームとパンは独立に効く
+    const midX=(p1.x+p2.x)/2, midY=(p1.y+p2.y)/2;
+    if(pinchMidX!==null) panCamera(midX-pinchMidX, midY-pinchMidY);
+    pinchMidX = midX; pinchMidY = midY;
     return;
   }
   if(draggingFurniture){ moveSelectedFurnitureTo(e.clientX, e.clientY); return; }
@@ -543,20 +571,15 @@ window.addEventListener('pointermove', e=>{
   const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
   if(mode==='top'){
     // 平面図モード：ドラッグで平行移動のみ
-    const worldPerPx = (orthoHalfSize*2)/innerHeight;
-    orthoTarget.x -= dx*worldPerPx;
-    orthoTarget.z -= dy*worldPerPx;
-    updateOrthoCam();
+    panCamera(dx, dy);
     return;
   }
   if(dragButton===2){
-    const right = new THREE.Vector3(); camera.getWorldDirection(right); right.cross(camera.up).normalize();
-    camTarget.addScaledVector(right, -dx*0.02);
-    camTarget.y += dy*0.02;
+    panCamera(dx, dy);
   } else {
     camTheta -= dx*0.005; camPhi = Math.min(Math.max(camPhi - dy*0.005, 0.15), 1.5);
+    updateCamera();
   }
-  updateCamera();
 });
 renderer.domElement.addEventListener('wheel', e=>{
   if(mode==='walk') return;
