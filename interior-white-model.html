@@ -2343,6 +2343,12 @@ const STAIR_CORRIDOR_MARGIN = 0.35; // 経路中心線からこの距離以内�
 // ということなので、階段としては扱わない（＝床の高さが下の階のまま変わらないようにする）
 function stairProgressAt(x, z, currentLevel){
   for(const stair of STAIRS){
+    // stair.opening（階段の吹き抜け範囲）の外は、経路との距離だけでは判定しない。
+    // 経路の端点（例：終端の直進部分）付近は、壁を挟んだ隣室（例：東の廊下）でも
+    // width/2+STAIR_CORRIDOR_MARGIN以内に入ってしまうことがあり、そのまま距離だけで
+    // 判定すると壁の向こうを歩いているだけで階段に乗っていると誤判定してしまう
+    // （施主指摘：自宅LDKから東の廊下へ抜けようとすると突然2Fにワープする不具合）
+    if(stair.opening && !inRect(x, z, stair.opening)) continue;
     const layout = stair._layout;
     const pts = layout.path.pts;
     let best = null;
