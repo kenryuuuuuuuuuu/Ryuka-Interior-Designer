@@ -61,6 +61,10 @@ const OPENINGS = [
 
 const SOUND_WALL = { x:7.28, z0:0.91, z1:6.37, level:1, topY:LEVELS.eaveLow }; // 西端から7,280mm(910mm×8マス)。施主指摘により修正（2026-08-13）
 
+const GUARD_WALLS = [
+  { id:'guard-2f-01', label:'階段吹き抜け 腰壁', level:2, orientation:'H', at:1.82, from:13.651, to:14.561, height:1.5, status:'estimated' }, // 新規(2026-08-16)：施主指摘（俯瞰スクリーンショットに赤線で図示）により新設。room-2f-02（階段(2F)、stair.openingと同一形状の吹き抜け）の南辺(z=1.82)のうち、door-030（階段(2F)⟷廊下(2F)、全幅1.819m開放）で壁のない開口になっている区間の西側半分（x:13.651-14.561）に、床から1.5mの腰壁を追加。この区間は階段経路の廻り部分の真上にあたり、2F床面より大きく低い位置しかない（＝実際にはまだ2Fの床がない吹き抜け）ため、施主指摘の通りガードなしでは廊下から誤って落下しうる。東側半分（x:14.561-15.471、階段経路の最後の直進＝上端の着地部分の真上）は、実際に階段へ出入りする通路として腰壁を設けず開放したまま残した。壁の高さ・区間の境界は目分量の推測値（要施工確認）
+];
+
 const INTERIOR_DOORS = [
   { id:'door-001', type:'door-slide', category:'door', operation:'slide', label:'トイレ⟷玄関', orientation:'V', wallAt:0.91, center:2.33, width:0.8, height:2, floor:1, slideDir:'L', status:'verified' },
   { id:'door-002', type:'door-hinged', category:'door', operation:'swing', label:'玄関⟷洗面脱衣室', orientation:'H', wallAt:2.73, center:2.26, width:0.8, height:2, floor:1, hingeSide:'L', swingDir:'out', status:'verified' },

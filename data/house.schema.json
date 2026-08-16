@@ -24,6 +24,7 @@
     },
     "footprints": { "type": "array", "items": { "$ref": "#/$defs/rect" } },
     "specialWalls": { "type": "array", "items": { "type": "object", "required": ["id", "x", "z0", "z1", "level", "topY"], "properties": { "note": { "type": "string" } } } },
+    "guardWalls": { "type": "array", "items": { "$ref": "#/$defs/guardWall" } },
     "roofs": {
       "type": "array",
       "items": {
@@ -72,6 +73,17 @@
         "x0": { "type": "number" }, "x1": { "type": "number" }, "z0": { "type": "number" }, "z1": { "type": "number" },
         "orientation": { "enum": ["H", "V"] }, "status": { "enum": ["verified", "derived", "estimated"] },
         "sourceRooms": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "guardWall": {
+      "type": "object",
+      "required": ["id", "label", "level", "orientation", "at", "from", "to", "height", "status"],
+      "properties": {
+        "id": { "type": "string" }, "label": { "type": "string" }, "level": { "type": "integer", "minimum": 1 },
+        "orientation": { "enum": ["H", "V"] },
+        "at": { "type": "number" }, "from": { "type": "number" }, "to": { "type": "number" },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "status": { "enum": ["verified", "derived", "estimated"] }, "note": { "type": "string" }
       }
     },
     "stair": {

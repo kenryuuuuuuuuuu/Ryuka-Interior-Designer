@@ -849,6 +849,12 @@ const wallSegmentsByLevel = {};
     : {orientation:'V', at:w.x0, from:w.z0, to:w.z1, thick:INTERIOR_WALL_T});
   let segs = cutGaps([...ext, ...interior], doorGapsForLevel(level));
   if(level===1) segs.push({orientation:'V', at:SOUND_WALL.x, from:SOUND_WALL.z0, to:SOUND_WALL.z1, thick:WALL_T});
+  // 腰壁（GUARD_WALLS）も当たり判定に加える。部屋の隣接関係からは導出されない（吹き抜けの
+  // 縁に立てる転落防止用の壁のため）ので、防音壁と同様にここへ直接追加する。内覧モードでの
+  // 見た目は、通常の壁と違い天井までではなくguardHeightまでの高さで別途描画する（後述）
+  GUARD_WALLS.filter(g=>g.level===level).forEach(g=>{
+    segs.push({orientation:g.orientation, at:g.at, from:g.from, to:g.to, thick:INTERIOR_WALL_T, guardHeight:g.height});
+  });
   wallSegmentsByLevel[level] = segs;
 });
 
@@ -907,6 +913,12 @@ const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一�
   const winGaps = windowGapsByLevel[level];
   wallSegmentsByLevel[level].forEach(s=>{
     const t = s.thick/2;
+    if(s.guardHeight!==undefined){
+      // 腰壁：天井までではなくguardHeightまでの高さで、窓の切り欠き判定はせずそのまま描画する
+      if(s.orientation==='H') boxWire(s.from, s.to, baseY, baseY+s.guardHeight, s.at-t, s.at+t, walkWallMat, null, walkGroup);
+      else boxWire(s.at-t, s.at+t, baseY, baseY+s.guardHeight, s.from, s.to, walkWallMat, null, walkGroup);
+      return;
+    }
     const wins = winGaps.filter(w=> w.orientation===s.orientation && Math.abs(w.at-s.at)<WALL_WINDOW_TOL
       && w.from>=s.from-WALL_WINDOW_TOL && w.to<=s.to+WALL_WINDOW_TOL);
     if(wins.length===0){
@@ -1065,6 +1077,16 @@ boxWire(SOUND_WALL.x-WALL_T/2, SOUND_WALL.x+WALL_T/2, LEVELS.fl1, SOUND_WALL.top
   l.floor = 1;
   labels.push(l);
 }
+
+// ---- 腰壁（吹き抜けの転落防止。roomsの隣接関係からは導出されないため、防音壁と同様に直接追加） ----
+GUARD_WALLS.forEach(g=>{
+  const baseY = g.level===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const mats = g.level===1 ? M1 : M2;
+  const grp = g.level===1 ? groups.approx1 : groups.approx2;
+  const t = INTERIOR_WALL_T/2;
+  if(g.orientation==='H') boxWire(g.from, g.to, baseY, baseY+g.height, g.at-t, g.at+t, mats.approx, mats.approxEdge, grp, 2);
+  else boxWire(g.at-t, g.at+t, baseY, baseY+g.height, g.from, g.to, mats.approx, mats.approxEdge, grp, 2);
+});
 
 // ---- 屋根（確定：平屋部A1/A2の片流れ＋2階の切妻。data/house.json の roofs から生成） ----
 // 出典: Ryuka-Landscape-Designer js/building-model.js の yAt()/slopeRoof() と同じ式

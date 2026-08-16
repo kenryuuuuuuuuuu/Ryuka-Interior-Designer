@@ -138,6 +138,17 @@ data/interior-doors.json（室内ドアの配置インスタンス）
     - `currentLevel`引数は`hiddenBelow`の判定に使う。まだ登っていない状態（`currentLevel===stair.levelFrom`）で`hiddenBelow`の矩形内に入った場合は「階段の上を歩いている」のではなく「階段下の部屋を、その部屋自身のドアから歩いている」ということなので、階段としては扱わない（経路との幾何的な近さだけで判定すると、パントリーの中を歩いているだけなのに天井裏を通る階段の一部に引っ張られて視点が浮いてしまうため）。既にlevelToまで登り切っている（`currentLevel!==stair.levelFrom`）場合は、この矩形内でも通常どおり経路の補間高さを使う
   - 階段の下端（LDKへの開口、`door-029`）・上端（廊下(2F)への開口、`door-030`）は、他の room 分割と同じ`operation:'open'`の室内ドアとして`data/interior-doors.json`に登録してある。これがないと内覧モードで階段へ出入りできない（壁で塞がれてしまう）
 
+### 腰壁（guardWalls、吹き抜けの転落防止）
+
+`data/house.json`の`guardWalls`配列：`rooms`の隣接関係からは導出されない、独立した壁データ（`specialWalls`＝防音壁と同じ位置づけ）。階段の吹き抜け（`stair.opening`）は、`door-030`（階段(2F)⟷廊下(2F)）が全幅を壁のない開口にしているため、そのままでは2Fの廊下から吹き抜けへ誤って踏み込める状態になっていた（2026-08-16、施主が俯瞰スクリーンショットに赤線で図示して指摘：「いまのままだと2階から1階に飛び降りれてしまうような状態」）。吹き抜けの南辺(z=1.82、x:13.651-15.47)のうち、階段経路の最後の直進（x:14.561-15.471、上端の着地部分の真上）を除いた西側（x:13.651-14.561、階段の廻り部分の真上＝まだ2F床がない吹き抜け）に、床から1.5mの腰壁（`guard-2f-01`）を追加した。東側は実際に階段へ出入りする通路として開放したまま残している。
+
+- **フィールド**：`{id, label, level, orientation('H'|'V'), at, from, to, height, status, note}`。`orientation`/`at`/`from`/`to`は壁セグメントと同じ規約（`H`＝z一定、`from`/`to`はx範囲。`V`＝x一定、`from`/`to`はz範囲）
+- **`scripts/build-web-data.mjs`**：`buildGuardWalls()`が`GUARD_WALLS`定数を生成する（`buildSoundWall()`と同様、`house.guardWalls`をほぼそのまま整形するだけ）
+- **`interior-white-model.html`側の使われ方**：
+  - **当たり判定**：`wallSegmentsByLevel`構築時、防音壁と同じ位置（`cutGaps()`の後）に`{orientation, at, from, to, thick:INTERIOR_WALL_T, guardHeight:g.height}`として追加する。`resolveWalk()`・`segListBlocked()`は`thick`しか見ないため、既存のロジックを一切変更せずにそのまま転落防止の当たり判定として機能する
+  - **内覧モードの見た目**：壁メッシュ生成ループ（`wallSegmentsByLevel[level].forEach(...)`）の先頭で`s.guardHeight!==undefined`を判定し、天井（`CEIL_H`）ではなく`guardHeight`までの高さで描画してから`return`する（窓の切り欠き判定はスキップ）。これにより、当たり判定は壁と同等でも、見た目は腰の高さで途切れた低い壁になり、吹き抜けを覗き込める
+  - **俯瞰・平面図の見た目**：`GUARD_WALLS.forEach(...)`が、通常の`ROOMS_APPROX`と同じ`mats.approx`/`mats.approxEdge`を使い、`groups.approx1/2`（1F/2F表示切替・内覧モードでの非表示に自動的に連動する）へ`boxWire()`で追加する。真上から見る平面図モードでは高さの違いは見えない（他の壁と同じ塗りで、区間だけが目印になる）が、俯瞰（オービット）モードでは低い壁として見える
+
 ## 内覧モード（walk）
 
 俯瞰・平面図の間取りを実際に歩いて体験できることを目的としたモード。壁の当たり判定は上記「rooms / walls について」の自動導出壁（`wallSegmentsByLevel`）を使い、これに加えてドアの扉本体（近づくと開く演出）と家具の当たり判定を持つ。

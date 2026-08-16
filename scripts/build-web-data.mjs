@@ -115,6 +115,17 @@ function buildSoundWall() {
   return withNote(line, sw.note);
 }
 
+function buildGuardWalls() {
+  const rows = (house.guardWalls || []).map((g) => {
+    const parts = [
+      `id:${str(g.id)}`, `label:${str(g.label)}`, `level:${g.level}`, `orientation:${str(g.orientation)}`,
+      `at:${num(g.at)}`, `from:${num(g.from)}`, `to:${num(g.to)}`, `height:${num(g.height)}`, `status:${str(g.status)}`,
+    ];
+    return withNote(`  { ${parts.join(", ")} },`, g.note);
+  });
+  return `const GUARD_WALLS = [\n${rows.join("\n")}\n];`;
+}
+
 function buildInteriorDoors() {
   const rows = interiorDoors.items.map((d) => {
     const profile = doorWindowByType[d.type];
@@ -393,6 +404,8 @@ const output = [
   buildOpenings(),
   "",
   buildSoundWall(),
+  "",
+  buildGuardWalls(),
   "",
   buildInteriorDoors(),
   "",
