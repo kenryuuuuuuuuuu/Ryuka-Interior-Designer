@@ -92,6 +92,7 @@ const INTERIOR_DOORS = [
   { id:'door-028', type:'door-open', category:'door', operation:'open', label:'夫婦寝室⟷書斎', orientation:'H', wallAt:3.64, center:17.75, width:2.73, height:2, floor:2, status:'estimated' },
   { id:'door-029', type:'door-open', category:'door', operation:'open', label:'LDK⟷階段', orientation:'H', wallAt:1.82, center:14.106, width:0.91, height:2, floor:1, status:'estimated' }, // 新規(2026-08-15)：階段の実体表現にあたり新設。階段の直進部分（西側柱状部分）はLDKに向けて壁のない開口で開放されているリビング階段として配置。room-1f-10/room-1f-11の境界と一致させること
   { id:'door-030', type:'door-open', category:'door', operation:'open', label:'階段(2F)⟷廊下(2F)', orientation:'H', wallAt:1.82, center:14.5605, width:1.819, height:2, floor:2, status:'estimated' }, // 新規(2026-08-15)：階段の実体表現にあたり新設。2F階段室の全幅を廊下(2F)に向けて壁のない開口で開放。room-2f-02/room-2f-03の境界と一致させること
+  { id:'door-031', type:'door-open', category:'door', operation:'open', label:'廊下⟷洗面(東)', orientation:'V', wallAt:17.291, center:3.185, width:0.91, height:2, floor:1, status:'estimated' }, // 新規(2026-08-16)：施主指摘により追加（前回配置し忘れていた）。room-1f-13/room-1f-15の共有区間(z:2.73-3.64、幅0.91)全体を壁のない開口で開放
 ];
 
 const WALLS = [
