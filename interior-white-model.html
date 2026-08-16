@@ -804,14 +804,19 @@ function cutGaps(segs, gaps){
   });
   return result;
 }
+// 外壁の窓・ドア(OPENINGS)1件について、面する壁の{orientation, at, from, to}を返す。
+// ドア(壁の全高の切り欠き)・窓(帯状の切り欠き)の両方の計算で共用する
+function openingWallGeom(o, level){
+  if(o.face==='N') return {orientation:'H', at:(level===2?FLOOR2.z0:segAtX(o.lx).z0), from:o.lx, to:o.lx+o.w};
+  if(o.face==='S') return {orientation:'H', at:(level===2?FLOOR2.z1:segAtX(o.lx).z1), from:o.lx, to:o.lx+o.w};
+  if(o.face==='E') return {orientation:'V', at:(o.x!==undefined?o.x:19.110), from:o.lz, to:o.lz+o.w};
+  return {orientation:'V', at:(o.x!==undefined?o.x:0), from:o.lz, to:o.lz+o.w};
+}
 function doorGapsForLevel(level){
   const gaps = [];
   OPENINGS.forEach(o=>{
     if(o.category!=='door' || o.level!==level) return;
-    if(o.face==='N') gaps.push({orientation:'H', at:(level===2?FLOOR2.z0:segAtX(o.lx).z0), from:o.lx, to:o.lx+o.w});
-    else if(o.face==='S') gaps.push({orientation:'H', at:(level===2?FLOOR2.z1:segAtX(o.lx).z1), from:o.lx, to:o.lx+o.w});
-    else if(o.face==='E') gaps.push({orientation:'V', at:(o.x!==undefined?o.x:19.110), from:o.lz, to:o.lz+o.w});
-    else gaps.push({orientation:'V', at:(o.x!==undefined?o.x:0), from:o.lz, to:o.lz+o.w});
+    gaps.push(openingWallGeom(o, level));
   });
   INTERIOR_DOORS.forEach(d=>{
     if(d.floor!==level) return;
@@ -819,6 +824,18 @@ function doorGapsForLevel(level){
   });
   return gaps;
 }
+// 窓(OPENINGS、category!=='door')は壁を全高では切り欠かず、sill(下端高さ)〜sill+h(上端高さ)の
+// 帯だけを内覧モードの壁メッシュ生成時に切り欠く（当たり判定用のwallSegmentsByLevelには含めない＝
+// 窓は通り抜けられない、という現状の挙動は維持する）
+function windowGapsForLevel(level){
+  const gaps = [];
+  OPENINGS.forEach(o=>{
+    if(o.category==='door' || o.level!==level) return;
+    gaps.push({ ...openingWallGeom(o, level), sill:o.sill, h:o.h });
+  });
+  return gaps;
+}
+const windowGapsByLevel = { 1: windowGapsForLevel(1), 2: windowGapsForLevel(2) };
 const wallSegmentsByLevel = {};
 [1,2].forEach(level=>{
   const rects = level===1 ? FLOOR1 : [FLOOR2];
@@ -881,12 +898,35 @@ function resolveWalk(level, x, z, dx, dz){
 const walkGroup = new THREE.Group(); walkGroup.visible = false; scene.add(walkGroup);
 const walkWallMat = new THREE.MeshStandardMaterial({color:0xf6f3ec, side:THREE.DoubleSide});
 const walkCeilingMat = new THREE.MeshStandardMaterial({color:0xfbfaf7, side:THREE.DoubleSide});
+const walkWindowMat = new THREE.MeshStandardMaterial({color:0x6fb3e0, transparent:true, opacity:0.45, side:THREE.DoubleSide});
+const walkWindowFrameMat = new THREE.LineBasicMaterial({color:0x2a2a2a});
+const WINDOW_GLASS_THICK = 0.04; // 窓ガラス面の厚み(m、壁の中心に配置する見た目上の値)
+const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一致判定の許容誤差(m)
 [1,2].forEach(level=>{
   const baseY = level===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const winGaps = windowGapsByLevel[level];
   wallSegmentsByLevel[level].forEach(s=>{
     const t = s.thick/2;
-    if(s.orientation==='H') boxWire(s.from, s.to, baseY, baseY+CEIL_H, s.at-t, s.at+t, walkWallMat, null, walkGroup);
-    else boxWire(s.at-t, s.at+t, baseY, baseY+CEIL_H, s.from, s.to, walkWallMat, null, walkGroup);
+    const wins = winGaps.filter(w=> w.orientation===s.orientation && Math.abs(w.at-s.at)<WALL_WINDOW_TOL
+      && w.from>=s.from-WALL_WINDOW_TOL && w.to<=s.to+WALL_WINDOW_TOL);
+    if(wins.length===0){
+      if(s.orientation==='H') boxWire(s.from, s.to, baseY, baseY+CEIL_H, s.at-t, s.at+t, walkWallMat, null, walkGroup);
+      else boxWire(s.at-t, s.at+t, baseY, baseY+CEIL_H, s.from, s.to, walkWallMat, null, walkGroup);
+      return;
+    }
+    // 窓がある壁は、沿い方向(u=x0/x1)・高さ方向(v=z0/z1、baseYからの相対高さ)の矩形として
+    // rectMinusRect()を流用し、窓の帯を切り欠いた残りだけを壁として描画する
+    let rects = [{x0:s.from, x1:s.to, z0:0, z1:CEIL_H}];
+    wins.forEach(w=>{ rects = rects.flatMap(rr=>rectMinusRect(rr, {x0:w.from, x1:w.to, z0:w.sill, z1:w.sill+w.h})); });
+    rects.forEach(rr=>{
+      if(s.orientation==='H') boxWire(rr.x0, rr.x1, baseY+rr.z0, baseY+rr.z1, s.at-t, s.at+t, walkWallMat, null, walkGroup);
+      else boxWire(s.at-t, s.at+t, baseY+rr.z0, baseY+rr.z1, rr.x0, rr.x1, walkWallMat, null, walkGroup);
+    });
+    wins.forEach(w=>{
+      const gt = WINDOW_GLASS_THICK/2;
+      if(s.orientation==='H') boxWire(w.from, w.to, baseY+w.sill, baseY+w.sill+w.h, s.at-gt, s.at+gt, walkWindowMat, walkWindowFrameMat, walkGroup);
+      else boxWire(s.at-gt, s.at+gt, baseY+w.sill, baseY+w.sill+w.h, w.from, w.to, walkWindowMat, walkWindowFrameMat, walkGroup);
+    });
   });
   // 階段の吹き抜け：このlevelから上の階へ上る階段があれば、その真上のlevel+1側の
   // 床（＝このlevelから見た天井）に開口の穴を開ける（内覧モードで見上げたときに素通しになる）
@@ -902,6 +942,62 @@ const walkCeilingMat = new THREE.MeshStandardMaterial({color:0xfbfaf7, side:THRE
       cmesh.position.set(sx0+(sx1-sx0)/2, baseY+CEIL_H-0.01, sz0+(sz1-sz0)/2);
       walkGroup.add(cmesh);
     });
+  });
+});
+
+// ---- 内覧モードのアーチ開口：迫り持ち（スパンドレル）の壁を復元する ----
+// wallSegmentsByLevel/doorGapsForLevelは開口を「壁の全高を切り欠いた矩形の通路」として扱う
+// （当たり判定はこれで十分。アーチの弧の形まで衝突判定する必要はない）。そのため、これまでは
+// アーチ開口(operation:'open-arch')も内覧モードでは通常の開口と同じ、天井まで抜けた四角い
+// 開口に見えていた。見た目だけ、archOpeningMesh()と同じ弧の形状を使って、弧の外側（左右の
+// 迫り持ち部分）と弧の頂点から天井までの帯を、壁と同じ色で追加描画し、アーチらしい見た目に戻す
+function archSpandrelShapes(hw, springHeight, archRise){
+  // 迫り持ち＝矩形(-hw,springHeight)〜(hw,springHeight+archRise)から弧の内側(開口側)を除いた残り。
+  // 弧が頂点(0,peak)で接するため、左右を別々のシェイプにして自己接触を避ける
+  const peak = springHeight + archRise, segs = 12;
+  const right = new THREE.Shape();
+  right.moveTo(0, peak); right.lineTo(hw, peak); right.lineTo(hw, springHeight);
+  for(let i=1;i<=segs;i++){ const ang=(i/segs)*(Math.PI/2); right.lineTo(hw*Math.cos(ang), springHeight+archRise*Math.sin(ang)); }
+  right.closePath();
+  const left = new THREE.Shape();
+  left.moveTo(0, peak); left.lineTo(-hw, peak); left.lineTo(-hw, springHeight);
+  for(let i=1;i<=segs;i++){ const ang=Math.PI-(i/segs)*(Math.PI/2); left.lineTo(hw*Math.cos(ang), springHeight+archRise*Math.sin(ang)); }
+  left.closePath();
+  return [left, right];
+}
+function addWalkArchInfill({ orientation, alongFrom, alongTo, wallAt, baseY, height, archRise, thick }){
+  const hw = (alongTo-alongFrom)/2, alongCenter = (alongFrom+alongTo)/2;
+  const springHeight = height-archRise;
+  archSpandrelShapes(hw, springHeight, archRise).forEach(shape=>{
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled:false });
+    geo.translate(0, 0, -thick/2);
+    const mesh = new THREE.Mesh(geo, walkWallMat);
+    if(orientation==='H'){ const [sx,sz]=toScene(alongCenter, wallAt); mesh.position.set(sx, baseY, sz); }
+    else { mesh.rotation.y = -Math.PI/2; const [sx,sz]=toScene(wallAt, alongCenter); mesh.position.set(sx, baseY, sz); }
+    walkGroup.add(mesh);
+  });
+  // 弧の頂点(height)から天井(CEIL_H)までの帯（ドアの高さが天井高より低い分の、通常の垂れ壁）
+  if(height < CEIL_H){
+    const t = thick/2;
+    if(orientation==='H') boxWire(alongFrom, alongTo, baseY+height, baseY+CEIL_H, wallAt-t, wallAt+t, walkWallMat, null, walkGroup);
+    else boxWire(wallAt-t, wallAt+t, baseY+height, baseY+CEIL_H, alongFrom, alongTo, walkWallMat, null, walkGroup);
+  }
+}
+INTERIOR_DOORS.forEach(d=>{
+  if(d.operation!=='open-arch') return;
+  const archRise = DOOR_WINDOW_CATALOG[d.type].archRise;
+  addWalkArchInfill({
+    orientation:d.orientation, alongFrom:d.center-d.width/2, alongTo:d.center+d.width/2, wallAt:d.wallAt,
+    baseY:(d.floor===1?LEVELS.fl1:LEVELS.fl2), height:d.height, archRise, thick:INTERIOR_WALL_T,
+  });
+});
+OPENINGS.forEach(o=>{
+  if(o.category!=='door' || o.operation!=='open-arch') return;
+  const { orientation, at, from, to } = openingWallGeom(o, o.level);
+  const archRise = DOOR_WINDOW_CATALOG[o.type].archRise;
+  addWalkArchInfill({
+    orientation, alongFrom:from, alongTo:to, wallAt:at,
+    baseY:(o.level===1?LEVELS.fl1:LEVELS.fl2)+o.sill, height:o.h, archRise, thick:WALL_T,
   });
 });
 
