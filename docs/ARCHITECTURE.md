@@ -149,6 +149,27 @@ data/interior-doors.json（室内ドアの配置インスタンス）
   - **内覧モードの見た目**：壁メッシュ生成ループ（`wallSegmentsByLevel[level].forEach(...)`）の先頭で`s.guardHeight!==undefined`を判定し、天井（`CEIL_H`）ではなく`guardHeight`までの高さで描画してから`return`する（窓の切り欠き判定はスキップ）。これにより、当たり判定は壁と同等でも、見た目は腰の高さで途切れた低い壁になり、吹き抜けを覗き込める
   - **俯瞰・平面図の見た目**：`GUARD_WALLS.forEach(...)`が、通常の`ROOMS_APPROX`と同じ`mats.approx`/`mats.approxEdge`を使い、`groups.approx1/2`（1F/2F表示切替・内覧モードでの非表示に自動的に連動する）へ`boxWire()`で追加する。真上から見る平面図モードでは高さの違いは見えない（他の壁と同じ塗りで、区間だけが目印になる）が、俯瞰（オービット）モードでは低い壁として見える
 
+## 勾配天井（ceiling:sloped）
+
+施主指摘（2026-08-16）：「民泊LDK・自宅LDKのうち、片流れ屋根がかかっている範囲は、天井の高さを片流れの形に合わせてほしい」。`rooms`の該当2部屋（`room-1f-06`＝LDK(民泊)、`room-1f-11`＝LDK）に`ceiling:"sloped"`を付け、それ以外はすべて既存データ（`roofs`の片流れ屋根・`footprints`）から自動導出する。現時点では**内覧モードのみ対応**（俯瞰・平面図の部屋ボックスは従来通りCEIL_Hのまま。下記「今後の課題」参照）。
+
+- **`scripts/build-web-data.mjs`側の導出（`computeSlopedCeilingPieces()`）**：
+  1. `decomposeRectilinearPolygon(polygon)`が、`ceiling:"sloped"`な部屋のポリゴン（軸並行前提。`isRectilinear()`の対象と同じ）をz方向の走査線で矩形群（バンド）に分解する
+  2. 各バンドを、片流れ屋根（`roofs[].kind==='lean_to'`）のfootprintと矩形の交差判定にかけ、重なった部分を`sloped:true`（交差した屋根の`base`/`pitch`/`thickness`を保持）、残りを`sloped:false`（2階直下などフラットなまま）の区画として`SLOPED_CEILING_PIECES`に書き出す
+  3. 屋根が複数（`roof-a1`/`roof-a2`）ある場合も、区画ごとに交差した方の勾配式をそのまま持つため、将来2つの屋根の勾配が異なっても正しく扱える（現状はたまたま両方とも同じ`base`/`pitch`のため、`room-1f-11`のx=9.1の継ぎ目で区画は分かれるが高さの見た目は連続する）
+  4. `CEILING_ALLOWANCE`（`house.defaults.ceilingAllowance`、既定0.15m）：垂木・断熱・天井仕上げの見込み。屋根裏面（`roof.thickness/2`を引いた面）からさらにこの分だけ天井を下げる。実際の天井高は屋根裏面よりこの見込みぶん低い、という意味
+- **`interior-white-model.html`側（内覧モードのみ）**：
+  - **`slopedCeilingHeightAt(x,z)`**：`SLOPED_CEILING_PIECES`から該当区画を探し、`sloped:true`なら`yAtHiraya(z,base,pitch) - roofThickness/2 - CEILING_ALLOWANCE - LEVELS.fl1`（屋根の勾配式そのまま、`yAtHiraya()`は屋根描画と共通）、`sloped:false`または対象外なら`CEIL_H`を返す
+  - **天井パネル**：階段の吹き抜け穴と同じ要領で、`SLOPED_CEILING_PIECES`の`sloped:true`区画ぶんを平らな天井面（`FLOOR1`）から`rectMinusRect()`で切り欠き、代わりに`walkSlopedCeilingPanel()`（`roofPanel()`と同じ「2点を結ぶ傾いた板」の考え方だが、内覧の天井パネルは輪郭線を持たない仕様に合わせた専用の軽量版）で傾いたパネルを描画する
+  - **壁の高さ**：勾配天井の対象範囲付近の壁（`nearSlopedCeiling(s)`でまず大まかに絞り込む）は、天井まで届くよう高さを伸ばす。ルールは「壁の高さ＝両側の天井高のうち高い方」（`slopedCeilingHeightAt()`を壁面の両側で±`SLOPE_SAMPLE_EPS`だけオフセットしてサンプリングし、`Math.max()`を取る）
+    - **H向き（z一定）の壁**：屋根の勾配式はzだけに依存するため、z一定の壁は区間内で高さが変わらない。ただし壁の途中でx方向に「屋根がかかる／かからない」の境界（`room-1f-11`のx=12.74）をまたぐことがあるため、`heightRunsForHWall()`がその境界で壁を区間分割し、区間ごとに一定の高さ（段差）で描画する（施主承認：「フラットに戻るところは素直に段差でOK」）。窓（例：自宅LDK南面の掃き出し窓`op-010`）がある区間は、区間ごとの高さを天井としてこれまでの窓の切り欠きロジックをそのまま適用する
+    - **V向き（x一定）の壁**：x一定なので「屋根がかかる／かからない」の判定自体は壁の全長で変わらないが、屋根の高さ自体がzの一次式で連続的に変わるため、壁の上端も連続的に傾く。`heightEndsForVWall()`が壁の両端(`from`/`to`)での必要高さを求め、異なっていれば`slopedTopWallPanel()`（`archSpandrelShapes()`と同じ「ローカルXY平面のShapeをZ方向に押し出し、position+rotation.yで配置する」手法）で上端が傾いた台形パネルを描く。民泊-自宅の防音壁（`SOUND_WALL`、x=7.28）もこの対象に含まれる（両側とも勾配天井の部屋のため、内覧モードでは天井なりに傾く。平面図・俯瞰モード側の防音壁表示（`topY=3.4`固定）は今回未対応、下記参照）
+- **見込み（`CEILING_ALLOWANCE`）について**：施主に「屋根裏面そのまま」か「見込みを引く」かを確認し、見込みを引く方針で確定（2026-08-16）。実際の垂木せい・断熱厚は施工会社未確認のため、0.15mは目安値（`status`の考え方に準じ、今後の検証対象）
+- **今後の課題（未対応、次回以降の対象）**：
+  - 俯瞰・平面図モードの部屋ボックス（`ROOMS_APPROX`）は、勾配天井を考慮せず一律CEIL_Hのまま（内覧モードのみ先行対応。将来的にはORTHOカメラでの見た目にも反映したい）
+  - Blender（`blender/build_house.py`）は未対応
+  - `SOUND_WALL`の俯瞰・平面図モード側の表示（`groups.sound`、`topY=3.4`固定）は、南側で新しい勾配天井（最大約3.5m）より低くなる場合があるが、今回は内覧モードの壁高さ計算（`wallSegmentsByLevel`経由）だけを直し、`groups.sound`自体の`topY`は変更していない
+
 ## 内覧モード（walk）
 
 俯瞰・平面図の間取りを実際に歩いて体験できることを目的としたモード。壁の当たり判定は上記「rooms / walls について」の自動導出壁（`wallSegmentsByLevel`）を使い、これに加えてドアの扉本体（近づくと開く演出）と家具の当たり判定を持つ。

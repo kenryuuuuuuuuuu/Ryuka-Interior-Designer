@@ -900,6 +900,102 @@ function resolveWalk(level, x, z, dx, dz){
   return [nx, nz];
 }
 
+// ---- 勾配天井（ceiling:sloped）：任意の(x,z)での天井高・壁の必要高さの計算 ----
+// SLOPED_CEILING_PIECES（対象部屋を矩形群に分解し、片流れ屋根の範囲と交差判定した結果。
+// generated/house-data.js、scripts/build-web-data.mjsのcomputeSlopedCeilingPieces()を参照）を
+// 使って、任意の(x,z)における「その場所の天井高（床からの高さ）」を求める。対象範囲外はCEIL_H
+function slopedCeilingHeightAt(x, z){
+  for(const p of SLOPED_CEILING_PIECES){
+    if(x>=p.x0-1e-6 && x<=p.x1+1e-6 && z>=p.z0-1e-6 && z<=p.z1+1e-6){
+      if(!p.sloped) return CEIL_H;
+      return yAtHiraya(z, p.base, p.pitch) - p.roofThickness/2 - CEILING_ALLOWANCE - LEVELS.fl1;
+    }
+  }
+  return CEIL_H;
+}
+const SLOPED_CEILING_BOUNDS = SLOPED_CEILING_PIECES.reduce((b,p)=>({
+  x0: Math.min(b.x0,p.x0), x1: Math.max(b.x1,p.x1), z0: Math.min(b.z0,p.z0), z1: Math.max(b.z1,p.z1),
+}), { x0:Infinity, x1:-Infinity, z0:Infinity, z1:-Infinity });
+const SLOPE_SAMPLE_EPS = 0.03; // 壁の両側の天井高をサンプリングする際の、壁面からのオフセット(m)
+// 壁セグメントsが勾配天井の対象範囲付近にあるか（ほとんどの壁は対象外なので、まずここで弾く）
+function nearSlopedCeiling(s){
+  if(SLOPED_CEILING_PIECES.length===0) return false;
+  const b = SLOPED_CEILING_BOUNDS, margin = 0.5;
+  if(s.orientation==='H') return s.at>=b.z0-margin && s.at<=b.z1+margin && s.to>=b.x0-margin && s.from<=b.x1+margin;
+  return s.at>=b.x0-margin && s.at<=b.x1+margin && s.to>=b.z0-margin && s.from<=b.z1+margin;
+}
+// H向き(z一定)の壁セグメントを、両側の必要高さが変わるx位置(SLOPED_CEILING_PIECESの境界)で
+// 区間分割し、各区間の必要な高さ(両側のうち高い方)を返す。z一定の壁は片流れ屋根の高さ式が
+// 変化しない（zが同じ＝高さの式も同じ）ため、区間の中では常に一定の高さになる
+function heightRunsForHWall(s){
+  const breaks = new Set([s.from, s.to]);
+  SLOPED_CEILING_PIECES.forEach(p=>{
+    if(p.z0<=s.at+0.2 && p.z1>=s.at-0.2){
+      if(p.x0>s.from && p.x0<s.to) breaks.add(p.x0);
+      if(p.x1>s.from && p.x1<s.to) breaks.add(p.x1);
+    }
+  });
+  const xs = [...breaks].sort((a,b)=>a-b);
+  const runs = [];
+  for(let i=0;i<xs.length-1;i++){
+    const a=xs[i], b=xs[i+1];
+    if(b-a<1e-6) continue;
+    const mid=(a+b)/2;
+    const h1 = slopedCeilingHeightAt(mid, s.at-SLOPE_SAMPLE_EPS);
+    const h2 = slopedCeilingHeightAt(mid, s.at+SLOPE_SAMPLE_EPS);
+    runs.push({from:a, to:b, height:Math.max(h1,h2,CEIL_H)});
+  }
+  return runs;
+}
+// V向き(x一定)の壁セグメントの、両端(from/to)での必要な高さ(両側のうち高い方)を返す。
+// 片流れ屋根の高さはzの一次式なので、両端さえわかれば区間全体の傾きが厳密に決まる（近似ではない）
+function heightEndsForVWall(s){
+  const hAt = (z)=>{
+    const h1 = slopedCeilingHeightAt(s.at-SLOPE_SAMPLE_EPS, z);
+    const h2 = slopedCeilingHeightAt(s.at+SLOPE_SAMPLE_EPS, z);
+    return Math.max(h1,h2,CEIL_H);
+  };
+  return { topFrom: hAt(s.from), topTo: hAt(s.to) };
+}
+// V向きの壁の、上端が傾斜したパネル（沿い方向(u)×高さ(v)平面の台形をthickぶん押し出した形）を
+// 1枚作る。archSpandrelShapes()/addWalkArchInfill()と同じ「ローカルXY平面のShapeをZ方向に
+// 押し出し、position+rotation.yで配置する」手法を、傾斜する壁の上端に応用したもの。
+// u軸はfromを原点(u=0)とした相対座標にする（三人称キャラの手足と同様、シェイプの原点と
+// 実際に回転させたい基準点を一致させないと、回転で位置がずれてしまうため）
+function slopedTopWallPanel(at, from, to, baseY, topA, topB, thick, mat, edgeMat, parent){
+  const shape = new THREE.Shape();
+  const w = to - from;
+  shape.moveTo(0, 0); shape.lineTo(0, topA-baseY); shape.lineTo(w, topB-baseY); shape.lineTo(w, 0); shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled:false });
+  geo.translate(0, 0, -thick/2);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.y = -Math.PI/2;
+  const [sx,sz] = toScene(at, from);
+  mesh.position.set(sx, baseY, sz);
+  parent.add(mesh);
+  if(edgeMat){
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat);
+    edges.rotation.copy(mesh.rotation); edges.position.copy(mesh.position);
+    parent.add(edges);
+  }
+}
+
+// 勾配天井の傾斜パネルを1枚描画する（roofPanel()と同じ「zA/yA→zB/yBの2点を結ぶ傾いた板」だが、
+// 内覧モードの天井は平らな天井パネルと同様に輪郭線を持たないため、roofPanel()は使わず
+// 専用の小さな関数にする（roofPanel()は屋根の描画にedgeMatを必須で使う実装のため流用しない）
+function walkSlopedCeilingPanel(x0,x1,zA,yA,zB,yB, thickness, mat, parent){
+  const dz = zB-zA, dy = yB-yA;
+  const runLen = Math.sqrt(dz*dz+dy*dy);
+  const angle = Math.atan2(dy,dz);
+  const geo = new THREE.BoxGeometry(x1-x0, thickness, runLen);
+  const mesh = new THREE.Mesh(geo, mat);
+  const midX=(x0+x1)/2, midZ=(zA+zB)/2, midY=(yA+yB)/2;
+  const [smx,smz] = toScene(midX, midZ);
+  mesh.position.set(smx, midY, smz);
+  mesh.rotation.x = -angle;
+  parent.add(mesh);
+}
+
 // ---- 内覧モード用の実壁・天井メッシュ（衝突セグメントと同じデータから生成） ----
 const walkGroup = new THREE.Group(); walkGroup.visible = false; scene.add(walkGroup);
 const walkWallMat = new THREE.MeshStandardMaterial({color:0xf6f3ec, side:THREE.DoubleSide});
@@ -921,6 +1017,40 @@ const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一�
     }
     const wins = winGaps.filter(w=> w.orientation===s.orientation && Math.abs(w.at-s.at)<WALL_WINDOW_TOL
       && w.from>=s.from-WALL_WINDOW_TOL && w.to<=s.to+WALL_WINDOW_TOL);
+    // 勾配天井（ceiling:sloped）の対象範囲に接する壁は、天井まで届くよう高さを伸ばす
+    // （両側の天井高のうち高い方。段差はH向きの区間分割、傾斜はV向きの台形パネルで表現する）
+    if(level===1 && nearSlopedCeiling(s)){
+      if(s.orientation==='V'){
+        const {topFrom,topTo} = heightEndsForVWall(s);
+        if(Math.abs(topFrom-topTo)<0.01 && wins.length===0){
+          boxWire(s.at-t, s.at+t, baseY, baseY+topFrom, s.from, s.to, walkWallMat, null, walkGroup);
+          return;
+        }
+        if(wins.length===0){
+          slopedTopWallPanel(s.at, s.from, s.to, baseY, topFrom, topTo, s.thick, walkWallMat, walkWallMat, walkGroup);
+          return;
+        }
+        // 窓付きの傾斜壁は現状のデータには存在しないため未対応（フラットな通常経路へフォールバック）
+      } else {
+        const runs = heightRunsForHWall(s);
+        if(wins.length===0){
+          runs.forEach(run=> boxWire(run.from, run.to, baseY, baseY+run.height, s.at-t, s.at+t, walkWallMat, null, walkGroup));
+          return;
+        }
+        runs.forEach(run=>{
+          const runWins = wins.filter(w=> w.from<run.to-1e-6 && w.to>run.from+1e-6);
+          if(runWins.length===0){ boxWire(run.from, run.to, baseY, baseY+run.height, s.at-t, s.at+t, walkWallMat, null, walkGroup); return; }
+          let rects = [{x0:run.from, x1:run.to, z0:0, z1:run.height}];
+          runWins.forEach(w=>{ rects = rects.flatMap(rr=>rectMinusRect(rr, {x0:w.from, x1:w.to, z0:w.sill, z1:w.sill+w.h})); });
+          rects.forEach(rr=> boxWire(rr.x0, rr.x1, baseY+rr.z0, baseY+rr.z1, s.at-t, s.at+t, walkWallMat, null, walkGroup));
+          runWins.forEach(w=>{
+            const gt = WINDOW_GLASS_THICK/2;
+            boxWire(w.from, w.to, baseY+w.sill, baseY+w.sill+w.h, s.at-gt, s.at+gt, walkWindowMat, walkWindowFrameMat, walkGroup);
+          });
+        });
+        return;
+      }
+    }
     if(wins.length===0){
       if(s.orientation==='H') boxWire(s.from, s.to, baseY, baseY+CEIL_H, s.at-t, s.at+t, walkWallMat, null, walkGroup);
       else boxWire(s.at-t, s.at+t, baseY, baseY+CEIL_H, s.from, s.to, walkWallMat, null, walkGroup);
@@ -943,9 +1073,14 @@ const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一�
   // 階段の吹き抜け：このlevelから上の階へ上る階段があれば、その真上のlevel+1側の
   // 床（＝このlevelから見た天井）に開口の穴を開ける（内覧モードで見上げたときに素通しになる）
   const stairHoles = STAIRS.filter(s=>s.levelFrom===level && s.opening).map(s=>s.opening);
+  // 勾配天井（ceiling:sloped）の範囲も、平らな天井面からは切り欠いて、代わりに傾斜したパネルを
+  // 別途描画する（sloped:falseの区画＝2階直下などは高さが同じCEIL_Hなので、切り欠かず
+  // そのまま平らな天井面に任せてよい。区画の境界線が余計に増えるだけで見た目上のメリットがない）
+  const slopedHoles = level===1 ? SLOPED_CEILING_PIECES.filter(p=>p.sloped).map(p=>({x0:p.x0,x1:p.x1,z0:p.z0,z1:p.z1})) : [];
   (level===1 ? FLOOR1 : [FLOOR2]).forEach(r=>{
     let rects = [r];
     stairHoles.forEach(hole=>{ rects = rects.flatMap(rr=>rectMinusRect(rr, hole)); });
+    slopedHoles.forEach(hole=>{ rects = rects.flatMap(rr=>rectMinusRect(rr, hole)); });
     rects.forEach(rr=>{
       const [sx0,sz0]=toScene(rr.x0,rr.z0), [sx1,sz1]=toScene(rr.x1,rr.z1);
       const cgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
@@ -955,6 +1090,13 @@ const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一�
       walkGroup.add(cmesh);
     });
   });
+  if(level===1){
+    SLOPED_CEILING_PIECES.filter(p=>p.sloped).forEach(p=>{
+      const yN = yAtHiraya(p.z0,p.base,p.pitch) - p.roofThickness/2 - CEILING_ALLOWANCE;
+      const yS = yAtHiraya(p.z1,p.base,p.pitch) - p.roofThickness/2 - CEILING_ALLOWANCE;
+      walkSlopedCeilingPanel(p.x0, p.x1, p.z0, yN, p.z1, yS, 0.02, walkCeilingMat, walkGroup);
+    });
+  }
 });
 
 // ---- 内覧モードのアーチ開口：迫り持ち（スパンドレル）の壁を復元する ----
