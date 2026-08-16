@@ -192,8 +192,6 @@
 
 <div id="ui">
   <h1>自宅新築プロジェクト 内装白模型 v0.1</h1>
-  <div class="sub">出典: 施工会社Ver5実施図面＋Ryuka-Landscape-Designer levels。<br>
-  マイホームクラウド値は不使用。寸法単位m、GL基準。</div>
 
   <div class="section-title">表示フロア</div>
   <div id="floorToggle">
@@ -204,14 +202,10 @@
   <div class="sub" style="margin:6px 0 0;">1F/2F切替時、選択していない階は非表示になります。内覧モード中はスポーン地点で階が決まります。</div>
 
   <div class="section-title">表示レイヤー</div>
-  <label><input type="checkbox" id="chkApprox" checked> 室内間仕切り（概算・要確認）</label>
-  <label><input type="checkbox" id="chkFurniture" checked> 家具・設備（配置検討中）</label>
-  <label><input type="checkbox" id="chkOpenings" checked> 窓・ドア（確定位置）</label>
   <label><input type="checkbox" id="chkSound" checked> 防音壁（民泊-自宅境界）</label>
   <label><input type="checkbox" id="chkRoof"> 屋根（1F片流れ＋2F切妻）</label>
-  <label><input type="checkbox" id="chkDoors" checked> 室内ドア位置（確定）</label>
   <label><input type="checkbox" id="chkDims" checked> 寸法値を表示（1F・mm単位）</label>
-  <label><input type="checkbox" id="chkLabels" checked> 部屋ラベル</label>
+  <label><input type="checkbox" id="chkLabels"> 部屋ラベル</label>
   <label><input type="checkbox" id="chkFurnitureLabels" checked> 家具ラベル</label>
   <label><input type="checkbox" id="chkGrid" checked> 地面グリッド(910mm)</label>
 
@@ -221,7 +215,6 @@
   <div class="legend-item"><div class="swatch" style="background:#6fb3e0;"></div>確定：窓</div>
   <div class="legend-item"><div class="swatch" style="background:#ff1fb0;"></div>確定：ドア（外部・室内とも共通色）</div>
   <div class="legend-item"><div class="swatch" style="background:#a89f8f;"></div>屋根：1F片流れ（平屋部A1/A2、1.5寸勾配。x=9.100の継ぎ目は簡略化）／2F切妻（3寸勾配、棟は東西方向。妻壁は未モデル化）</div>
-  <div class="legend-item"><div class="swatch" style="background:#4caf50;"></div>確定：室内ドア位置（施主指摘の座標をピクセル解析）</div>
   <div class="legend-item"><div class="swatch" style="background:#b98d5e;"></div>家具・設備（配置検討中。位置・サイズとも仮／status: estimated）</div>
   <hr>
   <div style="font-size:11px;color:#777;line-height:1.6;">
@@ -456,10 +449,7 @@ function setEditMode(on){
   if(!on){ setSelectedFurniture(null); draggingFurniture=false; }
   else {
     setDoorEditMode(false); // 家具編集と窓・ドア編集は排他
-    if(!document.getElementById('chkFurniture').checked){
-      document.getElementById('chkFurniture').checked = true;
-      furnitureAll.visible = true;
-    }
+    furnitureAll.visible = true;
   }
   document.getElementById('editToggle').classList.toggle('active', editMode);
   document.getElementById('furniturePanel').style.display = (editMode && selectedFurnitureId) ? 'block' : 'none';
@@ -1756,8 +1746,8 @@ function setDoorEditMode(on){
   if(!on){ selectDoorWindow(null); draggingDoorWindow=false; }
   else {
     setEditMode(false); // 家具編集と窓・ドア編集は排他
-    if(!document.getElementById('chkOpenings').checked){ document.getElementById('chkOpenings').checked=true; openingsAll.visible=true; }
-    if(!document.getElementById('chkDoors').checked){ document.getElementById('chkDoors').checked=true; doorsAll.visible=true; }
+    openingsAll.visible = true;
+    doorsAll.visible = true;
   }
   document.getElementById('doorEditToggle').classList.toggle('active', doorEditMode);
   document.getElementById('doorPanel').style.display = (doorEditMode && selectedDoorWindowId) ? 'block' : 'none';
@@ -1965,12 +1955,8 @@ scene.add(grid);
 // ============================================================================
 // UI連動
 // ============================================================================
-document.getElementById('chkApprox').onchange = e=> { approxAll.visible = e.target.checked; refreshLabelVis(); };
-document.getElementById('chkFurniture').onchange = e=> { furnitureAll.visible = e.target.checked; refreshLabelVis(); };
-document.getElementById('chkOpenings').onchange = e=> openingsAll.visible = e.target.checked;
 document.getElementById('chkSound').onchange = e=> groups.sound.visible = e.target.checked;
 document.getElementById('chkRoof').onchange = e=> roofAll.visible = e.target.checked;
-document.getElementById('chkDoors').onchange = e=> doorsAll.visible = e.target.checked;
 document.getElementById('chkLabels').onchange = refreshLabelVis;
 document.getElementById('chkFurnitureLabels').onchange = refreshLabelVis;
 document.getElementById('chkGrid').onchange = e=> grid.visible = e.target.checked;
@@ -1995,7 +1981,6 @@ function setActiveBtn(id){ ['btnBoth','btn1F','btn2F'].forEach(b=>document.getEl
 
 function refreshLabelVis(){
   const showLabels = document.getElementById('chkLabels').checked;
-  const showApprox = document.getElementById('chkApprox').checked;
   const showDims = document.getElementById('chkDims').checked;
   const showFurnitureLabels = document.getElementById('chkFurnitureLabels').checked;
   labels.forEach(l=>{
@@ -2005,7 +1990,6 @@ function refreshLabelVis(){
     else vis = showLabels;
     if(l.floor===1 && floorMode==='2F') vis=false;
     if(l.floor===2 && floorMode==='1F') vis=false;
-    if(!l.isDim && !l.isFurniture && l.div.classList.contains('approx') && !showApprox) vis=false;
     l.div.style.display = vis ? 'block' : 'none';
   });
 }
@@ -2107,12 +2091,12 @@ document.getElementById('walkExit').onclick = ()=> setMode('top');
 
 let savedFloorMode = 'both';
 function restoreLayerVisibility(){
-  approxAll.visible = document.getElementById('chkApprox').checked;
-  openingsAll.visible = document.getElementById('chkOpenings').checked;
+  approxAll.visible = true;
+  openingsAll.visible = true;
   groups.sound.visible = document.getElementById('chkSound').checked;
   roofAll.visible = document.getElementById('chkRoof').checked;
-  doorsAll.visible = document.getElementById('chkDoors').checked;
-  furnitureAll.visible = document.getElementById('chkFurniture').checked;
+  doorsAll.visible = true;
+  furnitureAll.visible = true;
   grid.visible = document.getElementById('chkGrid').checked;
 }
 function enterWalkMode(spawn){
