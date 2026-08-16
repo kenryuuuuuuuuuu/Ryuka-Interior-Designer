@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "units": "m",
-  "note": "ドアの「型」のライブラリ。data/furniture-catalog.json と同じ考え方。operationはswing(開き戸)/slide(引き戸)/open(ドアなしの開口)/open-arch(ドアなしの開口・アーチ天端)。個々の配置（data/openings.json の category:door の項目 / data/interior-doors.json）はwidthOverride等でこの標準寸法から自由に変えられる。open系はhingeSide/swingDir/slideDirを持たせない（扉本体を描かない）。open-archのheightはアーチ頂部までの全高、archRiseはそのうち円弧が占める高さ（springline=height-archRise）。窓の型は data/window-catalog.json を参照。",
+  "note": "ドアの「型」のライブラリ。data/furniture-catalog.json と同じ考え方。operationはswing(開き戸)/double-swing(両開き戸)/fold(片開き折れ戸)/double-fold(両開き折れ戸)/slide(引き戸)/open(ドアなしの開口)/open-arch(ドアなしの開口・アーチ天端)。個々の配置（data/openings.json の category:door の項目 / data/interior-doors.json）はwidthOverride等でこの標準寸法から自由に変えられる。open系はhingeSide/swingDir/slideDirを持たせない（扉本体を描かない）。double-swing/double-foldはswingDirのみ使う（hingeSideは両側とも固定のため不要）。fold/double-foldは建具表の図記号（開口の片側or両側を蝶番にした折れ線）を模した表現。open-archのheightはアーチ頂部までの全高、archRiseはそのうち円弧が占める高さ（springline=height-archRise）。窓の型は data/window-catalog.json を参照。",
   "types": [
     {
       "type": "door-entrance",
@@ -42,6 +42,36 @@
       "height": 2.33,
       "sill": 0,
       "note": "土間・収納等の通気を兼ねたルーバー付き開き戸"
+    },
+    {
+      "type": "door-double-swing",
+      "label": "両開き戸",
+      "category": "door",
+      "operation": "double-swing",
+      "width": 0.91,
+      "height": 2,
+      "sill": 0,
+      "note": "収納・クロークなど、間口いっぱいを2枚の扉で開閉する両開き戸。1枚あたりの幅はwidth/2"
+    },
+    {
+      "type": "door-fold",
+      "label": "片開き折れ戸",
+      "category": "door",
+      "operation": "fold",
+      "width": 0.91,
+      "height": 2,
+      "sill": 0,
+      "note": "収納・クロークなどに使う折れ戸。開口の片側(hingeSide)を蝶番にした1組(2枚)の扉が折れ曲がって開く"
+    },
+    {
+      "type": "door-double-fold",
+      "label": "両開き折れ戸",
+      "category": "door",
+      "operation": "double-fold",
+      "width": 1.82,
+      "height": 2,
+      "sill": 0,
+      "note": "開口の両側をそれぞれ蝶番にした2組(4枚)の折れ戸。広い間口の収納・クロークに使う"
     },
     {
       "type": "door-slide",

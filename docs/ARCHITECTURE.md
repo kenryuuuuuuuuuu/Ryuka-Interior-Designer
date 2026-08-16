@@ -70,6 +70,10 @@ data/interior-doors.json（室内ドアの配置インスタンス）
 
 Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は使わない。`walls` はBlenderの `build_house.py` だけが使う。
 
+`rooms`の`polygon`は矩形・L字（軸に沿った頂点のみ）が基本だが、斜め框のような斜めの境界線を持つ部屋も表現できる（`polyWire()`はThree.js側で任意の多角形を描画できるため）。ただし`rooms`→`walls`変換（Blender用）は軸に沿った壁しか扱えないため、斜めの境界を持つ部屋を追加した場合は`walls`側の対応する更新ができない（Blenderは現状未使用のため実害は小さいが、[STATUS.md](STATUS.md)に記録しておくこと）。
+
+**間取りの精細化（部屋の分割）の進め方**：家具・窓ドアのような「既存の枠内で位置を調整する」編集とは異なり、部屋を分割する作業（例：1つの部屋を2部屋に割る、部屋の中に収納区画を切り出す）はトポロジーそのものを変える。編集モードは作らず、施主からスクリーンショット＋書き込み線などで指示を受け、`rooms`を直接編集する方式にしている（検討の経緯は[BACKGROUND.md](BACKGROUND.md)参照）。
+
 ## 家具・設備（furniture）
 
 - `data/furniture-catalog.json`：家具・設備の「型」。`type`（キー）ごとに`label`・`category`（`fixture`=施工会社が設置する造作／`furniture`=後から置く家具）・`shape`（下記）・標準寸法（`width`/`depth`/`height`）・`clearance`（前面等に必要な最小空き）を持つ
@@ -90,13 +94,15 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
 ## 窓・ドア（door-window）
 
 - `data/door-catalog.json`・`data/window-catalog.json`：窓・ドアの「型」。`type`（キー）ごとに`label`・`category`（`door`／`window`）・`operation`・標準寸法（`width`/`height`/`sill`）を持つ。furniture-catalog.jsonと同じ考え方
-  - ドアの`operation`：`swing`=開き戸／`slide`=引き戸／`open`=ドアなしの開口／`open-arch`=ドアなしの開口（天端アーチ）。窓は`openable`=開閉可／`fixed`=FIX
+  - ドアの`operation`：`swing`=開き戸／`double-swing`=両開き戸／`fold`=片開き折れ戸／`double-fold`=両開き折れ戸／`slide`=引き戸／`open`=ドアなしの開口／`open-arch`=ドアなしの開口（天端アーチ）。窓は`openable`=開閉可／`fixed`=FIX
   - `open-arch`のみ`archRise`（円弧が占める高さ）を追加で持つ。`height`はアーチ頂部までの全高で、springline（円弧が始まる高さ）は`height-archRise`
 - `data/openings.json`：外部（外壁）の窓・ドアの配置インスタンス。`type`でカタログを参照し、`face`（N/S/E/W）＋`offset`（その面に沿った建物ローカル座標の絶対値。**中心ではなく開始端（西端/北端）**）で位置を表す。E/W面は`wallX`を省略すると建物端（x=0またはx=19.11）とみなす
 - `data/interior-doors.json`：室内ドアの配置インスタンス。`type`でカタログを参照し、`wallAt`（壁の固定座標）＋`orientation`（H/V）＋`center`（壁沿いの位置、こちらは中心）で位置を表す
+  - **`orientation:'D'`（斜め壁）**：`wallAt`/`center`の代わりに`x0`/`z0`/`x1`/`z1`（始点・終点、建物ローカル座標）で位置を表す。壁のない開口（`operation:open`/`open-arch`）専用の想定で、開き戸・引き戸（`hingeSide`/`swingDir`/`slideDir`）や壁線スライド編集（Stage 2 UI）の対象外。`interior-white-model.html`の`placeDiagonalInteriorDoor()`が、始点・終点を結ぶ厚みのない平板で描画する
 - どちらも任意で`widthOverride`/`heightOverride`/`sillOverride`（このインスタンスだけ標準寸法から変える場合）を持つ
-- **ドアの開き勝手**：`operation:swing`の型を使うインスタンスは`hingeSide`（`L`/`R`、蝶番側）＋`swingDir`（`in`/`out`）、`operation:slide`なら`slideDir`（`L`/`R`、引き込み方向）を持つ。`operation:open`/`open-arch`（ドアなしの開口）はどちらも不要（扉本体を描かない）。外部の窓・ドア（`openings.json`）は`face`（N/S/E/W）から「外側」の方向が一意に決まるため、`swingDir:'out'`は文字通り建物の外側へ開く向きになる。室内ドア（`interior-doors.json`）には「外」の概念がないため、`swingDir`は「壁を挟んでどちら向きに開くか」を軸ベースで簡易表現したものにとどまる。隣接する部屋同士の内外関係までは今のデータモデルにはない（見た目を見ながら調整する運用）
-- **開口（アーチ）の描画**：`interior-white-model.html`の`archOpeningMesh()`が、天端が円弧になった平板（厚みのない板、door系マテリアルは両面表示なので厚みなしでも見える）を描く。平面図（真上から）ではアーチかどうかは見た目に出ないため、俯瞰・内覧モードで確認すること
+- **ドアの開き勝手**：`operation:swing`の型を使うインスタンスは`hingeSide`（`L`/`R`、蝶番側）＋`swingDir`（`in`/`out`）、`operation:double-swing`（両開き戸）は`swingDir`のみ（両端をそれぞれ蝶番にした2枚の扉が左右対称に開くため`hingeSide`は不要）、`operation:slide`なら`slideDir`（`L`/`R`、引き込み方向）を持つ。`operation:fold`（片開き折れ戸）は`swing`と同じく`hingeSide`+`swingDir`、`operation:double-fold`（両開き折れ戸）は`double-swing`と同じく`swingDir`のみ。`operation:open`/`open-arch`（ドアなしの開口）はどちらも不要（扉本体を描かない）。外部の窓・ドア（`openings.json`）は`face`（N/S/E/W）から「外側」の方向が一意に決まるため、`swingDir:'out'`は文字通り建物の外側へ開く向きになる。室内ドア（`interior-doors.json`）には「外」の概念がないため、`swingDir`は「壁を挟んでどちら向きに開くか」を軸ベースで簡易表現したものにとどまる。隣接する部屋同士の内外関係までは今のデータモデルにはない（見た目を見ながら調整する運用）
+- **折れ戸（`fold`/`double-fold`）の描画**：`interior-white-model.html`の`drawFoldLeaf()`が、建具表の図記号（開口の片側または両側を蝶番にした折れ線）を模して描く。蝶番側の固定点A・開口幅の中点にあたる自由端C（ともに壁面上）・折れ点Bの3点を、A-B=B-C=A-C（=開口幅/2）の正三角形になるよう配置し（Bは壁から`(開口幅/2)*sin60°`張り出す）、A→B→Cの2本の折れ線として描画する。`double-fold`は両端をそれぞれ蝶番にした2組の`drawFoldLeaf()`呼び出しで表現する（`double-swing`を`drawSwingLeaf()`2回で表現するのと同じパターン）
+- **開口（アーチ）の描画**：`interior-white-model.html`の`archOpeningMesh()`が、天端が円弧になった板の輪郭を黒線のみ（`open`と同じくピンクの塗りつぶしなし）で描く。この板は完全に鉛直な厚みゼロの形状のため、平面図モード（真上からの正投影）では単体だとほぼ視認できない（塗りつぶしの有無に関係なく、真上から見ると輪郭線がほぼ一直線に潰れて見えてしまう）。そのため`placeInteriorDoor()`/`placeOpening()`側で、`open`と同じ矩形の枠線（`EdgesGeometry(BoxGeometry(...))`）を必ず重ねて描き、平面図でも最低限の視認性（他の開口と同じ矩形の黒枠）を確保している（2026-08-16、施主指摘により追加。詳細は3章の教訓の表）。アーチの円弧そのものを確認したい場合は俯瞰・内覧モードで見ること
   - 現在の室内ドア19件はすべて開き戸として移行しており、`hingeSide`/`swingDir`は施工会社の建具表が未確認のため暫定値（[STATUS.md](STATUS.md)の未解決事項を参照）
 - `house.json`から2026-08-15に分離した（元は`openings`/`interiorDoors`という配列としてhouse.json内にあった）。理由は、家具編集の「書き出しボタンでファイルを上書き」という運用を安全に行うため。house.jsonに残したままだと、書き出しは`rooms`/`walls`/`roofs`等を含むファイル全体が対象になり、ブラウザ側が保持していない付帯情報を巻き込んで構造データを壊すリスクがある
 - **Web UI上での配置編集（第2段階、`interior-white-model.html`内に実装）**：平面図モードで「✎ 窓・ドア編集」ボタンをONにすると、窓・ドアのクリック/タップ選択→壁に沿ったドラッグでスライドができる。家具編集とは仕組みが異なる点が2つある
@@ -105,6 +111,26 @@ Three.js側（`ROOMS_APPROX` 相当）は `rooms` を直接使い、`walls` は�
   - パネルからは種類（`type`）の切替、幅/高さ/シル高の変更、開き勝手（開き戸は蝶番側+開く向き、引き戸は引き込み方向）の変更ができる。種類を切り替えると寸法は新しい型の標準値にリセットされ、`operation`が変われば開き勝手の項目も対応するものに切り替わる（例：開き戸→引き戸で`hingeSide`/`swingDir`は無視され`slideDir`が使われる）
   - 編集内容は`OPENINGS`/`INTERIOR_DOORS`（生成データ、正本ではない）を直接書き換えず、`doorWindowEdits`という差分オブジェクトとして持ち、`effectiveOpening()`/`effectiveInteriorDoor()`で重ねて描画する。ブラウザの`localStorage`（キー`ryuka-door-window-edits-v1`）に自動保存される、あくまで作業中の下書きという位置づけは家具編集と同じ
   - 「openings.json」「interior-doors.json」の2つの書き出しボタンで、それぞれ編集を反映した完全なJSONをダウンロードできる。データが2ファイルに分かれているため、家具のような単一の書き出しボタンにはしていない。**これらを`data/openings.json`・`data/interior-doors.json`に上書きしてコミットするのが、正本を更新する唯一の手段**
+  - **注意（既知の制約）**：この書き出し処理は`orientation:'D'`（斜め壁）の`x0`/`z0`/`x1`/`z1`を素通しする専用分岐を持つが、`note`フィールドは（door-window問わず）書き出さない。`generated/house-data.js`側がそもそも`note`を実データとして持たず、ソースコメントとしてしか埋め込んでいないため（`scripts/build-web-data.mjs`の`withNote()`参照）。Web UI編集を書き出して`data/*.json`に上書きすると、既存の`note`（変更履歴の説明文）が消えるので、書き出し後は元のJSONと差分を見比べて必要な`note`を書き戻すこと
+
+## 階段（stairs）
+
+- `data/house.json`の`stairs`配列：階段の「経路」をパラメトリックに表現する。個々の段のジオメトリ・平面図記号・内覧モードでの歩行判定は、すべてこの経路データから`interior-white-model.html`側で導出する（段を1段ずつ列挙してデータ化するのではなく、経路＋段数から均等割りする方式）
+  - `levelFrom`/`levelTo`：この階段が結ぶ階（`levelTo`は`levelFrom+1`）。`width`：踏み面の幅（m）。`totalSteps`：総段数（蹴上の数）。levelFromのFLからlevelToのFLまでの高さを`totalSteps`で均等に割った値が1段の蹴上高さになる
+  - `segments`：`straight`（直進、`x0/z0`→`x1/z1`）と`arc`（廻り部、`pivotX/pivotZ`を中心に半径`radius`で`startAngleDeg`から`endAngleDeg`まで掃引する円弧）を並べた経路。廻り階段（曲がり階段）はこの2種類の組み合わせで表現する（実際のキッチンウィンダー段のような扇形の踏み面形状までは再現せず、経路を弧長で等分した位置に矩形の段を並べることで近似する）
+  - `opening`：2F側（`levelTo`側）の床に開ける吹き抜けの矩形（`x0/x1/z0/z1`）。省略時は床に穴を開けない
+  - `hiddenBelow`：階段が`levelFrom`側の**別の部屋の天井の上**を素通りする区間がある場合、その部屋の矩形（`x0/x1/z0/z1`）。省略時はなし。この矩形は`levelFrom`側の平面図記号を破線にする判定と、内覧モードでの歩行判定の両方に使う（後述）
+  - 例：`stair-1f-01`（自宅1Fの曲がり階段）は、room-1f-10の西側柱状部分を直進で上り、凹角（x=14.561,z=0.91）を中心に**180度**の円弧で北東の張り出し部分へ曲がり込み、さらに南へ直進してroom-1f-21「パントリー（階段下）」の真上をパントリーの南端（z=1.82、room-1f-21の境界かつ2F開口の南端）まで通って2F(room-2f-02)へ着地する。当初は90度の円弧＋パントリーの中間までの短い直進で設計していたが、施主から「廻り階段はパントリーの真上を回り込んで南端まで届く必要がある」と実際の動線を矢印で描いた指摘を2回受け、180度の円弧＋パントリー南端までの直進に訂正した（`hiddenBelow`もこの訂正で追加）
+- `interior-white-model.html`側の実装：
+  - `sampleStairPath(stair)`：`segments`を弧長付きの折れ線（サンプル点列）に変換する。円弧は16分割で近似
+  - `stairPointAt(path, s)`：経路上の弧長`s`における位置・進行方向（単位ベクトル）を返す
+  - `stairLayout(stair)`：`totalSteps`等分した各段の境界点・中点をまとめて返す。3D段差ジオメトリ（`boxWireRotated()`で進行方向に向きを合わせた箱を段数ぶん積み上げる）と、平面図記号（各段境界に直交する踏み面線＋左右の側線＋UP/DN矢印とラベル）の両方がこのレイアウトを共用する
+  - 3Dの段差ジオメトリは常時表示（`groups_stairs`、俯瞰・平面図・内覧のいずれでも同じ実体を見せる）。平面図記号は`groups.approx1`/`groups.approx2`に追加され、1F側の平面には「UP」（levelFromから見た上り方向）、2F側の平面には「DN」（levelToから見た下り方向）を表示する
+  - 2F側の床（`groups.floor2`）・内覧モードの1F天井面（`walkGroup`内、`FLOOR1`ゾーンの天井プレーン）は、`rectMinusRect()`で`stair.opening`ぶんの矩形を差し引いてから描画し、階段の吹き抜けを実際に素通しで見えるようにする
+  - **階段下（`hiddenBelow`）の平面図表現**：階段が`levelFrom`側の別の部屋（例：パントリー）の真上を通る区間は、その部屋の天井裏に隠れて`levelFrom`側からは実際には見えない。建築図面で「上階の構造物が下階の天井裏に隠れている」ことを示す破線の慣習にならい、`levelFrom`側の平面図記号（踏み面線・側線・UP矢印）のうち`hiddenBelow`矩形の内側を通る区間だけを`addStairPlanLine()`が`THREE.LineDashedMaterial`（`stairPlanDashedMat`）で破線描画する。`levelTo`側の平面ではその階段区間自体がその階の実体そのものなので、常に実線（`stairPlanMat`）。あわせて、下に隠れる部屋（room-1f-21）のラベルに「（階段下）」を付記し、階段下収納であることを文字でも明示している
+  - **内覧モードでの歩行**：`stairProgressAt(x,z,currentLevel)`が、現在位置が階段の経路（`width/2`＋余白0.35m以内）に乗っているかを判定し、乗っていれば経路上の進捗`t`(0=levelFrom側、1=levelTo側)とその高さ`y`を返す。`updateWalkCamera()`はこの`y`をそのまま目線の高さの基準にする（`walkLevel`の2値ではなく連続的に補間される）ため、階段を歩くと滑らかに視点が上下する。`updateWalkMovement()`は`t<0.5`か否かで`walkLevel`（床・家具の表示切替に使う離散値）を切り替える。当たり判定自体は各階の`wallSegmentsByLevel[walkLevel]`をそのまま使う（階段室専用の特別扱いはしていない）ため、1F側はroom-1f-10のL字型の実壁で、2F側はroom-2f-02の矩形の実壁で、それぞれ自然に囲われる
+    - `currentLevel`引数は`hiddenBelow`の判定に使う。まだ登っていない状態（`currentLevel===stair.levelFrom`）で`hiddenBelow`の矩形内に入った場合は「階段の上を歩いている」のではなく「階段下の部屋を、その部屋自身のドアから歩いている」ということなので、階段としては扱わない（経路との幾何的な近さだけで判定すると、パントリーの中を歩いているだけなのに天井裏を通る階段の一部に引っ張られて視点が浮いてしまうため）。既にlevelToまで登り切っている（`currentLevel!==stair.levelFrom`）場合は、この矩形内でも通常どおり経路の補間高さを使う
+  - 階段の下端（LDKへの開口、`door-029`）・上端（廊下(2F)への開口、`door-030`）は、他の room 分割と同じ`operation:'open'`の室内ドアとして`data/interior-doors.json`に登録してある。これがないと内覧モードで階段へ出入りできない（壁で塞がれてしまう）
 
 ## 変更手順
 

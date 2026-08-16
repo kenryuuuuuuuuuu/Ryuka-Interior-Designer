@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ryuka.example/schemas/interior-doors.schema.json",
   "title": "Ryuka interior doors placement",
-  "description": "data/interior-doors.json（室内ドアの配置インスタンス）のデータ契約。型の定義は data/door-window-catalog.json を参照。",
+  "description": "data/interior-doors.json（室内ドアの配置インスタンス）のデータ契約。型の定義は data/door-catalog.json を参照。",
   "type": "object",
   "required": ["schemaVersion", "units", "items"],
   "properties": {
@@ -14,13 +14,17 @@
   "$defs": {
     "item": {
       "type": "object",
-      "required": ["id", "type", "wallAt", "orientation", "center", "floor", "label", "status"],
+      "required": ["id", "type", "orientation", "floor", "label", "status"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "type": { "type": "string", "minLength": 1 },
-        "wallAt": { "type": "number" },
-        "orientation": { "enum": ["H", "V"] },
-        "center": { "type": "number" },
+        "wallAt": { "type": "number", "description": "orientation:H/Vのみ使用" },
+        "orientation": { "enum": ["H", "V", "D"], "description": "H/V=軸に沿った壁。D=斜め壁（x0/z0/x1/z1で始点・終点を指定、wallAt/centerは使わない）" },
+        "center": { "type": "number", "description": "orientation:H/Vのみ使用" },
+        "x0": { "type": "number", "description": "orientation:Dのみ使用（始点x）" },
+        "z0": { "type": "number", "description": "orientation:Dのみ使用（始点z）" },
+        "x1": { "type": "number", "description": "orientation:Dのみ使用（終点x）" },
+        "z1": { "type": "number", "description": "orientation:Dのみ使用（終点z）" },
         "floor": { "type": "integer", "minimum": 1 },
         "widthOverride": { "type": "number", "exclusiveMinimum": 0 },
         "heightOverride": { "type": "number", "exclusiveMinimum": 0 },

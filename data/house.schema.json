@@ -42,7 +42,8 @@
       }
     },
     "rooms": { "type": "array", "items": { "$ref": "#/$defs/room" } },
-    "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" } }
+    "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" } },
+    "stairs": { "type": "array", "items": { "$ref": "#/$defs/stair" } }
   },
   "$defs": {
     "rect": {
@@ -71,6 +72,55 @@
         "x0": { "type": "number" }, "x1": { "type": "number" }, "z0": { "type": "number" }, "z1": { "type": "number" },
         "orientation": { "enum": ["H", "V"] }, "status": { "enum": ["verified", "derived", "estimated"] },
         "sourceRooms": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "stair": {
+      "type": "object",
+      "required": ["id", "label", "levelFrom", "levelTo", "width", "totalSteps", "segments", "status"],
+      "properties": {
+        "id": { "type": "string" }, "label": { "type": "string" },
+        "levelFrom": { "type": "integer", "minimum": 1 }, "levelTo": { "type": "integer", "minimum": 1 },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "totalSteps": { "type": "integer", "exclusiveMinimum": 0 },
+        "opening": {
+          "type": "object",
+          "required": ["x0", "x1", "z0", "z1"],
+          "properties": {
+            "x0": { "type": "number" }, "x1": { "type": "number" }, "z0": { "type": "number" }, "z1": { "type": "number" }
+          }
+        },
+        "hiddenBelow": {
+          "type": "object",
+          "required": ["x0", "x1", "z0", "z1"],
+          "properties": {
+            "x0": { "type": "number" }, "x1": { "type": "number" }, "z0": { "type": "number" }, "z1": { "type": "number" }
+          }
+        },
+        "segments": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object",
+            "oneOf": [
+              {
+                "required": ["type", "x0", "z0", "x1", "z1"],
+                "properties": {
+                  "type": { "const": "straight" },
+                  "x0": { "type": "number" }, "z0": { "type": "number" }, "x1": { "type": "number" }, "z1": { "type": "number" }
+                }
+              },
+              {
+                "required": ["type", "pivotX", "pivotZ", "radius", "startAngleDeg", "endAngleDeg"],
+                "properties": {
+                  "type": { "const": "arc" },
+                  "pivotX": { "type": "number" }, "pivotZ": { "type": "number" },
+                  "radius": { "type": "number", "exclusiveMinimum": 0 },
+                  "startAngleDeg": { "type": "number" }, "endAngleDeg": { "type": "number" }
+                }
+              }
+            ]
+          }
+        },
+        "status": { "enum": ["verified", "derived", "estimated"] }, "note": { "type": "string" }
       }
     }
   }

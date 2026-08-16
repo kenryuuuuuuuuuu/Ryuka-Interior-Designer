@@ -92,7 +92,7 @@
       "floor": 1,
       "hingeSide": "L",
       "swingDir": "out",
-      "label": "自宅玄関・ホール⟷土間・シューズクローク",
+      "label": "自宅玄関⟷土間",
       "status": "verified"
     },
     {
@@ -103,7 +103,7 @@
       "center": 13.2,
       "floor": 1,
       "slideDir": "L",
-      "label": "土間・シューズクローク⟷LDK",
+      "label": "SC⟷LDK",
       "status": "verified"
     },
     {
@@ -114,7 +114,7 @@
       "center": 2.28,
       "floor": 1,
       "slideDir": "R",
-      "label": "LDK(キッチン部)⟷廊下+収納",
+      "label": "LDK(キッチン部)⟷廊下",
       "status": "verified"
     },
     {
@@ -125,7 +125,7 @@
       "center": 16,
       "floor": 1,
       "slideDir": "R",
-      "label": "ファミリークローク⟷廊下+収納",
+      "label": "ファミリークローク⟷廊下",
       "status": "verified"
     },
     {
@@ -148,7 +148,7 @@
       "center": 16.84,
       "floor": 1,
       "slideDir": "L",
-      "label": "廊下+収納⟷脱衣室",
+      "label": "廊下⟷脱衣室",
       "status": "verified"
     },
     {
@@ -180,8 +180,9 @@
       "type": "door-hinged-wide",
       "wallAt": 1.82,
       "orientation": "H",
-      "center": 13.2,
+      "center": 13.27,
       "floor": 2,
+      "widthOverride": 0.7,
       "hingeSide": "L",
       "swingDir": "out",
       "label": "トイレ(2F)⟷廊下(2F)",
@@ -222,6 +223,132 @@
       "swingDir": "out",
       "label": "廊下(2F)⟷夫婦寝室",
       "status": "verified"
+    },
+    {
+      "id": "door-020",
+      "type": "door-open",
+      "orientation": "D",
+      "x0": 9.1,
+      "z0": 1.365,
+      "x1": 10.92,
+      "z1": 1.82,
+      "floor": 1,
+      "label": "自宅玄関⟷自宅ホール（斜め框）",
+      "status": "estimated",
+      "note": "新規(2026-08-15)：施主指摘により斜め框（目分量の角度）に、壁のないドアなしの開口として配置。room-1f-08/room-1f-19の境界と一致させること。施主指摘により角度を緩やかに変更後、同じ角度のまま0.455下へ平行移動"
+    },
+    {
+      "id": "door-021",
+      "type": "door-open",
+      "wallAt": 12.451,
+      "orientation": "V",
+      "center": 1.37,
+      "floor": 1,
+      "widthOverride": 1.82,
+      "label": "土間⟷SC",
+      "status": "estimated"
+    },
+    {
+      "id": "door-022",
+      "type": "door-open",
+      "wallAt": 1.82,
+      "orientation": "H",
+      "center": 15.02,
+      "floor": 1,
+      "label": "階段⟷パントリー",
+      "status": "estimated"
+    },
+    {
+      "id": "door-023",
+      "type": "door-fold",
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 16.84,
+      "floor": 1,
+      "hingeSide": "L",
+      "swingDir": "out",
+      "label": "廊下⟷収納",
+      "status": "estimated"
+    },
+    {
+      "id": "door-024",
+      "type": "door-double-swing",
+      "wallAt": 6.37,
+      "orientation": "V",
+      "center": 3.01,
+      "floor": 1,
+      "widthOverride": 1.25,
+      "swingDir": "in",
+      "label": "洋室⟷収納",
+      "status": "estimated"
+    },
+    {
+      "id": "door-025",
+      "type": "door-open",
+      "wallAt": 1.82,
+      "orientation": "H",
+      "center": 1.82,
+      "floor": 1,
+      "widthOverride": 1.82,
+      "label": "玄関(民泊)⟷ホール(民泊)",
+      "status": "estimated"
+    },
+    {
+      "id": "door-026",
+      "type": "door-double-fold",
+      "wallAt": 3.64,
+      "orientation": "H",
+      "center": 13.65,
+      "floor": 2,
+      "swingDir": "out",
+      "label": "子供部屋1⟷クローゼット",
+      "status": "estimated"
+    },
+    {
+      "id": "door-027",
+      "type": "door-double-fold",
+      "wallAt": 16.38,
+      "orientation": "V",
+      "center": 0.91,
+      "floor": 2,
+      "swingDir": "out",
+      "label": "子供部屋2⟷クローゼット",
+      "status": "estimated"
+    },
+    {
+      "id": "door-028",
+      "type": "door-open",
+      "wallAt": 3.64,
+      "orientation": "H",
+      "center": 17.75,
+      "floor": 2,
+      "widthOverride": 2.73,
+      "label": "夫婦寝室⟷書斎",
+      "status": "estimated"
+    },
+    {
+      "id": "door-029",
+      "type": "door-open",
+      "wallAt": 1.82,
+      "orientation": "H",
+      "center": 14.106,
+      "floor": 1,
+      "widthOverride": 0.91,
+      "label": "LDK⟷階段",
+      "status": "estimated",
+      "note": "新規(2026-08-15)：階段の実体表現にあたり新設。階段の直進部分（西側柱状部分）はLDKに向けて壁のない開口で開放されているリビング階段として配置。room-1f-10/room-1f-11の境界と一致させること"
+    },
+    {
+      "id": "door-030",
+      "type": "door-open",
+      "wallAt": 1.82,
+      "orientation": "H",
+      "center": 14.5605,
+      "floor": 2,
+      "widthOverride": 1.819,
+      "label": "階段(2F)⟷廊下(2F)",
+      "status": "estimated",
+      "note": "新規(2026-08-15)：階段の実体表現にあたり新設。2F階段室の全幅を廊下(2F)に向けて壁のない開口で開放。room-2f-02/room-2f-03の境界と一致させること"
     }
   ]
 }

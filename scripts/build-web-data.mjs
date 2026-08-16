@@ -119,12 +119,20 @@ function buildInteriorDoors() {
     const profile = doorWindowByType[d.type];
     if (!profile) throw new Error(`interior-doors.json: ${d.id} が未知のtype「${d.type}」を参照している`);
     const parts = [
-      `id:${str(d.id)}`, `type:${str(d.type)}`, `category:${str(profile.category)}`, `operation:${str(profile.operation)}`, `label:${str(d.label)}`, `wallAt:${num(d.wallAt)}`,
-      `orientation:${str(d.orientation)}`, `center:${num(d.center)}`,
+      `id:${str(d.id)}`, `type:${str(d.type)}`, `category:${str(profile.category)}`, `operation:${str(profile.operation)}`, `label:${str(d.label)}`,
+      `orientation:${str(d.orientation)}`,
+    ];
+    if (d.orientation === "D") {
+      // 斜め壁（wallAt/centerではなく始点・終点で位置を表す。壁のない開口のみ想定）
+      parts.push(`x0:${num(d.x0)}`, `z0:${num(d.z0)}`, `x1:${num(d.x1)}`, `z1:${num(d.z1)}`);
+    } else {
+      parts.push(`wallAt:${num(d.wallAt)}`, `center:${num(d.center)}`);
+    }
+    parts.push(
       `width:${num(d.widthOverride ?? profile.width)}`,
       `height:${num(d.heightOverride ?? profile.height)}`,
       `floor:${d.floor}`,
-    ];
+    );
     if (d.hingeSide) parts.push(`hingeSide:${str(d.hingeSide)}`);
     if (d.swingDir) parts.push(`swingDir:${str(d.swingDir)}`);
     if (d.slideDir) parts.push(`slideDir:${str(d.slideDir)}`);
@@ -140,6 +148,16 @@ function bbox(polygon) {
   return { x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
 }
 
+// 矩形・L字など、全ての辺が軸に沿っている（斜めの辺がない）かどうか。
+// 斜めの辺が1本でもあれば、バウンディングボックス(boxWire)では実形状を表せないため
+// 必ずpoly(polyWire、実際のポリゴンをそのまま描画)を使う必要がある。
+function isRectilinear(polygon) {
+  return polygon.every(([x, z], i) => {
+    const [nx, nz] = polygon[(i + 1) % polygon.length];
+    return Math.abs(x - nx) < 1e-6 || Math.abs(z - nz) < 1e-6;
+  });
+}
+
 function buildRoomsApprox() {
   const byLevel = (lvl) => {
     const rows = house.rooms
@@ -147,7 +165,7 @@ function buildRoomsApprox() {
       .map((r) => {
         const b = bbox(r.polygon);
         const fields = [`name:${str(r.label)}`, `x0:${num(b.x0)}`, `x1:${num(b.x1)}`, `z0:${num(b.z0)}`, `z1:${num(b.z1)}`];
-        if (r.polygon.length > 4) {
+        if (r.polygon.length > 4 || !isRectilinear(r.polygon)) {
           const pts = r.polygon.map(([x, z]) => `[${num(x)},${num(z)}]`).join(",");
           fields.push(`poly:[${pts}]`);
         }
@@ -194,6 +212,28 @@ function buildWalls() {
     .map((w) => `  { id:${str(w.id)}, level:${w.level}, x0:${num(w.x0)}, x1:${num(w.x1)}, z0:${num(w.z0)}, z1:${num(w.z1)}, orientation:${str(w.orientation)} }`)
     .join(",\n");
   return `const WALLS = [\n${rows}\n];`;
+}
+
+function buildStairs() {
+  const rows = (house.stairs ?? []).map((s) => {
+    const segRows = s.segments
+      .map((seg) => {
+        if (seg.type === "straight") {
+          return `    { type:'straight', x0:${num(seg.x0)}, z0:${num(seg.z0)}, x1:${num(seg.x1)}, z1:${num(seg.z1)} }`;
+        }
+        return `    { type:'arc', pivotX:${num(seg.pivotX)}, pivotZ:${num(seg.pivotZ)}, radius:${num(seg.radius)}, startAngleDeg:${num(seg.startAngleDeg)}, endAngleDeg:${num(seg.endAngleDeg)} }`;
+      })
+      .join(",\n");
+    const fields = [
+      `id:${str(s.id)}`, `label:${str(s.label)}`, `levelFrom:${s.levelFrom}`, `levelTo:${s.levelTo}`,
+      `width:${num(s.width)}`, `totalSteps:${s.totalSteps}`,
+    ];
+    if (s.opening) fields.push(`opening:{ x0:${num(s.opening.x0)}, x1:${num(s.opening.x1)}, z0:${num(s.opening.z0)}, z1:${num(s.opening.z1)} }`);
+    if (s.hiddenBelow) fields.push(`hiddenBelow:{ x0:${num(s.hiddenBelow.x0)}, x1:${num(s.hiddenBelow.x1)}, z0:${num(s.hiddenBelow.z0)}, z1:${num(s.hiddenBelow.z1)} }`);
+    fields.push(`segments:[\n${segRows}\n  ]`);
+    return withNote(`  { ${fields.join(", ")} },`, s.note);
+  });
+  return `const STAIRS = [\n${rows.join("\n")}\n];`;
 }
 
 function buildFurnitureCatalog() {
@@ -259,6 +299,8 @@ const output = [
   buildRoomsApprox(),
   "",
   buildRoofs(),
+  "",
+  buildStairs(),
   "",
   buildFurnitureCatalog(),
   "",
