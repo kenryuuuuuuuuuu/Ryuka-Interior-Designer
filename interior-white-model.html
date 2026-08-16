@@ -1242,12 +1242,16 @@ function walkCharPart(w, d, cx, cz, y0, y1, mat){
   grp.add(mesh, line);
   return grp;
 }
+// 肩幅（腕を含めた最大幅）は日本人成人男性の平均的なbideltoid幅（約44-46cm）に合わせている。
+// 胴体の幅(0.36m)に腕(各0.10m)をそのまま外側に足すと肩幅だけで64cmになり実寸より広すぎるため、
+// 腕は自然に立った姿勢を想定して胴体の縁にほぼ重なる位置に置き、全体で約46cmに収める
+// （2026-08-16、施主指摘により調整。調整前は胴体40cm＋腕で肩幅64cmだった）
 const walkCharacterGroup = new THREE.Group();
 walkCharacterGroup.add(walkCharPart(0.14, 0.16, -0.09, 0, 0,    0.85, walkCharMat));  // 左脚
 walkCharacterGroup.add(walkCharPart(0.14, 0.16,  0.09, 0, 0,    0.85, walkCharMat));  // 右脚
-walkCharacterGroup.add(walkCharPart(0.40, 0.20,  0,    0, 0.85, 1.40, walkCharMat));  // 胴
-walkCharacterGroup.add(walkCharPart(0.12, 0.14, -0.26, 0, 0.85, 1.40, walkCharMat));  // 左腕
-walkCharacterGroup.add(walkCharPart(0.12, 0.14,  0.26, 0, 0.85, 1.40, walkCharMat));  // 右腕
+walkCharacterGroup.add(walkCharPart(0.36, 0.20,  0,    0, 0.85, 1.40, walkCharMat));  // 胴
+walkCharacterGroup.add(walkCharPart(0.10, 0.14, -0.18, 0, 0.85, 1.40, walkCharMat));  // 左腕
+walkCharacterGroup.add(walkCharPart(0.10, 0.14,  0.18, 0, 0.85, 1.40, walkCharMat));  // 右腕
 walkCharacterGroup.add(walkCharPart(0.24, 0.24,  0,    0, 1.40, 1.70, walkCharHeadMat)); // 頭（頭頂で身長1.70m）
 walkCharacterGroup.visible = false;
 scene.add(walkCharacterGroup);
