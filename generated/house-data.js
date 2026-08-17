@@ -1,7 +1,8 @@
 // ============================================================================
 // 自動生成ファイル。手で編集しないこと。
 // 生成元: data/house.json / data/furniture-catalog.json / data/furniture.json /
-//        data/door-catalog.json / data/window-catalog.json / data/openings.json / data/interior-doors.json
+//        data/door-catalog.json / data/window-catalog.json / data/openings.json / data/interior-doors.json /
+//        data/electrical-catalog.json / data/electrical.json
 //        （このリポジトリの正本）
 // 生成コマンド: node scripts/build-web-data.mjs
 // これらのJSONを編集したら、このファイルを再生成してからブラウザで確認すること。
@@ -269,4 +270,33 @@ const FURNITURE_ITEMS = [
   { id:'fur-031', type:'desk', level:2, x:17.44, z:0.3, rotation:0, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-2f-05' },
   { id:'fur-032', type:'bed-double', level:2, x:18.07, z:5.07, rotation:90, width:2, depth:2, height:0.5, label:'ベッド', status:'estimated', room:'room-2f-06' },
   { id:'fur-040', type:'tv-board', level:2, x:15.72, z:5, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-2f-06' },
+];
+
+const ELECTRICAL_CATALOG = {
+  'outlet-double': { label:'コンセント（2口）', category:'outlet', mount:'wall', heightRef:'floor', shape:'outletPlate', width:0.09, depth:0.02, height:0.09, mountHeight:0.25 },
+  'outlet-triple': { label:'コンセント（3口）', category:'outlet', mount:'wall', heightRef:'floor', shape:'outletPlate', width:0.12, depth:0.02, height:0.09, mountHeight:0.25 },
+  'outlet-grounded': { label:'コンセント（アース付）', category:'outlet', mount:'wall', heightRef:'floor', shape:'outletPlate', width:0.09, depth:0.02, height:0.09, mountHeight:0.25 },
+  'outlet-waterproof': { label:'コンセント（防水）', category:'outlet', mount:'wall', heightRef:'floor', shape:'outletPlate', width:0.1, depth:0.03, height:0.11, mountHeight:0.25 },
+  'outlet-floor': { label:'コンセント（床）', category:'outlet', mount:'floor', heightRef:'floor', shape:'outletFloorPlate', width:0.1, depth:0.1, height:0.01, mountHeight:0 },
+  'switch-1p': { label:'スイッチ（片切）', category:'switch', mount:'wall', heightRef:'floor', shape:'switchPlate', width:0.09, depth:0.02, height:0.09, mountHeight:1.2 },
+  'switch-3way': { label:'スイッチ（3路）', category:'switch', mount:'wall', heightRef:'floor', shape:'switchPlate', width:0.09, depth:0.02, height:0.09, mountHeight:1.2 },
+  'switch-dimmer': { label:'スイッチ（調光）', category:'switch', mount:'wall', heightRef:'floor', shape:'switchPlate', width:0.12, depth:0.02, height:0.09, mountHeight:1.2 },
+  'switch-sensor': { label:'スイッチ（人感）', category:'switch', mount:'wall', heightRef:'floor', shape:'switchPlate', width:0.09, depth:0.03, height:0.09, mountHeight:1.2 },
+  'light-downlight': { label:'ダウンライト', category:'lighting', mount:'ceiling', heightRef:'ceiling', shape:'downlight', width:0.1, depth:0.1, height:0.02, mountHeight:0 },
+  'light-ceiling': { label:'シーリングライト', category:'lighting', mount:'ceiling', heightRef:'ceiling', shape:'ceilingLight', width:0.35, depth:0.35, height:0.12, mountHeight:0 },
+  'light-bracket': { label:'ブラケットライト', category:'lighting', mount:'wall', heightRef:'floor', shape:'bracketLight', width:0.12, depth:0.1, height:0.15, mountHeight:1.8 },
+  'light-pendant': { label:'ペンダントライト', category:'lighting', mount:'ceiling', heightRef:'ceiling', shape:'pendantLight', width:0.25, depth:0.25, height:0.2, mountHeight:0.6 },
+  'light-indirect': { label:'間接照明', category:'lighting', mount:'ceiling', heightRef:'ceiling', shape:'indirectLight', width:0.6, depth:0.05, height:0.03, mountHeight:0 },
+  'data-lan': { label:'LANコンセント', category:'data', mount:'wall', heightRef:'floor', shape:'dataJack', width:0.09, depth:0.02, height:0.09, mountHeight:0.25 },
+  'data-tv': { label:'TV端子', category:'data', mount:'wall', heightRef:'floor', shape:'dataJack', width:0.09, depth:0.02, height:0.09, mountHeight:0.3 },
+  'data-intercom': { label:'インターホン', category:'data', mount:'wall', heightRef:'floor', shape:'intercomPanel', width:0.09, depth:0.03, height:0.15, mountHeight:1.4 },
+  'equip-ac-sleeve': { label:'エアコンスリーブ', category:'equipment', mount:'wall', heightRef:'floor', shape:'acSleeve', width:0.08, depth:0.03, height:0.08, mountHeight:2 },
+  'equip-vent-fan': { label:'換気扇', category:'equipment', mount:'ceiling', heightRef:'ceiling', shape:'ventFan', width:0.25, depth:0.25, height:0.15, mountHeight:0 },
+  'equip-distribution-board': { label:'分電盤', category:'equipment', mount:'wall', heightRef:'floor', shape:'distributionBoard', width:0.4, depth:0.12, height:0.35, mountHeight:1.8 }
+};
+
+const ELECTRICAL_ITEMS = [
+  { id:'elec-001', type:'outlet-double', category:'outlet', mount:'wall', level:1, wallAt:0.91, orientation:'V', center:1.8, side:1, width:0.09, depth:0.02, height:0.09, mountHeight:0.25, heightRef:'floor', shape:'outletPlate', label:'コンセント（サンプル）', status:'estimated' }, // パイプライン確認用のサンプル配置。wall-1f-auto-001（トイレ(民泊)⟷玄関(民泊)/ホール(民泊)の壁）上
+  { id:'elec-002', type:'light-downlight', category:'lighting', mount:'ceiling', level:1, x:9, z:4, width:0.1, depth:0.1, height:0.02, mountHeight:0, heightRef:'ceiling', shape:'downlight', label:'ダウンライト（サンプル）', status:'estimated', room:'room-1f-11' }, // パイプライン確認用のサンプル配置。LDK(自宅)内
+  { id:'elec-003', type:'outlet-floor', category:'outlet', mount:'floor', level:1, x:8.5, z:3.5, width:0.1, depth:0.1, height:0.01, mountHeight:0, heightRef:'floor', shape:'outletFloorPlate', label:'床コンセント（サンプル）', status:'estimated', room:'room-1f-11' }, // パイプライン確認用のサンプル配置。LDK(自宅)内
 ];

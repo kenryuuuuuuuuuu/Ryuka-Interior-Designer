@@ -4,7 +4,7 @@
 
 ## 正本と生成パイプライン
 
-**`data/house.json` がこのリポジトリの唯一の正本（Single Source of Truth）。** 建物の寸法・部屋・壁・屋根はすべてここで管理し、Three.js表示用データとBlenderモデルの両方をここから生成する。**家具・設備の配置は`data/furniture.json`（型のライブラリは`data/furniture-catalog.json`）が正本で、こちらはHTML側（Three.js）でのみ扱い、Blenderへは今のところ生成しない**（施主の判断：配置の試行錯誤はインタラクティブ性が命なのでHTML側で詰める。詳細は[BACKGROUND.md](BACKGROUND.md)の変更履歴ログ参照）。**窓・ドアの配置は`data/openings.json`（外部）・`data/interior-doors.json`（室内、型のライブラリはドアが`data/door-catalog.json`・窓が`data/window-catalog.json`）が正本で、こちらはThree.js・Blenderの両方が読み込む**（外壁・室内壁の開口の切り欠きに使うため）。窓・ドアは2026-08-15に`house.json`から分離した（元は`openings`/`interiorDoors`という配列としてhouse.json内にあった）。`blender/build_house.py`は`data/house.json`と同じディレクトリにある`door-catalog.json`/`window-catalog.json`/`openings.json`/`interior-doors.json`を自動的に読み込む
+**`data/house.json` がこのリポジトリの唯一の正本（Single Source of Truth）。** 建物の寸法・部屋・壁・屋根はすべてここで管理し、Three.js表示用データとBlenderモデルの両方をここから生成する。**家具・設備の配置は`data/furniture.json`（型のライブラリは`data/furniture-catalog.json`）が正本で、こちらはHTML側（Three.js）でのみ扱い、Blenderへは今のところ生成しない**（施主の判断：配置の試行錯誤はインタラクティブ性が命なのでHTML側で詰める。詳細は[BACKGROUND.md](BACKGROUND.md)の変更履歴ログ参照）。**電気設備（コンセント・スイッチ・照明等）の配置は`data/electrical.json`（型のライブラリは`data/electrical-catalog.json`）が正本で、家具と同じ理由でHTML側のみ**（2026-08-18、第1段階）。**窓・ドアの配置は`data/openings.json`（外部）・`data/interior-doors.json`（室内、型のライブラリはドアが`data/door-catalog.json`・窓が`data/window-catalog.json`）が正本で、こちらはThree.js・Blenderの両方が読み込む**（外壁・室内壁の開口の切り欠きに使うため）。窓・ドアは2026-08-15に`house.json`から分離した（元は`openings`/`interiorDoors`という配列としてhouse.json内にあった）。`blender/build_house.py`は`data/house.json`と同じディレクトリにある`door-catalog.json`/`window-catalog.json`/`openings.json`/`interior-doors.json`を自動的に読み込む
 
 ```
 data/house.json（建物データの正本）
@@ -14,6 +14,8 @@ data/door-catalog.json（ドアの型ライブラリ）
 data/window-catalog.json（窓の型ライブラリ）
 data/openings.json（外部の窓・ドアの配置インスタンス）
 data/interior-doors.json（室内ドアの配置インスタンス）
+data/electrical-catalog.json（電気設備の型ライブラリ）
+data/electrical.json（電気設備の配置インスタンス）
     │
     ├─ node scripts/build-web-data.mjs
     │      ↓
@@ -52,7 +54,9 @@ data/interior-doors.json（室内ドアの配置インスタンス）
 | `data/openings.schema.json` | `openings.json` のデータ契約（JSON Schema） |
 | `data/interior-doors.json` | 室内ドアの配置インスタンス。正本 |
 | `data/interior-doors.schema.json` | `interior-doors.json` のデータ契約（JSON Schema） |
-| `data/electrical.json` | 次フェーズ（電気設備）用の領域。現在は空 |
+| `data/electrical-catalog.json` | 電気設備（コンセント・スイッチ・照明・情報系配線）の「型」のライブラリ |
+| `data/electrical.json` | 電気設備の配置インスタンス。正本。第1段階（データ構造・表示）のみ完了 |
+| `data/electrical.schema.json` | `electrical.json` のデータ契約（JSON Schema） |
 | `scripts/build-web-data.mjs` | 上記の正本ファイル群 → `generated/house-data.js` を生成する |
 | `generated/house-data.js` | 生成物。`interior-white-model.html` が `<script src>` で読み込む |
 | `interior-white-model.html` | Three.js製の内装白模型。表示・操作ロジックのみを持つ。単体でブラウザに開ける |
@@ -60,6 +64,7 @@ data/interior-doors.json（室内ドアの配置インスタンス）
 | `tests/validate_house.py` | `house.json` の整合性チェック（依存ライブラリなしで動作） |
 | `tests/validate_furniture.py` | `furniture-catalog.json` / `furniture.json` の整合性チェック（house.jsonのroomsとの照合含む） |
 | `tests/validate_openings.py` | `door-catalog.json` / `window-catalog.json` / `openings.json` / `interior-doors.json` の整合性チェック（house.jsonのfootprints、および`generated/interior-walls.json`との照合含む。実行前に`node scripts/build-web-data.mjs`が必要） |
+| `tests/validate_electrical.py` | `electrical-catalog.json` / `electrical.json` の整合性チェック（house.jsonのrooms、および`generated/interior-walls.json`との照合含む。実行前に`node scripts/build-web-data.mjs`が必要） |
 | `index.html` | GitHub PagesのルートURL用リダイレクト。`interior-white-model.html`へ転送するだけ |
 | `manifest.webmanifest` / `sw.js` / `icon.svg` | PWA化（ホーム画面追加・オフライン起動）の設定一式。詳細は下記「公開（GitHub Pages / PWA）」 |
 | `vendor/three.min.js` | Three.js本体のローカル同梱コピー（CDN非依存。オフライン起動のため） |
@@ -116,6 +121,25 @@ data/interior-doors.json（室内ドアの配置インスタンス）
   - 編集内容は`OPENINGS`/`INTERIOR_DOORS`（生成データ、正本ではない）を直接書き換えず、`doorWindowEdits`という差分オブジェクトとして持ち、`effectiveOpening()`/`effectiveInteriorDoor()`で重ねて描画する。ブラウザの`localStorage`（キー`ryuka-door-window-edits-v1`）に自動保存される、あくまで作業中の下書きという位置づけは家具編集と同じ
   - 「openings.json」「interior-doors.json」の2つの書き出しボタンで、それぞれ編集を反映した完全なJSONをダウンロードできる。データが2ファイルに分かれているため、家具のような単一の書き出しボタンにはしていない。**これらを`data/openings.json`・`data/interior-doors.json`に上書きしてコミットするのが、正本を更新する唯一の手段**
   - **注意（既知の制約）**：この書き出し処理は`orientation:'D'`（斜め壁）の`x0`/`z0`/`x1`/`z1`を素通しする専用分岐を持つが、`note`フィールドは（door-window問わず）書き出さない。`generated/house-data.js`側がそもそも`note`を実データとして持たず、ソースコメントとしてしか埋め込んでいないため（`scripts/build-web-data.mjs`の`withNote()`参照）。Web UI編集を書き出して`data/*.json`に上書きすると、既存の`note`（変更履歴の説明文）が消えるので、書き出し後は元のJSONと差分を見比べて必要な`note`を書き戻すこと
+
+## 電気設備（electrical）
+
+家具・窓ドアに続く3本目の柱。着工後は変更コストが跳ね上がるため優先度が高い（[STATUS.md](STATUS.md)参照）。2026-08-18に**第1段階（データ構造＋読み取り専用の3D/平面図表示）**を実装した。Web UI編集（ドラッグ配置）・当たり判定は未実装（第2段階以降の課題）。
+
+- `data/electrical-catalog.json`：コンセント・スイッチ・照明・情報系配線（LAN/TV/インターホン）・関連設備（エアコンスリーブ・換気扇・分電盤）の「型」。furniture-catalog.jsonと同じ考え方で、種類ごとの標準寸法（`width`/`depth`/`height`）に加え、電気設備特有の3フィールドを持つ
+  - `mount`（`wall`=壁付け／`ceiling`=天井付け／`floor`=床付け）：`data/electrical.json`側でどちらの位置表現（下記）を使うかを型ごとに決める
+  - `heightRef`（`floor`=床から／`ceiling`=天井から）＋`mountHeight`：取付け高さの基準面と距離。`heightRef:floor`はFLからのセンターハイト（コンセント0.25m・スイッチ1.2m等、日本の住宅の慣習値）、`heightRef:ceiling`は天井面から器具の取付け原点までの下がり寸法（0=天井面フラッシュ、ペンダント照明は吊り下げ長ぶん正の値）
+  - `shape`：`interior-white-model.html`の`ELECTRICAL_SHAPES`に対応
+- `data/electrical.json`：配置インスタンス。正本。位置表現が型の`mount`によって2系統に分かれる
+  - `mount:wall`（コンセント・スイッチ・情報系・分電盤・エアコンスリーブ・ブラケット照明）：`data/interior-doors.json`と同じ`wallAt`＋`orientation`（H/V）＋`center`に加え、新規`side`（`1`/`-1`、壁のどちら側を向くか）。壁付け設備は家具のような自由回転を持たず、`orientation`+`side`から`rotation.y`を自動導出する（家具の0/90/180/270度回転とは性質が異なるため、あえてフィールドを分けている）
+  - `mount:ceiling`/`floor`（照明・換気扇・床コンセント）：`data/furniture.json`と同じ`x`/`z`（自由座標）＋`room`（任意）
+  - どちらも任意で`widthOverride`/`depthOverride`/`heightOverride`/`mountHeightOverride`（このインスタンスだけ標準値から変える場合）を持つ。`circuit`（回路名・ブレーカー番号）は将来の配線図用に予約したフィールドで、現状は表示に使わない
+- `data/electrical.schema.json`：`mount`によって必須フィールドが変わるため、スキーマ自体はどちらの位置系フィールドも任意にし、`mount`別の必須チェックは`tests/validate_electrical.py`側で行う（`interior-doors.schema.json`と`validate_openings.py`のoperation別チェックと同じ考え方）
+- `tests/validate_electrical.py`：ID重複・catalog参照・`mount`別必須フィールドに加え、壁付け設備は`generated/interior-walls.json`との突合せ（`validate_openings.py`の`check_door_within_wall()`と同じロジック）、天井/床付け設備は`room`参照時のbbox照合（`validate_furniture.py`と同じロジック）を行う
+- **`interior-white-model.html`側の実装**：家具と同じ`fPart()`（箱・円柱の組み合わせ）を使い、`ELECTRICAL_SHAPES`（型ごとの組み立て関数）→`placeElectricalItem()`（型→shape関数→`groups.electrical1/2`へ追加→`makeLabel()`）という流れも家具（`FURNITURE_SHAPES`/`placeFurnitureItem()`）と同一パターン。**ドアのような「平面図記号＋内覧用の別実装」の二重実装はしない**（電気設備には開閉のような動的状態がなく、俯瞰・平面図・内覧の全モードで同一メッシュを使い回せば足りるため）。壁付け設備用の共有ジオメトリ`ePlate()`、天井/床付け設備用の`eDisc()`の2つのヘルパーに形状を集約し、各shape関数はその上に小さな装飾（差込口・トグルドット等）を足すだけの薄いラッパーにしている
+  - **平面図の記号表現**：JIS Z 8017準拠の専用2D記号エンジン（ドアの`drawSwingLeaf()`相当）は作らず、3D形状そのものを真上から見てJIS記号に近いシルエットになるよう設計する折衷案を採った（コンセント＝円盤＋差込口ドット2つ、スイッチ＝角プレート＋中央ドット等）。このビューアは施工会社との打ち合わせ用のたたき台であり正式な配線図ではないため（家具・窓ドアと同じ`status:estimated`運用）、専用記号エンジンへの投資はコストに見合わないと判断した
+  - 当たり判定（`furnitureSegmentsByLevel`相当）は持たない。電気設備は壁・天井付けで歩行の障害物にならないため
+  - Web UI編集用の差分レイヤー（`furnitureEdits`/`effectiveFurniture()`相当）は今回未実装。第2段階で追加する際は同じパターンを踏襲すればよい
 
 ## 階段（stairs）
 

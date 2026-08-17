@@ -238,6 +238,8 @@
   <label><input type="checkbox" id="chkDims" checked> 寸法値を表示（1F・mm単位）</label>
   <label><input type="checkbox" id="chkLabels"> 部屋ラベル</label>
   <label><input type="checkbox" id="chkFurnitureLabels" checked> 家具ラベル</label>
+  <label><input type="checkbox" id="chkElectrical" checked> 電気設備（コンセント・スイッチ・照明・情報系）</label>
+  <label><input type="checkbox" id="chkElectricalLabels"> 電気設備ラベル</label>
   <label><input type="checkbox" id="chkGrid" checked> 地面グリッド(910mm)</label>
 
   <div class="section-title">凡例</div>
@@ -247,6 +249,9 @@
   <div class="legend-item"><div class="swatch" style="background:#ff1fb0;"></div>確定：ドア（外部・室内とも共通色）</div>
   <div class="legend-item"><div class="swatch" style="background:#a89f8f;"></div>屋根：1F片流れ（平屋部A1/A2、1.5寸勾配。x=9.100の継ぎ目は簡略化）／2F切妻（3寸勾配、棟は東西方向。妻壁は未モデル化）</div>
   <div class="legend-item"><div class="swatch" style="background:#b98d5e;"></div>家具・設備（配置検討中。位置・サイズとも仮／status: estimated）</div>
+  <div class="legend-item"><div class="swatch" style="background:#f5f2ec;border:1px solid #999;"></div>電気設備：コンセント・スイッチ・情報系（壁面、白プレート。配置検討中・仮のサンプルのみ）</div>
+  <div class="legend-item"><div class="swatch" style="background:#ffe9a8;"></div>電気設備：照明（ダウンライト・シーリング・ブラケット・ペンダント）</div>
+  <div class="legend-item"><div class="swatch" style="background:#9aa2a8;"></div>電気設備：分電盤・エアコンスリーブ・換気扇</div>
   <hr>
   <div style="font-size:11px;color:#777;line-height:1.6;">
   天井高は全室2,400mm（推測・要施工会社確認）を暫定採用。<br>
@@ -667,6 +672,7 @@ const groups = {
   sound:new THREE.Group(),
   roofHiraya:new THREE.Group(), roofGable:new THREE.Group(),
   furniture1:new THREE.Group(), furniture2:new THREE.Group(),
+  electrical1:new THREE.Group(), electrical2:new THREE.Group(),
   floor1:new THREE.Group(), floor2:new THREE.Group()
 };
 const approxAll = new THREE.Group(); approxAll.add(groups.approx1, groups.approx2);
@@ -675,8 +681,9 @@ const doorsAll = new THREE.Group(); doorsAll.add(groups.doors1, groups.doors2);
 const roofAll = new THREE.Group(); roofAll.add(groups.roofHiraya, groups.roofGable);
 roofAll.visible = false; // デフォルトで屋根を非表示に変更（2026-08-13）
 const furnitureAll = new THREE.Group(); furnitureAll.add(groups.furniture1, groups.furniture2);
+const electricalAll = new THREE.Group(); electricalAll.add(groups.electrical1, groups.electrical2);
 const soundFloorGate = new THREE.Group(); soundFloorGate.add(groups.sound); // 防音壁は1F扱いなので1F/2F表示に連動させる
-[approxAll, openingsAll, doorsAll, soundFloorGate, roofAll, furnitureAll, groups.floor1, groups.floor2].forEach(g=>scene.add(g));
+[approxAll, openingsAll, doorsAll, soundFloorGate, roofAll, furnitureAll, electricalAll, groups.floor1, groups.floor2].forEach(g=>scene.add(g));
 
 function boxWire(x0,x1,y0,y1,z0,z1, mat, edgeMat, parent, renderOrder){
   const [sx0,sz0]=toScene(x0,z0), [sx1,sz1]=toScene(x1,z1);
@@ -2612,6 +2619,102 @@ document.getElementById('dbClearAll').onclick = ()=>{
 document.getElementById('doorEditToggle').onclick = ()=> setDoorEditMode(!doorEditMode);
 updateDoorBar();
 
+// ============================================================================
+// 電気設備（data/electrical-catalog.json / data/electrical.json から生成）
+// ============================================================================
+// 家具と同じくfPart()（箱・円柱の組み合わせ）を使い、俯瞰・平面図・内覧の全モードで
+// 同一メッシュを使い回す（ドアのような「平面図記号＋内覧用の別実装」の二重実装はしない。
+// 電気設備には開閉のような動的状態がなく、常に同じ静的な位置表現で足りるため）。
+// 壁付け(ePlate系)と天井/床付け(eDisc系)の2つの共有ジオメトリに集約する。
+// Web UI編集（ドラッグ配置）は第2段階の対象で、ここでは未実装（当たり判定も持たない。
+// 電気設備は壁・天井付けで歩行の障害物にならないため）。
+const EMAT = {
+  plate: new THREE.MeshStandardMaterial({color:0xf5f2ec, roughness:0.5}), // 白プレート(コンセント/スイッチ/情報系)
+  plateDark: new THREE.MeshStandardMaterial({color:0x2b2b2b, roughness:0.4}), // 差込口/トグル等の濃色パーツ
+  light: new THREE.MeshStandardMaterial({color:0xffe9a8, emissive:0xffcf5c, emissiveIntensity:0.5, roughness:0.4}), // 照明
+  metal: new THREE.MeshStandardMaterial({color:0x9aa2a8, roughness:0.4, metalness:0.6}), // 分電盤・スリーブ・換気扇
+  data: new THREE.MeshStandardMaterial({color:0x6fa8dc, roughness:0.5}) // 情報系(LAN/TV/インターホン)
+};
+// 壁付け設備の共有ベース：ローカル原点=器具中心(mountHeightの点)、X=沿い方向(width)、
+// Y=上下(height、中心基準)、Z=壁からの突き出し(depth)。fPart()は下端基準のため-h/2offsetで中心化する
+function ePlate(group, w,d,h, mat){ fPart(group, w,h,d, 0,-h/2,0, mat); }
+// 天井/床付け設備の共有ベース：円盤。up=trueなら天井原点(mountHeightの点)から下向き(y=-h〜0)、
+// falseなら床原点から上向き(y=0〜h、家具と同じ)
+function eDisc(group, w,d,h, mat, up){ fPart(group, w,h,d, 0, up ? -h : 0, 0, mat, true); }
+
+const ELECTRICAL_SHAPES = {
+  outletPlate(group,w,d,h){
+    ePlate(group,w,d,h, EMAT.plate);
+    fPart(group, 0.012,0.012,0.006, -w*0.15, -0.02, d*0.4, EMAT.plateDark, true); // 差込口(2箇所)
+    fPart(group, 0.012,0.012,0.006,  w*0.15, -0.02, d*0.4, EMAT.plateDark, true);
+  },
+  outletFloorPlate(group,w,d,h){ fPart(group, w,h,d, 0,0,0, EMAT.plate); }, // 床フラッシュの薄い円盤
+  switchPlate(group,w,d,h){
+    ePlate(group,w,d,h, EMAT.plate);
+    fPart(group, w*0.3,w*0.3,0.01, 0,0,d*0.4, EMAT.plateDark, true); // トグル/ボタン(JISの●相当)
+  },
+  downlight(group,w,d,h){ eDisc(group,w,d,h, EMAT.light, true); },
+  ceilingLight(group,w,d,h){
+    eDisc(group,w,d,h, EMAT.light, true);
+    fPart(group, w*0.15,w*0.15,0.01, 0,-h-0.005,0, EMAT.plateDark, true); // 中心ドット
+  },
+  pendantLight(group,w,d,h){
+    fPart(group, 0.02,h*0.7,0.02, 0,-h*0.35,0, EMAT.plateDark); // コード
+    eDisc(group, w,d,h*0.5, EMAT.light, true); // シェード(下端寄り、簡易表現)
+  },
+  bracketLight(group,w,d,h){ fPart(group, w,h,d, 0,-h/2,0, EMAT.light); },
+  indirectLight(group,w,d,h){ fPart(group, w,h,d, 0,-h,0, EMAT.light); }, // 簡易な点/線マーカー
+  dataJack(group,w,d,h){
+    ePlate(group,w,d,h, EMAT.plate);
+    fPart(group, w*0.3,w*0.3,0.006, 0,-0.02,d*0.4, EMAT.data, true);
+  },
+  intercomPanel(group,w,d,h){ ePlate(group,w,d,h, EMAT.data); },
+  acSleeve(group,w,d,h){
+    ePlate(group,w,d,h, EMAT.metal);
+    fPart(group, w*0.55,d*0.55,0.01, 0,0,d*0.5, EMAT.plateDark, true); // 穴(暗色の円)
+  },
+  ventFan(group,w,d,h){
+    eDisc(group,w,d,h, EMAT.metal, true);
+    fPart(group, w*0.8,0.01,0.01, 0,-h*0.5,0, EMAT.plateDark); // 羽根の十字
+    fPart(group, 0.01,0.01,d*0.8, 0,-h*0.5,0, EMAT.plateDark);
+  },
+  distributionBoard(group,w,d,h){ ePlate(group,w,d,h, EMAT.metal); }
+};
+
+const electricalMeshes = new Map(); // id -> { holder, label }
+function placeElectricalItem(item){
+  const shapeFn = ELECTRICAL_SHAPES[item.shape];
+  if(!shapeFn) return;
+  const holder = new THREE.Group();
+  holder.userData.electricalId = item.id;
+  shapeFn(holder, item.width, item.depth, item.height);
+  const baseY = item.level===1 ? LEVELS.fl1 : LEVELS.fl2;
+  let alongX, alongZ, groupY, rotY = 0;
+  if(item.mount === 'wall'){
+    alongX = item.orientation==='H' ? item.center : item.wallAt;
+    alongZ = item.orientation==='H' ? item.wallAt : item.center;
+    groupY = baseY + item.mountHeight;
+    // orientation(壁の向き)+side(壁のどちら側を向くか)からrotation.yを導出する。
+    // boxWireRotated()等と同じ規約：rotation.y=θはローカル+Zをワールド(sinθ,cosθ)方向に向ける
+    rotY = item.orientation==='H'
+      ? (item.side>0 ? 0 : Math.PI)
+      : (item.side>0 ? Math.PI/2 : -Math.PI/2);
+  } else {
+    alongX = item.x; alongZ = item.z;
+    groupY = item.mount==='ceiling' ? (baseY + CEIL_H - item.mountHeight) : (baseY + item.mountHeight);
+  }
+  const [sx,sz] = toScene(alongX, alongZ);
+  holder.position.set(sx, groupY, sz);
+  holder.rotation.y = rotY;
+  const grp = item.level===1 ? groups.electrical1 : groups.electrical2;
+  grp.add(holder);
+  const l = makeLabel(item.label, alongX, groupY + item.height/2 + 0.1, alongZ, false);
+  l.floor = item.level; l.isElectrical = true;
+  labels.push(l);
+  electricalMeshes.set(item.id, { holder, label: l });
+}
+ELECTRICAL_ITEMS.forEach(placeElectricalItem);
+
 // ---- 地面グリッド ----
 const grid = new THREE.GridHelper(36.4, 40, 0x9aa4ab, 0xc7ced3); // 1マス=910mm(建築モジュール)
 grid.position.y = -0.02;
@@ -2624,6 +2727,8 @@ document.getElementById('chkSound').onchange = e=> groups.sound.visible = e.targ
 document.getElementById('chkRoof').onchange = e=> roofAll.visible = e.target.checked;
 document.getElementById('chkLabels').onchange = refreshLabelVis;
 document.getElementById('chkFurnitureLabels').onchange = refreshLabelVis;
+document.getElementById('chkElectrical').onchange = e=> electricalAll.visible = e.target.checked;
+document.getElementById('chkElectricalLabels').onchange = refreshLabelVis;
 document.getElementById('chkGrid').onchange = e=> grid.visible = e.target.checked;
 
 let floorMode = '1F';
@@ -2635,6 +2740,7 @@ function applyFloorMode(){
   groups.doors1.visible = show1; groups.doors2.visible = show2;
   groups.roofHiraya.visible = show1; groups.roofGable.visible = show2;
   groups.furniture1.visible = show1; groups.furniture2.visible = show2;
+  groups.electrical1.visible = show1; groups.electrical2.visible = show2;
   groups.floor1.visible = show1; groups.floor2.visible = show2;
   soundFloorGate.visible = show1; // 防音壁は1F扱い
   refreshLabelVis();
@@ -2648,10 +2754,12 @@ function refreshLabelVis(){
   const showLabels = document.getElementById('chkLabels').checked;
   const showDims = document.getElementById('chkDims').checked;
   const showFurnitureLabels = document.getElementById('chkFurnitureLabels').checked;
+  const showElectricalLabels = document.getElementById('chkElectricalLabels').checked;
   labels.forEach(l=>{
     let vis;
     if(l.isDim) vis = showDims;
     else if(l.isFurniture) vis = showFurnitureLabels;
+    else if(l.isElectrical) vis = showElectricalLabels;
     else vis = showLabels;
     if(l.floor===1 && floorMode==='2F') vis=false;
     if(l.floor===2 && floorMode==='1F') vis=false;
@@ -2862,6 +2970,7 @@ function restoreLayerVisibility(){
   roofAll.visible = document.getElementById('chkRoof').checked;
   doorsAll.visible = true;
   furnitureAll.visible = true;
+  electricalAll.visible = document.getElementById('chkElectrical').checked;
   grid.visible = document.getElementById('chkGrid').checked;
 }
 function enterWalkMode(spawn){
@@ -2876,6 +2985,8 @@ function enterWalkMode(spawn){
   groups.sound.visible = false; roofAll.visible = false; grid.visible = false;
   groups.floor1.visible = walkLevel===1; groups.floor2.visible = walkLevel===2;
   groups.furniture1.visible = walkLevel===1; groups.furniture2.visible = walkLevel===2;
+  const showElec = document.getElementById('chkElectrical').checked;
+  groups.electrical1.visible = walkLevel===1 && showElec; groups.electrical2.visible = walkLevel===2 && showElec;
   walkGroup.visible = true;
   labels.forEach(l=> l.div.style.display = 'none');
   document.querySelector('#walkHud .room').textContent = spawn.label;

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryuka.example/schemas/electrical.schema.json",
+  "title": "Ryuka electrical fixtures placement",
+  "description": "data/electrical.json（配置インスタンス）のデータ契約。型の定義は data/electrical-catalog.json を参照。壁付け設備（カタログの mount:wall）は wallAt/orientation/center/side で、天井・床付け設備（mount:ceiling/floor）は x/z で位置を表す。どちらを使うかは type が参照するカタログの mount フィールドで決まるため、このスキーマではどちらも任意項目とし、mount別の必須チェックは tests/validate_electrical.py で行う（tests/validate_openings.py の operation別チェックと同じ考え方）。",
+  "type": "object",
+  "required": ["schemaVersion", "units", "items"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "units": { "const": "m" },
+    "note": { "type": "string" },
+    "items": { "type": "array", "items": { "$ref": "#/$defs/item" } }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": ["id", "type", "level", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "level": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string" },
+        "room": { "type": "string", "description": "mount:ceiling/floorのみ使用（任意）" },
+        "wallAt": { "type": "number", "description": "mount:wallのみ使用。壁の固定座標" },
+        "orientation": { "enum": ["H", "V"], "description": "mount:wallのみ使用" },
+        "center": { "type": "number", "description": "mount:wallのみ使用。壁沿いの位置" },
+        "side": { "enum": [1, -1], "description": "mount:wallのみ使用。+1=南/東側を向く、-1=北/西側を向く" },
+        "x": { "type": "number", "description": "mount:ceiling/floorのみ使用" },
+        "z": { "type": "number", "description": "mount:ceiling/floorのみ使用" },
+        "widthOverride": { "type": "number", "exclusiveMinimum": 0 },
+        "depthOverride": { "type": "number", "exclusiveMinimum": 0 },
+        "heightOverride": { "type": "number", "exclusiveMinimum": 0 },
+        "mountHeightOverride": { "type": "number", "minimum": 0 },
+        "circuit": { "type": "string", "description": "任意。回路名・ブレーカー番号など（将来の配線図用、現状は表示に使わない）" },
+        "status": { "enum": ["verified", "derived", "estimated"] },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

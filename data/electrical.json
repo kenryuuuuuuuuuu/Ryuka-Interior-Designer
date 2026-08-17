@@ -1,7 +1,41 @@
 {
   "schemaVersion": "1.0.0",
   "units": "m",
-  "fixtures": [],
-  "notes": ["Reserved for outlets, switches, lighting, circuits, mounting heights, and verification status."]
+  "note": "電気設備の配置インスタンス。typeはdata/electrical-catalog.jsonのtypeを参照する。mount:wallの型はwallAt+orientation+center+side（wallAt=壁の固定座標、centerは壁沿いの位置、side=+1/-1で壁のどちら側を向くか）、mount:ceiling/floorの型はx+z（footprint内の自由座標、furniture.jsonと同じ）で位置を表す。circuitは回路名・ブレーカー番号などの将来の配線図用の任意メモで、現状の表示には使わない。ブラウザの配置編集機能は第2段階（未実装）。現状は第1段階（データ構造・表示のパイプライン確認）用のサンプル3件のみ。実データの本格投入は今後の作業。",
+  "items": [
+    {
+      "id": "elec-001",
+      "type": "outlet-double",
+      "level": 1,
+      "wallAt": 0.91,
+      "orientation": "V",
+      "center": 1.8,
+      "side": 1,
+      "label": "コンセント（サンプル）",
+      "status": "estimated",
+      "note": "パイプライン確認用のサンプル配置。wall-1f-auto-001（トイレ(民泊)⟷玄関(民泊)/ホール(民泊)の壁）上"
+    },
+    {
+      "id": "elec-002",
+      "type": "light-downlight",
+      "level": 1,
+      "x": 9.0,
+      "z": 4.0,
+      "room": "room-1f-11",
+      "label": "ダウンライト（サンプル）",
+      "status": "estimated",
+      "note": "パイプライン確認用のサンプル配置。LDK(自宅)内"
+    },
+    {
+      "id": "elec-003",
+      "type": "outlet-floor",
+      "level": 1,
+      "x": 8.5,
+      "z": 3.5,
+      "room": "room-1f-11",
+      "label": "床コンセント（サンプル）",
+      "status": "estimated",
+      "note": "パイプライン確認用のサンプル配置。LDK(自宅)内"
+    }
+  ]
 }
-
