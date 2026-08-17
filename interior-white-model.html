@@ -239,7 +239,9 @@
   <label><input type="checkbox" id="chkLabels"> 部屋ラベル</label>
   <label><input type="checkbox" id="chkFurnitureLabels" checked> 家具ラベル</label>
   <label><input type="checkbox" id="chkElectrical" checked> 電気設備（コンセント・スイッチ・照明・情報系）</label>
-  <label><input type="checkbox" id="chkElectricalLabels"> 電気設備ラベル</label>
+  <!-- サンプル3件のみの現段階ではデフォルトON（施主が見つけやすいように）。実データが
+       増えてきたら家具ラベルと同様デフォルトOFFに戻すことを検討する -->
+  <label><input type="checkbox" id="chkElectricalLabels" checked> 電気設備ラベル</label>
   <label><input type="checkbox" id="chkGrid" checked> 地面グリッド(910mm)</label>
 
   <div class="section-title">凡例</div>
@@ -249,9 +251,10 @@
   <div class="legend-item"><div class="swatch" style="background:#ff1fb0;"></div>確定：ドア（外部・室内とも共通色）</div>
   <div class="legend-item"><div class="swatch" style="background:#a89f8f;"></div>屋根：1F片流れ（平屋部A1/A2、1.5寸勾配。x=9.100の継ぎ目は簡略化）／2F切妻（3寸勾配、棟は東西方向。妻壁は未モデル化）</div>
   <div class="legend-item"><div class="swatch" style="background:#b98d5e;"></div>家具・設備（配置検討中。位置・サイズとも仮／status: estimated）</div>
-  <div class="legend-item"><div class="swatch" style="background:#f5f2ec;border:1px solid #999;"></div>電気設備：コンセント・スイッチ・情報系（壁面、白プレート。配置検討中・仮のサンプルのみ）</div>
-  <div class="legend-item"><div class="swatch" style="background:#ffe9a8;"></div>電気設備：照明（ダウンライト・シーリング・ブラケット・ペンダント）</div>
-  <div class="legend-item"><div class="swatch" style="background:#9aa2a8;"></div>電気設備：分電盤・エアコンスリーブ・換気扇</div>
+  <div class="legend-item"><div class="swatch" style="background:#8e24aa;"></div>電気設備：コンセント・スイッチ（壁面、配置検討中・仮のサンプルのみ）</div>
+  <div class="legend-item"><div class="swatch" style="background:#00897b;"></div>電気設備：情報系配線（LAN・TV・インターホン）</div>
+  <div class="legend-item"><div class="swatch" style="background:#ffab00;"></div>電気設備：照明（ダウンライト・シーリング・ブラケット・ペンダント）</div>
+  <div class="legend-item"><div class="swatch" style="background:#37474f;"></div>電気設備：分電盤・エアコンスリーブ・換気扇</div>
   <hr>
   <div style="font-size:11px;color:#777;line-height:1.6;">
   天井高は全室2,400mm（推測・要施工会社確認）を暫定採用。<br>
@@ -2628,29 +2631,46 @@ updateDoorBar();
 // 壁付け(ePlate系)と天井/床付け(eDisc系)の2つの共有ジオメトリに集約する。
 // Web UI編集（ドラッグ配置）は第2段階の対象で、ここでは未実装（当たり判定も持たない。
 // 電気設備は壁・天井付けで歩行の障害物にならないため）。
+// 施主指摘（2026-08-18）：初期配色（白/淡黄/淡青）が既存のカラフルな平面図
+// （淡いオレンジの部屋・水色の窓・マゼンタのドア等）に埋もれて、小さい電気設備が
+// どこにあるか全く見えなかった。淡色をやめ、既存の凡例色と衝突しない濃い彩度の
+// 色をカテゴリごとに割り当てる（電源=紫、情報系=ティール、照明=琥珀、設備=濃紺）
 const EMAT = {
-  plate: new THREE.MeshStandardMaterial({color:0xf5f2ec, roughness:0.5}), // 白プレート(コンセント/スイッチ/情報系)
-  plateDark: new THREE.MeshStandardMaterial({color:0x2b2b2b, roughness:0.4}), // 差込口/トグル等の濃色パーツ
-  light: new THREE.MeshStandardMaterial({color:0xffe9a8, emissive:0xffcf5c, emissiveIntensity:0.5, roughness:0.4}), // 照明
-  metal: new THREE.MeshStandardMaterial({color:0x9aa2a8, roughness:0.4, metalness:0.6}), // 分電盤・スリーブ・換気扇
-  data: new THREE.MeshStandardMaterial({color:0x6fa8dc, roughness:0.5}) // 情報系(LAN/TV/インターホン)
+  power: new THREE.MeshStandardMaterial({color:0x8e24aa, roughness:0.4}), // コンセント・スイッチ
+  plateDark: new THREE.MeshStandardMaterial({color:0x1a1a1a, roughness:0.4}), // 差込口/トグル等の濃色パーツ
+  light: new THREE.MeshStandardMaterial({color:0xffab00, emissive:0xff8f00, emissiveIntensity:0.6, roughness:0.35}), // 照明
+  equip: new THREE.MeshStandardMaterial({color:0x37474f, roughness:0.4, metalness:0.5}), // 分電盤・スリーブ・換気扇
+  data: new THREE.MeshStandardMaterial({color:0x00897b, roughness:0.4}), // 情報系(LAN/TV/インターホン)
+  edge: new THREE.LineBasicMaterial({color:0x1a1a1a}) // 小さい形状でも輪郭がはっきり分かるよう全形状に付ける
 };
+const EDISC_EDGES = new THREE.EdgesGeometry(FURNITURE_CYL);
+const EBOX_EDGES = new THREE.EdgesGeometry(FURNITURE_BOX);
+// fPart()は共有の単位ジオメトリをスケールして使い回すため、輪郭線もscale/positionを
+// 揃えたLineSegmentsを別途重ねる（boxWire()と同じ考え方）
+function fPartEdged(group, w,h,d, x,y,z, mat, cylinder){
+  const mesh = fPart(group, w,h,d, x,y,z, mat, cylinder);
+  const line = new THREE.LineSegments(cylinder ? EDISC_EDGES : EBOX_EDGES, EMAT.edge);
+  line.position.copy(mesh.position);
+  line.scale.copy(mesh.scale);
+  group.add(line);
+  return mesh;
+}
 // 壁付け設備の共有ベース：ローカル原点=器具中心(mountHeightの点)、X=沿い方向(width)、
 // Y=上下(height、中心基準)、Z=壁からの突き出し(depth)。fPart()は下端基準のため-h/2offsetで中心化する
-function ePlate(group, w,d,h, mat){ fPart(group, w,h,d, 0,-h/2,0, mat); }
+function ePlate(group, w,d,h, mat){ fPartEdged(group, w,h,d, 0,-h/2,0, mat); }
 // 天井/床付け設備の共有ベース：円盤。up=trueなら天井原点(mountHeightの点)から下向き(y=-h〜0)、
 // falseなら床原点から上向き(y=0〜h、家具と同じ)
-function eDisc(group, w,d,h, mat, up){ fPart(group, w,h,d, 0, up ? -h : 0, 0, mat, true); }
+function eDisc(group, w,d,h, mat, up){ fPartEdged(group, w,h,d, 0, up ? -h : 0, 0, mat, true); }
 
 const ELECTRICAL_SHAPES = {
   outletPlate(group,w,d,h){
-    ePlate(group,w,d,h, EMAT.plate);
+    ePlate(group,w,d,h, EMAT.power);
     fPart(group, 0.012,0.012,0.006, -w*0.15, -0.02, d*0.4, EMAT.plateDark, true); // 差込口(2箇所)
     fPart(group, 0.012,0.012,0.006,  w*0.15, -0.02, d*0.4, EMAT.plateDark, true);
   },
-  outletFloorPlate(group,w,d,h){ fPart(group, w,h,d, 0,0,0, EMAT.plate); }, // 床フラッシュの薄い円盤
+  outletFloorPlate(group,w,d,h){ fPartEdged(group, w,h,d, 0,0,0, EMAT.power); }, // 床フラッシュの薄い円盤
   switchPlate(group,w,d,h){
-    ePlate(group,w,d,h, EMAT.plate);
+    ePlate(group,w,d,h, EMAT.power);
     fPart(group, w*0.3,w*0.3,0.01, 0,0,d*0.4, EMAT.plateDark, true); // トグル/ボタン(JISの●相当)
   },
   downlight(group,w,d,h){ eDisc(group,w,d,h, EMAT.light, true); },
@@ -2662,23 +2682,23 @@ const ELECTRICAL_SHAPES = {
     fPart(group, 0.02,h*0.7,0.02, 0,-h*0.35,0, EMAT.plateDark); // コード
     eDisc(group, w,d,h*0.5, EMAT.light, true); // シェード(下端寄り、簡易表現)
   },
-  bracketLight(group,w,d,h){ fPart(group, w,h,d, 0,-h/2,0, EMAT.light); },
-  indirectLight(group,w,d,h){ fPart(group, w,h,d, 0,-h,0, EMAT.light); }, // 簡易な点/線マーカー
+  bracketLight(group,w,d,h){ fPartEdged(group, w,h,d, 0,-h/2,0, EMAT.light); },
+  indirectLight(group,w,d,h){ fPartEdged(group, w,h,d, 0,-h,0, EMAT.light); }, // 簡易な点/線マーカー
   dataJack(group,w,d,h){
-    ePlate(group,w,d,h, EMAT.plate);
-    fPart(group, w*0.3,w*0.3,0.006, 0,-0.02,d*0.4, EMAT.data, true);
+    ePlate(group,w,d,h, EMAT.data);
+    fPart(group, w*0.3,w*0.3,0.006, 0,-0.02,d*0.4, EMAT.plateDark, true);
   },
   intercomPanel(group,w,d,h){ ePlate(group,w,d,h, EMAT.data); },
   acSleeve(group,w,d,h){
-    ePlate(group,w,d,h, EMAT.metal);
+    ePlate(group,w,d,h, EMAT.equip);
     fPart(group, w*0.55,d*0.55,0.01, 0,0,d*0.5, EMAT.plateDark, true); // 穴(暗色の円)
   },
   ventFan(group,w,d,h){
-    eDisc(group,w,d,h, EMAT.metal, true);
+    eDisc(group,w,d,h, EMAT.equip, true);
     fPart(group, w*0.8,0.01,0.01, 0,-h*0.5,0, EMAT.plateDark); // 羽根の十字
     fPart(group, 0.01,0.01,d*0.8, 0,-h*0.5,0, EMAT.plateDark);
   },
-  distributionBoard(group,w,d,h){ ePlate(group,w,d,h, EMAT.metal); }
+  distributionBoard(group,w,d,h){ ePlate(group,w,d,h, EMAT.equip); }
 };
 
 const electricalMeshes = new Map(); // id -> { holder, label }
