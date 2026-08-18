@@ -124,7 +124,7 @@ data/electrical.json（電気設備の配置インスタンス）
 
 ## 電気設備（electrical）
 
-家具・窓ドアに続く3本目の柱。着工後は変更コストが跳ね上がるため優先度が高い（[STATUS.md](STATUS.md)参照）。2026-08-18に**第1段階（データ構造＋読み取り専用の3D/平面図表示）**を実装した。Web UI編集（ドラッグ配置）・当たり判定は未実装（第2段階以降の課題）。
+家具・窓ドアに続く3本目の柱。着工後は変更コストが跳ね上がるため優先度が高い（[STATUS.md](STATUS.md)参照）。2026-08-18に**第1段階（データ構造＋読み取り専用の3D/平面図表示）**、続けて同日**第2段階（Web UI編集）**を実装した。当たり判定は今後も対象外（電気設備は壁・天井付けで歩行の障害物にならないため）。
 
 - `data/electrical-catalog.json`：コンセント・スイッチ・照明・情報系配線（LAN/TV/インターホン）・関連設備（エアコンスリーブ・換気扇・分電盤）の「型」。furniture-catalog.jsonと同じ考え方で、種類ごとの標準寸法（`width`/`depth`/`height`）に加え、電気設備特有の3フィールドを持つ
   - `mount`（`wall`=壁付け／`ceiling`=天井付け／`floor`=床付け）：`data/electrical.json`側でどちらの位置表現（下記）を使うかを型ごとに決める
@@ -139,7 +139,15 @@ data/electrical.json（電気設備の配置インスタンス）
 - **`interior-white-model.html`側の実装**：家具と同じ`fPart()`（箱・円柱の組み合わせ）を使い、`ELECTRICAL_SHAPES`（型ごとの組み立て関数）→`placeElectricalItem()`（型→shape関数→`groups.electrical1/2`へ追加→`makeLabel()`）という流れも家具（`FURNITURE_SHAPES`/`placeFurnitureItem()`）と同一パターン。**ドアのような「平面図記号＋内覧用の別実装」の二重実装はしない**（電気設備には開閉のような動的状態がなく、俯瞰・平面図・内覧の全モードで同一メッシュを使い回せば足りるため）。壁付け設備用の共有ジオメトリ`ePlate()`、天井/床付け設備用の`eDisc()`の2つのヘルパーに形状を集約し、各shape関数はその上に小さな装飾（差込口・トグルドット等）を足すだけの薄いラッパーにしている
   - **平面図の記号表現**：JIS Z 8017準拠の専用2D記号エンジン（ドアの`drawSwingLeaf()`相当）は作らず、3D形状そのものを真上から見てJIS記号に近いシルエットになるよう設計する折衷案を採った（コンセント＝円盤＋差込口ドット2つ、スイッチ＝角プレート＋中央ドット等）。このビューアは施工会社との打ち合わせ用のたたき台であり正式な配線図ではないため（家具・窓ドアと同じ`status:estimated`運用）、専用記号エンジンへの投資はコストに見合わないと判断した
   - 当たり判定（`furnitureSegmentsByLevel`相当）は持たない。電気設備は壁・天井付けで歩行の障害物にならないため
-  - Web UI編集用の差分レイヤー（`furnitureEdits`/`effectiveFurniture()`相当）は今回未実装。第2段階で追加する際は同じパターンを踏襲すればよい
+- **Web UI上での配置編集（第2段階、2026-08-18実装）**：平面図モードで「✎ 電気設備編集」ボタンをONにすると、電気設備のクリック/タップ選択→ドラッグで移動できる。`data/electrical.json`という1ファイルに対応する編集トグルは1つだが、内部では`item.mount`によってドラッグ方式が分岐する
+  - **壁付け設備**：窓ドア編集と同じ「壁に沿った1次元ドラッグ＋範囲クランプ」。`wallRangeForInteriorDoor()`をほぼそのままコピーした`wallRangeForElectrical()`が、`WALLS`から該当する壁1本を特定して可動範囲を返す
+  - **天井/床付け設備**：家具編集と同じ「自由な2Dドラッグ（クランプなし）」
+  - **家具編集・窓ドア編集との三者択一**：`setEditMode`/`setDoorEditMode`/`setElectricalEditMode`が、ONになる際に他の2つを両方OFFにする
+  - **ドラッグ中はメッシュを再構築しない**：ドア編集は開閉タイプごとの複雑形状を毎フレーム`rebuildDoorWindow`で再構築するが、電気設備は固定形状なので`holder.position`/`holder.rotation.y`の直接更新のみで足りる（軽量）。type変更・寸法(width/depth/height)変更時は`rebuildElectricalItem()`で再構築、取付け高さ(`mountHeight`)変更だけは形状が変わらないため`repositionElectricalItem()`という専用の軽量パス（Y座標のみ更新、holderの参照は変えない）を新設した
+  - **種類（type）切替の候補は`mount`が同じもの同士に制限**：`category`ではなく`mount`が位置表現を決めるフィールドのため。`light-bracket`（wall）と他の照明（ceiling）のように、同じ`category:lighting`でも`mount`が異なる型が実在し、`category`だけでフィルタすると位置表現が壊れる
+  - **取付け高さ（`mountHeight`）は全mount種別で編集可能な数値フィールドとしてパネルに常設**。壁付け設備の`side`（`+1`/`-1`）は窓ドア編集の`.hand-row`と同じボタンUIパターンで編集（壁付けのときだけ表示）
+  - 編集内容は`ELECTRICAL_ITEMS`（生成データ、正本ではない）を直接書き換えず、`electricalEdits`という差分オブジェクトとして持ち、`effectiveElectrical()`で重ねて描画する（家具・窓ドアと同じ設計）。`localStorage`（キー`ryuka-electrical-edits-v1`）に自動保存
+  - 「electrical.jsonを書き出す」ボタンで、編集を反映した完全なJSONをダウンロードできる（`data/electrical.json`は1ファイルのみのため、家具と同じ単一ボタン）。`mount`/`category`は`type`から導出される派生値のため出力しない
 
 ## 階段（stairs）
 
