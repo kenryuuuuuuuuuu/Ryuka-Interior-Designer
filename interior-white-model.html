@@ -140,6 +140,8 @@
   .fp-row button{width:100%;background:#f2f4f6;border:1.5px solid var(--line);border-radius:9px;padding:8px;
       font-size:12px;cursor:pointer;color:var(--ink);}
   .fp-row button:hover{border-color:var(--accent);}
+  .fp-row button.danger{background:#fdecec;border-color:#e0a3a3;color:#a33a3a;}
+  .fp-row button.danger:hover{border-color:#c94f4f;}
   .fp-dims{display:flex;gap:6px;}
   .fp-dims label{flex:1;font-size:10.5px;color:var(--sub);display:flex;flex-direction:column;gap:3px;}
   .fp-dims input{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:5px 6px;font-size:12px;}
@@ -192,8 +194,13 @@
   #roomFocusElecPanel{position:fixed;top:calc(var(--safe-t) + 62px);right:calc(var(--safe-r) + 12px);z-index:20;display:none;width:260px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
       padding:12px 14px;box-shadow:0 8px 28px rgba(20,30,40,.2);font-size:12.5px;color:var(--ink);
-      max-height:calc(100vh - var(--safe-t) - var(--safe-b) - 160px);overflow-y:auto;}
-  #roomFocusElecPanel .fp-head{font-weight:700;margin-bottom:6px;}
+      max-height:calc(100vh - var(--safe-t) - var(--safe-b) - 160px);
+      flex-direction:column;} /* display:flexはJS側でパネルを開く際にblockではなくflexへ切り替える */
+  #roomFocusElecPanel .fp-head{font-weight:700;margin-bottom:6px;flex-shrink:0;}
+  #roomFocusElecPanelBody{overflow-y:auto;min-height:0;}
+  #roomFocusElecAddBtn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;
+      padding:8px;font-size:11.5px;cursor:pointer;margin-top:10px;flex-shrink:0;}
+  #roomFocusElecAddBtn:hover{background:var(--accent-dark);}
   #electricalPanel{position:fixed;right:calc(var(--safe-r) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;width:240px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:var(--radius);
       padding:14px 16px;box-shadow:0 8px 28px rgba(20,30,40,.2);font-size:12.5px;color:var(--ink);}
@@ -238,13 +245,38 @@
   #electricalSummaryCard .fp-head button{background:none;border:none;color:var(--sub);cursor:pointer;font-size:16px;padding:2px 4px;}
   #electricalSummaryBody{overflow-y:auto;flex:1;padding-right:6px;}
   .elecSummaryTotal{font-size:12.5px;color:var(--sub);margin:2px 0 12px;}
-  .elecSummaryTypeTable{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;}
-  .elecSummaryTypeTable td{padding:3px 4px;border-bottom:1px solid var(--line);}
-  .elecSummaryTypeTable td.count{text-align:right;font-weight:600;white-space:nowrap;}
+  /* 見積書の明細ごとの現在数/見積数（renderEstimateLines()）。差があるものは.elecEstimateDiffで目立たせる */
+  .elecEstimateLine{padding:5px 8px;border-radius:8px;margin:2px 0;}
+  .elecEstimateLineHead{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--ink);}
+  .elecEstimateLineHead .count{color:var(--sub);white-space:nowrap;}
+  .elecEstimateLineTypes{font-size:10.5px;color:var(--sub);margin-top:2px;line-height:1.5;}
+  .elecEstimateDiff{background:#fff4e0;}
+  .elecEstimateDiff .elecEstimateLineHead .count{color:#a3672c;font-weight:700;}
   .elecSummaryLevelTitle{font-size:13.5px;font-weight:700;margin:16px 0 8px;color:var(--ink);}
   .elecSummaryRoom{margin-bottom:10px;}
   .elecSummaryRoomName{font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:2px;}
   .elecSummaryRoomName.empty{color:var(--sub);font-weight:400;}
+  /* 削除した設備の復元行（renderElectricalSummary()末尾） */
+  .elecDeletedRow{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;
+      color:var(--sub);padding:3px 6px;}
+  .elecRestoreBtn{background:#eef4fa;border:1px solid var(--accent);color:var(--accent);border-radius:6px;
+      padding:3px 8px;font-size:11px;cursor:pointer;white-space:nowrap;}
+  .elecRestoreBtn:hover{background:var(--accent);color:#fff;}
+
+  /* ---- 電気設備の追加モーダル（#spawnOverlayと同じ骨格。項目数が少ないためスクロール領域は不要） ---- */
+  #electricalAddOverlay{position:fixed;inset:0;z-index:31;background:rgba(18,22,26,.55);display:none;
+      align-items:center;justify-content:center;
+      padding:calc(var(--safe-t) + 20px) calc(var(--safe-r) + 20px) calc(var(--safe-b) + 20px) calc(var(--safe-l) + 20px);}
+  #electricalAddCard{background:#fff;border-radius:18px;padding:20px 22px;max-width:360px;width:100%;
+      box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:left;}
+  #electricalAddCard .fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+  #electricalAddCard .fp-head span{font-size:15.5px;font-weight:700;color:var(--ink);}
+  #electricalAddCard .fp-head button{background:none;border:none;color:var(--sub);cursor:pointer;font-size:16px;padding:2px 4px;}
+  #electricalAddCard select{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:6px 8px;
+      font-size:12px;color:var(--ink);background:#fff;}
+  #electricalAddCard .hand-label{font-size:10.5px;color:var(--sub);margin:2px 0 4px;}
+  #eaSubmit{background:var(--accent);color:#fff;}
+  #eaSubmit:hover{border-color:transparent;background:var(--accent-dark);}
 
   @media (max-width:640px){
     #ui{left:calc(var(--safe-l) + 10px);right:calc(var(--safe-r) + 10px);width:auto;top:auto;bottom:calc(var(--safe-b) + 12px);max-height:52vh;}
@@ -301,6 +333,29 @@
 <div id="roomFocusElecPanel">
   <div class="fp-head" id="roomFocusElecPanelHead"></div>
   <div id="roomFocusElecPanelBody"></div>
+  <button id="roomFocusElecAddBtn">＋ この部屋に設備を追加</button>
+</div>
+
+<!-- ---- 電気設備の追加モーダル（部屋フォーカス中のみ開ける） ---- -->
+<div id="electricalAddOverlay">
+  <div id="electricalAddCard">
+    <div class="fp-head">
+      <span>電気設備を追加</span>
+      <button id="electricalAddClose" title="閉じる">✕</button>
+    </div>
+    <div class="sub" id="electricalAddRoomLabel" style="margin:0 0 10px;"></div>
+    <div class="fp-row">
+      <select id="eaType"></select>
+    </div>
+    <div class="fp-row" id="eaWallArea">
+      <div class="hand-label">壁面（この部屋に接する壁だけを候補にしています）</div>
+      <select id="eaWall"></select>
+    </div>
+    <div class="sub" id="eaCeilingHint" style="margin:4px 0 0;">部屋の中央付近に配置します。追加後にドラッグやXYZ入力で自由に動かせます。</div>
+    <div class="fp-row">
+      <button id="eaSubmit">この内容で追加</button>
+    </div>
+  </div>
 </div>
 
 <div id="ui">
@@ -447,6 +502,9 @@
   </div>
   <div class="fp-row">
     <button id="epReset">この項目をリセット</button>
+  </div>
+  <div class="fp-row">
+    <button id="epDelete" class="danger">🗑 この設備を削除</button>
   </div>
 </div>
 <div id="electricalBar">
@@ -695,7 +753,7 @@ renderer.domElement.addEventListener('pointerdown', e=>{
     const id = pickElectricalAt(e.clientX, e.clientY);
     setSelectedElectrical(id);
     if(id){
-      const base = ELECTRICAL_ITEMS.find(it=>it.id===id);
+      const base = findElectricalBase(id);
       dragPlaneY = base.level===1 ? LEVELS.fl1 : LEVELS.fl2;
       draggingElectrical = true;
       return; // 電気設備を選択した場合はカメラの回転/パンを発生させない
@@ -2886,11 +2944,34 @@ const ELECTRICAL_SHAPES = {
 // electricalEdits に持ち、effectiveElectrical() で重ねて描画する。mount:wallの型は
 // wallAt/orientation/center/side、mount:ceiling/floorの型はx/zを差分として持つ（型が
 // 同じmount同士でしか切り替えられないため、1つのitemの中でこの2系統が混在することはない）。
+// 項目の増減（追加・削除）は electricalEdits では表現できないため、electricalAdded/electricalDeleted
+// という別のdiffを持つ（下記）。既存項目の書き換えと項目自体の増減を1つの構造に混ぜると、
+// 「削除したのに編集が残る」のような復元時の不整合が起きやすいため、意図的に分けている
 const ELECTRICAL_EDITS_KEY = 'ryuka-electrical-edits-v1';
 let electricalEdits = {};
 try { electricalEdits = JSON.parse(localStorage.getItem(ELECTRICAL_EDITS_KEY) || '{}') || {}; } catch(e){ electricalEdits = {}; }
 function saveElectricalEdits(){ try{ localStorage.setItem(ELECTRICAL_EDITS_KEY, JSON.stringify(electricalEdits)); } catch(e){} }
 function effectiveElectrical(item){ const e = electricalEdits[item.id]; return e ? {...item, ...e} : item; }
+// ---- 電気設備の追加・削除：electricalEdits（既存項目の位置・寸法パッチ）とは別に、
+// 「項目の増減」をこの2つのdiffで表現する。追加は項目そのものを、削除はidだけ（墓標）を持つ
+// （即座にデータを消さず、一覧モーダルから個別に復元できるようにするため）
+const ELECTRICAL_ADDED_KEY = 'ryuka-electrical-added-v1';
+const ELECTRICAL_DELETED_KEY = 'ryuka-electrical-deleted-v1';
+let electricalAdded = [];
+let electricalDeleted = [];
+try { electricalAdded = JSON.parse(localStorage.getItem(ELECTRICAL_ADDED_KEY) || '[]') || []; } catch(e){ electricalAdded = []; }
+try { electricalDeleted = JSON.parse(localStorage.getItem(ELECTRICAL_DELETED_KEY) || '[]') || []; } catch(e){ electricalDeleted = []; }
+function saveElectricalAdded(){ try{ localStorage.setItem(ELECTRICAL_ADDED_KEY, JSON.stringify(electricalAdded)); } catch(e){} }
+function saveElectricalDeleted(){ try{ localStorage.setItem(ELECTRICAL_DELETED_KEY, JSON.stringify(electricalDeleted)); } catch(e){} }
+// 削除済みも含めた「存在しうる全アイテム」からidで探す（一覧モーダルの復元操作が使う）
+function findElectricalBase(id){
+  return ELECTRICAL_ITEMS.find(e=>e.id===id) || electricalAdded.find(e=>e.id===id);
+}
+// 表示・配置対象（追加分を加え、削除済みを除いた現在の全アイテム）。ELECTRICAL_ITEMS
+// （data/electrical.jsonから生成された不変の元データ）への直接参照はこの関数を経由して置き換える
+function allElectricalItems(){
+  return [...ELECTRICAL_ITEMS, ...electricalAdded].filter(e=> !electricalDeleted.includes(e.id));
+}
 // mount:wallの器具中心Y座標(mountHeightの点)を求める共通計算。placeElectricalItem()の初回配置と
 // repositionElectricalItem()（取付け高さだけの軽量更新）の両方から呼ぶことで、Y座標計算のロジックを
 // 二重に持たないようにする
@@ -2960,7 +3041,7 @@ function removeElectricalMesh(id){
   electricalMeshes.delete(id);
 }
 function rebuildElectricalItem(id){
-  const base = ELECTRICAL_ITEMS.find(e=>e.id===id);
+  const base = findElectricalBase(id);
   if(!base) return;
   removeElectricalMesh(id);
   placeElectricalItem(effectiveElectrical(base));
@@ -2969,7 +3050,7 @@ function rebuildElectricalItem(id){
 // holder/labelの座標だけを直接書き換える（ドラッグ中のholder.position直接更新と同じ考え方）。
 // XYZ数値入力パネル（center/x/z/mountHeightの変更）とmountHeight単体編集の両方から呼ばれる
 function repositionElectricalItem(id){
-  const base = ELECTRICAL_ITEMS.find(e=>e.id===id);
+  const base = findElectricalBase(id);
   const entry = electricalMeshes.get(id);
   if(!base || !entry) return;
   const eff = effectiveElectrical(base);
@@ -2990,7 +3071,7 @@ function repositionElectricalItem(id){
   entry.holder.position.y = groupY;
   entry.label.pos.y = groupY + eff.height/2 + 0.1;
 }
-ELECTRICAL_ITEMS.forEach(item=> placeElectricalItem(effectiveElectrical(item)));
+allElectricalItems().forEach(item=> placeElectricalItem(effectiveElectrical(item)));
 
 // ---- 電気設備編集：選択・壁沿い/自由ドラッグ（俯瞰モード専用） ----
 function pickElectricalAt(clientX, clientY){
@@ -3038,7 +3119,7 @@ function wallRangeForElectrical(item){
 }
 function moveSelectedElectricalTo(clientX, clientY){
   if(!selectedElectricalId) return;
-  const base = ELECTRICAL_ITEMS.find(e=>e.id===selectedElectricalId);
+  const base = findElectricalBase(selectedElectricalId);
   if(!base) return;
   const eff = effectiveElectrical(base);
   if(eff.mount === 'exterior') return; // 屋外設備のドラッグ移動はスコープ外。選択・種類/寸法編集は可能。位置(face/offset)を変えたい場合はdata/electrical.jsonを直接編集する運用とする
@@ -3085,7 +3166,7 @@ function setElectricalEditMode(on){
 function updateElectricalPanel(){
   const panel = document.getElementById('electricalPanel');
   if(!electricalEditMode || !selectedElectricalId){ panel.style.display = 'none'; return; }
-  const base = ELECTRICAL_ITEMS.find(e=>e.id===selectedElectricalId);
+  const base = findElectricalBase(selectedElectricalId);
   if(!base){ panel.style.display = 'none'; return; }
   const eff = effectiveElectrical(base);
   document.getElementById('epLabel').textContent = eff.label || eff.type;
@@ -3139,7 +3220,7 @@ function applyElectricalPositionEdit(axis, value){
   if(!selectedElectricalId) return;
   const v = parseFloat(value);
   if(Number.isNaN(v)) return;
-  const base = ELECTRICAL_ITEMS.find(e=>e.id===selectedElectricalId);
+  const base = findElectricalBase(selectedElectricalId);
   if(!base) return;
   const eff = effectiveElectrical(base);
   let patch = null;
@@ -3173,8 +3254,23 @@ function applyElectricalPositionEdit(axis, value){
   updateElectricalBar();
 }
 function updateElectricalBar(){
-  const n = Object.keys(electricalEdits).length;
-  document.getElementById('ebCount').textContent = n>0 ? `編集済み: ${n}件` : '編集なし';
+  const editCount = Object.keys(electricalEdits).length;
+  const addCount = electricalAdded.length;
+  const delCount = electricalDeleted.length;
+  const parts = [];
+  if(editCount) parts.push(`変更${editCount}`);
+  if(addCount) parts.push(`追加${addCount}`);
+  if(delCount) parts.push(`削除${delCount}`);
+  document.getElementById('ebCount').textContent = parts.length ? `編集済み: ${parts.join('・')}` : '編集なし';
+}
+// 部屋フォーカス中の右上パネルを、現在のfocusedRoomIdの内容で再描画する（追加・削除・復元の
+// いずれの後でも、パネルの件数・内訳を最新に保つために呼ぶ）
+function refreshRoomFocusElecPanel(){
+  if(!focusedRoomId) return;
+  const target = roomMeshesById.get(focusedRoomId);
+  const level = target ? target.level : 1;
+  const roomObj = (ROOMS_APPROX[level]||[]).find(r=>r.id===focusedRoomId);
+  renderRoomFocusElecList(buildElectricalSummary(), focusedRoomId, roomObj ? roomObj.name : focusedRoomId);
 }
 function applyElectricalTypeChange(newType){
   if(!selectedElectricalId) return;
@@ -3205,7 +3301,7 @@ function applyElectricalDimEdit(field, value){
 }
 function setElectricalSide(value){
   if(!selectedElectricalId) return;
-  const base = ELECTRICAL_ITEMS.find(e=>e.id===selectedElectricalId);
+  const base = findElectricalBase(selectedElectricalId);
   const eff = effectiveElectrical(base);
   if(eff.mount !== 'wall') return;
   electricalEdits[selectedElectricalId] = {...(electricalEdits[selectedElectricalId]||{}), side: value};
@@ -3225,8 +3321,36 @@ function resetSelectedElectrical(){
   setSelectedElectrical(selectedElectricalId);
   updateElectricalBar();
 }
+// 削除：即座にデータを消さず、electricalDeletedへidを積む（墓標）だけにする。3Dからは消えるが、
+// electrical-catalog.json側の型定義やdata/electrical.jsonの元データは変わらないため、
+// 一覧モーダルの「削除した設備」から個別に復元できる
+function deleteSelectedElectrical(){
+  if(!selectedElectricalId) return;
+  const base = findElectricalBase(selectedElectricalId);
+  if(!base) return;
+  const label = elecItemDisplayLabel(effectiveElectrical(base));
+  if(!confirm(`「${label}」を削除します。一覧モーダルの「削除した設備」からいつでも復元できます。よろしいですか？`)) return;
+  const id = selectedElectricalId;
+  electricalDeleted.push(id);
+  saveElectricalDeleted();
+  removeElectricalMesh(id);
+  setSelectedElectrical(null);
+  refreshRoomFocusElecPanel();
+  updateElectricalBar();
+}
+// 復元：electricalDeletedからidを外し、元のデータ（editsが残っていればそれも含めて）で再配置する
+function restoreDeletedElectrical(id){
+  const idx = electricalDeleted.indexOf(id);
+  if(idx<0) return;
+  electricalDeleted.splice(idx,1);
+  saveElectricalDeleted();
+  const base = findElectricalBase(id);
+  if(base) placeElectricalItem(effectiveElectrical(base));
+  refreshRoomFocusElecPanel();
+  updateElectricalBar();
+}
 function exportElectricalJSON(){
-  const items = ELECTRICAL_ITEMS.map(base=>{
+  const items = allElectricalItems().map(base=>{
     const eff = effectiveElectrical(base);
     const cat = ELECTRICAL_CATALOG[eff.type]; // 型を切り替えられるため、比較対象は必ず「現在の型」の既定値にする
     const out = { id: base.id, type: eff.type, level: base.level };
@@ -3270,15 +3394,28 @@ document.getElementById('epPosZ').onchange = e=> applyElectricalPositionEdit('z'
 document.getElementById('epSidePos').onclick = ()=> setElectricalSide(1);
 document.getElementById('epSideNeg').onclick = ()=> setElectricalSide(-1);
 document.getElementById('epReset').onclick = resetSelectedElectrical;
+document.getElementById('epDelete').onclick = deleteSelectedElectrical;
 document.getElementById('ebExport').onclick = exportElectricalJSON;
 document.getElementById('ebClearAll').onclick = ()=>{
-  if(Object.keys(electricalEdits).length===0) return;
-  if(!confirm('電気設備の編集内容をすべて取り消し、元の配置に戻します。よろしいですか？')) return;
-  const ids = Object.keys(electricalEdits);
+  const hasEdits = Object.keys(electricalEdits).length>0 || electricalAdded.length>0 || electricalDeleted.length>0;
+  if(!hasEdits) return;
+  if(!confirm('電気設備の編集内容（変更・追加・削除）をすべて取り消し、元の配置に戻します。よろしいですか？')) return;
+  const addedIds = new Set(electricalAdded.map(a=>a.id));
+  // 削除・変更は「元データ(ELECTRICAL_ITEMS)にあった項目」だけを差し戻し対象にする。
+  // 追加してから削除した項目（addedIdsに含まれる）は、追加分ごと丸ごと撤去するので個別処理は不要
+  const deletedOriginalIds = electricalDeleted.filter(id=> !addedIds.has(id));
+  const editedIds = Object.keys(electricalEdits).filter(id=> !addedIds.has(id));
   electricalEdits = {};
   saveElectricalEdits();
-  ids.forEach(id=> rebuildElectricalItem(id));
+  electricalDeleted = [];
+  saveElectricalDeleted();
+  electricalAdded.forEach(item=> removeElectricalMesh(item.id)); // 追加分の3Dを撤去
+  electricalAdded = [];
+  saveElectricalAdded();
+  editedIds.forEach(id=> rebuildElectricalItem(id)); // 元データの変更を差し戻す
+  deletedOriginalIds.forEach(id=>{ const base = ELECTRICAL_ITEMS.find(e=>e.id===id); if(base) placeElectricalItem(effectiveElectrical(base)); }); // 元データの削除を復元
   setSelectedElectrical(null);
+  refreshRoomFocusElecPanel();
   updateElectricalBar();
 };
 document.getElementById('electricalEditToggle').onclick = ()=> setElectricalEditMode(!electricalEditMode);
@@ -3302,6 +3439,13 @@ function pointInPolygon(x, z, pts){
 // 4頂点を使う（判定ロジックを常に同じpointInPolygon経路に統一するための橋渡し）
 function roomPolygonPoints(r){
   return r.poly || [[r.x0,r.z0],[r.x1,r.z0],[r.x1,r.z1],[r.x0,r.z1]];
+}
+// 多角形の頂点平均（重心近似）。L字部屋でbboxの中心が部屋の外に出てしまう場合の
+// フォールバックに使う（scripts/seed-electrical.mjsのcentroid()と同じ考え方）
+function centroid(polygon){
+  let x=0, z=0;
+  polygon.forEach(([px,pz])=>{ x+=px; z+=pz; });
+  return { x: x/polygon.length, z: z/polygon.length };
 }
 // 点(x,z)がlevel階のどの部屋に属するかをROOMS_APPROXから動的に判定する。家具・電気設備の
 // 既存roomフィールドは使わない（ドラッグで位置が変わってもroomフィールドは追随せず陳腐化するため）
@@ -3361,21 +3505,35 @@ function elecItemDisplayLabel(eff){
   return eff.label || (ELECTRICAL_CATALOG[eff.type]||{}).label || eff.type;
 }
 // 電気設備の集計：型ごとの総数、部屋ごとの内訳、屋外設備、部屋未判定（本来起こらない想定だが、
-// 編集で部屋の外に出た場合の検知用に残す）をELECTRICAL_ITEMS+effectiveElectrical()から都度組み立てる。
-// 部屋所属はfocusRoom()と同じelectricalRoomProbePoint()+findRoomIdAt()の動的判定を使う
-// （ELECTRICAL_ITEMSの静的なroomフィールドはシードスクリプト由来で編集後は追随しないため使わない）
+// 編集で部屋の外に出た場合の検知用に残す）をallElectricalItems()+effectiveElectrical()から
+// 都度組み立てる。部屋所属はfocusRoom()と同じelectricalRoomProbePoint()+findRoomIdAt()の
+// 動的判定を使う（ELECTRICAL_ITEMSの静的なroomフィールドはシードスクリプト由来で編集後は
+// 追随しないため使わない）。あわせて、data/electrical-estimate.json（見積書の明細）と
+// 現在数を明細単位で突き合わせる（削除・追加を始めると見積との差分が追いにくくなるため）
 function buildElectricalSummary(){
   const byType = new Map(); // type -> {label, category, count}
   const roomBuckets = new Map(); // roomId -> row[]
   const exteriorItems = [];
   const unassigned = [];
-  let count1 = 0, count2 = 0;
-  ELECTRICAL_ITEMS.forEach(base=>{
+  let count1 = 0, count2 = 0, total = 0;
+  const typeToLine = new Map(); // type -> 見積明細id
+  ELECTRICAL_ESTIMATE.forEach(line=> line.types.forEach(t=> typeToLine.set(t, line.id)));
+  const lineCounts = new Map(ELECTRICAL_ESTIMATE.map(l=>[l.id, 0]));
+  const outsideEstimateByType = new Map(); // 見積のどの明細にも属さない型 -> {label,category,count}
+  allElectricalItems().forEach(base=>{
     const eff = effectiveElectrical(base);
+    total++;
     if(!byType.has(eff.type)) byType.set(eff.type, { label: (ELECTRICAL_CATALOG[eff.type]||{}).label || eff.type, category: eff.category, count: 0 });
     byType.get(eff.type).count++;
     if(eff.level===1) count1++; else count2++;
-    const row = { id: eff.id, label: elecItemDisplayLabel(eff), category: eff.category };
+    const lineId = typeToLine.get(eff.type);
+    if(lineId){
+      lineCounts.set(lineId, lineCounts.get(lineId)+1);
+    } else {
+      if(!outsideEstimateByType.has(eff.type)) outsideEstimateByType.set(eff.type, { label: (ELECTRICAL_CATALOG[eff.type]||{}).label || eff.type, category: eff.category, count: 0 });
+      outsideEstimateByType.get(eff.type).count++;
+    }
+    const row = { id: eff.id, label: elecItemDisplayLabel(eff), category: eff.category, type: eff.type };
     if(eff.mount === 'exterior'){ exteriorItems.push(row); return; }
     const p = electricalRoomProbePoint(eff);
     const roomId = p ? findRoomIdAt(p.x, p.z, eff.level) : null;
@@ -3383,7 +3541,21 @@ function buildElectricalSummary(){
     if(!roomBuckets.has(roomId)) roomBuckets.set(roomId, []);
     roomBuckets.get(roomId).push(row);
   });
-  return { byType, roomBuckets, exteriorItems, unassigned, total: ELECTRICAL_ITEMS.length, count1, count2 };
+  const estimateLines = ELECTRICAL_ESTIMATE.map(line=> ({
+    id: line.id, label: line.label, quantity: line.quantity, current: lineCounts.get(line.id) || 0,
+  }));
+  const estimateTotal = ELECTRICAL_ESTIMATE.reduce((a,l)=>a+l.quantity, 0);
+  return {
+    byType, roomBuckets, exteriorItems, unassigned, total, count1, count2,
+    estimateLines, estimateTotal, outsideEstimate: [...outsideEstimateByType.values()],
+  };
+}
+// 削除済み設備（電気設備一覧モーダルの「削除した設備」欄・復元操作が使う）
+function deletedElectricalItems(){
+  return electricalDeleted.map(id=> findElectricalBase(id)).filter(Boolean).map(base=>{
+    const eff = effectiveElectrical(base);
+    return { id: eff.id, label: elecItemDisplayLabel(eff), category: eff.category };
+  });
 }
 // rowの配列をカテゴリ順に並べ、クリック可能な行（data-elec-id）としてHTML化する共通レンダラー。
 // 一覧モーダルの部屋別内訳・屋外設備・部屋未判定と、部屋フォーカスパネルの設置物リストの両方から使う
@@ -3404,17 +3576,33 @@ function renderElecItemRows(items){
   });
   return html;
 }
+// 見積書の明細ごとに「現在数 / 見積数」を表示する。各明細の下には、内訳として実際に
+// 使われている型ごとの件数をぶら下げる（電灯配線41の中身がダウンライト30・シーリング7…と
+// 分かるように）。差が出ている明細は.elecEstimateDiffで目立たせる
+function renderEstimateLines(s){
+  let html = '';
+  s.estimateLines.forEach(line=>{
+    const diff = line.current - line.quantity;
+    const estLine = ELECTRICAL_ESTIMATE.find(l=>l.id===line.id);
+    const typeRows = (estLine ? estLine.types : []).map(t=> s.byType.get(t)).filter(Boolean);
+    html += `<div class="elecEstimateLine${diff!==0 ? ' elecEstimateDiff' : ''}">`;
+    html += `<div class="elecEstimateLineHead"><span>${line.label}</span><span class="count">現在${line.current} / 見積${line.quantity}${diff!==0 ? `（${diff>0?'+':''}${diff}）` : ''}</span></div>`;
+    if(typeRows.length) html += `<div class="elecEstimateLineTypes">${typeRows.map(v=>`${v.label} ${v.count}`).join('　')}</div>`;
+    html += '</div>';
+  });
+  if(s.outsideEstimate.length){
+    const outsideTotal = s.outsideEstimate.reduce((a,v)=>a+v.count, 0);
+    html += `<div class="elecEstimateLine"><div class="elecEstimateLineHead"><span>見積外</span><span class="count">現在${outsideTotal}件</span></div>`;
+    html += `<div class="elecEstimateLineTypes">${s.outsideEstimate.map(v=>`${v.label} ${v.count}`).join('　')}</div></div>`;
+  }
+  return html;
+}
 function renderElectricalSummary(){
   const s = buildElectricalSummary();
-  let html = `<div class="elecSummaryTotal">合計${s.total}件（1F ${s.count1}件／2F ${s.count2}件／屋外${s.exteriorItems.length}件）</div>`;
-  html += '<table class="elecSummaryTypeTable"><tbody>';
-  ELEC_CATEGORY_ORDER.forEach(([cat,,color])=>{
-    [...s.byType.entries()].filter(([,v])=>v.category===cat).forEach(([,v])=>{
-      html += `<tr><td><span class="elecListDot" style="background:${color};"></span>${v.label}</td><td class="count">${v.count}件</td></tr>`;
-    });
-  });
-  html += '</tbody></table>';
-  // 部屋フォーカス中は、合計・型別内訳（上記まで）はフィルタせず、階見出し以下だけを
+  const diffTotal = s.total - s.estimateTotal;
+  let html = `<div class="elecSummaryTotal">合計 現在${s.total}件 / 見積${s.estimateTotal}件${diffTotal!==0 ? `（${diffTotal>0?'+':''}${diffTotal}）` : ''}（1F ${s.count1}件／2F ${s.count2}件／屋外${s.exteriorItems.length}件）</div>`;
+  html += renderEstimateLines(s);
+  // 部屋フォーカス中は、合計・見積差分（上記まで）はフィルタせず、階見出し以下だけを
   // フォーカス中の部屋1件に絞る（施主指摘：一覧を部屋フォーカスと連動させたい）
   if(focusedRoomId){
     const target = roomMeshesById.get(focusedRoomId);
@@ -3443,6 +3631,14 @@ function renderElectricalSummary(){
       html += `<div class="elecSummaryLevelTitle">部屋未判定（${s.unassigned.length}件）</div><div class="elecSummaryRoom">${renderElecItemRows(s.unassigned)}</div>`;
     }
   }
+  // 削除した設備：部屋フォーカスの絞り込みとは無関係に常に表示する（復元操作はどの部屋を
+  // 見ていても行えるようにするため）
+  const deleted = deletedElectricalItems();
+  if(deleted.length){
+    html += `<div class="elecSummaryLevelTitle">削除した設備（${deleted.length}件）</div><div class="elecSummaryRoom">`;
+    html += deleted.map(r=> `<div class="elecDeletedRow"><span>${r.label}</span><button class="elecRestoreBtn" data-elec-restore-id="${r.id}">復元</button></div>`).join('');
+    html += '</div>';
+  }
   document.getElementById('electricalSummaryBody').innerHTML = html;
 }
 function openElectricalSummary(){
@@ -3458,7 +3654,7 @@ document.getElementById('electricalSummaryOverlay').onclick = e=>{ if(e.target.i
 // 一覧・部屋フォーカスの設置物リストの行から、該当設備を選択して編集パネルを開く共通処理。
 // 俯瞰モードでなければ切り替え、部屋に属する設備なら部屋フォーカスも合わせて行う
 function selectElectricalFromSummary(id){
-  const base = ELECTRICAL_ITEMS.find(e=>e.id===id);
+  const base = findElectricalBase(id);
   if(!base) return;
   if(mode !== 'orbit') setMode('orbit');
   const eff = effectiveElectrical(base);
@@ -3471,6 +3667,14 @@ function selectElectricalFromSummary(id){
   setSelectedElectrical(id);
 }
 document.getElementById('electricalSummaryBody').addEventListener('click', e=>{
+  // 復元ボタンを先に判定する（「削除した設備」欄はdata-elec-idを持たないクリック不可の行の中に
+  // data-elec-restore-idを持つボタンだけを置いているため、実際には衝突しないが念のため先に見る）
+  const restoreBtn = e.target.closest('[data-elec-restore-id]');
+  if(restoreBtn){
+    restoreDeletedElectrical(restoreBtn.dataset.elecRestoreId);
+    renderElectricalSummary(); // 削除リストから消え、該当部屋の内訳に戻ったところまで反映する
+    return;
+  }
   const row = e.target.closest('[data-elec-id]');
   if(!row) return;
   closeElectricalSummary();
@@ -3485,7 +3689,7 @@ function renderRoomFocusElecList(summary, roomId, roomName){
   document.getElementById('roomFocusElecPanelBody').innerHTML = rows.length
     ? renderElecItemRows(rows)
     : '<div class="sub" style="margin:0;">この部屋に電気設備はありません。</div>';
-  document.getElementById('roomFocusElecPanel').style.display = 'block';
+  document.getElementById('roomFocusElecPanel').style.display = 'flex';
 }
 document.getElementById('roomFocusElecPanelBody').addEventListener('click', e=>{
   const row = e.target.closest('[data-elec-id]');
@@ -3493,6 +3697,144 @@ document.getElementById('roomFocusElecPanelBody').addEventListener('click', e=>{
   if(!electricalEditMode) setElectricalEditMode(true);
   setSelectedElectrical(row.dataset.elecId);
 });
+
+// ============================================================================
+// 電気設備の追加：どの壁面に付けるかを選ばせる。壁付け設備(mount:'wall')は追加後、
+// XYZ編集パネルで壁面側の座標をロックする設計にしているため（前回実装）、「とりあえず
+// 置いてから動かす」ができない。追加する時点で壁を選ばせ、side（壁のどちら側＝部屋の
+// 内側を向くか）まで確定させる（2026-08-19、施主指摘）
+// ============================================================================
+// 部屋に接する壁セグメント（内壁+外壁+ドア切り欠き済みのwallSegmentsByLevel、腰壁は除く）を、
+// 部屋の内側を向くside込みで返す。electricalRoomProbePoint()（壁面からsideの方向へ0.1mずらした
+// 点で部屋所属を判定する）と同じ規約の逆変換：壁の両側をそれぞれ0.1mずらしてfindRoomIdAt()で
+// 判定し、対象室に入った側をこの壁のsideとして採用する
+function wallsForRoom(roomId, level){
+  const target = roomMeshesById.get(roomId);
+  if(!target) return [];
+  const b = target.bbox;
+  const segs = (wallSegmentsByLevel[level] || []).filter(s=> s.guardHeight === undefined); // 腰壁(転落防止用)は対象外
+  const result = [];
+  segs.forEach(s=>{
+    const roomLo = s.orientation==='H' ? b.x0 : b.z0, roomHi = s.orientation==='H' ? b.x1 : b.z1;
+    const lo = Math.max(s.from, roomLo), hi = Math.min(s.to, roomHi);
+    if(hi - lo < 0.3) return; // 器具1つ分にも満たない短い重なりは候補から除く
+    const mid = (lo+hi)/2;
+    const p1 = s.orientation==='H' ? {x:mid, z:s.at+ROOM_PROBE_OFFSET} : {x:s.at+ROOM_PROBE_OFFSET, z:mid};
+    const p2 = s.orientation==='H' ? {x:mid, z:s.at-ROOM_PROBE_OFFSET} : {x:s.at-ROOM_PROBE_OFFSET, z:mid};
+    let side;
+    if(findRoomIdAt(p1.x, p1.z, level) === roomId) side = 1;
+    else if(findRoomIdAt(p2.x, p2.z, level) === roomId) side = -1;
+    else return; // どちらの側からもこの部屋に届かない
+    const dirLabel = s.orientation==='H' ? (side>0?'北側':'南側') : (side>0?'西側':'東側');
+    result.push({ orientation:s.orientation, at:s.at, from:lo, to:hi, side, mid, dirLabel });
+  });
+  return result;
+}
+let electricalAddRoomId = null; // 追加ダイアログを開いた時点のfocusedRoomIdを固定して持つ
+function openElectricalAdd(){
+  if(!focusedRoomId) return;
+  electricalAddRoomId = focusedRoomId;
+  const target = roomMeshesById.get(focusedRoomId);
+  const roomObj = target ? (ROOMS_APPROX[target.level]||[]).find(r=>r.id===focusedRoomId) : null;
+  document.getElementById('electricalAddRoomLabel').textContent = `追加先：${roomObj ? roomObj.name : focusedRoomId}`;
+  const typeSel = document.getElementById('eaType');
+  // 屋外設備(mount:'exterior')は既存のドラッグ移動・XYZ編集と同じくスコープ外のため候補から除く
+  typeSel.innerHTML = ELEC_CATEGORY_ORDER.map(([cat,catLabel])=>{
+    const opts = Object.entries(ELECTRICAL_CATALOG).filter(([,p])=>p.category===cat && p.mount!=='exterior')
+      .map(([k,p])=>`<option value="${k}">${p.label}</option>`).join('');
+    return opts ? `<optgroup label="${catLabel}">${opts}</optgroup>` : '';
+  }).join('');
+  updateElectricalAddForm();
+  document.getElementById('electricalAddOverlay').style.display = 'flex';
+}
+function closeElectricalAdd(){
+  document.getElementById('electricalAddOverlay').style.display = 'none';
+}
+// 型の切替に応じて、壁面選択欄の表示/候補・案内文を更新する
+function updateElectricalAddForm(){
+  const type = document.getElementById('eaType').value;
+  const profile = ELECTRICAL_CATALOG[type];
+  const wallArea = document.getElementById('eaWallArea');
+  const ceilingHint = document.getElementById('eaCeilingHint');
+  if(!profile) return;
+  if(profile.mount === 'wall'){
+    wallArea.style.display = '';
+    ceilingHint.style.display = 'none';
+    const target = roomMeshesById.get(electricalAddRoomId);
+    const walls = target ? wallsForRoom(electricalAddRoomId, target.level) : [];
+    const wallSel = document.getElementById('eaWall');
+    wallSel.innerHTML = walls.length
+      ? walls.map((w,i)=> `<option value="${i}">${w.dirLabel}の壁（幅${Math.round((w.to-w.from)*1000)}mm）</option>`).join('')
+      : '<option value="">（この部屋に接する壁が見つかりません）</option>';
+    wallSel.dataset.walls = JSON.stringify(walls);
+  } else {
+    wallArea.style.display = 'none';
+    ceilingHint.style.display = '';
+  }
+}
+document.getElementById('eaType').onchange = updateElectricalAddForm;
+document.getElementById('roomFocusElecAddBtn').onclick = openElectricalAdd;
+document.getElementById('electricalAddClose').onclick = closeElectricalAdd;
+document.getElementById('electricalAddOverlay').onclick = e=>{ if(e.target.id==='electricalAddOverlay') closeElectricalAdd(); };
+// id は elec-m01 のように「m(manual)+連番」で採番する。シードスクリプトのelec-001…や
+// 復元可能な削除済みidとも衝突しないことを確認しながら採番する
+let electricalAddSeq = 0;
+function nextManualElectricalId(){
+  const existingIds = new Set([...ELECTRICAL_ITEMS, ...electricalAdded].map(e=>e.id));
+  let n = electricalAddSeq, id;
+  do { n++; id = `elec-m${String(n).padStart(2,'0')}`; } while(existingIds.has(id));
+  electricalAddSeq = n;
+  return id;
+}
+document.getElementById('eaSubmit').onclick = ()=>{
+  const roomId = electricalAddRoomId;
+  const target = roomMeshesById.get(roomId);
+  if(!roomId || !target) return;
+  const type = document.getElementById('eaType').value;
+  const profile = ELECTRICAL_CATALOG[type];
+  if(!profile) return;
+  const level = target.level;
+  const roomObj = (ROOMS_APPROX[level]||[]).find(r=>r.id===roomId);
+  // ELECTRICAL_ITEMS（scripts/build-web-data.mjsのbuildElectricalItems()がカタログのプロファイルを
+  // 展開して生成したもの）と同じ形にする。プロファイルの値をそのまま複製しないと、shape/widthが
+  // 欠けてplaceElectricalItem()が何も描画できずelectricalMeshesにも登録されない
+  const item = {
+    id: nextManualElectricalId(), type, category: profile.category, mount: profile.mount, level,
+    width: profile.width, depth: profile.depth, height: profile.height, mountHeight: profile.mountHeight,
+    heightRef: profile.heightRef, shape: profile.shape, status: 'estimated', room: roomId,
+  };
+  if(profile.mount === 'wall'){
+    const walls = JSON.parse(document.getElementById('eaWall').dataset.walls || '[]');
+    const idx = Number(document.getElementById('eaWall').value);
+    const w = walls[idx];
+    if(!w){ alert('この部屋に接する壁が見つからなかったため追加できません。'); return; }
+    item.wallAt = w.at; item.orientation = w.orientation; item.center = round2(w.mid); item.side = w.side;
+  } else {
+    // 天井/床付け：部屋bboxの中心（L字部屋等でbbox中心が部屋の外に出る場合はpointInPolygon()で
+    // 検知し重心へフォールバック。scripts/seed-electrical.mjsのplaceCeilingItem()と同じ考え方）
+    const b = target.bbox;
+    let px = (b.x0+b.x1)/2, pz = (b.z0+b.z1)/2;
+    if(roomObj){
+      const poly = roomPolygonPoints(roomObj);
+      if(!pointInPolygon(px, pz, poly)){ const c = centroid(poly); px = c.x; pz = c.z; }
+    }
+    item.x = round2(px); item.z = round2(pz);
+  }
+  // 同室・同型の既存数（追加前時点の動的な部屋所属判定）から連番を振る
+  // （家具ラベル・シードスクリプトと同じ命名規則。既存の1件目が無番号のままでも、
+  // 2件目以降は付番することで見分けられるようにする単純化した近似）
+  const roomRowsBefore = buildElectricalSummary().roomBuckets.get(roomId) || [];
+  const sameTypeCount = roomRowsBefore.filter(r=> r.type===type).length;
+  item.label = sameTypeCount>0 ? `${profile.label} ${sameTypeCount+1}` : profile.label;
+  electricalAdded.push(item);
+  saveElectricalAdded();
+  placeElectricalItem(effectiveElectrical(item));
+  closeElectricalAdd();
+  refreshRoomFocusElecPanel();
+  updateElectricalBar();
+  if(!electricalEditMode) setElectricalEditMode(true);
+  setSelectedElectrical(item.id);
+};
 
 let focusedRoomId = null;
 let savedFloorModeBeforeFocus = null;
@@ -3535,7 +3877,7 @@ function focusRoom(id){
 
   // 電気設備：屋外(exterior)は常に対象外（非表示）。壁付けはオフセット点、天井/床付けは座標そのまま
   electricalMeshes.forEach((entry, eid)=>{
-    const base = ELECTRICAL_ITEMS.find(e=>e.id===eid);
+    const base = findElectricalBase(eid);
     if(!base){ entry.holder.visible = false; entry.label.hiddenByFocus = true; return; }
     const eff = effectiveElectrical(base);
     if(eff.mount === 'exterior' || base.level !== target.level){
@@ -3556,8 +3898,7 @@ function focusRoom(id){
   soundWallLabel.hiddenByFocus = true;
   guardWallGroups.forEach(g=> g.visible = false);
 
-  const roomObj = (ROOMS_APPROX[target.level]||[]).find(r=>r.id===id);
-  renderRoomFocusElecList(buildElectricalSummary(), id, roomObj ? roomObj.name : id); // この部屋の電気設備一覧を右上パネルに表示
+  refreshRoomFocusElecPanel(); // この部屋の電気設備一覧を右上パネルに表示
 
   refreshLabelVis(); // 上で立てたhiddenByFocusフラグ＋寸法ラベル非表示を反映する
 

@@ -2,7 +2,7 @@
 // 自動生成ファイル。手で編集しないこと。
 // 生成元: data/house.json / data/furniture-catalog.json / data/furniture.json /
 //        data/door-catalog.json / data/window-catalog.json / data/openings.json / data/interior-doors.json /
-//        data/electrical-catalog.json / data/electrical.json
+//        data/electrical-catalog.json / data/electrical.json / data/electrical-estimate.json
 //        （このリポジトリの正本）
 // 生成コマンド: node scripts/build-web-data.mjs
 // これらのJSONを編集したら、このファイルを再生成してからブラウザで確認すること。
@@ -453,4 +453,18 @@ const ELECTRICAL_ITEMS = [
   { id:'elec-152', type:'outlet-waterproof', category:'outlet', mount:'exterior', level:1, face:'S', offset:3, width:0.1, depth:0.03, height:0.11, mountHeight:0.25, heightRef:'floor', shape:'outletPlate', label:'コンセント（防水） 1', status:'estimated' }, // 民泊LDK南面
   { id:'elec-153', type:'outlet-waterproof', category:'outlet', mount:'exterior', level:1, face:'S', offset:10, width:0.1, depth:0.03, height:0.11, mountHeight:0.25, heightRef:'floor', shape:'outletPlate', label:'コンセント（防水） 2', status:'estimated' }, // 自宅LDK南面（西寄り）
   { id:'elec-154', type:'outlet-waterproof', category:'outlet', mount:'exterior', level:1, face:'S', offset:17.5, width:0.1, depth:0.03, height:0.11, mountHeight:0.25, heightRef:'floor', shape:'outletPlate', label:'コンセント（防水） 3', status:'estimated' }, // 南土間付近
+];
+
+const ELECTRICAL_ESTIMATE = [
+  { id:'est-lighting', label:'電灯配線', quantity:41, types:['light-downlight', 'light-ceiling', 'light-pendant', 'light-bracket', 'light-indirect', 'light-exterior'] },
+  { id:'est-outlet-general', label:'コンセント', quantity:25, types:['outlet-double', 'outlet-triple', 'outlet-floor'] },
+  { id:'est-outlet-dedicated', label:'専用コンセント', quantity:25, types:['outlet-grounded'] },
+  { id:'est-outlet-ac', label:'コンセント（AC専用）', quantity:6, types:['outlet-ac'] },
+  { id:'est-outlet-ih', label:'コンセント（IH用）', quantity:2, types:['outlet-ih'] },
+  { id:'est-outlet-waterproof', label:'防水コンセント', quantity:3, types:['outlet-waterproof'] },
+  { id:'est-switch-1p', label:'スイッチ（片切）', quantity:29, types:['switch-1p', 'switch-dimmer', 'switch-sensor'] },
+  { id:'est-switch-3way', label:'スイッチ（3路）', quantity:16, types:['switch-3way'] },
+  { id:'est-tv', label:'TV配線', quantity:4, types:['data-tv'] },
+  { id:'est-intercom', label:'インターホン', quantity:2, types:['data-intercom'] },
+  { id:'est-distribution-board', label:'分電盤', quantity:1, types:['equip-distribution-board'] },
 ];

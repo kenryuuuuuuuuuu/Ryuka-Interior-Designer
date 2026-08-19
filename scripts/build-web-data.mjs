@@ -47,6 +47,8 @@ const electricalCatalogPath = path.join(root, "data", "electrical-catalog.json")
 const electricalPath = path.join(root, "data", "electrical.json");
 const electricalCatalog = JSON.parse(fs.readFileSync(electricalCatalogPath, "utf8"));
 const electrical = JSON.parse(fs.readFileSync(electricalPath, "utf8"));
+const electricalEstimatePath = path.join(root, "data", "electrical-estimate.json");
+const electricalEstimate = JSON.parse(fs.readFileSync(electricalEstimatePath, "utf8"));
 
 const CONF_FROM_STATUS = { verified: "高", derived: "中", estimated: "低" };
 
@@ -584,11 +586,21 @@ function buildElectricalItems() {
   return `const ELECTRICAL_ITEMS = [\n${rows.join("\n")}\n];`;
 }
 
+// data/electrical-estimate.json（見積書の明細）を素通しで出力する。導出ロジックは持たず、
+// 明細単位で現在数と比較する電気設備一覧（interior-white-model.htmlのbuildElectricalSummary()）が使う
+function buildElectricalEstimate() {
+  const rows = electricalEstimate.lines.map((line) => {
+    const types = line.types.map((t) => str(t)).join(", ");
+    return `  { id:${str(line.id)}, label:${str(line.label)}, quantity:${line.quantity}, types:[${types}] },`;
+  });
+  return `const ELECTRICAL_ESTIMATE = [\n${rows.join("\n")}\n];`;
+}
+
 const banner = `// ============================================================================
 // 自動生成ファイル。手で編集しないこと。
 // 生成元: data/house.json / data/furniture-catalog.json / data/furniture.json /
 //        data/door-catalog.json / data/window-catalog.json / data/openings.json / data/interior-doors.json /
-//        data/electrical-catalog.json / data/electrical.json
+//        data/electrical-catalog.json / data/electrical.json / data/electrical-estimate.json
 //        （このリポジトリの正本）
 // 生成コマンド: node scripts/build-web-data.mjs
 // これらのJSONを編集したら、このファイルを再生成してからブラウザで確認すること。
@@ -636,6 +648,8 @@ const output = [
   "",
   buildElectricalItems(),
   "",
+  buildElectricalEstimate(),
+  "",
 ].join("\n");
 
 // blender/build_house.py も同じ導出結果を読めるよう、内壁データを素のJSONとしても書き出す
@@ -675,7 +689,7 @@ if (mode === "--check") {
     normalize(currentWalls) === normalize(interiorWallsOutput) &&
     normalize(currentExteriorWalls) === normalize(exteriorWallsOutput)
   ) {
-    console.log("generated/house-data.js, generated/interior-walls.json and generated/exterior-walls.json are up to date with data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json.");
+    console.log("generated/house-data.js, generated/interior-walls.json and generated/exterior-walls.json are up to date with data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json / electrical-estimate.json.");
     process.exit(0);
   }
   console.error("generated/house-data.js, generated/interior-walls.json or generated/exterior-walls.json is STALE. Run: node scripts/build-web-data.mjs");
@@ -686,4 +700,4 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, output, "utf8");
 fs.writeFileSync(interiorWallsOutPath, interiorWallsOutput, "utf8");
 fs.writeFileSync(exteriorWallsOutPath, exteriorWallsOutput, "utf8");
-console.log(`Wrote ${path.relative(root, outPath)}, ${path.relative(root, interiorWallsOutPath)} and ${path.relative(root, exteriorWallsOutPath)} from data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json.`);
+console.log(`Wrote ${path.relative(root, outPath)}, ${path.relative(root, interiorWallsOutPath)} and ${path.relative(root, exteriorWallsOutPath)} from data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json / electrical-estimate.json.`);

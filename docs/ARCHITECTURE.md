@@ -16,6 +16,7 @@ data/openings.json（外部の窓・ドアの配置インスタンス）
 data/interior-doors.json（室内ドアの配置インスタンス）
 data/electrical-catalog.json（電気設備の型ライブラリ）
 data/electrical.json（電気設備の配置インスタンス）
+data/electrical-estimate.json（電気工事見積書の明細）
     │
     ├─ node scripts/build-web-data.mjs
     │      ↓
@@ -55,8 +56,9 @@ data/electrical.json（電気設備の配置インスタンス）
 | `data/interior-doors.json` | 室内ドアの配置インスタンス。正本 |
 | `data/interior-doors.schema.json` | `interior-doors.json` のデータ契約（JSON Schema） |
 | `data/electrical-catalog.json` | 電気設備（コンセント・スイッチ・照明・情報系配線・屋外設備）の「型」のライブラリ |
-| `data/electrical.json` | 電気設備の配置インスタンス。正本。見積書に基づく154箇所の完全配置（たたき台） |
+| `data/electrical.json` | 電気設備の配置インスタンス。正本。見積書に基づく154箇所の完全配置（たたき台）＋Web UIでの削除・追加編集 |
 | `data/electrical.schema.json` | `electrical.json` のデータ契約（JSON Schema） |
+| `data/electrical-estimate.json` | 電気工事の見積書の明細（数量）。正本。Web UI編集後の現在数と明細単位で比較するために使う |
 | `scripts/build-web-data.mjs` | 上記の正本ファイル群 → `generated/house-data.js` を生成する |
 | `scripts/seed-electrical.mjs` | 電気設備154箇所を部屋別配分から機械的に配置し`data/electrical.json`を再生成する一回限りのツール（常設パイプラインには含めない） |
 | `generated/house-data.js` | 生成物。`interior-white-model.html` が `<script src>` で読み込む |
@@ -164,6 +166,7 @@ data/electrical.json（電気設備の配置インスタンス）
   - **種類（type）切替の候補は`mount`が同じもの同士に制限**：`category`ではなく`mount`が位置表現を決めるフィールドのため（`light-bracket`はwall、他の照明はceilingのように同じcategoryでもmountが異なる型が実在する）
   - **XYZ数値入力パネル（微調整用、2026-08-19追加）**：パネルの「X/Y/Z」欄（`updateElectricalPositionFields()`/`applyElectricalPositionEdit()`）から座標を直接タイプして微調整できる。Yは`heightRef`（floor/ceiling）の違いを吸収し、常に「その階の床(FL)からの高さ」として統一表示・入力する（旧「取付け高さ」欄を統合・置き換え）。`mount:wall`は壁に沿う側の軸だけ編集可能で、固定側（壁面＝`wallAt`）は`disabled`にして壁ロックを可視化する（ドラッグ移動も元々壁沿いの1次元にしか動かせない設計だったため、既存の制約を数値入力でも同じ形で表現しただけ）。数値入力も`wallRangeForElectrical()`と同じ式でクランプする。`mount:exterior`は3欄とも参考表示のみで`disabled`（ドラッグ移動と同じくスコープ外、位置を変えたい場合は`data/electrical.json`を直接編集する運用のまま）
   - 編集内容は`electricalEdits`という差分オブジェクトとして持ち、`effectiveElectrical()`で重ねて描画（`localStorage`キー`ryuka-electrical-edits-v1`）。「electrical.jsonを書き出す」ボタンでダウンロードし`data/electrical.json`へ上書きコミットする運用
+  - **削除（2026-08-19追加）**：既存項目の書き換え（`electricalEdits`）とは別に、項目の増減を`electricalAdded`（追加した項目そのもの）・`electricalDeleted`（削除したidの一覧、いわば墓標）という2つのdiffで表現する（`localStorage`キーはそれぞれ`ryuka-electrical-added-v1`/`ryuka-electrical-deleted-v1`）。既存項目の書き換えと項目自体の増減を1つの構造に混ぜると「削除したのに編集が残る」のような復元時の不整合が起きやすいため、意図的に分けている。`ELECTRICAL_ITEMS`（`data/electrical.jsonから生成された不変の元データ）への直接参照は、この2つのdiffを踏まえた`allElectricalItems()`（表示・配置対象。追加分を加え削除済みを除く）・`findElectricalBase(id)`（削除済みも含めて探す、復元用）の2関数に集約し、初期配置ループ・`exportElectricalJSON()`・`buildElectricalSummary()`など全ての参照元をこの2関数経由に置き換えた。パネルの「🗑 この設備を削除」ボタン（`deleteSelectedElectrical()`）は`confirm()`の後`electricalDeleted`にidを積んで`removeElectricalMesh()`するだけで、`data/electrical-catalog.json`の型定義や元データは変えない（即座にデータを消さない）ため、一覧モーダルの「削除した設備」欄からいつでも`restoreDeletedElectrical(id)`で復元できる
 
 ### 俯瞰モードの部屋フォーカス
 
@@ -177,13 +180,27 @@ data/electrical.json（電気設備の配置インスタンス）
 - **防音壁・腰壁は部屋フォーカス中、常に非表示**：特定の部屋に紐付かない構造物のため、部屋所属の判定はせずフォーカス中は一律隠す（対象室に接していても表示しない。「対象室以外に色を付けない」という要望を最も単純に満たす形）
 - `focusRoom(id)`/`clearFocus()`：カメラは対象室のbboxにフィット（`camera.fov`から必要な`camDist`を逆算）。**ラベル（DOM要素）はメッシュの`visible`に連動しない**ため（`updateLabels()`は一度`display:'none'`にした要素をそのまま維持し、`refreshLabelVis()`はチェックボックスの状態だけを見て毎回block/noneを決め直す実装のため、単純に`style.display`へ直接書き込むと後からチェックボックスを操作した際に部屋フォーカスと無関係に復活してしまう）、`l.hiddenByFocus`という専用フラグを立て、`refreshLabelVis()`側でこのフラグも判定に含めることで恒久的に非表示を維持する設計にした（ドア・窓・防音壁・腰壁はラベルを持たないため、この仕組みの対象外＝メッシュの`visible`切替だけで完結する）
 
-### 電気設備一覧（型ごとの集計＋部屋ごとの内訳、2026-08-19追加）
+### 電気設備の追加：どの壁面に付けるかを選ぶ（2026-08-19追加）
 
-「電気計画を真剣に検討したい」という施主要望を受け、型ごとの総数と部屋ごとの設置内訳を俯瞰できる一覧を追加した。新規データは持たず、`ELECTRICAL_ITEMS`＋`effectiveElectrical()`（編集差分を反映した実効値）から`buildElectricalSummary()`が都度集計する（154件程度は再計算コストが無視できるため、キャッシュは持たない）。部屋所属の判定は部屋フォーカスと同じ`electricalRoomProbePoint()`＋`findRoomIdAt()`の動的判定を再利用し、`ELECTRICAL_ITEMS`の静的な`room`フィールド（シードスクリプト由来、ドラッグ編集後は追随しない）には依存しない。カテゴリの分類・並び順（コンセント/スイッチ/照明/情報系配線/関連設備）・色（`EMAT`と同じパレット）は`ELEC_CATEGORY_ORDER`にJS側で固定的に持たせている（表示専用のため`data/electrical-catalog.json`側は変更していない）。
+削除に比べ、追加は「どこに置くか」の指定が必要な分やっかい。特に壁付け設備（`mount:wall`）は、追加後のXYZ編集パネルで壁面側の座標をロックする設計（前段の「XYZ数値入力パネル」参照）にしているため、「とりあえず置いてから動かす」ができない。**追加する時点で壁を選ばせ、`side`（壁のどちら側＝部屋の内側を向くか）まで確定させる**設計にした（施主指摘：「追加は注意が必要。どの面に追加するかを選べるようにしてくれないと、設置した後、特定の座標がロックされている」）。
 
-- **一覧モーダル**（左メニュー「電気設備一覧」→「一覧を表示」、`#electricalSummaryOverlay`）：既存の`#spawnOverlay`と同じモーダル骨格に、154件を収めるスクロール領域（`#electricalSummaryBody`）を持たせた。冒頭に型ごとの内訳表（合計件数の内訳含む）、続けて1F/2Fの全部屋を`ROOMS_APPROX`の順に列挙（0件の部屋も「部屋名：0件」の一行で表示し、計画漏れを見逃さないようにする）、末尾に屋外設備・部屋未判定（本来空だが、編集で部屋外に出た場合の検知用）のセクションを表示する
-- **部屋フォーカス時の設置物リスト**（`#roomFocusElecPanel`）：`focusRoom(id)`が同じ集計関数からその部屋の内訳だけを`renderRoomFocusElecList()`で描画し表示、`clearFocus()`で非表示にする。当初は左メニュー（`#ui`）内に置いていたが、「常設の設定・凡例と、部屋フォーカス中だけ意味を持つ一時的な読み取り情報が混在して見づらい」との施主指摘（2026-08-19）を受け、`#electricalEditToggle`（俯瞰モード限定・画面右上のボタン）の直下に独立したカードとして切り出した。モバイル幅では`#topBar`の折り返しと、下側から52vhを占有する`#ui`の両方を避けるオフセット・`max-height`を`@media (max-width:640px)`側で個別に調整している
-- **行クリックで選択**：どちらのリストの行も`data-elec-id`を持ち、クリックすると`selectElectricalFromSummary(id)`（一覧モーダル）／直接`setSelectedElectrical(id)`（部屋フォーカスリスト、既にその部屋にフォーカス済みのため）でその設備を選択し、電気設備編集パネル（X/Y/Z欄）まで開く。一覧モーダル側は俯瞰モードでなければ`setMode('orbit')`で切り替え、対象の部屋へ`focusRoom()`も合わせて行ってから選択する
+- **入口**：部屋フォーカス中の右上パネル（`#roomFocusElecPanel`）の「＋ この部屋に設備を追加」ボタン（`openElectricalAdd()`）。部屋フォーカス中にしか出さないことで、追加先の部屋・階が文脈から自動的に確定する
+- **`wallsForRoom(roomId, level)`**：部屋に接する壁セグメント（`wallSegmentsByLevel`＝内壁+外壁+ドア切り欠き済み、腰壁`guardHeight`ありは対象外）を、部屋の内側を向く`side`込みで返す。`electricalRoomProbePoint()`（壁面から`side`の方向へ`ROOM_PROBE_OFFSET`だけずらした点で部屋所属を判定する）の逆変換：壁セグメントと部屋のbboxの重なり区間を取り、その中点の両側をそれぞれ`ROOM_PROBE_OFFSET`だけずらして`findRoomIdAt()`で判定し、対象室に入った側を`side`として採用する。壁の呼び名（北側/南側/西側/東側）も`orientation`+`side`から機械的に決まる（建物座標系はx=西→東、z=北→南のため、H&side>0→北側／H&side<0→南側／V&side>0→西側／V&side<0→東側）
+- **追加ダイアログ**（`#electricalAddOverlay`、`#spawnOverlay`と同じモーダル骨格）：型はカタログ全型からカテゴリ順に選択（`mount:exterior`は既存のドラッグ移動・XYZ編集と同じくスコープ外のため候補から除く）。選んだ型が`mount:wall`のときだけ`wallsForRoom()`の候補（例：「北側の壁（幅910mm）」）を壁面セレクトに出し、`mount:ceiling/floor`のときは「部屋の中央付近に配置します」という案内文に切り替わる
+- **追加の確定**（`#eaSubmit`）：`ELECTRICAL_CATALOG[type]`（プロファイル）の`category`/`mount`/`width`/`depth`/`height`/`mountHeight`/`heightRef`/`shape`をそのまま複製した完全な形の項目を作る（`scripts/build-web-data.mjs`の`buildElectricalItems()`がNode側でカタログのプロファイルを展開して`ELECTRICAL_ITEMS`を生成しているのと同じことをブラウザ側でも行う必要がある。これを怠ると`shape`欠落で`placeElectricalItem()`が何も描画できず`electricalMeshes`にも登録されない、という実装中に踏んだ不具合がある）。壁付けは選んだ壁の中点に`center`/`wallAt`/`orientation`/`side`を設定、天井/床付けは部屋bboxの中心（L字部屋で外れる場合は`pointInPolygon()`＋`centroid()`で重心へフォールバック、`scripts/seed-electrical.mjs`の`placeCeilingItem()`と同じ考え方）。idは`elec-m01`のように「m(manual)+連番」で採番し（`nextManualElectricalId()`、`ELECTRICAL_ITEMS`・`electricalAdded`の両方と衝突しないことを確認しながら採番）、ラベルは追加前時点の`buildElectricalSummary()`の部屋別内訳から同室・同型の既存数を数えて連番を振る（動的な部屋所属判定を使うため、内壁付け設備のように元データに`room`フィールドが無い項目が既にあっても正しく数えられる）。追加後はその場で選択状態にし、電気設備編集パネル（XYZ欄）を開いてすぐ微調整できるようにする
+
+### 電気設備一覧（型ごとの集計＋見積との差分＋部屋ごとの内訳、2026-08-19追加）
+
+「電気計画を真剣に検討したい」という施主要望を受け、型ごとの総数と部屋ごとの設置内訳を俯瞰できる一覧を追加した。新規データは持たず、`allElectricalItems()`＋`effectiveElectrical()`（追加・削除・編集差分を反映した実効値）から`buildElectricalSummary()`が都度集計する（154件程度は再計算コストが無視できるため、キャッシュは持たない）。部屋所属の判定は部屋フォーカスと同じ`electricalRoomProbePoint()`＋`findRoomIdAt()`の動的判定を再利用し、`ELECTRICAL_ITEMS`の静的な`room`フィールド（シードスクリプト由来、ドラッグ編集後は追随しない）には依存しない。カテゴリの分類・並び順（コンセント/スイッチ/照明/情報系配線/関連設備）・色（`EMAT`と同じパレット）は`ELEC_CATEGORY_ORDER`にJS側で固定的に持たせている（表示専用のため`data/electrical-catalog.json`側は変更していない）。
+
+- **見積との差分表示**：削除・追加を始めると見積書の数量と何が違うか追いにくくなるため、`data/electrical-estimate.json`（見積書の明細。正本、下記参照）の明細ごとに「現在数 / 見積数」を突き合わせる。見積の明細は「電灯配線」のように複数のカタログ型をまとめた用途単位で数量を計上しているため、比較も型単位ではなく明細単位で行う（`buildElectricalSummary()`が`typeToLine`＝型→明細idのMapを作り、集計と同時に明細ごとの現在数`lineCounts`を積み上げる）。差が出ている明細は`renderEstimateLines()`が`.elecEstimateDiff`で強調し、明細の下には内訳として実際に使われている型ごとの件数をぶら下げる。見積のどの明細にも属さない型（LANコンセント等）は「見積外」としてまとめる
+- **一覧モーダル**（左メニュー「電気設備一覧」→「一覧を表示」、`#electricalSummaryOverlay`）：既存の`#spawnOverlay`と同じモーダル骨格に、154件を収めるスクロール領域（`#electricalSummaryBody`）を持たせた。冒頭に合計件数（現在/見積）と見積明細ごとの内訳、続けて1F/2Fの全部屋を`ROOMS_APPROX`の順に列挙（0件の部屋も「部屋名：0件」の一行で表示し、計画漏れを見逃さないようにする）、屋外設備・部屋未判定（本来空だが、編集で部屋外に出た場合の検知用）、末尾に「削除した設備」（`deletedElectricalItems()`、行ごとに`restoreDeletedElectrical(id)`を呼ぶ復元ボタン付き）のセクションを表示する。部屋フォーカス中は合計・見積差分はフィルタせず、階見出し以下（部屋別内訳）だけを対象室に絞る（施主指摘：「フォーカスした部屋だけ見たい」）
+- **部屋フォーカス時の設置物リスト**（`#roomFocusElecPanel`）：`focusRoom(id)`が同じ集計関数からその部屋の内訳だけを`renderRoomFocusElecList()`で描画し表示、`clearFocus()`で非表示にする。当初は左メニュー（`#ui`）内に置いていたが、「常設の設定・凡例と、部屋フォーカス中だけ意味を持つ一時的な読み取り情報が混在して見づらい」との施主指摘を受け、`#electricalEditToggle`（俯瞰モード限定・画面右上のボタン）の直下に独立したカードとして切り出した。モバイル幅では`#topBar`の折り返しと、下側から52vhを占有する`#ui`の両方を避けるオフセット・`max-height`を`@media (max-width:640px)`側で個別に調整している。ヘッダー・行一覧・追加ボタンの3段は`display:flex;flex-direction:column`で組み、行一覧だけを`overflow-y:auto`のスクロール領域にすることで、部屋の設備数によらず追加ボタンが常に見える位置に固定される
+- **行クリックで選択**：どちらのリストの行も`data-elec-id`を持ち、クリックすると`selectElectricalFromSummary(id)`（一覧モーダル）／直接`setSelectedElectrical(id)`（部屋フォーカスリスト、既にその部屋にフォーカス済みのため）でその設備を選択し、電気設備編集パネル（X/Y/Z欄）まで開く。一覧モーダル側は俯瞰モードでなければ`setMode('orbit')`で切り替え、対象の部屋へ`focusRoom()`も合わせて行ってから選択する。復元ボタン（`data-elec-restore-id`）は行クリックとは別のdata属性にし、委譲ハンドラ側で先に判定する
+
+### 見積データ（`data/electrical-estimate.json`）
+
+施工会社の見積書（電気工事）の明細を機械比較できる形で持つ正本。1明細＝複数の`data/electrical-catalog.json`の型をまとめたもの（見積書自体が型ではなく用途の単位で数量を計上しているため）。`scripts/build-web-data.mjs`は`ELECTRICAL_ESTIMATE`定数として素通しで出力する（導出ロジックは持たない）。`tests/validate_electrical.py`は、明細が参照する型が全てカタログに存在すること・1つの型が複数の明細に重複して属さないこと（重複すると差分計算が二重計上になる）を確認する。
 
 ### シードスクリプト（`scripts/seed-electrical.mjs`）
 

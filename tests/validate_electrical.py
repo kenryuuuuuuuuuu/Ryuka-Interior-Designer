@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "data" / "electrical-catalog.json"
 ELECTRICAL = ROOT / "data" / "electrical.json"
+ESTIMATE = ROOT / "data" / "electrical-estimate.json"
 HOUSE = ROOT / "data" / "house.json"
 INTERIOR_WALLS = ROOT / "generated" / "interior-walls.json"
 EXTERIOR_WALLS = ROOT / "generated" / "exterior-walls.json"
@@ -112,6 +113,7 @@ def check_exterior_within_wall(item, effective_width, footprints, exterior_walls
 def main():
     catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
     electrical = json.loads(ELECTRICAL.read_text(encoding="utf-8"))
+    estimate = json.loads(ESTIMATE.read_text(encoding="utf-8"))
     house = json.loads(HOUSE.read_text(encoding="utf-8"))
     # 内壁・外壁はいずれもdata/house.jsonから自動導出したもの（node scripts/build-web-data.mjsで
     # generated/interior-walls.json・generated/exterior-walls.jsonに書き出される）。
@@ -138,6 +140,24 @@ def main():
         assert t["width"] > 0 and t["depth"] > 0 and t["height"] > 0, f"{t['type']}: 寸法は正の数であること"
         assert t["mountHeight"] >= 0, f"{t['type']}: mountHeightは0以上であること"
     by_type = {t["type"]: t for t in types}
+
+    # 見積書の明細（施主が削除・追加を始めても、見積数量との差分を明細単位で追えるようにする
+    # ための正本）。型を複数の明細で重複計上すると差分がずれるため、1型=最大1明細であることを確認する
+    assert estimate["schemaVersion"] == "1.0.0"
+    lines = estimate["lines"]
+    assert len(lines) > 0, "electrical-estimate.json: lines が空"
+    line_ids = [l["id"] for l in lines]
+    assert len(line_ids) == len(set(line_ids)), "electrical-estimate.json: id が重複している"
+    seen_types = {}
+    for line in lines:
+        for field in ("id", "label", "quantity", "types"):
+            assert field in line, f"electrical-estimate.json: {line.get('id', '?')} に{field}がない"
+        assert line["quantity"] > 0, f"electrical-estimate.json: {line['id']}のquantityは正の数であること"
+        assert len(line["types"]) > 0, f"electrical-estimate.json: {line['id']}のtypesが空"
+        for t in line["types"]:
+            assert t in by_type, f"electrical-estimate.json: {line['id']}が未知のtype「{t}」を参照している"
+            assert t not in seen_types, f"electrical-estimate.json: type「{t}」が複数の明細（{seen_types.get(t)}, {line['id']}）に重複して属している"
+            seen_types[t] = line["id"]
 
     assert electrical["schemaVersion"] == "1.0.0"
     assert electrical["units"] == "m"

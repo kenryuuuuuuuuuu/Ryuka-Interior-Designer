@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0.0",
+  "source": "天領住宅 見積書 12.電気工事（施主が電気工事に関する明細をコピペしたものを2026-08-18に書き起こし）",
+  "note": "電気設備の削除・追加（Web UI編集）を始めると、施工会社の見積数量と現在の配置数がどれだけ乖離しているか追いにくくなるため、見積の明細単位で現在数と比較するための正本。1明細＝複数のdata/electrical-catalog.jsonの型をまとめたもの（見積書自体が型ではなく用途の単位で数量を計上しているため）。typesに列挙した型のいずれかを追加・削除すると、対応する明細の現在数がその場で増減する。見積のどの明細にも属さない型（LANコンセント・エアコンスリーブ・換気扇など）は一覧側で「見積外」としてまとめて表示する。",
+  "lines": [
+    { "id": "est-lighting", "label": "電灯配線", "quantity": 41,
+      "types": ["light-downlight", "light-ceiling", "light-pendant", "light-bracket", "light-indirect", "light-exterior"] },
+    { "id": "est-outlet-general", "label": "コンセント", "quantity": 25,
+      "types": ["outlet-double", "outlet-triple", "outlet-floor"] },
+    { "id": "est-outlet-dedicated", "label": "専用コンセント", "quantity": 25,
+      "types": ["outlet-grounded"] },
+    { "id": "est-outlet-ac", "label": "コンセント（AC専用）", "quantity": 6,
+      "types": ["outlet-ac"] },
+    { "id": "est-outlet-ih", "label": "コンセント（IH用）", "quantity": 2,
+      "types": ["outlet-ih"] },
+    { "id": "est-outlet-waterproof", "label": "防水コンセント", "quantity": 3,
+      "types": ["outlet-waterproof"] },
+    { "id": "est-switch-1p", "label": "スイッチ（片切）", "quantity": 29,
+      "types": ["switch-1p", "switch-dimmer", "switch-sensor"] },
+    { "id": "est-switch-3way", "label": "スイッチ（3路）", "quantity": 16,
+      "types": ["switch-3way"] },
+    { "id": "est-tv", "label": "TV配線", "quantity": 4,
+      "types": ["data-tv"] },
+    { "id": "est-intercom", "label": "インターホン", "quantity": 2,
+      "types": ["data-intercom"] },
+    { "id": "est-distribution-board", "label": "分電盤", "quantity": 1,
+      "types": ["equip-distribution-board"] }
+  ]
+}
