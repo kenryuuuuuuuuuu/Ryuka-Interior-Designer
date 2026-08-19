@@ -20,6 +20,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const housePath = path.join(root, "data", "house.json");
 const outPath = path.join(root, "generated", "house-data.js");
 const interiorWallsOutPath = path.join(root, "generated", "interior-walls.json");
+const exteriorWallsOutPath = path.join(root, "generated", "exterior-walls.json");
 const mode = process.argv[2] ?? "--write";
 
 if (!["--check", "--write"].includes(mode)) {
@@ -180,7 +181,7 @@ function buildRoomsApprox() {
       .filter((r) => r.level === lvl)
       .map((r) => {
         const b = bbox(r.polygon);
-        const fields = [`name:${str(r.label)}`, `x0:${num(b.x0)}`, `x1:${num(b.x1)}`, `z0:${num(b.z0)}`, `z1:${num(b.z1)}`];
+        const fields = [`id:${str(r.id)}`, `name:${str(r.label)}`, `x0:${num(b.x0)}`, `x1:${num(b.x1)}`, `z0:${num(b.z0)}`, `z1:${num(b.z1)}`];
         if (r.polygon.length > 4 || !isRectilinear(r.polygon)) {
           const pts = r.polygon.map(([x, z]) => `[${num(x)},${num(z)}]`).join(",");
           fields.push(`poly:[${pts}]`);
@@ -418,6 +419,67 @@ function deriveInteriorWalls() {
 
 const derivedInteriorWalls = deriveInteriorWalls();
 
+// ============================================================================
+// 屋外電気設備(data/electrical-catalog.jsonのmount:'exterior')の配置検証
+// (tests/validate_electrical.py)向けに、建物の真の外周（外壁）データを
+// generated/exterior-walls.json として書き出す。アルゴリズムはinterior-white-model.html の
+// exteriorSegmentsForLevel()/subtractRanges()と全く同じ（「区間の引き算」方式で、
+// footprints群の共有辺=実在しない内部の継ぎ目を取り除く）。HTML側は内覧モードの当たり判定用に
+// 実行時にFLOOR1/FLOOR2から自分で計算しており変更不要（この複製の対象はNode側のみ）。
+// generated/interior-walls.jsonと同じ設計思想：Node側を正本にし、Pythonは読むだけ。
+// ============================================================================
+function subtractRanges(ranges, cutFrom, cutTo) {
+  const out = [];
+  ranges.forEach(([a, b]) => {
+    if (a < cutFrom) out.push([a, Math.min(b, cutFrom)]);
+    if (b > cutTo) out.push([Math.max(a, cutTo), b]);
+  });
+  return out.filter(([a, b]) => b - a > 1e-4);
+}
+function exteriorSegmentsForLevel(rects) {
+  const segs = [];
+  rects.forEach((r, i) => {
+    const edges = [
+      { orientation: "H", at: r.z0, from: r.x0, to: r.x1 },
+      { orientation: "H", at: r.z1, from: r.x0, to: r.x1 },
+      { orientation: "V", at: r.x0, from: r.z0, to: r.z1 },
+      { orientation: "V", at: r.x1, from: r.z0, to: r.z1 },
+    ];
+    edges.forEach((edge) => {
+      let ranges = [[edge.from, edge.to]];
+      rects.forEach((other, j) => {
+        if (j === i) return;
+        let cf, ct, touches = false;
+        if (edge.orientation === "H" && (other.z0 === edge.at || other.z1 === edge.at)) {
+          cf = Math.max(other.x0, edge.from); ct = Math.min(other.x1, edge.to); touches = cf < ct;
+        } else if (edge.orientation === "V" && (other.x0 === edge.at || other.x1 === edge.at)) {
+          cf = Math.max(other.z0, edge.from); ct = Math.min(other.z1, edge.to); touches = cf < ct;
+        }
+        if (touches) ranges = subtractRanges(ranges, cf, ct);
+      });
+      ranges.forEach(([a, b]) => segs.push({ orientation: edge.orientation, at: edge.at, from: a, to: b }));
+    });
+  });
+  return segs;
+}
+function buildExteriorWallsData() {
+  let seq = 0;
+  const out = [];
+  [1, 2].forEach((level) => {
+    const rects = level === 1
+      ? house.footprints.filter((f) => f.level === 1)
+      : [house.footprints.find((f) => f.level === 2)];
+    exteriorSegmentsForLevel(rects).forEach((s) => {
+      seq += 1;
+      const id = `wall-ext-${level === 1 ? "1f" : "2f"}-auto-${String(seq).padStart(3, "0")}`;
+      if (s.orientation === "H") out.push({ id, level, x0: s.from, x1: s.to, z0: s.at, z1: s.at, orientation: "H" });
+      else out.push({ id, level, x0: s.at, x1: s.at, z0: s.from, z1: s.to, orientation: "V" });
+    });
+  });
+  return out;
+}
+const derivedExteriorWalls = buildExteriorWallsData();
+
 function buildWalls() {
   const rows = derivedInteriorWalls
     .map((w) => `  { id:${str(w.id)}, level:${w.level}, x0:${num(w.x0)}, x1:${num(w.x1)}, z0:${num(w.z0)}, z1:${num(w.z1)}, orientation:${str(w.orientation)} }`)
@@ -500,6 +562,9 @@ function buildElectricalItems() {
     ];
     if (profile.mount === "wall") {
       fields.push(`wallAt:${num(item.wallAt)}`, `orientation:${str(item.orientation)}`, `center:${num(item.center)}`, `side:${item.side}`);
+    } else if (profile.mount === "exterior") {
+      fields.push(`face:${str(item.face)}`, `offset:${num(item.offset)}`);
+      if (item.wallX !== undefined) fields.push(`wallX:${num(item.wallX)}`);
     } else {
       fields.push(`x:${num(item.x)}`, `z:${num(item.z)}`);
     }
@@ -585,21 +650,40 @@ const interiorWallsOutput = `${JSON.stringify(
   2,
 )}\n`;
 
+// generated/interior-walls.jsonと対になる、建物の真の外周（外壁）データ。
+// tests/validate_electrical.pyがmount:'exterior'の電気設備・mount:'wall'のうち
+// 外壁の室内側に付く設備の配置検証に使う。
+const exteriorWallsOutput = `${JSON.stringify(
+  {
+    schemaVersion: "1.0.0",
+    note: "自動生成ファイル。手で編集しないこと。data/house.json の footprints（求積図のゾーン区分）から、隣接ゾーンの共有辺（実在しない内部の継ぎ目）を「区間の引き算」方式で取り除いた、建物の真の外周（外壁）データ。生成コマンド: node scripts/build-web-data.mjs。interior-white-model.html の exteriorSegmentsForLevel()（内覧モードの当たり判定に使用、変更なし）と同じロジックをNode側に複製したもの。tests/validate_electrical.py がmount:'exterior'の電気設備、およびmount:'wall'のうち外壁の室内側に付く設備の配置検証に使う。generated/interior-walls.json（内壁の自動導出）と対になる生成物。",
+    walls: derivedExteriorWalls,
+  },
+  null,
+  2,
+)}\n`;
+
 if (mode === "--check") {
   // Windowsのgit checkoutはCRLFに変換することがあるため、改行コードの違いだけで
   // 誤ってSTALE判定しないよう正規化してから比較する。
   const normalize = (s) => (s == null ? s : s.replace(/\r\n/g, "\n"));
   const current = fs.existsSync(outPath) ? fs.readFileSync(outPath, "utf8") : null;
   const currentWalls = fs.existsSync(interiorWallsOutPath) ? fs.readFileSync(interiorWallsOutPath, "utf8") : null;
-  if (normalize(current) === normalize(output) && normalize(currentWalls) === normalize(interiorWallsOutput)) {
-    console.log("generated/house-data.js and generated/interior-walls.json are up to date with data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json.");
+  const currentExteriorWalls = fs.existsSync(exteriorWallsOutPath) ? fs.readFileSync(exteriorWallsOutPath, "utf8") : null;
+  if (
+    normalize(current) === normalize(output) &&
+    normalize(currentWalls) === normalize(interiorWallsOutput) &&
+    normalize(currentExteriorWalls) === normalize(exteriorWallsOutput)
+  ) {
+    console.log("generated/house-data.js, generated/interior-walls.json and generated/exterior-walls.json are up to date with data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json.");
     process.exit(0);
   }
-  console.error("generated/house-data.js or generated/interior-walls.json is STALE. Run: node scripts/build-web-data.mjs");
+  console.error("generated/house-data.js, generated/interior-walls.json or generated/exterior-walls.json is STALE. Run: node scripts/build-web-data.mjs");
   process.exit(1);
 }
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, output, "utf8");
 fs.writeFileSync(interiorWallsOutPath, interiorWallsOutput, "utf8");
-console.log(`Wrote ${path.relative(root, outPath)} and ${path.relative(root, interiorWallsOutPath)} from data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json.`);
+fs.writeFileSync(exteriorWallsOutPath, exteriorWallsOutput, "utf8");
+console.log(`Wrote ${path.relative(root, outPath)}, ${path.relative(root, interiorWallsOutPath)} and ${path.relative(root, exteriorWallsOutPath)} from data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json.`);

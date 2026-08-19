@@ -54,17 +54,20 @@ data/electrical.json（電気設備の配置インスタンス）
 | `data/openings.schema.json` | `openings.json` のデータ契約（JSON Schema） |
 | `data/interior-doors.json` | 室内ドアの配置インスタンス。正本 |
 | `data/interior-doors.schema.json` | `interior-doors.json` のデータ契約（JSON Schema） |
-| `data/electrical-catalog.json` | 電気設備（コンセント・スイッチ・照明・情報系配線）の「型」のライブラリ |
-| `data/electrical.json` | 電気設備の配置インスタンス。正本。第1段階（データ構造・表示）のみ完了 |
+| `data/electrical-catalog.json` | 電気設備（コンセント・スイッチ・照明・情報系配線・屋外設備）の「型」のライブラリ |
+| `data/electrical.json` | 電気設備の配置インスタンス。正本。見積書に基づく154箇所の完全配置（たたき台） |
 | `data/electrical.schema.json` | `electrical.json` のデータ契約（JSON Schema） |
 | `scripts/build-web-data.mjs` | 上記の正本ファイル群 → `generated/house-data.js` を生成する |
+| `scripts/seed-electrical.mjs` | 電気設備154箇所を部屋別配分から機械的に配置し`data/electrical.json`を再生成する一回限りのツール（常設パイプラインには含めない） |
 | `generated/house-data.js` | 生成物。`interior-white-model.html` が `<script src>` で読み込む |
+| `generated/interior-walls.json` | 生成物。`house.json`のroomsから自動導出した内壁データ |
+| `generated/exterior-walls.json` | 生成物。`house.json`のfootprintsから自動導出した外壁（建物の真の外周）データ。屋外電気設備・外壁沿いの壁付け設備の検証に使う |
 | `interior-white-model.html` | Three.js製の内装白模型。表示・操作ロジックのみを持つ。単体でブラウザに開ける |
-| `blender/build_house.py` | `house.json`・`door-catalog.json`・`window-catalog.json`・`openings.json`・`interior-doors.json`からBlender白模型を再生成するスクリプト（家具は対象外） |
+| `blender/build_house.py` | `house.json`・`door-catalog.json`・`window-catalog.json`・`openings.json`・`interior-doors.json`からBlender白模型を再生成するスクリプト（家具・電気設備は対象外） |
 | `tests/validate_house.py` | `house.json` の整合性チェック（依存ライブラリなしで動作） |
 | `tests/validate_furniture.py` | `furniture-catalog.json` / `furniture.json` の整合性チェック（house.jsonのroomsとの照合含む） |
 | `tests/validate_openings.py` | `door-catalog.json` / `window-catalog.json` / `openings.json` / `interior-doors.json` の整合性チェック（house.jsonのfootprints、および`generated/interior-walls.json`との照合含む。実行前に`node scripts/build-web-data.mjs`が必要） |
-| `tests/validate_electrical.py` | `electrical-catalog.json` / `electrical.json` の整合性チェック（house.jsonのrooms、および`generated/interior-walls.json`との照合含む。実行前に`node scripts/build-web-data.mjs`が必要） |
+| `tests/validate_electrical.py` | `electrical-catalog.json` / `electrical.json` の整合性チェック（house.jsonのrooms/footprints、および`generated/interior-walls.json`・`generated/exterior-walls.json`との照合含む。実行前に`node scripts/build-web-data.mjs`が必要） |
 | `index.html` | GitHub PagesのルートURL用リダイレクト。`interior-white-model.html`へ転送するだけ |
 | `manifest.webmanifest` / `sw.js` / `icon.svg` | PWA化（ホーム画面追加・オフライン起動）の設定一式。詳細は下記「公開（GitHub Pages / PWA）」 |
 | `vendor/three.min.js` | Three.js本体のローカル同梱コピー（CDN非依存。オフライン起動のため） |
@@ -124,30 +127,61 @@ data/electrical.json（電気設備の配置インスタンス）
 
 ## 電気設備（electrical）
 
-家具・窓ドアに続く3本目の柱。着工後は変更コストが跳ね上がるため優先度が高い（[STATUS.md](STATUS.md)参照）。2026-08-18に**第1段階（データ構造＋読み取り専用の3D/平面図表示）**、続けて同日**第2段階（Web UI編集）**を実装した。当たり判定は今後も対象外（電気設備は壁・天井付けで歩行の障害物にならないため）。
+家具・窓ドアに続く3本目の柱。着工後は変更コストが跳ね上がるため優先度が高い（[STATUS.md](STATUS.md)参照）。2026-08-18に**第1段階（データ構造＋読み取り専用の3D/平面図表示）**→**第2段階（Web UI編集）**→施主から天領住宅の電気工事見積書（電灯配線41／コンセント25／専用コンセント25／AC専用6／IH用2／防水コンセント3／スイッチ片切29／3路16(8組)／TV4／インターホン2／分電盤1＝合計154箇所）に基づく**完全配置（154箇所、屋外含む）＋俯瞰モードの部屋フォーカス＋電気設備編集の俯瞰専用化**、と3段階で実装した。当たり判定は対象外（電気設備は壁・天井付けで歩行の障害物にならないため）。
+
+### データモデル：`mount`による3系統＋屋外の位置表現
 
 - `data/electrical-catalog.json`：コンセント・スイッチ・照明・情報系配線（LAN/TV/インターホン）・関連設備（エアコンスリーブ・換気扇・分電盤）の「型」。furniture-catalog.jsonと同じ考え方で、種類ごとの標準寸法（`width`/`depth`/`height`）に加え、電気設備特有の3フィールドを持つ
-  - `mount`（`wall`=壁付け／`ceiling`=天井付け／`floor`=床付け）：`data/electrical.json`側でどちらの位置表現（下記）を使うかを型ごとに決める
-  - `heightRef`（`floor`=床から／`ceiling`=天井から）＋`mountHeight`：取付け高さの基準面と距離。`heightRef:floor`はFLからのセンターハイト（コンセント0.25m・スイッチ1.2m等、日本の住宅の慣習値）、`heightRef:ceiling`は天井面から器具の取付け原点までの下がり寸法（0=天井面フラッシュ、ペンダント照明は吊り下げ長ぶん正の値）
-  - `shape`：`interior-white-model.html`の`ELECTRICAL_SHAPES`に対応
-- `data/electrical.json`：配置インスタンス。正本。位置表現が型の`mount`によって2系統に分かれる
-  - `mount:wall`（コンセント・スイッチ・情報系・分電盤・エアコンスリーブ・ブラケット照明）：`data/interior-doors.json`と同じ`wallAt`＋`orientation`（H/V）＋`center`に加え、新規`side`（`1`/`-1`、壁のどちら側を向くか）。壁付け設備は家具のような自由回転を持たず、`orientation`+`side`から`rotation.y`を自動導出する（家具の0/90/180/270度回転とは性質が異なるため、あえてフィールドを分けている）
+  - `mount`（`wall`=壁付け／`ceiling`=天井付け／`floor`=床付け／`exterior`=屋外設置）：`data/electrical.json`側でどの位置表現（下記）を使うかを型ごとに決める
+  - `heightRef`（`floor`=床から／`ceiling`=天井から。`exterior`は常に`floor`）＋`mountHeight`：取付け高さの基準面と距離。`heightRef:floor`はFLからのセンターハイト（コンセント0.25m・スイッチ1.2m等、日本の住宅の慣習値）、`heightRef:ceiling`は天井面から器具の取付け原点までの下がり寸法（0=天井面フラッシュ、ペンダント照明は吊り下げ長ぶん正の値）
+  - `shape`：`interior-white-model.html`の`ELECTRICAL_SHAPES`に対応（`light-exterior`は`bracketLight`関数を流用し、専用のshape関数は追加していない）
+- `data/electrical.json`：配置インスタンス。正本。位置表現が型の`mount`によって3系統に分かれる
+  - `mount:wall`（コンセント・スイッチ・情報系・分電盤・エアコンスリーブ・ブラケット照明）：`data/interior-doors.json`と同じ`wallAt`＋`orientation`（H/V）＋`center`に加え、`side`（`1`/`-1`、壁のどちら側を向くか）。壁付け設備は家具のような自由回転を持たず、`orientation`+`side`から`rotation.y`を自動導出する
   - `mount:ceiling`/`floor`（照明・換気扇・床コンセント）：`data/furniture.json`と同じ`x`/`z`（自由座標）＋`room`（任意）
-  - どちらも任意で`widthOverride`/`depthOverride`/`heightOverride`/`mountHeightOverride`（このインスタンスだけ標準値から変える場合）を持つ。`circuit`（回路名・ブレーカー番号）は将来の配線図用に予約したフィールドで、現状は表示に使わない
-- `data/electrical.schema.json`：`mount`によって必須フィールドが変わるため、スキーマ自体はどちらの位置系フィールドも任意にし、`mount`別の必須チェックは`tests/validate_electrical.py`側で行う（`interior-doors.schema.json`と`validate_openings.py`のoperation別チェックと同じ考え方）
-- `tests/validate_electrical.py`：ID重複・catalog参照・`mount`別必須フィールドに加え、壁付け設備は`generated/interior-walls.json`との突合せ（`validate_openings.py`の`check_door_within_wall()`と同じロジック）、天井/床付け設備は`room`参照時のbbox照合（`validate_furniture.py`と同じロジック）を行う
-- **`interior-white-model.html`側の実装**：家具と同じ`fPart()`（箱・円柱の組み合わせ）を使い、`ELECTRICAL_SHAPES`（型ごとの組み立て関数）→`placeElectricalItem()`（型→shape関数→`groups.electrical1/2`へ追加→`makeLabel()`）という流れも家具（`FURNITURE_SHAPES`/`placeFurnitureItem()`）と同一パターン。**ドアのような「平面図記号＋内覧用の別実装」の二重実装はしない**（電気設備には開閉のような動的状態がなく、俯瞰・平面図・内覧の全モードで同一メッシュを使い回せば足りるため）。壁付け設備用の共有ジオメトリ`ePlate()`、天井/床付け設備用の`eDisc()`の2つのヘルパーに形状を集約し、各shape関数はその上に小さな装飾（差込口・トグルドット等）を足すだけの薄いラッパーにしている
-  - **平面図の記号表現**：JIS Z 8017準拠の専用2D記号エンジン（ドアの`drawSwingLeaf()`相当）は作らず、3D形状そのものを真上から見てJIS記号に近いシルエットになるよう設計する折衷案を採った（コンセント＝円盤＋差込口ドット2つ、スイッチ＝角プレート＋中央ドット等）。このビューアは施工会社との打ち合わせ用のたたき台であり正式な配線図ではないため（家具・窓ドアと同じ`status:estimated`運用）、専用記号エンジンへの投資はコストに見合わないと判断した
-  - 当たり判定（`furnitureSegmentsByLevel`相当）は持たない。電気設備は壁・天井付けで歩行の障害物にならないため
-- **Web UI上での配置編集（第2段階、2026-08-18実装）**：平面図モードで「✎ 電気設備編集」ボタンをONにすると、電気設備のクリック/タップ選択→ドラッグで移動できる。`data/electrical.json`という1ファイルに対応する編集トグルは1つだが、内部では`item.mount`によってドラッグ方式が分岐する
-  - **壁付け設備**：窓ドア編集と同じ「壁に沿った1次元ドラッグ＋範囲クランプ」。`wallRangeForInteriorDoor()`をほぼそのままコピーした`wallRangeForElectrical()`が、`WALLS`から該当する壁1本を特定して可動範囲を返す
+  - `mount:exterior`（防水コンセント・外灯）：`data/openings.json`の外部窓・ドアと同じ`face`(N/S/E/W)+`offset`+`level`(+任意`wallX`)。`side`は持たず、回転は`face`から一意に決まる（外部開口の`swingDir:'out'`と同じ考え方）
+  - いずれも任意で`widthOverride`/`depthOverride`/`heightOverride`/`mountHeightOverride`（このインスタンスだけ標準値から変える場合）を持つ。`circuit`（回路名・ブレーカー番号）は将来の配線図用に予約したフィールドで、現状は表示に使わない
+- `data/electrical.schema.json`：`mount`によって必須フィールドが変わるため、スキーマ自体はどの位置系フィールドも任意にし、`mount`別の必須チェックは`tests/validate_electrical.py`側で行う（`interior-doors.schema.json`と`validate_openings.py`のoperation別チェックと同じ考え方）
+
+### 外壁データ（`generated/exterior-walls.json`）
+
+屋外電気設備の配置検証と、壁付け設備が「外壁の室内側」に付く場合の壁突合せ検証のために新設した、`generated/interior-walls.json`（内壁の自動導出）と対になる生成物。`interior-white-model.html`の`exteriorSegmentsForLevel()`/`subtractRanges()`（footprints群の共有辺を「区間の引き算」方式で取り除き、建物の真の外周だけを抽出するロジック。内覧モードの当たり判定で従来から使用）を`scripts/build-web-data.mjs`側に複製し（HTML側は変更なし、内覧モード用に引き続き実行時計算する）、`node scripts/build-web-data.mjs`で書き出す。
+
+- **壁付け設備の探索先を内壁+外壁の結合に拡張**：`generated/interior-walls.json`（間仕切り壁）だけでは「外壁の室内側に付くコンセント」（実際の住宅で最も多いケース）を表現できないため、`mount:wall`の壁突合せは常にこの2つを結合したリストに対して行う（`interior-white-model.html`の`wallRangeForElectrical()`は`wallSegmentsByLevel`＝内壁+外壁+ドア開口の切り欠き済みデータを検索、`tests/validate_electrical.py`の`check_within_wall()`は`generated/interior-walls.json`+`generated/exterior-walls.json`の単純結合を検索。関数自体は壁の由来を区別しない）
+- **屋外(`mount:exterior`)専用の検証**：`check_exterior_within_wall()`が`face`/`offset`から対応するfootprint・外壁セグメントを解決し（`footprint_for_exterior_face()`、`blender/build_house.py`の`footprint_for_opening()`と同じ考え方）、範囲内に収まっているか確認する
+
+### 表示・編集の実装（`interior-white-model.html`）
+
+- `ELECTRICAL_SHAPES`（型ごとの組み立て関数、`fPart()`ベース）→`placeElectricalItem()`（型→shape関数→`groups.electrical1/2`へ追加→`makeLabel()`）という流れは家具（`FURNITURE_SHAPES`/`placeFurnitureItem()`）と同一パターン。**ドアのような「平面図記号＋内覧用の別実装」の二重実装はしない**（電気設備には開閉のような動的状態がなく、俯瞰・平面図・内覧の全モードで同一メッシュを使い回せば足りるため）。壁付け設備用の共有ジオメトリ`ePlate()`、天井/床付け設備用の`eDisc()`の2つのヘルパーに形状を集約し、各shape関数はその上に小さな装飾（差込口・トグルドット等）を足すだけの薄いラッパーにしている
+  - `exteriorElectricalGeom(item)`：`mount:exterior`の`face`+`offset`から実座標・外向き回転を計算する（`openingWallGeom()`と対称的な設計）
+  - 平面図の記号表現：JIS Z 8017準拠の専用2D記号エンジンは作らず、3D形状そのものを真上から見てJIS記号に近いシルエットになるよう設計する折衷案（コンセント＝円盤＋差込口ドット2つ、スイッチ＝角プレート＋中央ドット等）。配色はカテゴリごとに彩度の高い色（電源=紫、情報系=ティール、照明=琥珀、関連設備=濃紺）にし、既存の凡例色（窓の水色・ドアのマゼンタ等）と衝突しないようにしている（2026-08-18、施主指摘：淡色だと平面図の他要素に埋もれて見えない）
+  - 当たり判定は持たない。電気設備は壁・天井付けで歩行の障害物にならないため
+- **配置編集（第2段階、俯瞰モード専用）**：「✎ 電気設備編集」ボタンは俯瞰(orbit)モードでのみ表示される（平面図では小さすぎて視認・選択ができないため、2026-08-18に平面図モードのサポートを取りやめた）。`groundPointAt(clientX,clientY,planeY,cam=orthoCam)`のようにカメラを引数化し、電気設備の呼び出し側だけ透視投影の`camera`を渡す（家具・窓ドアの編集は`orthoCam`のまま平面図限定を維持）
+  - **壁付け設備**：窓ドア編集と同じ「壁に沿った1次元ドラッグ＋範囲クランプ」。`wallRangeForElectrical()`は`wallSegmentsByLevel`（内壁+外壁+ドア切り欠き済み）を検索し、ドアでセグメントが複数に分かれる場合は`center`を含む区間を優先、無ければ最も近い区間にフォールバックする
   - **天井/床付け設備**：家具編集と同じ「自由な2Dドラッグ（クランプなし）」
+  - **屋外(`mount:exterior`)設備**：選択・種類/寸法編集は可能だが、ドラッグでの位置移動は対象外（`data/electrical.json`を直接編集する運用）
   - **家具編集・窓ドア編集との三者択一**：`setEditMode`/`setDoorEditMode`/`setElectricalEditMode`が、ONになる際に他の2つを両方OFFにする
-  - **ドラッグ中はメッシュを再構築しない**：ドア編集は開閉タイプごとの複雑形状を毎フレーム`rebuildDoorWindow`で再構築するが、電気設備は固定形状なので`holder.position`/`holder.rotation.y`の直接更新のみで足りる（軽量）。type変更・寸法(width/depth/height)変更時は`rebuildElectricalItem()`で再構築、取付け高さ(`mountHeight`)変更だけは形状が変わらないため`repositionElectricalItem()`という専用の軽量パス（Y座標のみ更新、holderの参照は変えない）を新設した
-  - **種類（type）切替の候補は`mount`が同じもの同士に制限**：`category`ではなく`mount`が位置表現を決めるフィールドのため。`light-bracket`（wall）と他の照明（ceiling）のように、同じ`category:lighting`でも`mount`が異なる型が実在し、`category`だけでフィルタすると位置表現が壊れる
-  - **取付け高さ（`mountHeight`）は全mount種別で編集可能な数値フィールドとしてパネルに常設**。壁付け設備の`side`（`+1`/`-1`）は窓ドア編集の`.hand-row`と同じボタンUIパターンで編集（壁付けのときだけ表示）
-  - 編集内容は`ELECTRICAL_ITEMS`（生成データ、正本ではない）を直接書き換えず、`electricalEdits`という差分オブジェクトとして持ち、`effectiveElectrical()`で重ねて描画する（家具・窓ドアと同じ設計）。`localStorage`（キー`ryuka-electrical-edits-v1`）に自動保存
-  - 「electrical.jsonを書き出す」ボタンで、編集を反映した完全なJSONをダウンロードできる（`data/electrical.json`は1ファイルのみのため、家具と同じ単一ボタン）。`mount`/`category`は`type`から導出される派生値のため出力しない
+  - **ドラッグ中はメッシュを再構築しない**：`holder.position`/`holder.rotation.y`の直接更新のみ（軽量）。type変更・寸法変更は`rebuildElectricalItem()`で再構築、取付け高さ変更だけは`repositionElectricalItem()`という軽量パス（Y座標のみ更新）
+  - **種類（type）切替の候補は`mount`が同じもの同士に制限**：`category`ではなく`mount`が位置表現を決めるフィールドのため（`light-bracket`はwall、他の照明はceilingのように同じcategoryでもmountが異なる型が実在する）
+  - 編集内容は`electricalEdits`という差分オブジェクトとして持ち、`effectiveElectrical()`で重ねて描画（`localStorage`キー`ryuka-electrical-edits-v1`）。「electrical.jsonを書き出す」ボタンでダウンロードし`data/electrical.json`へ上書きコミットする運用
+
+### 俯瞰モードの部屋フォーカス
+
+平面図では小さい電気設備が視認できず、俯瞰モードは壁が多く別室の壁が邪魔になるという施主指摘（2026-08-18）を受けて追加。左メニューの部屋選択セレクト（33室、1F/2Fでoptgroup分け）から選ぶと、対象室だけを表示し、他室の壁・家具・電気設備・寸法ラベル・グリッド・屋根を隠してカメラをその部屋にフィットさせる。俯瞰モード限定（`mode!=='orbit'`で自動解除、内覧モードへ入る際も`enterWalkMode()`冒頭で防御的に解除する）。
+
+- `scripts/build-web-data.mjs`の`buildRoomsApprox()`が`ROOMS_APPROX`各要素に部屋ID（`house.rooms[].id`）を出力するようになった
+- `roomMeshesById: Map<id,{mesh,label,level,bbox}>`：`ROOMS_APPROX`から部屋メッシュを生成するループで、部屋ごとに`roomGroup`（THREE.Group）を挟んでから`groups.approx1/2`へ追加し保存する。**`boxWire()`/`polyWire()`は本体メッシュと輪郭線(EdgesGeometry)を別オブジェクトとして`parent`に直接addするため、本体メッシュだけを`visible=false`にしても輪郭線が残ってしまう**ことに対する回避策（部屋ごとに小さなGroupでまとめてから親へ足すことで、Group単位でまとめて表示/非表示にできるようにした）
+- `pointInPolygon(x,z,pts)`（レイキャスティング法）／`findRoomIdAt(x,z,level)`：座標がどの部屋に属するかを`ROOMS_APPROX`から動的に判定する。家具・電気設備の既存`room`フィールドは使わない（ドラッグで位置が変わっても追随せず陳腐化するため）
+- `electricalRoomProbePoint(eff)`：壁付け設備は壁面から`side`が向く方向へ0.1mオフセットした点で部屋所属を判定する（壁自体は2部屋の境界にあり内外判定できないため）。屋外(`exterior`)設備は常にどの部屋にも属さない扱いで、フォーカス中は非表示
+- `focusRoom(id)`/`clearFocus()`：カメラは対象室のbboxにフィット（`camera.fov`から必要な`camDist`を逆算）。**ラベル（DOM要素）はメッシュの`visible`に連動しない**ため（`updateLabels()`は一度`display:'none'`にした要素をそのまま維持し、`refreshLabelVis()`はチェックボックスの状態だけを見て毎回block/noneを決め直す実装のため、単純に`style.display`へ直接書き込むと後からチェックボックスを操作した際に部屋フォーカスと無関係に復活してしまう）、`l.hiddenByFocus`という専用フラグを立て、`refreshLabelVis()`側でこのフラグも判定に含めることで恒久的に非表示を維持する設計にした
+
+### シードスクリプト（`scripts/seed-electrical.mjs`）
+
+見積書の項目・数量から機械検算した部屋別配分（`light`/`outlet_general`/`outlet_dedicated`/`outlet_ac`/`outlet_ih`/`switch_3way_pairs`/`switch_1p`/`tv`/`intercom`/`distribution_board`/屋外2種、合計154）をスクリプト内に埋め込み、`data/house.json`（rooms）・`generated/interior-walls.json`・`generated/exterior-walls.json`から実際の壁・部屋データを読んで機械的に配置する**一回限りの生成ツール**（`data/electrical.json`を丸ごと置き換える、常設のビルドパイプラインには含めない）。
+
+- 壁付け設備：部屋ごとに使える壁セグメント（内壁の`sourceRooms`一致＋外壁のbbox境界一致）を集め、セグメントを順に回しながら重ならないよう`center`をずらして配置する（`roomWallState`で部屋ごとにカーソル状態を保持し、同室内の全カテゴリ・複数回の呼び出しをまたいで重複を避ける）。`side`は部屋中心とセグメント座標の大小関係から自動算出
+- 天井付け設備（照明）：部屋bbox内に等間隔で分散配置し、L字部屋で`poly`の外に出た場合は`pointInPolygon`で検知して重心へフォールバックする
+- 同室・同型が複数ある場合は家具ラベルの命名規則と同じく連番を振る（例：「コンセント（アース付） 1」「コンセント（アース付） 2」）
+- 実行後は必ず`node scripts/build-web-data.mjs`→`python tests/validate_electrical.py`を実行すること
 
 ## 階段（stairs）
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ryuka.example/schemas/electrical.schema.json",
   "title": "Ryuka electrical fixtures placement",
-  "description": "data/electrical.json（配置インスタンス）のデータ契約。型の定義は data/electrical-catalog.json を参照。壁付け設備（カタログの mount:wall）は wallAt/orientation/center/side で、天井・床付け設備（mount:ceiling/floor）は x/z で位置を表す。どちらを使うかは type が参照するカタログの mount フィールドで決まるため、このスキーマではどちらも任意項目とし、mount別の必須チェックは tests/validate_electrical.py で行う（tests/validate_openings.py の operation別チェックと同じ考え方）。",
+  "description": "data/electrical.json（配置インスタンス）のデータ契約。型の定義は data/electrical-catalog.json を参照。壁付け設備（カタログの mount:wall）は wallAt/orientation/center/side、天井・床付け設備（mount:ceiling/floor）は x/z、屋外設置設備（mount:exterior）は face/offset(+任意wallX)（data/openings.jsonの外部窓・ドアと同じ規約）で位置を表す。どちらを使うかは type が参照するカタログの mount フィールドで決まるため、このスキーマではいずれも任意項目とし、mount別の必須チェックは tests/validate_electrical.py で行う（tests/validate_openings.py の operation別チェックと同じ考え方）。",
   "type": "object",
   "required": ["schemaVersion", "units", "items"],
   "properties": {
@@ -27,6 +27,9 @@
         "side": { "enum": [1, -1], "description": "mount:wallのみ使用。+1=南/東側を向く、-1=北/西側を向く" },
         "x": { "type": "number", "description": "mount:ceiling/floorのみ使用" },
         "z": { "type": "number", "description": "mount:ceiling/floorのみ使用" },
+        "face": { "enum": ["N", "S", "E", "W"], "description": "mount:exteriorのみ使用" },
+        "offset": { "type": "number", "description": "mount:exteriorのみ使用。面に沿った開始端（西端/北端）からの距離。data/openings.jsonのoffsetと同じ規約" },
+        "wallX": { "type": "number", "description": "mount:exteriorのみ使用、E/W面のみ任意。壁の固定座標（省略時は該当footprintの東端/西端）" },
         "widthOverride": { "type": "number", "exclusiveMinimum": 0 },
         "depthOverride": { "type": "number", "exclusiveMinimum": 0 },
         "heightOverride": { "type": "number", "exclusiveMinimum": 0 },

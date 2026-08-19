@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "units": "m",
-  "note": "電気設備（コンセント・スイッチ・照明・情報系配線・関連設備）の「型」のライブラリ。data/furniture-catalog.json / data/door-catalog.json と同じ考え方で、種類ごとの標準寸法だけを定義し、実際にどこへ何個置くかは data/electrical.json 側で管理する。mount は器具の取付け面（wall=壁付け／ceiling=天井付け／floor=床付け）で、data/electrical.json 側で wallAt+orientation+center+side（mount:wall）を使うか x+z（mount:ceiling/floor）を使うかを決める。heightRef は取付け高さ mountHeight の基準面（floor=床から／ceiling=天井から）。mountHeight は、heightRef:floor なら器具中心のFLからの高さ（コンセント250mm・スイッチ1200mm等、日本の住宅で慣習的に使われるセンターハイト）、heightRef:ceiling なら天井面から器具の取付け原点までの下がり寸法（0=天井面フラッシュ）。shape は interior-white-model.html の ELECTRICAL_SHAPES に対応する。寸法・高さは一般的な標準値であり施主の実測・施工会社の建具表確認前のため、個々の配置側で status: estimated とすること。",
+  "note": "電気設備（コンセント・スイッチ・照明・情報系配線・関連設備）の「型」のライブラリ。data/furniture-catalog.json / data/door-catalog.json と同じ考え方で、種類ごとの標準寸法だけを定義し、実際にどこへ何個置くかは data/electrical.json 側で管理する。mount は器具の取付け面（wall=壁付け／ceiling=天井付け／floor=床付け／exterior=屋外設置）で、data/electrical.json 側で wallAt+orientation+center+side（mount:wall）、x+z（mount:ceiling/floor）、face+offset+level(+任意wallX)（mount:exterior。data/openings.jsonの外部窓・ドアと同じface/offset規約。sideは持たず、回転はfaceから一意に決まる）のいずれを使うかを決める。heightRef は取付け高さ mountHeight の基準面（floor=床から／ceiling=天井から。mount:exteriorは常にfloor）。mountHeight は、heightRef:floor なら器具中心のFLからの高さ（コンセント250mm・スイッチ1200mm等、日本の住宅で慣習的に使われるセンターハイト）、heightRef:ceiling なら天井面から器具の取付け原点までの下がり寸法（0=天井面フラッシュ）。shape は interior-white-model.html の ELECTRICAL_SHAPES に対応する。寸法・高さは一般的な標準値であり施主の実測・施工会社の建具表確認前のため、個々の配置側で status: estimated とすること。",
   "categories": {
     "outlet": "コンセント",
     "switch": "スイッチ",
@@ -53,14 +53,40 @@
       "type": "outlet-waterproof",
       "label": "コンセント（防水）",
       "category": "outlet",
-      "mount": "wall",
+      "mount": "exterior",
       "heightRef": "floor",
       "shape": "outletPlate",
       "width": 0.1,
       "depth": 0.03,
       "height": 0.11,
       "mountHeight": 0.25,
-      "note": "屋外・浴室等、防水カバー付きのコンセント。奥行がプレーンタイプよりやや大きい"
+      "note": "屋外専用（軒下・土間・外構等）の防水カバー付きコンセント。mount:exterior（face+offset+level、data/openings.jsonと同じface/offset規約）で位置を表す。奥行がプレーンタイプよりやや大きい"
+    },
+    {
+      "type": "outlet-ac",
+      "label": "コンセント（AC専用）",
+      "category": "outlet",
+      "mount": "wall",
+      "heightRef": "floor",
+      "shape": "outletPlate",
+      "width": 0.09,
+      "depth": 0.02,
+      "height": 0.09,
+      "mountHeight": 2.0,
+      "note": "壁掛けエアコン用の専用コンセント。エアコン本体近く（天井付近）に高めに設置する慣習に合わせた"
+    },
+    {
+      "type": "outlet-ih",
+      "label": "コンセント（IH専用）",
+      "category": "outlet",
+      "mount": "wall",
+      "heightRef": "floor",
+      "shape": "outletPlate",
+      "width": 0.09,
+      "depth": 0.02,
+      "height": 0.09,
+      "mountHeight": 0.2,
+      "note": "IHクッキングヒーター用の200V専用コンセント。キッチンカウンター下・扉内に隠れる低い位置に設置する一般的な慣習に合わせた"
     },
     {
       "type": "outlet-floor",
@@ -191,6 +217,19 @@
       "height": 0.03,
       "mountHeight": 0,
       "note": "折り上げ天井・窓上等に仕込むライン照明。現段階では簡易な点/線マーカーとして扱う（向きの指定は将来の拡張課題）"
+    },
+    {
+      "type": "light-exterior",
+      "label": "外灯（壁付けブラケット）",
+      "category": "lighting",
+      "mount": "exterior",
+      "heightRef": "floor",
+      "shape": "bracketLight",
+      "width": 0.12,
+      "depth": 0.1,
+      "height": 0.15,
+      "mountHeight": 1.8,
+      "note": "玄関脇・勝手口等の屋外壁付け照明。形状はlight-bracket用のbracketLight関数を流用する。mount:exterior（face+offset+level）で位置を表す"
     },
     {
       "type": "data-lan",

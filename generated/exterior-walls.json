@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "1.0.0",
+  "note": "自動生成ファイル。手で編集しないこと。data/house.json の footprints（求積図のゾーン区分）から、隣接ゾーンの共有辺（実在しない内部の継ぎ目）を「区間の引き算」方式で取り除いた、建物の真の外周（外壁）データ。生成コマンド: node scripts/build-web-data.mjs。interior-white-model.html の exteriorSegmentsForLevel()（内覧モードの当たり判定に使用、変更なし）と同じロジックをNode側に複製したもの。tests/validate_electrical.py がmount:'exterior'の電気設備、およびmount:'wall'のうち外壁の室内側に付く設備の配置検証に使う。generated/interior-walls.json（内壁の自動導出）と対になる生成物。",
+  "walls": [
+    {
+      "id": "wall-ext-1f-auto-001",
+      "level": 1,
+      "x0": 0,
+      "x1": 9.1,
+      "z0": 0.91,
+      "z1": 0.91,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-1f-auto-002",
+      "level": 1,
+      "x0": 0,
+      "x1": 9.1,
+      "z0": 6.37,
+      "z1": 6.37,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-1f-auto-003",
+      "level": 1,
+      "x0": 0,
+      "x1": 0,
+      "z0": 0.91,
+      "z1": 6.37,
+      "orientation": "V"
+    },
+    {
+      "id": "wall-ext-1f-auto-004",
+      "level": 1,
+      "x0": 9.1,
+      "x1": 12.74,
+      "z0": 0.455,
+      "z1": 0.455,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-1f-auto-005",
+      "level": 1,
+      "x0": 9.1,
+      "x1": 12.74,
+      "z0": 6.37,
+      "z1": 6.37,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-1f-auto-006",
+      "level": 1,
+      "x0": 9.1,
+      "x1": 9.1,
+      "z0": 0.455,
+      "z1": 0.91,
+      "orientation": "V"
+    },
+    {
+      "id": "wall-ext-1f-auto-007",
+      "level": 1,
+      "x0": 12.74,
+      "x1": 16.38,
+      "z0": 0,
+      "z1": 0,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-1f-auto-008",
+      "level": 1,
+      "x0": 12.74,
+      "x1": 16.38,
+      "z0": 6.37,
+      "z1": 6.37,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-1f-auto-009",
+      "level": 1,
+      "x0": 12.74,
+      "x1": 12.74,
+      "z0": 0,
+      "z1": 0.455,
+      "orientation": "V"
+    },
+    {
+      "id": "wall-ext-1f-auto-010",
+      "level": 1,
+      "x0": 16.38,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 0,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-1f-auto-011",
+      "level": 1,
+      "x0": 16.38,
+      "x1": 19.11,
+      "z0": 7.735,
+      "z1": 7.735,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-1f-auto-012",
+      "level": 1,
+      "x0": 16.38,
+      "x1": 16.38,
+      "z0": 6.37,
+      "z1": 7.735,
+      "orientation": "V"
+    },
+    {
+      "id": "wall-ext-1f-auto-013",
+      "level": 1,
+      "x0": 19.11,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 7.735,
+      "orientation": "V"
+    },
+    {
+      "id": "wall-ext-2f-auto-014",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 0,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-2f-auto-015",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 19.11,
+      "z0": 6.37,
+      "z1": 6.37,
+      "orientation": "H"
+    },
+    {
+      "id": "wall-ext-2f-auto-016",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 12.74,
+      "z0": 0,
+      "z1": 6.37,
+      "orientation": "V"
+    },
+    {
+      "id": "wall-ext-2f-auto-017",
+      "level": 2,
+      "x0": 19.11,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 6.37,
+      "orientation": "V"
+    }
+  ]
+}
