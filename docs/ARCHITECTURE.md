@@ -160,19 +160,30 @@ data/electrical.json（電気設備の配置インスタンス）
   - **天井/床付け設備**：家具編集と同じ「自由な2Dドラッグ（クランプなし）」
   - **屋外(`mount:exterior`)設備**：選択・種類/寸法編集は可能だが、ドラッグでの位置移動は対象外（`data/electrical.json`を直接編集する運用）
   - **家具編集・窓ドア編集との三者択一**：`setEditMode`/`setDoorEditMode`/`setElectricalEditMode`が、ONになる際に他の2つを両方OFFにする
-  - **ドラッグ中はメッシュを再構築しない**：`holder.position`/`holder.rotation.y`の直接更新のみ（軽量）。type変更・寸法変更は`rebuildElectricalItem()`で再構築、取付け高さ変更だけは`repositionElectricalItem()`という軽量パス（Y座標のみ更新）
+  - **ドラッグ中はメッシュを再構築しない**：`holder.position`/`holder.rotation.y`の直接更新のみ（軽量）。type変更・寸法変更は`rebuildElectricalItem()`で再構築、位置（X/Y/Z）変更だけは`repositionElectricalItem()`という軽量パス（座標のみ更新、形状は変えない）
   - **種類（type）切替の候補は`mount`が同じもの同士に制限**：`category`ではなく`mount`が位置表現を決めるフィールドのため（`light-bracket`はwall、他の照明はceilingのように同じcategoryでもmountが異なる型が実在する）
+  - **XYZ数値入力パネル（微調整用、2026-08-19追加）**：パネルの「X/Y/Z」欄（`updateElectricalPositionFields()`/`applyElectricalPositionEdit()`）から座標を直接タイプして微調整できる。Yは`heightRef`（floor/ceiling）の違いを吸収し、常に「その階の床(FL)からの高さ」として統一表示・入力する（旧「取付け高さ」欄を統合・置き換え）。`mount:wall`は壁に沿う側の軸だけ編集可能で、固定側（壁面＝`wallAt`）は`disabled`にして壁ロックを可視化する（ドラッグ移動も元々壁沿いの1次元にしか動かせない設計だったため、既存の制約を数値入力でも同じ形で表現しただけ）。数値入力も`wallRangeForElectrical()`と同じ式でクランプする。`mount:exterior`は3欄とも参考表示のみで`disabled`（ドラッグ移動と同じくスコープ外、位置を変えたい場合は`data/electrical.json`を直接編集する運用のまま）
   - 編集内容は`electricalEdits`という差分オブジェクトとして持ち、`effectiveElectrical()`で重ねて描画（`localStorage`キー`ryuka-electrical-edits-v1`）。「electrical.jsonを書き出す」ボタンでダウンロードし`data/electrical.json`へ上書きコミットする運用
 
 ### 俯瞰モードの部屋フォーカス
 
-平面図では小さい電気設備が視認できず、俯瞰モードは壁が多く別室の壁が邪魔になるという施主指摘（2026-08-18）を受けて追加。左メニューの部屋選択セレクト（33室、1F/2Fでoptgroup分け）から選ぶと、対象室だけを表示し、他室の壁・家具・電気設備・寸法ラベル・グリッド・屋根を隠してカメラをその部屋にフィットさせる。俯瞰モード限定（`mode!=='orbit'`で自動解除、内覧モードへ入る際も`enterWalkMode()`冒頭で防御的に解除する）。
+平面図では小さい電気設備が視認できず、俯瞰モードは壁が多く別室の壁が邪魔になるという施主指摘（2026-08-18）を受けて追加。左メニューの部屋選択セレクト（33室、1F/2Fでoptgroup分け）から選ぶと、対象室だけを表示し、他室の壁・家具・電気設備・ドア窓・寸法ラベル・グリッド・屋根を隠してカメラをその部屋にフィットさせる。俯瞰モード限定（`mode!=='orbit'`で自動解除、内覧モードへ入る際も`enterWalkMode()`冒頭で防御的に解除する）。
 
 - `scripts/build-web-data.mjs`の`buildRoomsApprox()`が`ROOMS_APPROX`各要素に部屋ID（`house.rooms[].id`）を出力するようになった
-- `roomMeshesById: Map<id,{mesh,label,level,bbox}>`：`ROOMS_APPROX`から部屋メッシュを生成するループで、部屋ごとに`roomGroup`（THREE.Group）を挟んでから`groups.approx1/2`へ追加し保存する。**`boxWire()`/`polyWire()`は本体メッシュと輪郭線(EdgesGeometry)を別オブジェクトとして`parent`に直接addするため、本体メッシュだけを`visible=false`にしても輪郭線が残ってしまう**ことに対する回避策（部屋ごとに小さなGroupでまとめてから親へ足すことで、Group単位でまとめて表示/非表示にできるようにした）
+- `roomMeshesById: Map<id,{mesh,label,level,bbox}>`：`ROOMS_APPROX`から部屋メッシュを生成するループで、部屋ごとに`roomGroup`（THREE.Group）を挟んでから`groups.approx1/2`へ追加し保存する。**`boxWire()`/`polyWire()`は本体メッシュと輪郭線(EdgesGeometry)を別オブジェクトとして`parent`に直接addするため、本体メッシュだけを`visible=false`にしても輪郭線が残ってしまう**ことに対する回避策（部屋ごとに小さなGroupでまとめてから親へ足すことで、Group単位でまとめて表示/非表示にできるようにした）。同じ理由でSOUND_WALL（`soundWallGroup`）・GUARD_WALLS各要素（`guardWallGroups`）もGroupで包んでいる
 - `pointInPolygon(x,z,pts)`（レイキャスティング法）／`findRoomIdAt(x,z,level)`：座標がどの部屋に属するかを`ROOMS_APPROX`から動的に判定する。家具・電気設備の既存`room`フィールドは使わない（ドラッグで位置が変わっても追随せず陳腐化するため）
 - `electricalRoomProbePoint(eff)`：壁付け設備は壁面から`side`が向く方向へ0.1mオフセットした点で部屋所属を判定する（壁自体は2部屋の境界にあり内外判定できないため）。屋外(`exterior`)設備は常にどの部屋にも属さない扱いで、フォーカス中は非表示
-- `focusRoom(id)`/`clearFocus()`：カメラは対象室のbboxにフィット（`camera.fov`から必要な`camDist`を逆算）。**ラベル（DOM要素）はメッシュの`visible`に連動しない**ため（`updateLabels()`は一度`display:'none'`にした要素をそのまま維持し、`refreshLabelVis()`はチェックボックスの状態だけを見て毎回block/noneを決め直す実装のため、単純に`style.display`へ直接書き込むと後からチェックボックスを操作した際に部屋フォーカスと無関係に復活してしまう）、`l.hiddenByFocus`という専用フラグを立て、`refreshLabelVis()`側でこのフラグも判定に含めることで恒久的に非表示を維持する設計にした
+- `doorMatchesFocusedRoom(entry, targetLevel, targetId)`（2026-08-19追加）：`doorWindowMeshes`の各エントリに配置時点で持たせた`probe`メタ情報を使い、ドア・窓も部屋所属で表示/非表示を判定する。内部ドア（H/V）・斜め開口（D）は2部屋の境界にあり片側の情報（壁付け設備の`side`に相当するもの）を持たないため、壁の両側をプローブしていずれかが対象室ならtrue（対象室への出入口のドアは表示され続ける）。外部開口は`outSign`の逆方向（屋内側）の1点だけで判定する
+- **防音壁・腰壁は部屋フォーカス中、常に非表示**：特定の部屋に紐付かない構造物のため、部屋所属の判定はせずフォーカス中は一律隠す（対象室に接していても表示しない。「対象室以外に色を付けない」という要望を最も単純に満たす形）
+- `focusRoom(id)`/`clearFocus()`：カメラは対象室のbboxにフィット（`camera.fov`から必要な`camDist`を逆算）。**ラベル（DOM要素）はメッシュの`visible`に連動しない**ため（`updateLabels()`は一度`display:'none'`にした要素をそのまま維持し、`refreshLabelVis()`はチェックボックスの状態だけを見て毎回block/noneを決め直す実装のため、単純に`style.display`へ直接書き込むと後からチェックボックスを操作した際に部屋フォーカスと無関係に復活してしまう）、`l.hiddenByFocus`という専用フラグを立て、`refreshLabelVis()`側でこのフラグも判定に含めることで恒久的に非表示を維持する設計にした（ドア・窓・防音壁・腰壁はラベルを持たないため、この仕組みの対象外＝メッシュの`visible`切替だけで完結する）
+
+### 電気設備一覧（型ごとの集計＋部屋ごとの内訳、2026-08-19追加）
+
+「電気計画を真剣に検討したい」という施主要望を受け、型ごとの総数と部屋ごとの設置内訳を俯瞰できる一覧を追加した。新規データは持たず、`ELECTRICAL_ITEMS`＋`effectiveElectrical()`（編集差分を反映した実効値）から`buildElectricalSummary()`が都度集計する（154件程度は再計算コストが無視できるため、キャッシュは持たない）。部屋所属の判定は部屋フォーカスと同じ`electricalRoomProbePoint()`＋`findRoomIdAt()`の動的判定を再利用し、`ELECTRICAL_ITEMS`の静的な`room`フィールド（シードスクリプト由来、ドラッグ編集後は追随しない）には依存しない。カテゴリの分類・並び順（コンセント/スイッチ/照明/情報系配線/関連設備）・色（`EMAT`と同じパレット）は`ELEC_CATEGORY_ORDER`にJS側で固定的に持たせている（表示専用のため`data/electrical-catalog.json`側は変更していない）。
+
+- **一覧モーダル**（左メニュー「電気設備一覧」→「一覧を表示」、`#electricalSummaryOverlay`）：既存の`#spawnOverlay`と同じモーダル骨格に、154件を収めるスクロール領域（`#electricalSummaryBody`）を持たせた。冒頭に型ごとの内訳表（合計件数の内訳含む）、続けて1F/2Fの全部屋を`ROOMS_APPROX`の順に列挙（0件の部屋も「部屋名：0件」の一行で表示し、計画漏れを見逃さないようにする）、末尾に屋外設備・部屋未判定（本来空だが、編集で部屋外に出た場合の検知用）のセクションを表示する
+- **部屋フォーカス時の設置物リスト**（`#roomFocusElecPanel`）：`focusRoom(id)`が同じ集計関数からその部屋の内訳だけを`renderRoomFocusElecList()`で描画し表示、`clearFocus()`で非表示にする。当初は左メニュー（`#ui`）内に置いていたが、「常設の設定・凡例と、部屋フォーカス中だけ意味を持つ一時的な読み取り情報が混在して見づらい」との施主指摘（2026-08-19）を受け、`#electricalEditToggle`（俯瞰モード限定・画面右上のボタン）の直下に独立したカードとして切り出した。モバイル幅では`#topBar`の折り返しと、下側から52vhを占有する`#ui`の両方を避けるオフセット・`max-height`を`@media (max-width:640px)`側で個別に調整している
+- **行クリックで選択**：どちらのリストの行も`data-elec-id`を持ち、クリックすると`selectElectricalFromSummary(id)`（一覧モーダル）／直接`setSelectedElectrical(id)`（部屋フォーカスリスト、既にその部屋にフォーカス済みのため）でその設備を選択し、電気設備編集パネル（X/Y/Z欄）まで開く。一覧モーダル側は俯瞰モードでなければ`setMode('orbit')`で切り替え、対象の部屋へ`focusRoom()`も合わせて行ってから選択する
 
 ### シードスクリプト（`scripts/seed-electrical.mjs`）
 
