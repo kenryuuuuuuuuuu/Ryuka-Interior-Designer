@@ -3730,6 +3730,31 @@ function wallsForRoom(roomId, level){
   });
   return result;
 }
+// 壁(wall、wallsForRoom()の1要素)の中で、既存の壁付け設備（元データ＋これまでの追加分の両方、
+// 編集差分を反映した実効値）と重ならない空きcenter座標を探す。同じ壁に複数追加すると全て
+// wall.mid（壁区間の中点）に重なって配置されてしまう不具合があったため新設（2026-08-20、
+// 施主指摘：重なった状態だと常に手前の1つしかクリックで選択できず、削除しても見た目上
+// 消えたように見えなかった）。scripts/seed-electrical.mjsのplaceWallItems()と同じく、
+// 設備どうしの間隔はgap=0.4m（40cm）を最低限確保する
+function findFreeWallSlot(wall, width, level){
+  const halfW = width/2, margin = 0.05, gap = 0.4;
+  const occ = allElectricalItems()
+    .map(base => effectiveElectrical(base))
+    .filter(e => e.mount==='wall' && e.level===level && e.orientation===wall.orientation && Math.abs(e.wallAt-wall.at)<0.01)
+    .map(e => [e.center-e.width/2-gap, e.center+e.width/2+gap])
+    .filter(([lo,hi]) => hi>wall.from && lo<wall.to)
+    .sort((a,b)=>a[0]-b[0]);
+  const fitsAt = pos => pos-halfW>=wall.from+margin && pos+halfW<=wall.to-margin
+    && occ.every(([lo,hi])=> pos+halfW<=lo || pos-halfW>=hi);
+  if(fitsAt(wall.mid)) return round2(wall.mid); // 空いていれば中央に置く（見た目が自然なため）
+  let pos = wall.from + halfW + margin; // 中央が塞がっていれば壁の端からfirst-fitで空きを探す
+  for(const [lo,hi] of occ){
+    if(pos + halfW <= lo) break;
+    if(pos < hi) pos = hi + halfW;
+  }
+  if(pos + halfW > wall.to - margin) return null; // 空きなし
+  return round2(pos);
+}
 let electricalAddRoomId = null; // 追加ダイアログを開いた時点のfocusedRoomIdを固定して持つ
 function openElectricalAdd(){
   if(!focusedRoomId) return;
@@ -3808,7 +3833,9 @@ document.getElementById('eaSubmit').onclick = ()=>{
     const idx = Number(document.getElementById('eaWall').value);
     const w = walls[idx];
     if(!w){ alert('この部屋に接する壁が見つからなかったため追加できません。'); return; }
-    item.wallAt = w.at; item.orientation = w.orientation; item.center = round2(w.mid); item.side = w.side;
+    const center = findFreeWallSlot(w, profile.width, level);
+    if(center === null){ alert('この壁には、既存の設備と重ならずに置ける空きがありません。別の壁を選ぶか、既存の設備を移動してから追加してください。'); return; }
+    item.wallAt = w.at; item.orientation = w.orientation; item.center = center; item.side = w.side;
   } else {
     // 天井/床付け：部屋bboxの中心（L字部屋等でbbox中心が部屋の外に出る場合はpointInPolygon()で
     // 検知し重心へフォールバック。scripts/seed-electrical.mjsのplaceCeilingItem()と同じ考え方）
