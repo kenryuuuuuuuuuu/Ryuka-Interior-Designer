@@ -56,9 +56,6 @@ function centroid(polygon) {
   polygon.forEach(([px, pz]) => { x += px; z += pz; });
   return { x: x / polygon.length, z: z / polygon.length };
 }
-function overlap(a0, a1, b0, b1) {
-  return Math.max(a0, b0) < Math.min(a1, b1) - 1e-6;
-}
 // N点をbbox内に分散配置する。1点なら中心、複数なら長辺方向に等間隔で並べる
 // （短辺は中心のまま）。L字部屋のはみ出しはplaceCeilingItem側でpointInPolygon
 // チェック＋centroidフォールバックにより補正する
@@ -134,35 +131,38 @@ const ALLOC = {
 };
 
 // ============================================================================
-// 壁付けアイテムの配置：部屋ごとに使える壁セグメント（内壁のsourceRooms一致＋
-// 外壁のbbox境界一致）を集め、セグメントを順に回しながら重ならないよう並べる
+// 壁付けアイテムの配置：部屋ごとに使える壁セグメントを集める。内壁・外壁のいずれも、
+// 壁データ（generated/interior-walls.json・exterior-walls.json）1件が複数の部屋に
+// またがっていることがあるため（内壁は3部屋以上が同じ直線に並ぶ通し壁をmergeCollinearWalls()で
+// 1本にまとめる仕様、外壁はそもそも建物外周の連続した1本）、壁データのfrom/toをそのまま
+// 使わず、必ず部屋自身のポリゴンの辺のうちその壁の直線上にある区間だけへ切り詰める。
+// 2026-08-20、施主報告により発覚：切り詰めていなかったため154件中53件が意図した部屋の
+// 外（隣室・別室）に配置されてしまっていた
 // ============================================================================
 function wallSegmentsForRoom(room) {
-  const b = bbox(room.polygon);
   const segs = [];
-  interiorWalls
-    .filter((w) => w.level === room.level && w.sourceRooms.includes(room.label))
-    .forEach((w) => {
-      segs.push({
-        orientation: w.orientation,
-        at: w.orientation === "H" ? w.z0 : w.x0,
-        from: w.orientation === "H" ? w.x0 : w.z0,
-        to: w.orientation === "H" ? w.x1 : w.z1,
-      });
-    });
-  exteriorWalls
-    .filter((w) => w.level === room.level)
-    .forEach((w) => {
-      const at = w.orientation === "H" ? w.z0 : w.x0;
-      const from = w.orientation === "H" ? w.x0 : w.z0;
-      const to = w.orientation === "H" ? w.x1 : w.z1;
-      if (w.orientation === "H" && (Math.abs(at - b.z0) < 0.01 || Math.abs(at - b.z1) < 0.01) && overlap(from, to, b.x0, b.x1)) {
-        segs.push({ orientation: "H", at, from, to });
-      }
-      if (w.orientation === "V" && (Math.abs(at - b.x0) < 0.01 || Math.abs(at - b.x1) < 0.01) && overlap(from, to, b.z0, b.z1)) {
-        segs.push({ orientation: "V", at, from, to });
+  const poly = room.polygon;
+  const addClipped = (walls) => {
+    walls.forEach((w) => {
+      const wAt = w.orientation === "H" ? w.z0 : w.x0;
+      const wFrom = w.orientation === "H" ? w.x0 : w.z0;
+      const wTo = w.orientation === "H" ? w.x1 : w.z1;
+      for (let i = 0; i < poly.length; i++) {
+        const [x1, z1] = poly[i];
+        const [x2, z2] = poly[(i + 1) % poly.length];
+        if (w.orientation === "H" && Math.abs(z1 - z2) < 0.001 && Math.abs(z1 - wAt) < 0.01) {
+          const lo = Math.max(Math.min(x1, x2), wFrom), hi = Math.min(Math.max(x1, x2), wTo);
+          if (hi - lo > 0.01) segs.push({ orientation: "H", at: wAt, from: lo, to: hi });
+        }
+        if (w.orientation === "V" && Math.abs(x1 - x2) < 0.001 && Math.abs(x1 - wAt) < 0.01) {
+          const lo = Math.max(Math.min(z1, z2), wFrom), hi = Math.min(Math.max(z1, z2), wTo);
+          if (hi - lo > 0.01) segs.push({ orientation: "V", at: wAt, from: lo, to: hi });
+        }
       }
     });
+  };
+  addClipped(interiorWalls.filter((w) => w.level === room.level && w.sourceRooms.includes(room.label)));
+  addClipped(exteriorWalls.filter((w) => w.level === room.level));
   return segs;
 }
 
@@ -192,6 +192,22 @@ function getRoomWallState(room) {
   return roomWallState.get(room.id);
 }
 
+// 壁のどちら側が部屋の内側かを判定する。以前は部屋全体のbbox中心と壁の座標を比較する
+// 単純な方法だったが、L字・凹型の部屋では、bbox中心から見た方向と、細い張り出し部分の
+// 壁から見た実際の室内方向が逆になることがあり、隣室側を向いて配置されてしまっていた
+// （2026-08-20、施主報告により発覚）。壁の両側をポリゴンの内外判定で直接調べる方式にする
+function sideForSegment(room, seg, along) {
+  const probeOffset = 0.1;
+  const p1 = seg.orientation === "H" ? [along, seg.at + probeOffset] : [seg.at + probeOffset, along];
+  if (pointInPolygon(p1[0], p1[1], room.polygon)) return 1;
+  const p2 = seg.orientation === "H" ? [along, seg.at - probeOffset] : [seg.at - probeOffset, along];
+  if (pointInPolygon(p2[0], p2[1], room.polygon)) return -1;
+  // ポリゴン境界ぎりぎりで丸め誤差により両方falseになった場合のフォールバック
+  const b = bbox(room.polygon);
+  const roomCenterX = (b.x0 + b.x1) / 2, roomCenterZ = (b.z0 + b.z1) / 2;
+  return (seg.orientation === "H" ? roomCenterZ : roomCenterX) > seg.at ? 1 : -1;
+}
+
 function placeWallItems(room, catalogType, count) {
   if (count <= 0) return;
   const profile = CATALOG[catalogType];
@@ -201,8 +217,6 @@ function placeWallItems(room, catalogType, count) {
     console.error(`WARN: ${room.id}(${room.label}) に壁セグメントが見つからない。type=${catalogType} count=${count}件をスキップ`);
     return;
   }
-  const b = bbox(room.polygon);
-  const roomCenterX = (b.x0 + b.x1) / 2, roomCenterZ = (b.z0 + b.z1) / 2;
   for (let i = 0; i < count; i++) {
     const segIdx = state.nextSegIdx % segs.length;
     state.nextSegIdx += 1;
@@ -211,7 +225,7 @@ function placeWallItems(room, catalogType, count) {
     let center = cursors[segIdx] === null ? seg.from + margin : cursors[segIdx];
     if (center + margin > seg.to) center = Math.max(seg.from + margin, Math.min(seg.to - margin, (seg.from + seg.to) / 2));
     cursors[segIdx] = center + profile.width + 0.4;
-    const side = (seg.orientation === "H" ? roomCenterZ : roomCenterX) > seg.at ? 1 : -1;
+    const side = sideForSegment(room, seg, center);
     const item = {
       id: nextId(), type: catalogType, level: room.level,
       wallAt: round2(seg.at), orientation: seg.orientation, center: round2(center), side,

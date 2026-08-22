@@ -206,7 +206,9 @@ data/electrical-estimate.json（電気工事見積書の明細）
 
 見積書の項目・数量から機械検算した部屋別配分（`light`/`outlet_general`/`outlet_dedicated`/`outlet_ac`/`outlet_ih`/`switch_3way_pairs`/`switch_1p`/`tv`/`intercom`/`distribution_board`/屋外2種、合計154）をスクリプト内に埋め込み、`data/house.json`（rooms）・`generated/interior-walls.json`・`generated/exterior-walls.json`から実際の壁・部屋データを読んで機械的に配置する**一回限りの生成ツール**（`data/electrical.json`を丸ごと置き換える、常設のビルドパイプラインには含めない）。
 
-- 壁付け設備：部屋ごとに使える壁セグメント（内壁の`sourceRooms`一致＋外壁のbbox境界一致）を集め、セグメントを順に回しながら重ならないよう`center`をずらして配置する（`roomWallState`で部屋ごとにカーソル状態を保持し、同室内の全カテゴリ・複数回の呼び出しをまたいで重複を避ける）。`side`は部屋中心とセグメント座標の大小関係から自動算出
+- 壁付け設備：部屋ごとに使える壁セグメントを`wallSegmentsForRoom()`で集め、セグメントを順に回しながら重ならないよう`center`をずらして配置する（`roomWallState`で部屋ごとにカーソル状態を保持し、同室内の全カテゴリ・複数回の呼び出しをまたいで重複を避ける）
+  - **壁セグメントは部屋自身のポリゴン辺で切り詰める**：`generated/interior-walls.json`・`exterior-walls.json`の壁データ1件は複数の部屋にまたがっていることが多い（内壁は`mergeCollinearWalls()`が3部屋以上の通し壁を1本にまとめる仕様、外壁はそもそも建物外周の連続した1本）。壁データの`from`/`to`をそのまま使うと、配置カーソルが隣室・別室にまで漏れ出す（2026-08-20、施主報告で発覚：154件中53件がこの原因で意図した部屋の外に配置されていた）。`wallSegmentsForRoom()`は壁データを部屋のポリゴン辺と直線が一致する区間だけへ毎回切り詰めてから使う
+  - **`side`（壁のどちら側が室内か）はポリゴンの内外判定で決める**：以前は部屋全体のbbox中心と壁座標の大小比較という単純な方法だったが、L字・凹型の部屋では、bbox中心から見た方向と、細い張り出し部分の壁から見た実際の室内方向が逆転することがあり、隣室側を向いて配置されてしまっていた。`sideForSegment()`が壁の両側を`pointInPolygon()`で直接調べる方式にした（電気設備一覧の部屋所属判定・`wallsForRoom()`の追加機能と同じ考え方）
 - 天井付け設備（照明）：部屋bbox内に等間隔で分散配置し、L字部屋で`poly`の外に出た場合は`pointInPolygon`で検知して重心へフォールバックする
 - 同室・同型が複数ある場合は家具ラベルの命名規則と同じく連番を振る（例：「コンセント（アース付） 1」「コンセント（アース付） 2」）
 - 実行後は必ず`node scripts/build-web-data.mjs`→`python tests/validate_electrical.py`を実行すること
