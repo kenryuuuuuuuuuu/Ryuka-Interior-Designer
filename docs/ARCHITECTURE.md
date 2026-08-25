@@ -165,6 +165,7 @@ data/electrical-estimate.json（電気工事見積書の明細）
   - **ドラッグ中はメッシュを再構築しない**：`holder.position`/`holder.rotation.y`の直接更新のみ（軽量）。type変更・寸法変更は`rebuildElectricalItem()`で再構築、位置（X/Y/Z）変更だけは`repositionElectricalItem()`という軽量パス（座標のみ更新、形状は変えない）
   - **種類（type）切替の候補は`mount`が同じもの同士に制限**：`category`ではなく`mount`が位置表現を決めるフィールドのため（`light-bracket`はwall、他の照明はceilingのように同じcategoryでもmountが異なる型が実在する）
   - **XYZ数値入力パネル（微調整用、2026-08-19追加）**：パネルの「X/Y/Z」欄（`updateElectricalPositionFields()`/`applyElectricalPositionEdit()`）から座標を直接タイプして微調整できる。Yは`heightRef`（floor/ceiling）の違いを吸収し、常に「その階の床(FL)からの高さ」として統一表示・入力する（旧「取付け高さ」欄を統合・置き換え）。`mount:wall`は壁に沿う側の軸だけ編集可能で、固定側（壁面＝`wallAt`）は`disabled`にして壁ロックを可視化する（ドラッグ移動も元々壁沿いの1次元にしか動かせない設計だったため、既存の制約を数値入力でも同じ形で表現しただけ）。数値入力も`wallRangeForElectrical()`と同じ式でクランプする。`mount:exterior`は3欄とも参考表示のみで`disabled`（ドラッグ移動と同じくスコープ外、位置を変えたい場合は`data/electrical.json`を直接編集する運用のまま）
+  - **壁面変更（2026-08-20追加）**：`mount:wall`の設備は、XYZ欄と「向き」欄の間に「設置している壁」セレクトを表示し、**別の壁面へ丸ごと移動**できる。壁の候補は電気設備「追加」機能と同じ`wallsForRoom(roomId, level)`（[:3821](interior-white-model.html#L3821)付近）を再利用し、対象の部屋は選択中アイテムの現在位置から`electricalRoomProbePoint()`＋`findRoomIdAt()`で動的に判定する（部屋フォーカス中かどうかに関わらず動作する）。壁を変えると新しい壁の空き位置を`findFreeWallSlot()`（[:3739](interior-white-model.html#L3739)、`excludeId`引数を追加し選択中アイテム自身を重なり判定から除外できるようにした）で求め、`wallAt`/`orientation`/`side`/`center`をまとめて差分に書き込む。壁の向きが変わる＝`rotation.y`の再計算が必要なため、位置だけを直接書き換える軽量パス（`repositionElectricalItem()`）ではなく、型変更と同じ`rebuildElectricalItem()`（削除→作り直し）を使う。選択中の壁は`updateWallHighlight()`が黄色半透明のボックス（`electricalSelectionHelper`と同じ`0xffcf3a`）で3D上にハイライトする（`wallHighlightMesh`、選択解除や`mount:wall`以外への切替で消える）
   - 編集内容は`electricalEdits`という差分オブジェクトとして持ち、`effectiveElectrical()`で重ねて描画（`localStorage`キー`ryuka-electrical-edits-v1`）。「electrical.jsonを書き出す」ボタンでダウンロードし`data/electrical.json`へ上書きコミットする運用
   - **削除（2026-08-19追加）**：既存項目の書き換え（`electricalEdits`）とは別に、項目の増減を`electricalAdded`（追加した項目そのもの）・`electricalDeleted`（削除したidの一覧、いわば墓標）という2つのdiffで表現する（`localStorage`キーはそれぞれ`ryuka-electrical-added-v1`/`ryuka-electrical-deleted-v1`）。既存項目の書き換えと項目自体の増減を1つの構造に混ぜると「削除したのに編集が残る」のような復元時の不整合が起きやすいため、意図的に分けている。`ELECTRICAL_ITEMS`（`data/electrical.jsonから生成された不変の元データ）への直接参照は、この2つのdiffを踏まえた`allElectricalItems()`（表示・配置対象。追加分を加え削除済みを除く）・`findElectricalBase(id)`（削除済みも含めて探す、復元用）の2関数に集約し、初期配置ループ・`exportElectricalJSON()`・`buildElectricalSummary()`など全ての参照元をこの2関数経由に置き換えた。パネルの「🗑 この設備を削除」ボタン（`deleteSelectedElectrical()`）は`confirm()`の後`electricalDeleted`にidを積んで`removeElectricalMesh()`するだけで、`data/electrical-catalog.json`の型定義や元データは変えない（即座にデータを消さない）ため、一覧モーダルの「削除した設備」欄からいつでも`restoreDeletedElectrical(id)`で復元できる
 
@@ -212,6 +213,13 @@ data/electrical-estimate.json（電気工事見積書の明細）
 - 天井付け設備（照明）：部屋bbox内に等間隔で分散配置し、L字部屋で`poly`の外に出た場合は`pointInPolygon`で検知して重心へフォールバックする
 - 同室・同型が複数ある場合は家具ラベルの命名規則と同じく連番を振る（例：「コンセント（アース付） 1」「コンセント（アース付） 2」）
 - 実行後は必ず`node scripts/build-web-data.mjs`→`python tests/validate_electrical.py`を実行すること
+
+## 方位コンパス（俯瞰モード限定、2026-08-20追加）
+
+俯瞰モードで方位がわかるようにしたいという施主要望を受け、`#topBar`（`#electricalEditToggle`の直後）に方位コンパスを追加した。`#compass`は`applyModeChrome()`で`mode==='orbit'`のときだけ表示する（他のモード限定ボタンと同じ表示切り替えパターン）。
+
+- **回転角の導出**：`updateCamera()`（`camera.position = camTarget + camDist*(sinφsinθ, cosφ, sinφcosθ)`という極座標配置）の`camTheta`（水平方向の回転角）だけに依存し、`camPhi`（仰角）には依存しない。建物座標系は`x`=西→東、`z`=北→南で`toScene()`は平行移動のみのためシーン座標もそのまま+X=東・-X=西・+Z=南・-Z=北になる。カメラの`lookAt`から導かれる画面右方向（ワールド座標、`up×zaxis`から導出）は`(cosθ,0,-sinθ)`になり、北ベクトル`(0,-1)`をこの基準系に投影すると「北は画面の『上』から時計回りに`θ`ラジアンの位置に現れる」という関係になる（`θ=0`のとき東が画面右＝カメラが南から北を向く初期配置と整合）。よって`#compassDial`（N/E/S/Wの4ラベルを円周上に配置した内側レイヤー）に`transform: rotate(${camTheta}rad)`を適用するだけで正しい向きになる
+- 毎フレーム`animate()`ループ内（`mode==='orbit'`のときだけ）で`compassDialEl.style.transform`を更新し、ドラッグ回転中も追従させる
 
 ## 階段（stairs）
 

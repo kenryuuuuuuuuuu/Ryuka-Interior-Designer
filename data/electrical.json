@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "units": "m",
-  "note": "電気設備の配置インスタンス。typeはdata/electrical-catalog.jsonのtypeを参照する。mount:wallの型はwallAt+orientation+center+side（wallAt=壁の固定座標、centerは壁沿いの位置、side=+1/-1で壁のどちら側を向くか）、mount:ceiling/floorの型はx+z（footprint内の自由座標、furniture.jsonと同じ）、mount:exteriorの型はface+offset+level（data/openings.jsonと同じ規約）で位置を表す。施工会社の見積書（電気工事）の項目・数量に基づき、scripts/seed-electrical.mjsで機械的に配置したたたき台（status:estimated）。実際の生活動線に基づく判断は入っていないため、俯瞰モードの部屋フォーカス機能で確認しながら位置を調整すること。ブラウザの配置編集機能（俯瞰モード限定）で編集した内容は「electrical.jsonを書き出す」ボタンでダウンロードし、このファイルへ上書きしてコミットする運用。",
+  "note": "電気設備の配置インスタンス。typeはdata/electrical-catalog.jsonのtypeを参照する。mount:wallの型はwallAt+orientation+center+side（wallAt=壁の固定座標、centerは壁沿いの位置、side=+1/-1で壁のどちら側を向くか）、mount:ceiling/floorの型はx+z（footprint内の自由座標、furniture.jsonと同じ）で位置を表す。ブラウザの配置編集機能から書き出したファイル。data/electrical.json に上書きしてコミットすること。",
   "items": [
     {
       "id": "elec-001",
@@ -394,17 +394,6 @@
       "status": "estimated"
     },
     {
-      "id": "elec-040",
-      "type": "outlet-double",
-      "level": 1,
-      "wallAt": 2.73,
-      "orientation": "V",
-      "center": 1.01,
-      "side": 1,
-      "label": "コンセント（2口） 1",
-      "status": "estimated"
-    },
-    {
       "id": "elec-041",
       "type": "outlet-double",
       "level": 1,
@@ -413,17 +402,6 @@
       "center": 6.47,
       "side": -1,
       "label": "コンセント（2口） 2",
-      "status": "estimated"
-    },
-    {
-      "id": "elec-042",
-      "type": "outlet-double",
-      "level": 1,
-      "wallAt": 6.37,
-      "orientation": "V",
-      "center": 2.42,
-      "side": -1,
-      "label": "コンセント（2口） 3",
       "status": "estimated"
     },
     {
@@ -669,50 +647,6 @@
       "status": "estimated"
     },
     {
-      "id": "elec-065",
-      "type": "outlet-grounded",
-      "level": 1,
-      "wallAt": 0.91,
-      "orientation": "V",
-      "center": 1.01,
-      "side": -1,
-      "label": "コンセント（アース付）",
-      "status": "estimated"
-    },
-    {
-      "id": "elec-066",
-      "type": "outlet-grounded",
-      "level": 1,
-      "wallAt": 2.73,
-      "orientation": "H",
-      "center": 0.1,
-      "side": 1,
-      "label": "コンセント（アース付）",
-      "status": "estimated"
-    },
-    {
-      "id": "elec-067",
-      "type": "outlet-grounded",
-      "level": 1,
-      "wallAt": 4.55,
-      "orientation": "H",
-      "center": 0.1,
-      "side": 1,
-      "label": "コンセント（アース付）",
-      "status": "estimated"
-    },
-    {
-      "id": "elec-068",
-      "type": "outlet-grounded",
-      "level": 1,
-      "wallAt": 3.69,
-      "orientation": "H",
-      "center": 2.83,
-      "side": -1,
-      "label": "コンセント（アース付）",
-      "status": "estimated"
-    },
-    {
       "id": "elec-069",
       "type": "outlet-grounded",
       "level": 1,
@@ -941,17 +875,6 @@
       "center": 16.47,
       "side": -1,
       "label": "コンセント（アース付）",
-      "status": "estimated"
-    },
-    {
-      "id": "elec-090",
-      "type": "outlet-ac",
-      "level": 1,
-      "wallAt": 7.28,
-      "orientation": "V",
-      "center": 1.01,
-      "side": -1,
-      "label": "コンセント（AC専用）",
       "status": "estimated"
     },
     {
@@ -1213,7 +1136,7 @@
       "level": 1,
       "wallAt": 2.73,
       "orientation": "H",
-      "center": 0.1,
+      "center": 0.82,
       "side": -1,
       "label": "スイッチ（片切）",
       "status": "estimated"
@@ -1237,39 +1160,6 @@
       "orientation": "V",
       "center": 1.92,
       "side": 1,
-      "label": "スイッチ（片切）",
-      "status": "estimated"
-    },
-    {
-      "id": "elec-117",
-      "type": "switch-1p",
-      "level": 1,
-      "wallAt": 4.55,
-      "orientation": "H",
-      "center": 0.1,
-      "side": -1,
-      "label": "スイッチ（片切） 1",
-      "status": "estimated"
-    },
-    {
-      "id": "elec-118",
-      "type": "switch-1p",
-      "level": 1,
-      "wallAt": 1.82,
-      "orientation": "V",
-      "center": 2.83,
-      "side": -1,
-      "label": "スイッチ（片切） 2",
-      "status": "estimated"
-    },
-    {
-      "id": "elec-119",
-      "type": "switch-1p",
-      "level": 1,
-      "wallAt": 1.82,
-      "orientation": "V",
-      "center": 4.64,
-      "side": -1,
       "label": "スイッチ（片切）",
       "status": "estimated"
     },
@@ -1571,17 +1461,6 @@
       "status": "estimated"
     },
     {
-      "id": "elec-147",
-      "type": "data-intercom",
-      "level": 1,
-      "wallAt": 1.82,
-      "orientation": "H",
-      "center": 1.01,
-      "side": -1,
-      "label": "インターホン",
-      "status": "estimated"
-    },
-    {
       "id": "elec-148",
       "type": "data-intercom",
       "level": 1,
@@ -1610,8 +1489,7 @@
       "face": "N",
       "offset": 2,
       "label": "外灯（壁付けブラケット） 1",
-      "status": "estimated",
-      "note": "民泊棟 玄関脇"
+      "status": "estimated"
     },
     {
       "id": "elec-151",
@@ -1620,8 +1498,7 @@
       "face": "N",
       "offset": 11.5,
       "label": "外灯（壁付けブラケット） 2",
-      "status": "estimated",
-      "note": "自宅 玄関脇"
+      "status": "estimated"
     },
     {
       "id": "elec-152",
@@ -1630,8 +1507,7 @@
       "face": "S",
       "offset": 3,
       "label": "コンセント（防水） 1",
-      "status": "estimated",
-      "note": "民泊LDK南面"
+      "status": "estimated"
     },
     {
       "id": "elec-153",
@@ -1640,8 +1516,7 @@
       "face": "S",
       "offset": 10,
       "label": "コンセント（防水） 2",
-      "status": "estimated",
-      "note": "自宅LDK南面（西寄り）"
+      "status": "estimated"
     },
     {
       "id": "elec-154",
@@ -1650,8 +1525,106 @@
       "face": "S",
       "offset": 17.5,
       "label": "コンセント（防水） 3",
-      "status": "estimated",
-      "note": "南土間付近"
+      "status": "estimated"
+    },
+    {
+      "id": "elec-m01",
+      "type": "outlet-double",
+      "level": 1,
+      "wallAt": 0,
+      "orientation": "V",
+      "center": 1.13,
+      "side": 1,
+      "room": "room-1f-01",
+      "label": "コンセント（2口）",
+      "status": "estimated"
+    },
+    {
+      "id": "elec-m02",
+      "type": "data-intercom",
+      "level": 1,
+      "wallAt": 0.91,
+      "orientation": "H",
+      "center": 1.98,
+      "side": -1,
+      "room": "room-1f-02",
+      "label": "インターホン",
+      "status": "estimated"
+    },
+    {
+      "id": "elec-m03",
+      "type": "switch-1p",
+      "level": 1,
+      "wallAt": 4.55,
+      "orientation": "H",
+      "center": 0.59,
+      "side": -1,
+      "room": "room-1f-03",
+      "label": "スイッチ（片切）",
+      "status": "estimated"
+    },
+    {
+      "id": "elec-m04",
+      "type": "switch-1p",
+      "level": 1,
+      "wallAt": 2.73,
+      "orientation": "H",
+      "center": 0.87,
+      "side": 1,
+      "room": "room-1f-03",
+      "label": "スイッチ（片切） 2",
+      "status": "estimated"
+    },
+    {
+      "id": "elec-m05",
+      "type": "outlet-double",
+      "level": 1,
+      "wallAt": 0,
+      "orientation": "V",
+      "center": 3.92,
+      "side": 1,
+      "room": "room-1f-03",
+      "mountHeightOverride": 1.15,
+      "label": "コンセント（2口）",
+      "status": "estimated"
+    },
+    {
+      "id": "elec-m06",
+      "type": "outlet-double",
+      "level": 1,
+      "wallAt": 0,
+      "orientation": "V",
+      "center": 2.83,
+      "side": 1,
+      "room": "room-1f-03",
+      "mountHeightOverride": 0.87,
+      "label": "コンセント（2口） 2",
+      "status": "estimated"
+    },
+    {
+      "id": "elec-m08",
+      "type": "outlet-double",
+      "level": 1,
+      "wallAt": 7.28,
+      "orientation": "V",
+      "center": 1.51,
+      "side": -1,
+      "room": "room-1f-05",
+      "mountHeightOverride": 0.33,
+      "label": "コンセント（2口） 2",
+      "status": "estimated"
+    },
+    {
+      "id": "elec-m10",
+      "type": "outlet-double",
+      "level": 1,
+      "wallAt": 3.691,
+      "orientation": "H",
+      "center": 4.45,
+      "side": -1,
+      "room": "room-1f-05",
+      "label": "コンセント（2口） 3",
+      "status": "estimated"
     }
   ]
 }
