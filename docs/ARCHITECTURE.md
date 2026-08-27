@@ -171,7 +171,9 @@ data/electrical-estimate.json（電気工事見積書の明細）
 
 ### 俯瞰モードの部屋フォーカス
 
-平面図では小さい電気設備が視認できず、俯瞰モードは壁が多く別室の壁が邪魔になるという施主指摘（2026-08-18）を受けて追加。左メニューの部屋選択セレクト（33室、1F/2Fでoptgroup分け）から選ぶと、対象室だけを表示し、他室の壁・家具・電気設備・ドア窓・寸法ラベル・グリッド・屋根を隠してカメラをその部屋にフィットさせる。俯瞰モード限定（`mode!=='orbit'`で自動解除、内覧モードへ入る際も`enterWalkMode()`冒頭で防御的に解除する）。
+平面図では小さい電気設備が視認できず、俯瞰モードは壁が多く別室の壁が邪魔になるという施主指摘（2026-08-18）を受けて追加。左メニューの部屋選択セレクトから選ぶと、対象室だけを表示し、他室の壁・家具・電気設備・ドア窓・寸法ラベル・グリッド・屋根を隠してカメラをその部屋にフィットさせる。俯瞰モード限定（`mode!=='orbit'`で自動解除、内覧モードへ入る際も`enterWalkMode()`冒頭で防御的に解除する）。
+
+- **部屋選択セレクトのoptgroup分け（2026-08-20更新）**：1Fは民泊棟・自宅棟の2棟にまたがるため「1F（民泊）」「1F（自宅）」に分け、2Fは全室自宅棟のため「2F（自宅）」の1つにまとめる（`populateRoomFocusSelect()`）。棟の判定は部屋名の文字列一致には頼らず、`SOUND_WALL.x`（民泊-自宅防音壁のx座標、7.28）を境に各部屋のbbox中心が西側か東側かで機械的に決める（部屋が増減しても追従する）
 
 - `scripts/build-web-data.mjs`の`buildRoomsApprox()`が`ROOMS_APPROX`各要素に部屋ID（`house.rooms[].id`）を出力するようになった
 - `roomMeshesById: Map<id,{mesh,label,level,bbox}>`：`ROOMS_APPROX`から部屋メッシュを生成するループで、部屋ごとに`roomGroup`（THREE.Group）を挟んでから`groups.approx1/2`へ追加し保存する。**`boxWire()`/`polyWire()`は本体メッシュと輪郭線(EdgesGeometry)を別オブジェクトとして`parent`に直接addするため、本体メッシュだけを`visible=false`にしても輪郭線が残ってしまう**ことに対する回避策（部屋ごとに小さなGroupでまとめてから親へ足すことで、Group単位でまとめて表示/非表示にできるようにした）。同じ理由でSOUND_WALL（`soundWallGroup`）・GUARD_WALLS各要素（`guardWallGroups`）もGroupで包んでいる

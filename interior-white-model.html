@@ -4061,12 +4061,20 @@ function updateRoomFocusUI(){
   sel.disabled = mode !== 'orbit';
   document.getElementById('roomFocusClearBtn').disabled = !focusedRoomId;
 }
+// 1Fは民泊棟・自宅棟の2棟にまたがるため、部屋フォーカスのプルダウンも棟ごとに分ける
+// （施主指摘：1F(民泊)/1F(自宅)で分けたい）。棟の境界はSOUND_WALL（民泊-自宅防音壁、x=7.28）の
+// x座標を使い、部屋のbbox中心がその西側か東側かで機械的に判定する（部屋名の文字列一致に
+// 頼らないため、部屋が増減しても追従する）。2Fは全室自宅棟のため分割しない
 function populateRoomFocusSelect(){
   const sel = document.getElementById('roomFocusSelect');
-  [ [1,'1F'], [2,'2F'] ].forEach(([lvl,label])=>{
+  const groups = [
+    { label:'1F（民泊）', rooms: ROOMS_APPROX[1].filter(r=>r.id && (r.x0+r.x1)/2 < SOUND_WALL.x) },
+    { label:'1F（自宅）', rooms: ROOMS_APPROX[1].filter(r=>r.id && (r.x0+r.x1)/2 >= SOUND_WALL.x) },
+    { label:'2F（自宅）', rooms: ROOMS_APPROX[2].filter(r=>r.id) },
+  ];
+  groups.forEach(({label, rooms})=>{
     const og = document.createElement('optgroup'); og.label = label;
-    ROOMS_APPROX[lvl].forEach(r=>{
-      if(!r.id) return;
+    rooms.forEach(r=>{
       const o = document.createElement('option'); o.value = r.id; o.textContent = r.name;
       og.appendChild(o);
     });
