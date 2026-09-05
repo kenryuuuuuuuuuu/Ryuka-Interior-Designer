@@ -216,6 +216,19 @@ data/electrical-estimate.json（電気工事見積書の明細）
 - 同室・同型が複数ある場合は家具ラベルの命名規則と同じく連番を振る（例：「コンセント（アース付） 1」「コンセント（アース付） 2」）
 - 実行後は必ず`node scripts/build-web-data.mjs`→`python tests/validate_electrical.py`を実行すること
 
+### 電気設備編集の使い勝手改善（クリック判定・右ドック統合・効率化・視認性、2026-08-28追加）
+
+施主の実際の使い方（俯瞰→電気設備編集→部屋フォーカスで絞って編集、隣接部屋との兼ね合いを確認したいときだけフォーカスを戻す）をヒアリングした上で、電気設備編集機能全体を多角的に見直した回。個別の機能追加ではなく、これまで施主指摘のたびに継ぎ足してきたUI（左メニュー・上バー・上部ヒント帯・右上パネル・右下パネル・左下バー・モーダル2種の計8箇所に分散）を含めて一括で整理している。
+
+- **クリック判定の根本修正**：`pickElectricalAt()`が`editRaycaster.intersectObject(electricalAll, true)`の全ヒットを対象にしていたため、電気設備の各形状に付けている輪郭線（`fPartEdged()`の`LineSegments`）がThree.js r128のデフォルト`Raycaster.params.Line.threshold`（1m）でヒット判定され、狙った設備から画面上80〜120px（実寸9cm前後の器具に対して）離れた場所をクリックしても近くの別の設備が選択されてしまっていた（施主指摘：「壁をクリックしても近くの設備が勝手に選択される」）。`if(!hit.object.isMesh) continue;`を追加し、`Mesh`（実体）だけをヒット対象にして`LineSegments`（輪郭線）を除外する1行で解消した（Playwright実測で誤差±80〜120px→±10〜20pxに改善）。家具・窓ドアの当たり判定（`pickFurnitureAt`等）は同じ問題を抱えていないため対象外とした
+  - **ホバーフィードバック**：`electricalEditMode`かつ`orbit`モードかつドラッグ中でない間、`pointermove`のたびに`pickElectricalAt()`を呼び、ヒットした設備があればカーソルを`pointer`に変え、`BoxHelper`（水色`0x8fd3ff`、選択中の黄色`0xffcf3a`とは別系統の色）でハイライトする（`updateElectricalHover()`/`hoveredElectricalId`/`electricalHoverHelper`）
+  - **選択マーカーの強化**：`BoxHelper`だけでは実寸9cm前後の器具が俯瞰で見えづらいため、最低半径0.15mを保証する円形リング（`makeElectricalRingMarker()`、`THREE.RingGeometry`＋`depthTest:false`で他のメッシュに隠れにくくしている）を選択マーカーに追加した
+- **右ドックへの統合**：`electricalEditMode`のときだけ表示される単一の`#electricalDock`（画面右、`flex-direction:column`）に、旧`#roomFocusElecPanel`・`#electricalPanel`・`#electricalBar`・`#electricalEditHint`と左メニューの「部屋フォーカス」「電気設備一覧」節を統合した。ナビ段（`#edNav`：部屋選択・フォーカス解除・一覧を表示、常時表示）→リスト段（`#edListSection`：部屋フォーカス中の設備一覧、内部だけスクロール）→編集段（`#edEditSection`：選択中設備の編集パネル）→フッター段（`#edFooter`：編集件数・Undo/Redo・書き出し・全取消）の4段構成で、リスト段だけを`flex:1 1 auto;overflow-y:auto`にすることで狭い画面（1280×720で実測）でもナビ・編集・フッターの3段が常に隠れず、リストだけが内部スクロールする設計にした。既存のDOM要素ID（`roomFocusSelect`・`epLabel`・`epWallSelect`等）は据え置き、コンテナの入れ替えだけでJS側のイベント配線を変えずに済ませている
+- **編集効率化**：`electricalEditMode && mode==='orbit'`のときだけ有効な新規キーボードショートカット（Escapeで選択解除、Delete/Backspaceで削除、矢印キーで微調整）と、`electricalEdits`/`electricalAdded`/`electricalDeleted`の3状態をまとめて1スナップショットとして扱うUndo/Redo（`pushElectricalUndoSnapshot()`/`undoElectrical()`/`redoElectrical()`、Ctrl+Z/Ctrl+Shift+Z）を追加した。コマンドパターンで個々の操作を反転するのではなく状態を丸ごと複製・復元する方式（最大でも150件程度のJSONなので毎回のディープコピーで十分軽量、かつ「何を戻すか」を個別実装しないので確実）。復元は初回描画ループと同じ「全部消して作り直す」方式（`restoreElectricalSnapshot()`）。ドラッグ・キー長押しのような連続入力ジェスチャーは、ジェスチャー開始時にフラグを立てて最初の1回だけスナップショットを積む「ホールドセッション」方式にし、1ジェスチャー＝1回のUndoになるようにしている。あわせて「複製」ボタン（`duplicateSelectedElectrical()`、壁付けは`findFreeWallSlot()`、天井/床付けは座標オフセットで新規配置。空きが無い場合は正しく失敗する）と「高さ(Y)を標準に戻す」ボタン（`resetSelectedElectricalHeight()`、X/Z/壁面はそのままYだけ`ELECTRICAL_CATALOG[type].mountHeight`基準に戻す）を追加した
+- **視認性向上**：`electricalEdits`にエントリがある設備（変更＝水色`0x29b6f6`）・`electricalAdded`に含まれる設備（追加＝緑`0x43a047`）に、選択中でなくても常時うっすらとしたリング（`makeElectricalRingMarker()`を再利用、不透明度0.45）を表示し、「このセッションでどこを触ったか」を一目で分かるようにした（`updateElectricalChangeHighlights()`、選択中の設備は選択マーカーの黄色と紛らわしくなるため除外する。`updateElectricalBar()`・`setSelectedElectrical()`・`setElectricalEditMode()`から呼び、全ミューテーション後・選択変更・編集モードのON/OFFで作り直す）。また、部屋フォーカス中は`#chkElectricalLabels`のチェック状態に関わらず、その部屋に属する電気設備のラベルだけ強制的に表示するようにした（`refreshLabelVis()`に`if(focusedRoomId && l.isElectrical && !l.hiddenByFocus) vis = true;`を追加。33室中1室に絞った状態なら密集の心配がないため、デフォルトOFFの理由＝154件表示時の密集には抵触しない）
+
+なお、部屋レビューのループ機能（前/次の部屋ボタン等）とスイッチ⇔照明の対応付け（`data/electrical.json`のスキーマ拡張が必要）は、この回では意図的に対象外とした（施主判断で後日別途検討）。
+
 ## 方位コンパス（俯瞰モード限定、2026-08-20追加）
 
 俯瞰モードで方位がわかるようにしたいという施主要望を受け、`#topBar`（`#electricalEditToggle`の直後）に方位コンパスを追加した。`#compass`は`applyModeChrome()`で`mode==='orbit'`のときだけ表示する（他のモード限定ボタンと同じ表示切り替えパターン）。
