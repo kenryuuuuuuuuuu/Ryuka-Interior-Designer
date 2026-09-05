@@ -1,0 +1,252 @@
+{
+  "schemaVersion": "0.1.0",
+  "units": "m",
+  "note": "自動生成。部屋・屋根の正本はdata/house.json。勾配天井区画はWeb出力と同じcomputeSlopedCeilingPieces()を使用します。高さの確度は元のdefaults/rooms/roofsを参照してください。",
+  "slopedCeilingPieces": [
+    {
+      "roomId": "room-1f-06",
+      "x0": 1.82,
+      "x1": 2.73,
+      "z0": 2.73,
+      "z1": 3.691,
+      "sloped": true,
+      "base": 3.4,
+      "pitch": 0.15,
+      "roofThickness": 0.15
+    },
+    {
+      "roomId": "room-1f-06",
+      "x0": 1.82,
+      "x1": 7.28,
+      "z0": 3.691,
+      "z1": 6.37,
+      "sloped": true,
+      "base": 3.4,
+      "pitch": 0.15,
+      "roofThickness": 0.15
+    },
+    {
+      "roomId": "room-1f-11",
+      "x0": 13.651,
+      "x1": 15.471,
+      "z0": 1.82,
+      "z1": 2.275,
+      "sloped": false
+    },
+    {
+      "roomId": "room-1f-11",
+      "x0": 10.92,
+      "x1": 12.74,
+      "z0": 2.275,
+      "z1": 2.73,
+      "sloped": true,
+      "base": 3.4,
+      "pitch": 0.15,
+      "roofThickness": 0.15
+    },
+    {
+      "roomId": "room-1f-11",
+      "x0": 12.74,
+      "x1": 15.471,
+      "z0": 2.275,
+      "z1": 2.73,
+      "sloped": false
+    },
+    {
+      "roomId": "room-1f-11",
+      "x0": 7.28,
+      "x1": 9.1,
+      "z0": 2.73,
+      "z1": 6.37,
+      "sloped": true,
+      "base": 3.4,
+      "pitch": 0.15,
+      "roofThickness": 0.15
+    },
+    {
+      "roomId": "room-1f-11",
+      "x0": 9.1,
+      "x1": 12.74,
+      "z0": 2.73,
+      "z1": 6.37,
+      "sloped": true,
+      "base": 3.4,
+      "pitch": 0.15,
+      "roofThickness": 0.15
+    },
+    {
+      "roomId": "room-1f-11",
+      "x0": 12.74,
+      "x1": 15.471,
+      "z0": 2.73,
+      "z1": 6.37,
+      "sloped": false
+    }
+  ],
+  "slabs": [
+    {
+      "id": "1f-a1",
+      "level": 1,
+      "x0": 0,
+      "x1": 9.1,
+      "z0": 0.91,
+      "z1": 6.37,
+      "use": "民泊棟（玄関・洋室・LDK・水回り）",
+      "status": "verified",
+      "footprintId": "1f-a1"
+    },
+    {
+      "id": "1f-a2",
+      "level": 1,
+      "x0": 9.1,
+      "x1": 12.74,
+      "z0": 0.455,
+      "z1": 6.37,
+      "use": "ヌック・自宅玄関・北土間",
+      "status": "verified",
+      "footprintId": "1f-a2"
+    },
+    {
+      "id": "1f-a3",
+      "level": 1,
+      "x0": 12.74,
+      "x1": 16.38,
+      "z0": 0,
+      "z1": 6.37,
+      "use": "自宅LDK・階段",
+      "status": "verified",
+      "footprintId": "1f-a3"
+    },
+    {
+      "id": "1f-a4",
+      "level": 1,
+      "x0": 16.38,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 7.735,
+      "use": "水回り・南土間",
+      "status": "verified",
+      "footprintId": "1f-a4"
+    },
+    {
+      "x0": 12.74,
+      "x1": 19.11,
+      "z0": 1.82,
+      "z1": 6.37,
+      "level": 2,
+      "footprintId": "2f-main"
+    },
+    {
+      "x0": 12.74,
+      "x1": 13.651,
+      "z0": 0,
+      "z1": 1.82,
+      "level": 2,
+      "footprintId": "2f-main"
+    },
+    {
+      "x0": 15.47,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 1.82,
+      "level": 2,
+      "footprintId": "2f-main"
+    }
+  ],
+  "flatCeilings": [
+    {
+      "x0": 0,
+      "x1": 9.1,
+      "z0": 0.91,
+      "z1": 2.73,
+      "level": 1,
+      "footprintId": "1f-a1"
+    },
+    {
+      "x0": 0,
+      "x1": 1.82,
+      "z0": 3.691,
+      "z1": 6.37,
+      "level": 1,
+      "footprintId": "1f-a1"
+    },
+    {
+      "x0": 0,
+      "x1": 1.82,
+      "z0": 2.73,
+      "z1": 3.691,
+      "level": 1,
+      "footprintId": "1f-a1"
+    },
+    {
+      "x0": 2.73,
+      "x1": 7.28,
+      "z0": 2.73,
+      "z1": 3.691,
+      "level": 1,
+      "footprintId": "1f-a1"
+    },
+    {
+      "x0": 9.1,
+      "x1": 12.74,
+      "z0": 0.455,
+      "z1": 2.275,
+      "level": 1,
+      "footprintId": "1f-a2"
+    },
+    {
+      "x0": 9.1,
+      "x1": 10.92,
+      "z0": 2.275,
+      "z1": 2.73,
+      "level": 1,
+      "footprintId": "1f-a2"
+    },
+    {
+      "x0": 12.74,
+      "x1": 16.38,
+      "z0": 1.82,
+      "z1": 6.37,
+      "level": 1,
+      "footprintId": "1f-a3"
+    },
+    {
+      "x0": 12.74,
+      "x1": 13.651,
+      "z0": 0,
+      "z1": 1.82,
+      "level": 1,
+      "footprintId": "1f-a3"
+    },
+    {
+      "x0": 15.47,
+      "x1": 16.38,
+      "z0": 0,
+      "z1": 1.82,
+      "level": 1,
+      "footprintId": "1f-a3"
+    },
+    {
+      "id": "1f-a4",
+      "level": 1,
+      "x0": 16.38,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 7.735,
+      "use": "水回り・南土間",
+      "status": "verified",
+      "footprintId": "1f-a4"
+    },
+    {
+      "id": "2f-main",
+      "level": 2,
+      "x0": 12.74,
+      "x1": 19.11,
+      "z0": 0,
+      "z1": 6.37,
+      "use": "2階",
+      "status": "verified",
+      "footprintId": "2f-main"
+    }
+  ]
+}

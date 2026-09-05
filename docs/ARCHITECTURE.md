@@ -33,6 +33,14 @@ data/electrical-estimate.json（電気工事見積書の明細）
 
 ## データ契約
 
+### 内装描画用の追加出力（2026-09-06）
+
+`scripts/build-web-data.mjs`は既存のWeb・内壁・外壁出力に加えて`generated/visual-envelope.json`を生成します。内容は`slopedCeilingPieces`（Webと同じ勾配天井分割）、`slabs`（階段の到着階の床開口を除外）、`flatCeilings`（階段出発階の天井開口・勾配天井領域を除外）です。単位m、水平座標x/z、GL高さの参照元は引き続きhouse.jsonです。生成ファイルを手修正しません。`--check`で鮮度を検証します。
+
+従来の`blender/build_house.py`に加えて、`blender/build_interior.py`がゲストLDKの家具・内装を生成します。上記の「家具はHTML側のみ」は従来の白模型の範囲であり、内装版は家具の正本・カタログも読み込みます。配置の編集は引き続きThree.js／JSONで行います。電気設備は入力スナップショットに保持しますが、内装版の発光器具としてはまだ描画しません。
+
+仕上げ・比較条件は`data/visual/guest-ldk-study.json`、転送はBlender標準GLBとUE Interchangeです。再生成・検証・未対応範囲は [VISUAL_TWIN_PLAN.md](VISUAL_TWIN_PLAN.md) を参照してください。
+
 - 単位: メートル
 - 座標系: 建物ローカル座標。`x` = 西→東、`z` = 北→南、`y` = GLからの高さ（上向き）
 - Blenderへのマッピング: `(x, z, y)` → Blenderの `(X, -Y, Z)`。北がBlenderの+Y方向になる

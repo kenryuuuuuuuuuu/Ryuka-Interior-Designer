@@ -1,0 +1,13 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "Architecture",
+  "Description": "Reproducible interior study from shared house JSON and Blender GLB.",
+  "Plugins": [
+    {"Name": "PythonScriptPlugin", "Enabled": true},
+    {"Name": "EditorScriptingUtilities", "Enabled": true},
+    {"Name": "Interchange", "Enabled": true},
+    {"Name": "InterchangeEditor", "Enabled": true},
+    {"Name": "InterchangeAssets", "Enabled": true}
+  ]
+}

@@ -21,6 +21,7 @@ const housePath = path.join(root, "data", "house.json");
 const outPath = path.join(root, "generated", "house-data.js");
 const interiorWallsOutPath = path.join(root, "generated", "interior-walls.json");
 const exteriorWallsOutPath = path.join(root, "generated", "exterior-walls.json");
+const visualEnvelopeOutPath = path.join(root, "generated", "visual-envelope.json");
 const mode = process.argv[2] ?? "--write";
 
 if (!["--check", "--write"].includes(mode)) {
@@ -677,6 +678,29 @@ const exteriorWallsOutput = `${JSON.stringify(
   2,
 )}\n`;
 
+// Blender uses precisely the same ceiling partition as buildSlopedCeiling().
+// This adds a JSON consumer without changing the existing Web output.
+const slopedPieces = computeSlopedCeilingPieces();
+const visualEnvelopeOutput = JSON.stringify({
+  schemaVersion: "0.1.0", units: "m",
+  note: "自動生成。部屋・屋根の正本はdata/house.json。勾配天井区画はWeb出力と同じcomputeSlopedCeilingPieces()を使用します。高さの確度は元のdefaults/rooms/roofsを参照してください。",
+  slopedCeilingPieces: slopedPieces,
+  slabs: house.footprints.flatMap(fp => {
+    let rects = [fp];
+    (house.stairs || []).filter(s => s.levelTo === fp.level && s.opening).forEach(s => {
+      rects = rects.flatMap(r => subtractRect2D(r, s.opening));
+    });
+    return rects.map(r => ({...r, level: fp.level, footprintId: fp.id}));
+  }),
+  flatCeilings: house.footprints.flatMap(fp => {
+    let rects = [fp];
+    const holes = (house.stairs || []).filter(s => s.levelFrom === fp.level && s.opening).map(s => s.opening);
+    if (fp.level === 1) holes.push(...slopedPieces.filter(p => p.sloped));
+    holes.forEach(h => { rects = rects.flatMap(r => subtractRect2D(r, h)); });
+    return rects.map(r => ({...r, level: fp.level, footprintId: fp.id}));
+  }),
+}, null, 2) + "\n";
+
 if (mode === "--check") {
   // Windowsのgit checkoutはCRLFに変換することがあるため、改行コードの違いだけで
   // 誤ってSTALE判定しないよう正規化してから比較する。
@@ -687,12 +711,13 @@ if (mode === "--check") {
   if (
     normalize(current) === normalize(output) &&
     normalize(currentWalls) === normalize(interiorWallsOutput) &&
-    normalize(currentExteriorWalls) === normalize(exteriorWallsOutput)
+    normalize(currentExteriorWalls) === normalize(exteriorWallsOutput) &&
+    normalize(fs.existsSync(visualEnvelopeOutPath) ? fs.readFileSync(visualEnvelopeOutPath, "utf8") : null) === normalize(visualEnvelopeOutput)
   ) {
-    console.log("generated/house-data.js, generated/interior-walls.json and generated/exterior-walls.json are up to date with data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json / electrical-estimate.json.");
+    console.log("generated/house-data.js, interior-walls.json, exterior-walls.json and visual-envelope.json are up to date with the source data.");
     process.exit(0);
   }
-  console.error("generated/house-data.js, generated/interior-walls.json or generated/exterior-walls.json is STALE. Run: node scripts/build-web-data.mjs");
+  console.error("A generated house/wall/visual-envelope file is STALE. Run: node scripts/build-web-data.mjs");
   process.exit(1);
 }
 
@@ -700,4 +725,5 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, output, "utf8");
 fs.writeFileSync(interiorWallsOutPath, interiorWallsOutput, "utf8");
 fs.writeFileSync(exteriorWallsOutPath, exteriorWallsOutput, "utf8");
-console.log(`Wrote ${path.relative(root, outPath)}, ${path.relative(root, interiorWallsOutPath)} and ${path.relative(root, exteriorWallsOutPath)} from data/house.json / furniture-catalog.json / furniture.json / door-catalog.json / window-catalog.json / openings.json / interior-doors.json / electrical-catalog.json / electrical.json / electrical-estimate.json.`);
+fs.writeFileSync(visualEnvelopeOutPath, visualEnvelopeOutput, "utf8");
+console.log(`Wrote ${[outPath, interiorWallsOutPath, exteriorWallsOutPath, visualEnvelopeOutPath].map(p => path.relative(root, p)).join(", ")} from the source data.`);

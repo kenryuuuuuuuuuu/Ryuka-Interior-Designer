@@ -21,6 +21,8 @@ except ImportError as exc:  # Helpful failure when accidentally run with CPython
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_INPUT = SCRIPT_DIR.parent / "data" / "house.json"
+sys.path.insert(0, str(SCRIPT_DIR))
+from wall_geometry import exterior_wall_panels, wall_segments
 
 
 def load_data(input_path: Path) -> dict:
@@ -62,6 +64,10 @@ def load_data(input_path: Path) -> dict:
             f"{interior_walls_path} が見つかりません。先に `node scripts/build-web-data.mjs` を実行してください。"
         )
     data["walls"] = json.loads(interior_walls_path.read_text(encoding="utf-8"))["walls"]
+    exterior_walls_path = root.parent / "generated" / "exterior-walls.json"
+    if not exterior_walls_path.exists():
+        raise SystemExit("Run node scripts/build-web-data.mjs before building Blender geometry.")
+    data["exteriorWalls"] = json.loads(exterior_walls_path.read_text(encoding="utf-8"))["walls"]
     return data
 
 
@@ -69,6 +75,7 @@ def cli_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--glb", type=Path, help="Optional geometry-only transfer prototype; not daylight-ready")
     argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
     return parser.parse_args(argv)
 
@@ -105,56 +112,21 @@ def level_y(data, level):
     return data["levels"][f"fl{level}"]
 
 
-def footprint_for_opening(data, opening):
-    level = opening["level"]
-    offset = opening["offset"]
-    candidates = [f for f in data["footprints"] if f["level"] == level]
-    if opening["face"] in ("N", "S"):
-        matches = [f for f in candidates if f["x0"] <= offset <= f["x1"]]
-    elif "wallX" in opening:
-        matches = [f for f in candidates if f["x0"] <= opening["wallX"] <= f["x1"]]
-    elif opening["face"] == "E":
-        matches = [max(candidates, key=lambda f: f["x1"])]
-    else:
-        matches = [min(candidates, key=lambda f: f["x0"])]
-    return matches[0] if matches else candidates[0]
-
-
-def wall_segments(length0, length1, y0, height, cuts):
-    """Split a wall plane into rectangles around horizontal/vertical openings."""
-    xs = sorted({length0, length1, *[max(length0, c[0]) for c in cuts], *[min(length1, c[1]) for c in cuts]})
-    result = []
-    for a, b in zip(xs, xs[1:]):
-        if b - a <= 1e-6:
-            continue
-        active = [c for c in cuts if c[0] < b - 1e-6 and c[1] > a + 1e-6]
-        ys = sorted({y0, y0 + height, *[y0 + c[2] for c in active], *[y0 + c[3] for c in active]})
-        for low, high in zip(ys, ys[1:]):
-            mid_x, mid_y = (a + b) / 2, (low + high) / 2
-            inside = any(c[0] < mid_x < c[1] and y0 + c[2] < mid_y < y0 + c[3] for c in active)
-            if not inside and high - low > 1e-6:
-                result.append((a, b, low, high))
-    return result
-
-
 def build_exterior_walls(data, coll, mat):
     thickness = data["defaults"]["wallThickness"]
-    height = data["defaults"]["ceilingHeight"]
-    for fp in data["footprints"]:
-        base = level_y(data, fp["level"])
-        related = [o for o in data["openings"] if o["level"] == fp["level"] and footprint_for_opening(data, o)["id"] == fp["id"]]
-        for face in ("N", "S", "E", "W"):
-            wall_openings = [o for o in related if o["face"] == face]
-            if face in ("N", "S"):
-                fixed = fp["z0"] if face == "N" else fp["z1"]
-                cuts = [(o["offset"], o["offset"] + o["width"], o["sill"], o["sill"] + o["height"]) for o in wall_openings]
-                for i, (a, b, low, high) in enumerate(wall_segments(fp["x0"], fp["x1"], base, height, cuts)):
-                    box(f"wall-{fp['id']}-{face}-{i:02d}", a, b, fixed-thickness/2, fixed+thickness/2, low, high, coll, mat)
-            else:
-                fixed = next((o["wallX"] for o in wall_openings if "wallX" in o), fp["x1"] if face == "E" else fp["x0"])
-                cuts = [(o["offset"], o["offset"] + o["width"], o["sill"], o["sill"] + o["height"]) for o in wall_openings]
-                for i, (a, b, low, high) in enumerate(wall_segments(fp["z0"], fp["z1"], base, height, cuts)):
-                    box(f"wall-{fp['id']}-{face}-{i:02d}", fixed-thickness/2, fixed+thickness/2, a, b, low, high, coll, mat)
+    for panel in exterior_wall_panels(data):
+        wall = panel["wall"]
+        a, b, at = panel["start"], panel["end"], panel["at"]
+        name = f"{wall['id']}-{panel['index']:02d}"
+        if wall["orientation"] == "H":
+            obj = box(name, a, b, at-thickness/2, at+thickness/2,
+                      panel["bottom"], panel["top"], coll, mat)
+        else:
+            obj = box(name, at-thickness/2, at+thickness/2, a, b,
+                      panel["bottom"], panel["top"], coll, mat)
+        # Auto-numbered wall IDs are diagnostic references, not permanent finish bindings.
+        obj["source_wall"] = json.dumps(wall, ensure_ascii=False)
+        obj["source_openings"] = json.dumps(panel["openings"], ensure_ascii=False)
 
 
 def build_interior_walls(data, coll, mat):
@@ -255,6 +227,7 @@ def build(data):
         build_roof(data, roof, fps[roof["footprintId"]], roofs, roof_mat)
     bpy.context.scene.unit_settings.system = "METRIC"
     bpy.context.scene.unit_settings.length_unit = "METERS"
+    bpy.context.scene.unit_settings.scale_length = 1.0
     bpy.context.scene["ryuka_schema_version"] = data["schemaVersion"]
 
 
@@ -267,6 +240,11 @@ def main():
         output.parent.mkdir(parents=True, exist_ok=True)
         bpy.ops.wm.save_as_mainfile(filepath=str(output))
         print(f"Saved {output}")
+    if args.glb:
+        glb = args.glb.resolve()
+        glb.parent.mkdir(parents=True, exist_ok=True)
+        bpy.ops.export_scene.gltf(filepath=str(glb), export_format="GLB", export_extras=True)
+        print(f"Saved geometry transfer prototype {glb}; not daylight-ready")
 
 
 if __name__ == "__main__":

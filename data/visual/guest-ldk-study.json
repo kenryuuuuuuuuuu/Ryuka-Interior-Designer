@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "0.1.0",
+  "roomId": "room-1f-06",
+  "status": "estimated",
+  "note": "ゲストハウスLDKの内装比較用仮設定。仕上げ・サッシ断面・ガラス・家具細部は未選定。建物寸法と家具配置は既存の正本を参照します。太陽は図面ローカル方位に対する手動角度であり、実際の日時・建設地に対応する採光ではありません。",
+  "camera": {"position": [2.13, 4.25, 1.55], "target": [6.15, 5.05, 1.35], "lensMm": 20, "note": "座標配列は[x,z,床からの高さ]。比較間で固定します。"},
+  "lighting": {"azimuthDeg": 155, "elevationDeg": 30, "sunStrength": 3.0, "skyStrength": 0.25, "exposure": 2.5, "note": "方位角は図面の北0度から時計回り。強度は見え方確認用の仮設定で照度への校正は未実施。比較画像は全て同じ露出+2.5EVです。"},
+  "window": {"frameWidth": 0.045, "frameDepth": 0.08, "glassThickness": 0.006, "ior": 1.45, "note": "標準的な見た目の仮断面。実製品の見付け・有効開口・Low-E・複層ガラスの再現ではありません。"},
+  "variants": {
+    "natural": {"label": "白壁・ナチュラルオーク", "wall": "e5dfd2", "ceiling": "eeeae1", "wood": "ae8153", "fabric": "9b998f", "cabinet": "c9b9a0"},
+    "warm": {"label": "グレージュ・ウォルナット", "wall": "bcb0a0", "ceiling": "e5dfd3", "wood": "71513c", "fabric": "827468", "cabinet": "95836d"}
+  }
+}
