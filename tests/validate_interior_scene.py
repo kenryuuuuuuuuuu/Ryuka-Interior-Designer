@@ -33,6 +33,39 @@ def main():
         hits.append(dict(x=x,z=z,ceilingGL=location.z))
     hit,location,normal,index,obj,matrix=scene.ray_cast(deps,Vector((3.3,-6.1,2.407)),Vector((0,-1,0)),distance=.6)
     assert hit and obj.name=='opening.op-006.glass', f'Guest window blocked: {obj.name if hit else None}'
+    detail_checks={}
+    sink=next((o for o in meshes if o.name.endswith('.sink-bottom')),None)
+    if sink is not None:
+        bb=bounds(sink); x=(bb[0]+bb[3])/2; y=(bb[1]+bb[4])/2
+        hit,location,normal,index,obj,matrix=scene.ray_cast(deps,Vector((x,y,bb[5]+.25)),Vector((0,0,-1)),distance=.5)
+        assert hit and obj==sink, 'Sink basin is filled or covered by another solid'
+        assert abs(location.z-bb[5])<.001
+        detail_checks['sinkBasinOpen']=True
+        hob=next(o for o in meshes if o.name.endswith('.hob'))
+        hb=bounds(hob)
+        hit,location,normal,index,obj,matrix=scene.ray_cast(deps,Vector(((hb[0]+hb[3])/2,(hb[1]+hb[4])/2,hb[5]+.1)),Vector((0,0,-1)),distance=.2)
+        assert hit and obj==hob, 'Worktop covers the inset hob'
+        detail_checks['hobUncovered']=True
+        root_data=Path(__file__).resolve().parents[1]/'data'
+        items=json.loads((root_data/'furniture.json').read_text(encoding='utf-8'))['items']
+        catalog={t['type']:t for t in json.loads((root_data/'furniture-catalog.json').read_text(encoding='utf-8'))['types']}
+        house=json.loads((root_data/'house.json').read_text(encoding='utf-8'))
+        import math
+        for item in items:
+            if item['type'] not in ('kitchen-counter','refrigerator'): continue
+            parts=[o for o in meshes if o.name.startswith('furniture.'+item['id']+'.')]
+            if not parts: continue
+            w,d,h=[item.get(k+'Override',catalog[item['type']][k]) for k in ('width','depth','height')]
+            a=math.radians(item['rotation']); c,s=math.cos(a),math.sin(a)
+            for part in parts:
+                assert json.loads(part['source_json'])==item, 'Furniture provenance changed'
+                for vertex in part.data.vertices:
+                    v=part.matrix_world@vertex.co
+                    px=v.x-item['x']; py=v.y+item['z']
+                    local_x=c*px+s*py; local_z=s*px-c*py
+                    assert abs(local_x)<=w/2+.0001 and abs(local_z)<=d/2+.0001, part.name
+                    assert -.0001<=v.z-house['levels'][f"fl{item['level']}"]<=h+.0001, part.name
+        detail_checks['appliancePartsWithinSourceBounds']=True
     expected={o.name:bounds(o) for o in meshes}
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=str(root/'interior.glb'))
@@ -43,7 +76,7 @@ def main():
     assert error<.001, f'GLB axis/scale discrepancy: {error}'
     result=dict(meshes=len(meshes),closedSolids=True,ceilingCheckpoints=hits,
                 guestWindowUnblocked=True,glbMaxBoundsErrorMetres=error,unrealImportVerified=False,
-                meshBoundsBlenderMetres=actual)
+                meshBoundsBlenderMetres=actual,furnitureDetails=detail_checks)
     (root/'verification.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps({k:v for k,v in result.items() if k!='meshBoundsBlenderMetres'}))
 

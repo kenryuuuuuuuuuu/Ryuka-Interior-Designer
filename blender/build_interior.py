@@ -225,6 +225,8 @@ def build_furniture(data,settings,mats):
         created=[]
         def part(name,x0,x1,z0,z1,y0,y1,mat,bevel=.008):
             obj=block(f"furniture.{item['id']}.{name}",x0,x1,z0,z1,y0,y1,mat,bevel,item); created.append(obj)
+            obj['detail_status']='estimated'
+            obj['detail_note']='Procedural appearance only; source placement and outer dimensions retained. Product details unconfirmed.'
             return obj
         shape=profile['shape']
         if shape in ('diningTable','coffeeTable','counterTable') or 'table' in item['type']:
@@ -247,13 +249,48 @@ def build_furniture(data,settings,mats):
             for x in (-w/2,w/2-.07):
                 part('arm',x,x+.07,-d/2,d/2,.31,h*.8,mats['fabric'],.025)
         elif 'kitchen' in item['type']:
-            part('body',-w/2,w/2,-d/2,d/2,.07,h-.035,mats['cabinet'])
-            part('worktop',-w/2,w/2,-d/2,d/2,h-.035,h,mats['stone'])
+            # Partition closed solids around the basin; no hidden solid body filling it.
+            sx0,sx1,sz0,sz1=-w*.27,w*.05,-d*.3,d*.22
+            depth=min(.16,h*.2); top=min(.035,h*.05); lip=min(.008,d*.02)
+            bottom=h-depth
+            part('plinth',-w*.48,w*.48,-d*.46,d*.44,0,h*.08,mats['frame'],.003)
+            part('body',-w/2,w/2,-d/2,d/2-.02,h*.08,bottom-.005,mats['cabinet'])
+            surrounds=[('left',-w/2,sx0,-d/2,d/2),('right',sx1,w/2,-d/2,d/2),
+                       ('rear',sx0,sx1,-d/2,sz0),('front',sx0,sx1,sz1,d/2)]
+            for name,x0,x1,z0,z1 in surrounds:
+                part('body-'+name,x0,x1,z0,min(z1,d/2-.02),bottom-.005,h-top,mats['cabinet'],.003)
+                if name=='right':
+                    hx0,hx1,hz0,hz1=w*.18,w*.43,-d*.3,d*.23
+                    for k,xa,xb,za,zb in [('left',x0,hx0,z0,z1),('right',hx1,x1,z0,z1),
+                                          ('rear',hx0,hx1,z0,hz0),('front',hx0,hx1,hz1,z1)]:
+                        part('worktop-hob-'+k,xa,xb,za,zb,h-top,h,mats['stone'],.002)
+                else:
+                    part('worktop-'+name,x0,x1,z0,z1,h-top,h,mats['stone'],.002)
+            part('sink-bottom',sx0,sx1,sz0,sz1,bottom-.005,bottom,mats['metal'],.002)
+            for name,x0,x1,z0,z1 in [('left',sx0,sx0+lip,sz0,sz1),('right',sx1-lip,sx1,sz0,sz1),
+                                    ('rear',sx0+lip,sx1-lip,sz0,sz0+lip),('front',sx0+lip,sx1-lip,sz1-lip,sz1)]:
+                part('sink-'+name,x0,x1,z0,z1,bottom,h,mats['metal'],.002)
+            gap=min(.004,w*.002)
             for j in range(3):
                 a=-w/2+j*w/3
-                part('front',a+.004,a+w/3-.004,d/2-.018,d/2+.001,.09,h-.055,mats['cabinet'])
-            part('sink-proxy',-w*.27,w*.05,-d*.3,d*.22,h+.001,h+.004,mats['metal'])
-            part('hob-proxy',w*.18,w*.43,-d*.3,d*.23,h+.002,h+.005,mats['black'])
+                part('front',a+gap,a+w/3-gap,d/2-.018,d/2-.004,h*.1,h-top-.012,mats['cabinet'],.002)
+                part('pull',a+w*.04,a+w/3-w*.04,d/2-.004,d/2,h-top-.035,h-top-.025,mats['frame'],.001)
+            # Thin inset hob replaces the visual proxy, kept within the source height.
+            part('hob',w*.18,w*.43,-d*.3,d*.23,h-.004,h-.001,mats['black'],.001)
+            for x,z in [(w*.245,-d*.12),(w*.365,d*.08)]:
+                radius=min(w*.045,d*.105)
+                n=48; vertices=[]
+                for y in (h-.001,h):
+                    vertices.extend((x+radius*math.cos(i*2*math.pi/n),-(z+radius*math.sin(i*2*math.pi/n)),y) for i in range(n))
+                faces=[tuple(range(n-1,-1,-1)),tuple(range(n,n*2))]+[(i,(i+1)%n,(i+1)%n+n,i+n) for i in range(n)]
+                obj=mesh(f"furniture.{item['id']}.hob-zone",vertices,faces,mats['metal'],item)
+                obj['detail_status']='estimated'; created.append(obj)
+        elif 'refrigerator' in item['type']:
+            front=d/2; door=min(.035,d*.08); gap=min(.006,h*.005)
+            part('body',-w/2,w/2,-d/2,front-door,0,h,mats['metal'],.018)
+            for name,lo,hi in [('freezer',0,h*.32-gap/2),('fridge',h*.32+gap/2,h)]:
+                part(name+'-door',-w/2,w/2,front-door,front-.003,lo,hi,mats['cabinet'],.012)
+                part(name+'-grip',w*.31,w*.43,front-.002,front,lo+(hi-lo)*.58,lo+(hi-lo)*.86,mats['frame'],.001)
         elif 'tv' in item['type']:
             part('cabinet',-w/2,w/2,-d/2,d/2,.06,h,mats['wood'])
         else:
