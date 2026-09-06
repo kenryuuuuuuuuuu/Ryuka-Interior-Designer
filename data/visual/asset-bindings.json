@@ -8,6 +8,41 @@
       "sizing": "parametric",
       "status": "estimated",
       "note": "施主の参考画像の木製フレームと独立した布クッションを手掛かりにした自作モデル。特定の製品を再現したものではない。幅・奥行・高さから部品を組み直し、木枠の太さを保つ。"
+    },
+    {
+      "furnitureId": "fur-008",
+      "assetId": "round-table-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "参考画像の円卓・細い木製脚・曲線の背を手掛かりにした自作の仮モデル。特定製品の再現ではない。"
+    },
+    {
+      "furnitureId": "fur-009",
+      "assetId": "chair-timber-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "参考画像の円卓・細い木製脚・曲線の背を手掛かりにした自作の仮モデル。特定製品の再現ではない。"
+    },
+    {
+      "furnitureId": "fur-010",
+      "assetId": "chair-timber-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "参考画像の円卓・細い木製脚・曲線の背を手掛かりにした自作の仮モデル。特定製品の再現ではない。"
+    },
+    {
+      "furnitureId": "fur-044",
+      "assetId": "chair-timber-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "参考画像の円卓・細い木製脚・曲線の背を手掛かりにした自作の仮モデル。特定製品の再現ではない。"
+    },
+    {
+      "furnitureId": "fur-046",
+      "assetId": "chair-timber-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "参考画像の円卓・細い木製脚・曲線の背を手掛かりにした自作の仮モデル。特定製品の再現ではない。"
     }
   ]
 }

@@ -18,15 +18,19 @@ def validate_bindings(document, items, catalog):
         target = binding.get('furnitureId')
         if target in result: raise ValueError(f'Duplicate furniture binding: {target}')
         if target not in by_id: raise ValueError(f'Remove or reassign orphan furniture binding: {target}')
-        if binding.get('assetId') != ASSET_ID or binding.get('sizing') != 'parametric':
+        registry = {'sofa-timber-v1': ('sofa', sofa_parts),
+                    'round-table-v1': ('roundTable', round_table_parts),
+                    'chair-timber-v1': ('timberChair', chair_parts)}
+        if binding.get('assetId') not in registry or binding.get('sizing') != 'parametric':
             raise ValueError(f'Unsupported asset or sizing policy: {target}')
         if binding.get('status') != 'estimated' or not binding.get('note'):
             raise ValueError(f'Asset needs estimated status and provenance note: {target}')
         item = by_id[target]
         profile = by_type[item['type']]
-        if profile['shape'] != 'sofa': raise ValueError(f'Sofa asset assigned to another shape: {target}')
+        shape, factory = registry[binding['assetId']]
+        if profile['shape'] != shape: raise ValueError(f'Asset assigned to another shape: {target}')
         dimensions = [item.get(k+'Override', profile[k]) for k in DIMENSIONS]
-        sofa_parts(*dimensions)  # fail before rendering, never silently stretch a product
+        factory(*dimensions)  # fail before rendering, never silently stretch a product
         result[target] = binding
     return result
 
@@ -64,3 +68,50 @@ def sofa_parts(width, depth, height):
         box(f'seat-cushion-{j}',x+.008,x+half-.008,-d/2+.12,d/2-.025,.30,seat_top,'fabric',.055)
         box(f'back-cushion-{j}',x+.008,x+half-.008,-d/2+.035,-d/2+.20,seat_top-.035,h,'fabric',.065)
     return parts
+
+
+def check_dimensions(values, limits):
+    for value,(lo,hi) in zip(values,limits):
+        if type(value) not in (int,float) or not math.isfinite(value) or not lo<=value<=hi:
+            raise ValueError(f'Furniture dimensions outside supported range: {values}')
+
+
+def solid(name,bounds,material='wood',kind='box',bevel=.008):
+    return dict(name=name,bounds=bounds,material=material,kind=kind,bevel=bevel)
+
+
+def round_table_parts(w,d,h):
+    check_dimensions((w,d,h),((.7,1.4),(.7,1.4),(.65,.8)))
+    parts=[solid('top',[-w/2,w/2,-d/2,d/2,h-.035,h],kind='ellipse',bevel=.006)]
+    for j,(sx,sz) in enumerate([(-1,-1),(-1,1),(1,-1),(1,1)]):
+        x,z=sx*w*.25,sz*d*.25
+        parts.append(solid(f'leg-{j}',[x-.026,x+.026,z-.026,z+.026,0,h-.035],kind='ellipse'))
+    return parts
+
+
+def chair_parts(w,d,h):
+    check_dimensions((w,d,h),((.4,.65),(.42,.65),(.75,1)))
+    seat=h*.53
+    parts=[solid('seat',[-w/2,w/2,-d/2,d/2,seat-.045,seat],'fabric',bevel=.02)]
+    for j,(sx,sz) in enumerate([(-1,-1),(-1,1),(1,-1),(1,1)]):
+        x,z=sx*(w/2-.035),sz*(d/2-.035)
+        parts.append(solid(f'leg-{j}',[x-.018,x+.018,z-.018,z+.018,0,seat-.045],kind='ellipse'))
+    for j,x in enumerate([-w*.35,0,w*.35]):
+        parts.append(solid(f'back-support-{j}',[x-.012,x+.012,-d*.44,-d*.39,seat-.03,h-.055],bevel=.01))
+    # Closed U-shaped rail, sampled at fixed angles; +z is the open front.
+    poly=[]
+    for i in range(33):
+        angle=i*math.pi/32
+        poly.append([w*.48*math.cos(angle),-d*.46*math.sin(angle)])
+    for i in range(32,-1,-1):
+        angle=i*math.pi/32
+        poly.append([(w*.48-.028)*math.cos(angle),-(d*.46-.028)*math.sin(angle)])
+    rail=solid('curved-back',[-w/2,w/2,-d/2,0,h-.055,h],kind='polygon',bevel=.005)
+    rail['polygon']=poly
+    parts.append(rail)
+    return parts
+
+
+def asset_parts(asset_id,w,d,h):
+    return {'sofa-timber-v1':sofa_parts,'round-table-v1':round_table_parts,
+            'chair-timber-v1':chair_parts}[asset_id](w,d,h)

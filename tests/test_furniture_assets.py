@@ -6,10 +6,18 @@ import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'blender'))
-from furniture_assets import sofa_parts, validate_bindings
+from furniture_assets import sofa_parts, validate_bindings, round_table_parts, chair_parts
 
 
 class FurnitureAssets(unittest.TestCase):
+    def test_dining_assets(self):
+        for factory,dimensions,count in [(round_table_parts,(.9,.9,.72),5),(chair_parts,(.45,.48,.85),9)]:
+            self.assertEqual(len(factory(*dimensions)),count)
+            for bad in [(0,.8,.8),(.8,float('nan'),.8),(.8,.8,3)]:
+                with self.assertRaises(ValueError):factory(*bad)
+        rail=chair_parts(.45,.48,.85)[-1]
+        self.assertEqual(rail['kind'],'polygon')
+        self.assertEqual(len(rail['polygon']),66)
     def setUp(self):
         self.bindings=json.loads((ROOT/'data/visual/asset-bindings.json').read_text(encoding='utf-8'))
         self.items=json.loads((ROOT/'data/furniture.json').read_text(encoding='utf-8'))['items']

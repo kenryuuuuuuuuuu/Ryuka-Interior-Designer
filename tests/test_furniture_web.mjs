@@ -62,3 +62,13 @@ for (const rotation of [0,90,180,270]) {
   actual.forEach((v,i)=>assert.ok(Math.abs(v-expected[i])<1e-6,`sofa ${rotation}: ${actual}`));
 }
 console.log('Sofa: edited size, elevation and canonical front agree across four rotations.');
+for(const [id,w,d,h] of [['fur-008',1.2,.8,.75],['fur-009',.6,.6,.95]]){
+  for(const rotation of [0,90,180,270]){
+    run(`furnitureEdits['${id}']={rotation:${rotation},width:${w},depth:${d},height:${h},elevation:.2};rebuildFurnitureItem('${id}');`);
+    const actual=run(`(()=>{const holder=furnitureMeshes.get('${id}').holder;holder.updateMatrixWorld(true);
+      const b=new THREE.Box3().setFromObject(holder);return [b.min.y,b.max.y,b.getSize(new THREE.Vector3()).x];})()`);
+    const expected=[.907,.907+h,rotation%180?d:w];
+    actual.forEach((v,i)=>assert.ok(Math.abs(v-expected[i])<1e-6,`${id} ${rotation}: ${actual}`));
+  }
+}
+console.log('Dining: resized circular/elliptical table and chairs agree across four rotations.');

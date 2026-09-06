@@ -135,37 +135,39 @@
     },
     {
       "id": "fur-008",
-      "type": "dining-table-4",
+      "type": "dining-table-round",
       "room": "room-1f-06",
       "label": "ダイニングテーブル",
       "level": 1,
-      "x": 5.36,
-      "z": 5.06,
+      "x": 5.45,
+      "z": 5.02,
       "rotation": 0,
-      "widthOverride": 0.8,
-      "status": "estimated"
+      "status": "estimated",
+      "note": " 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{\"type\":\"dining-table-4\",\"x\":5.36,\"z\":5.06,\"widthOverride\":0.8}。仮寸法・仮配置、製品未選定。"
     },
     {
       "id": "fur-009",
-      "type": "chair",
+      "type": "chair-timber",
       "room": "room-1f-06",
       "label": "椅子1",
       "level": 1,
-      "x": 5.39,
-      "z": 4.61,
+      "x": 5.45,
+      "z": 4.31,
       "rotation": 0,
-      "status": "estimated"
+      "status": "estimated",
+      "note": " 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{\"type\":\"chair\",\"x\":5.39,\"z\":4.61}。仮寸法・仮配置、製品未選定。"
     },
     {
       "id": "fur-010",
-      "type": "chair",
+      "type": "chair-timber",
       "room": "room-1f-06",
       "label": "椅子2",
       "level": 1,
-      "x": 5.36,
-      "z": 5.56,
+      "x": 5.45,
+      "z": 5.73,
       "rotation": 180,
-      "status": "estimated"
+      "status": "estimated",
+      "note": " 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{\"type\":\"chair\",\"x\":5.36,\"z\":5.56}。仮寸法・仮配置、製品未選定。"
     },
     {
       "id": "fur-011",
@@ -199,12 +201,13 @@
       "room": "room-1f-06",
       "label": "ローテーブル",
       "level": 1,
-      "x": 3.66,
-      "z": 4.9,
+      "x": 3.65,
+      "z": 5.0,
       "rotation": 0,
-      "widthOverride": 0.5,
+      "widthOverride": 0.85,
       "depthOverride": 0.4,
-      "status": "estimated"
+      "status": "estimated",
+      "note": " 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{\"x\":3.66,\"z\":4.9,\"widthOverride\":0.5,\"depthOverride\":0.4}。仮寸法・仮配置、製品未選定。"
     },
     {
       "id": "fur-043",
@@ -212,23 +215,26 @@
       "room": "room-1f-06",
       "label": "カウンターテーブル",
       "level": 1,
-      "x": 3.67,
-      "z": 6.11,
+      "x": 3.7,
+      "z": 6.1,
       "rotation": 180,
-      "widthOverride": 1.7,
-      "status": "estimated"
+      "widthOverride": 1.9,
+      "status": "estimated",
+      "depthOverride": 0.42,
+      "heightOverride": 0.74,
+      "note": " 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{\"x\":3.67,\"z\":6.11,\"widthOverride\":1.7,\"depthOverride\":null,\"heightOverride\":null}。仮寸法・仮配置、製品未選定。"
     },
     {
       "id": "fur-044",
-      "type": "chair",
+      "type": "chair-timber",
       "room": "room-1f-06",
-      "label": "椅子（カウンター）",
+      "label": "椅子（カウンター1）",
       "level": 1,
-      "x": 3.7,
-      "z": 6.01,
+      "x": 3.15,
+      "z": 5.67,
       "rotation": 0,
-      "depthOverride": 0.7,
-      "status": "estimated"
+      "status": "estimated",
+      "note": " 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{\"type\":\"chair\",\"x\":3.7,\"z\":6.01,\"depthOverride\":0.7,\"label\":\"椅子（カウンター）\"}。仮寸法・仮配置、製品未選定。"
     },
     {
       "id": "fur-013",
@@ -480,6 +486,18 @@
       "z": 5,
       "rotation": 90,
       "status": "estimated"
+    },
+    {
+      "id": "fur-046",
+      "type": "chair-timber",
+      "room": "room-1f-06",
+      "label": "椅子（カウンター2）",
+      "level": 1,
+      "x": 4.05,
+      "z": 5.67,
+      "rotation": 0,
+      "status": "estimated",
+      "note": "窓際カウンターを2席とする参考案。高さ740mmの天板と座面約450mmを組み合わせる。仮配置・製品未選定。"
     }
   ]
 }

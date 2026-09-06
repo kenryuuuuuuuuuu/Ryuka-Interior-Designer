@@ -15,6 +15,7 @@ original_read=builder.read
 catalog=original_read(ROOT/'data/furniture-catalog.json')
 source=original_read(ROOT/'data/furniture.json')
 bindings=original_read(ROOT/'data/visual/asset-bindings.json')
+bindings['bindings']=[b for b in bindings['bindings'] if b['furnitureId']=='fur-011']
 original=next(i for i in source['items'] if i['id']=='fur-011')
 data={'levels':{'fl1':.707},'rooms':[{'id':'test-room','level':1,'polygon':[[-10,-10],[10,-10],[10,10],[-10,10]]}]}
 settings={'roomId':'test-room'}

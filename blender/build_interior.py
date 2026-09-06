@@ -17,7 +17,7 @@ from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_house as house_builder
-from furniture_assets import validate_bindings, sofa_parts
+from furniture_assets import validate_bindings, asset_parts
 from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
 
@@ -232,10 +232,26 @@ def build_furniture(data,settings,mats):
             obj['detail_note']='Procedural appearance only; source placement and outer dimensions retained. Product details unconfirmed.'
             return obj
         shape=profile['shape']
-        if item['id'] in bindings:
-            binding=bindings[item['id']]
-            for spec in sofa_parts(w,d,h):
-                obj=part(spec['name'],*spec['bounds'],mats[spec['material']],spec['bevel'])
+        binding=bindings.get(item['id'])
+        native_asset={'roundTable':'round-table-v1','timberChair':'chair-timber-v1'}.get(shape)
+        if binding or native_asset:
+            binding=binding or dict(furnitureId=item['id'],assetId=native_asset,sizing='parametric',
+                                    status='estimated',note='Default renderer for catalog shape; no explicit override.')
+            for spec in asset_parts(binding['assetId'],w,d,h):
+                kind=spec.get('kind','box')
+                if kind!='box':
+                    x0,x1,z0,z1,y0,y1=spec['bounds']
+                    polygon=spec.get('polygon')
+                    if kind=='ellipse':
+                        polygon=[((x0+x1)/2+(x1-x0)/2*math.cos(j*2*math.pi/64),
+                                  (z0+z1)/2+(z1-z0)/2*math.sin(j*2*math.pi/64)) for j in range(64)]
+                    obj=prism(f"furniture.{item['id']}.{spec['name']}",[(x,-z,y0) for x,z in polygon],
+                              (0,0,y1-y0),mats[spec['material']],item)
+                    mod=obj.modifiers.new('Soft edges','BEVEL'); mod.width=spec['bevel']; mod.segments=3
+                    obj.modifiers.new('Weighted normals','WEIGHTED_NORMAL')
+                    obj['detail_status']='estimated';created.append(obj)
+                else:
+                    obj=part(spec['name'],*spec['bounds'],mats[spec['material']],spec['bevel'])
                 obj['asset_id']=binding['assetId']
                 obj['asset_binding_json']=json.dumps(binding,ensure_ascii=False)
         elif shape in ('diningTable','coffeeTable','counterTable') or 'table' in item['type']:

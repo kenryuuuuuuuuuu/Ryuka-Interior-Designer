@@ -205,6 +205,8 @@ const STAIRS = [
 ];
 
 const FURNITURE_CATALOG = {
+  'dining-table-round': { label:'円形ダイニングテーブル', category:'furniture', shape:'roundTable', width:0.9, depth:0.9, height:0.72, clearance:0.75, rotationConvention:'source' },
+  'chair-timber': { label:'木製チェア', category:'furniture', shape:'timberChair', width:0.45, depth:0.48, height:0.85, clearance:0.3, rotationConvention:'source' },
   'television': { label:'テレビ', category:'furniture', shape:'television', width:1.12, depth:0.06, height:0.65, clearance:0, rotationConvention:'source' },
   'kitchen-counter': { label:'システムキッチン', category:'fixture', shape:'kitchenCounter', width:2.55, depth:0.65, height:0.85, clearance:0.9 },
   'refrigerator': { label:'冷蔵庫', category:'furniture', shape:'boxAppliance', width:0.69, depth:0.7, height:1.83, clearance:0.7 },
@@ -242,14 +244,14 @@ const FURNITURE_ITEMS = [
   { id:'fur-042', type:'chair', level:1, x:6.46, z:1.49, rotation:270, width:0.45, depth:0.5, height:0.85, label:'椅子', status:'estimated', room:'room-1f-05' },
   { id:'fur-006', type:'kitchen-counter', level:1, x:6.87, z:5.43, rotation:90, width:1.8, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-06' },
   { id:'fur-007', type:'refrigerator', level:1, x:6.86, z:4.06, rotation:90, width:0.69, depth:0.7, height:1.4, label:'冷蔵庫', status:'estimated', room:'room-1f-06' },
-  { id:'fur-008', type:'dining-table-4', level:1, x:5.36, z:5.06, rotation:0, width:0.8, depth:0.8, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-06' },
-  { id:'fur-009', type:'chair', level:1, x:5.39, z:4.61, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子1', status:'estimated', room:'room-1f-06' },
-  { id:'fur-010', type:'chair', level:1, x:5.36, z:5.56, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子2', status:'estimated', room:'room-1f-06' },
+  { id:'fur-008', type:'dining-table-round', level:1, x:5.45, z:5.02, rotation:0, width:0.9, depth:0.9, height:0.72, label:'ダイニングテーブル', status:'estimated', note:' 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"dining-table-4","x":5.36,"z":5.06,"widthOverride":0.8}。仮寸法・仮配置、製品未選定。', room:'room-1f-06' }, //  参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"dining-table-4","x":5.36,"z":5.06,"widthOverride":0.8}。仮寸法・仮配置、製品未選定。
+  { id:'fur-009', type:'chair-timber', level:1, x:5.45, z:4.31, rotation:0, width:0.45, depth:0.48, height:0.85, label:'椅子1', status:'estimated', note:' 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":5.39,"z":4.61}。仮寸法・仮配置、製品未選定。', room:'room-1f-06' }, //  参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":5.39,"z":4.61}。仮寸法・仮配置、製品未選定。
+  { id:'fur-010', type:'chair-timber', level:1, x:5.45, z:5.73, rotation:180, width:0.45, depth:0.48, height:0.85, label:'椅子2', status:'estimated', note:' 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":5.36,"z":5.56}。仮寸法・仮配置、製品未選定。', room:'room-1f-06' }, //  参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":5.36,"z":5.56}。仮寸法・仮配置、製品未選定。
   { id:'fur-011', type:'sofa-2seat', level:1, x:3.76, z:4.13, rotation:0, width:1.7, depth:0.78, height:0.78, label:'ソファ', status:'estimated', note:'参考画像の木枠ソファに合わせた検討案。施主より既存家具の寸法・配置変更可の指示。旧案は中心(3.74,4.05)、1.40×0.70×0.70m。新案は北壁室内側に収まるよう中心(3.76,4.13)、1.70×0.78×0.78mへ変更。製品未選定。', room:'room-1f-06' }, // 参考画像の木枠ソファに合わせた検討案。施主より既存家具の寸法・配置変更可の指示。旧案は中心(3.74,4.05)、1.40×0.70×0.70m。新案は北壁室内側に収まるよう中心(3.76,4.13)、1.70×0.78×0.78mへ変更。製品未選定。
   { id:'fur-012', type:'tv-board', level:1, x:2.05, z:5.22, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-1f-06' },
-  { id:'fur-038', type:'coffee-table', level:1, x:3.66, z:4.9, rotation:0, width:0.5, depth:0.4, height:0.4, label:'ローテーブル', status:'estimated', room:'room-1f-06' },
-  { id:'fur-043', type:'counter-table', level:1, x:3.67, z:6.11, rotation:180, width:1.7, depth:0.35, height:1, label:'カウンターテーブル', status:'estimated', room:'room-1f-06' },
-  { id:'fur-044', type:'chair', level:1, x:3.7, z:6.01, rotation:0, width:0.45, depth:0.7, height:0.85, label:'椅子（カウンター）', status:'estimated', room:'room-1f-06' },
+  { id:'fur-038', type:'coffee-table', level:1, x:3.65, z:5, rotation:0, width:0.85, depth:0.4, height:0.4, label:'ローテーブル', status:'estimated', note:' 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"x":3.66,"z":4.9,"widthOverride":0.5,"depthOverride":0.4}。仮寸法・仮配置、製品未選定。', room:'room-1f-06' }, //  参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"x":3.66,"z":4.9,"widthOverride":0.5,"depthOverride":0.4}。仮寸法・仮配置、製品未選定。
+  { id:'fur-043', type:'counter-table', level:1, x:3.7, z:6.1, rotation:180, width:1.9, depth:0.42, height:0.74, label:'カウンターテーブル', status:'estimated', note:' 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"x":3.67,"z":6.11,"widthOverride":1.7,"depthOverride":null,"heightOverride":null}。仮寸法・仮配置、製品未選定。', room:'room-1f-06' }, //  参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"x":3.67,"z":6.11,"widthOverride":1.7,"depthOverride":null,"heightOverride":null}。仮寸法・仮配置、製品未選定。
+  { id:'fur-044', type:'chair-timber', level:1, x:3.15, z:5.67, rotation:0, width:0.45, depth:0.48, height:0.85, label:'椅子（カウンター1）', status:'estimated', note:' 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":3.7,"z":6.01,"depthOverride":0.7,"label":"椅子（カウンター）"}。仮寸法・仮配置、製品未選定。', room:'room-1f-06' }, //  参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":3.7,"z":6.01,"depthOverride":0.7,"label":"椅子（カウンター）"}。仮寸法・仮配置、製品未選定。
   { id:'fur-013', type:'kitchen-counter', level:1, x:13.63, z:5.08, rotation:270, width:2.55, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-11' },
   { id:'fur-014', type:'refrigerator', level:1, x:15.11, z:5.99, rotation:180, width:0.69, depth:0.7, height:1.83, label:'冷蔵庫', status:'estimated', room:'room-1f-11' },
   { id:'fur-015', type:'dining-table-6', level:1, x:12.08, z:4.69, rotation:0, width:1.4, depth:0.85, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-11' },
@@ -272,6 +274,7 @@ const FURNITURE_ITEMS = [
   { id:'fur-031', type:'desk', level:2, x:17.44, z:0.3, rotation:0, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-2f-05' },
   { id:'fur-032', type:'bed-double', level:2, x:18.07, z:5.07, rotation:90, width:2, depth:2, height:0.5, label:'ベッド', status:'estimated', room:'room-2f-06' },
   { id:'fur-040', type:'tv-board', level:2, x:15.72, z:5, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-2f-06' },
+  { id:'fur-046', type:'chair-timber', level:1, x:4.05, z:5.67, rotation:0, width:0.45, depth:0.48, height:0.85, label:'椅子（カウンター2）', status:'estimated', note:'窓際カウンターを2席とする参考案。高さ740mmの天板と座面約450mmを組み合わせる。仮配置・製品未選定。', room:'room-1f-06' }, // 窓際カウンターを2席とする参考案。高さ740mmの天板と座面約450mmを組み合わせる。仮配置・製品未選定。
 ];
 
 const ELECTRICAL_CATALOG = {

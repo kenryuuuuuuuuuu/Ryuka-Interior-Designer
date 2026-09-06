@@ -1723,6 +1723,19 @@ const FMAT = {
   mirror:    new THREE.MeshStandardMaterial({color:0xaebfc9, roughness:0.2, metalness:0.3})
 };
 const FURNITURE_SHAPES = {
+  roundTable(group,w,d,h){
+    const top=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,1,64),FMAT.wood);
+    top.scale.set(w,.035,d);top.position.y=h-.0175;group.add(top);
+    for(const sx of [-1,1])for(const sz of [-1,1])
+      fPart(group,.052,h-.035,.052,sx*w*.25,0,sz*d*.25,FMAT.wood,true);
+  },
+  timberChair(group,w,d,h){
+    const seat=h*.53;
+    fPart(group,w,.045,d,0,seat-.045,0,FMAT.fabricTan);
+    for(const sx of [-1,1])for(const sz of [-1,1])
+      fPart(group,.036,seat-.045,.036,sx*(w/2-.035),0,sz*(d/2-.035),FMAT.wood,true);
+    fPart(group,w*.96,h-seat,d*.06,0,seat,-d*.43,FMAT.wood);
+  },
   television(group,w,d,h){
     fPart(group,w,h,d*.9,0,0,-d*.05,FMAT.dark);
     fPart(group,w*.96,h*.94,d*.1,0,h*.03,d*.45,FMAT.mirror);

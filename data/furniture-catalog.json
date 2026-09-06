@@ -8,6 +8,30 @@
   },
   "types": [
     {
+      "type": "dining-table-round",
+      "label": "円形ダイニングテーブル",
+      "category": "furniture",
+      "shape": "roundTable",
+      "rotationConvention": "source",
+      "width": 0.9,
+      "depth": 0.9,
+      "height": 0.72,
+      "clearance": 0.75,
+      "note": "ゲストLDK参考案の直径900mm円卓。幅と奥行を別々に変更すると楕円になる。製品未選定。"
+    },
+    {
+      "type": "chair-timber",
+      "label": "木製チェア",
+      "category": "furniture",
+      "shape": "timberChair",
+      "rotationConvention": "source",
+      "width": 0.45,
+      "depth": 0.48,
+      "height": 0.85,
+      "clearance": 0.3,
+      "note": "曲線の背もたれと独立した座面の仮モデル。座面上端は本体高さ×0.53（標準約450mm）。実製品や編み座の再現ではない。"
+    },
+    {
       "type": "television",
       "rotationConvention": "source",
       "label": "テレビ",
