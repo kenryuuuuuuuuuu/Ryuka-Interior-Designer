@@ -234,6 +234,8 @@ python scripts/build-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.
 
 ### 同じ視点での比較画像
 
+複数の日時・仕上げをまとめて撮影し、ブラウザで見比べる場合は[一括比較ギャラリー](COMPARISON_GALLERY.md)を使います。
+
 ```powershell
 python scripts/capture-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/ue-finish-study-v3 --cache '../../ddc' --name natural --variant natural
 python scripts/capture-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/ue-finish-study-v3 --cache '../../ddc' --name warm --variant warm
