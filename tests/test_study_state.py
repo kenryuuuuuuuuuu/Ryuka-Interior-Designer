@@ -8,6 +8,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'unreal'))
 from study_state import default_state, validate_state
+from solar_position import make_case, apply_case
 
 
 class StateTests(unittest.TestCase):
@@ -32,6 +33,14 @@ class StateTests(unittest.TestCase):
         state=copy.deepcopy(self.state)
         state.update(variant='warm',elevationDeg=60,camera=dict(locationCm=[213,425,225.7],rotationDeg=[-2,11,0],lensMm=20))
         self.assertEqual(validate_state(json.loads(json.dumps(state)),self.study),state)
+
+    def test_solar_provenance(self):
+        site=dict(schemaVersion='1.0.0',latitudeDeg=35,longitudeDeg=135,
+                  planNorthAzimuthDeg=0,locationStatus='estimated',northStatus='estimated',note='Synthetic test')
+        state=apply_case(self.state,make_case(site,'2026-12-22T12:00:00+09:00'))
+        validate_state(state,self.study)
+        with self.assertRaises(ValueError): validate_state(dict(state,elevationDeg=60),self.study)
+        with self.assertRaises(ValueError): validate_state(dict(state,solar={}),self.study)
 
 
 if __name__=='__main__': unittest.main()

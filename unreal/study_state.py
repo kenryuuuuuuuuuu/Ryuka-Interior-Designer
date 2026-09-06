@@ -1,8 +1,10 @@
 """Portable comparison state. Pure Python; shared by the CLI and UE editor."""
 import math
+from solar_position import validate_case, matches
 
 
 def validate_state(state, study):
+    if not isinstance(state, dict): raise ValueError('Invalid comparison state')
     if state.get('schemaVersion') != '1.0.0':
         raise ValueError('Unsupported comparison state schema')
     if state.get('roomId') != study['roomId']:
@@ -15,7 +17,12 @@ def validate_state(state, study):
         if isinstance(value,bool) or not isinstance(value,(float,int)) or not math.isfinite(value) or not low<=value<=high:
             raise ValueError(f'Invalid {key}: expected a finite number in [{low}, {high}]')
     camera=state.get('camera')
+    if state.get('solar') is not None:
+        case=validate_case(state['solar'])
+        if not case['usable'] or not matches(case,state):
+            raise ValueError('Solar provenance does not match scene angles')
     if camera is not None:
+        if not isinstance(camera,dict): raise ValueError('Invalid camera')
         for key in ('locationCm','rotationDeg'):
             values=camera.get(key)
             if not isinstance(values,list) or len(values)!=3 or any(

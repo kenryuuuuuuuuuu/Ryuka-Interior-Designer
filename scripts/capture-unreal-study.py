@@ -5,8 +5,11 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'unreal'))
+from solar_position import validate_cases
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--engine',type=Path,required=True)
 parser.add_argument('--project',type=Path,required=True)
@@ -14,20 +17,25 @@ parser.add_argument('--cache',type=Path,required=True)
 parser.add_argument('--name',default='interior-unreal',help='New PNG basename for this capture')
 parser.add_argument('--variant',choices=('natural','warm'),help='Temporary finish override; does not save the level')
 parser.add_argument('--elevation',type=float,help='Temporary manual sun elevation in degrees')
+parser.add_argument('--sun-case',type=int,help='Zero-based index in the generated project sun-cases.json')
 args=parser.parse_args()
 project=args.project.resolve(); cache=args.cache.resolve()
 if not args.name or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_' for c in args.name):
     parser.error('Capture name may contain letters, numbers, hyphens and underscores only.')
 image=project/'Saved'/(args.name+'.png')
+if args.sun_case is not None:
+    if args.elevation is not None: parser.error('Choose --sun-case or --elevation, not both.')
+    cases=validate_cases(json.loads((project/'sun-cases.json').read_text(encoding='utf-8')))['cases']
+    if not 0<=args.sun_case<len(cases) or not cases[args.sun_case]['usable']: parser.error('Unsupported solar case.')
 if args.elevation is not None and not 1<=args.elevation<=89: parser.error('Elevation must be in [1, 89].')
-if (args.variant or args.elevation is not None) and not (project/'study-state.json').exists():
+if (args.variant or args.elevation is not None or args.sun_case is not None) and not (project/'study-state.json').exists():
     parser.error('Rebuild this project with the comparison controls first.')
 if not (project/'import-verification.json').is_file(): parser.error('A successfully verified generated project is required.')
 if image.exists(): parser.error('Capture exists; use a new --name or another project.')
 shutil.copy2(ROOT/'unreal/capture_study.py',project/'capture_study.py')
 level_file=project/'Content/Generated/House.umap'
 level_before=hashlib.sha256(level_file.read_bytes()).hexdigest()
-(project/'capture-job.json').write_text(json.dumps(dict(name=args.name,variant=args.variant,elevation=args.elevation)),encoding='utf-8')
+(project/'capture-job.json').write_text(json.dumps(dict(name=args.name,variant=args.variant,elevation=args.elevation,sunCase=args.sun_case)),encoding='utf-8')
 command=[str(args.engine.resolve()/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe'),
          str(project/'RyukaInterior.uproject'),
          "-ExecCmds=py import runpy; runpy.run_path(__import__('unreal').Paths.project_dir()+'capture_study.py')",

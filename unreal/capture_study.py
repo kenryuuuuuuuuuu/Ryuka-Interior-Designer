@@ -10,10 +10,14 @@ assert level.load_level('/Game/Generated/House')
 job=json.loads((project/'capture-job.json').read_text(encoding='utf-8'))
 if (project/'study-state.json').exists():
     import study_controls
+    if job.get('sunCase') is not None: study_controls.set_sun_case(job['sunCase'])
     state=study_controls.current_state()
     if job.get('variant'): state['variant']=job['variant']
-    if job.get('elevation') is not None: state['elevationDeg']=job['elevation']
+    if job.get('elevation') is not None:
+        state.pop('solar',None)
+        state['elevationDeg']=job['elevation']
     study_controls.apply_state(state)
+    state=study_controls.current_state()
     (project/'Saved'/(job['name']+'-conditions.json')).write_text(json.dumps(state,indent=2),encoding='utf-8')
 camera=next(a for a in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
             if a.get_actor_label()=='Camera_guest_LDK')

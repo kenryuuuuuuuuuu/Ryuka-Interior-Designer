@@ -251,3 +251,40 @@ python scripts/capture-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_
 ```powershell
 python tests/validate_study_transfer.py --state build/ue-controls-v2/Saved/transfer-state.json --project build/ue-controls-transfer-v2
 ```
+
+## 10. 日時・地域・真北による太陽位置
+
+2026-09-06追加。`solar_position.py`は[NOAAのMeeus式による計算方式](https://gml.noaa.gov/grad/solcalc/calcdetails.html)に基づき、タイムゾーン付き日時から太陽の方位・高度を求めます。大気差を含まない太陽中心の幾何学的位置です。対応年はUTCで1901〜2099年。光源強度・露出・空の条件は固定したままなので、日時による日差しの方向を比較できます。天候や実際の室内照度は計算していません。
+
+敷地の入力ファイルと出力は、作業中のworktreeの`build/`内に置きます。所在地を公開データに追加する必要はありません。次は**実際の敷地とは無関係のサンプル**です。`build/site.local.json`として保存し、実際に使うときは所在地と方位の根拠に合わせて置き換えます。
+
+```json
+{
+  "schemaVersion": "1.0.0",
+  "latitudeDeg": 35,
+  "longitudeDeg": 135,
+  "planNorthAzimuthDeg": 0,
+  "locationStatus": "estimated",
+  "northStatus": "estimated",
+  "note": "動作確認用の架空条件。実敷地の位置・方位ではありません。"
+}
+```
+
+緯度は北を正、経度は東を正とします。`planNorthAzimuthDeg`は「図面の北が真北から時計回りに何度の方向にあるか」です。図面北が真北から東へ30°なら30を指定し、モデルの太陽方位は真方位から30°を引きます。磁北との差を自動補正する機能はありません。根拠を確認できた項目だけ`verified`にします。市区町村の代表点は`estimated`として扱います。
+
+```powershell
+python scripts/plan-sun-study.py --site build/site.local.json --times '2026-06-21T12:00:00+09:00' '2026-12-22T12:00:00+09:00' --output build/sun-cases.json
+python scripts/build-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.8' --package build/guest-natural-v2 --output build/ue-solar-study --cache '../../ddc' --sun-cases build/sun-cases.json
+python scripts/capture-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/ue-solar-study --cache '../../ddc' --name summer-noon --sun-case 0
+python scripts/capture-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/ue-solar-study --cache '../../ddc' --name winter-noon --sun-case 1
+```
+
+出力先は毎回新しい名前を指定します。日時には必ず`+09:00`などのUTCオフセットを含めます。夏時間を使う地域では、その日時に対応するオフセットを入力してください。高度1〜89°の範囲外は`usable:false`と理由を記録し、メニューと撮影の対象から除外します。夜間を昼光条件として描画したり、高度を範囲内へ丸めたりはしません。
+
+新しいUEプロジェクトの「ツール → 内装比較」に日時の項目が追加されます。仕上げ・カメラ・光源強度・露出を維持して太陽方向を切り替えます。保存した`study-state.json`は従来どおり再生成時の`--state`で渡せます。日時メニューも持ち越す場合は`--sun-cases`を併せて指定してください。太陽高度メニューや撮影の`--elevation`は日時との関連を解除します。エディタで太陽を手動回転した場合も、実角度が計算値から0.001°以上ずれると保存時の日時記録を外します。
+
+ケースと比較条件には計算方式のバージョン、日時、入力ファイルのハッシュ、位置・方位の確度、計算角度を保存します。生の緯度・経度はコピーしません。ただし日時・角度から地域を推測できるため、これらの生成物もローカルの`build/`で管理します。`siteDaylightCalibrated:false`は位置計算後も維持します。ガラス透過率、天候、隣棟・植栽の影響は未校正です。
+
+計算テストは[NRELのSPA報告書 Appendix A.5](https://docs.nlr.gov/docs/fy08osti/34302.pdf)の公表値との角度差0.05°以内、UTC日付またぎ・うるう日、真北補正、不正入力、夜間の拒否を確認します。SPAそのものの実装や、その公称精度を満たすという意味ではありません。`tests/validate_unreal_solar.py`はUE commandlet内で、実ライト方向、条件保存・再適用、仕上げ等の保持、手動回転後の日時解除を検証します。
+
+受入確認では、窓を10cm移動したコピーの建物へ冬の日時条件を`--state`で引き継ぎ、太陽角度・日時の記録・カメラ・露出の保持と全545メッシュの寸法一致を確認しています。

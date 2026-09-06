@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 import unreal
 from study_state import default_state, validate_state
+from solar_position import apply_case, matches, validate_cases
 
 _state=None
 
@@ -73,7 +74,8 @@ def apply_state(state):
             camera.set_actor_rotation(unreal.Rotator(pitch=pitch,yaw=yaw,roll=roll),False)
             camera.get_cine_camera_component().set_editor_property('current_focal_length',c['lensMm'])
     _state=state
-    unreal.log(f"内装比較: {state['variant']} / 太陽高度 {state['elevationDeg']}° / EV100 {state['exposureEV100']}（手動角度・未校正）")
+    mode=state['solar']['localTimestamp'] if state.get('solar') else '手動角度'
+    unreal.log(f"内装比較: {state['variant']} / 太陽高度 {state['elevationDeg']}° / EV100 {state['exposureEV100']}（{mode}・照度未校正）")
 
 
 def set_variant(name):
@@ -81,7 +83,14 @@ def set_variant(name):
 
 
 def set_elevation(degrees):
-    state=current_state(); state['elevationDeg']=degrees; apply_state(state)
+    state=current_state(); state.pop('solar',None); state['elevationDeg']=degrees; apply_state(state)
+
+
+def set_sun_case(index):
+    cases=validate_cases(read('sun-cases.json'))['cases']
+    if isinstance(index,bool) or not isinstance(index,int) or not 0<=index<len(cases):
+        raise ValueError('Invalid solar case index')
+    apply_state(apply_case(current_state(),cases[index]))
 
 
 def fixed_view():
@@ -120,6 +129,7 @@ def scene_state(base):
     camera=actors['Camera_guest_LDK']; rotation=camera.get_actor_rotation()
     state['camera']=dict(locationCm=list(camera.get_actor_location().to_tuple()),rotationDeg=[rotation.pitch,rotation.yaw,rotation.roll],
         lensMm=camera.get_cine_camera_component().get_editor_property('current_focal_length'))
+    if state.get('solar') and not matches(state['solar'],state): state.pop('solar')
     validate_state(state,read('SourcePackage/study.json'))
     return state
 
@@ -144,6 +154,11 @@ def register_menu():
              ('View','比較カメラを見る','fixed_view()'),
              ('Remember','現在の視点を比較カメラにする','remember_view()'),
              ('Save','比較条件とレベルを保存','save()')]
+    if (project()/'sun-cases.json').exists():
+        for index,case in enumerate(validate_cases(read('sun-cases.json'))['cases']):
+            if case['usable']:
+                provenance='概算' if 'estimated' in (case['locationStatus'],case['northStatus']) else '入力確認済み'
+                entries.append(('Date'+str(index),case['localTimestamp']+'（'+provenance+'）',f'set_sun_case({index})'))
     for name,label,command in entries:
         entry=unreal.ToolMenuEntry(name='Ryuka'+name,type=unreal.MultiBlockType.MENU_ENTRY)
         entry.set_label(label)

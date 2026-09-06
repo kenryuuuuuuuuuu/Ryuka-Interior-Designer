@@ -6,7 +6,7 @@
 
 ## ファイル構成
 
-Blender＋Unrealで進める内装・採光検討の方針と再生成手順は [docs/VISUAL_TWIN_PLAN.md](docs/VISUAL_TWIN_PLAN.md) を参照してください。ゲストLDKのBlender比較画像、UE 5.8.2への検証付き取り込み、エディタの「ツール → 内装比較」から仕上げ・太陽高度・視点を切り替え、条件を次回生成へ引き継ぐ機能を実装しています。仮仕上げ・手動太陽角度による試作で、実所在地・日時の採光評価と専用の歩行UIは未完了です。
+Blender＋Unrealで進める内装・採光検討の方針と再生成手順は [docs/VISUAL_TWIN_PLAN.md](docs/VISUAL_TWIN_PLAN.md) を参照してください。ゲストLDKのBlender比較画像、UE 5.8.2への検証付き取り込み、エディタの「ツール → 内装比較」から仕上げ・日時による太陽位置・視点を切り替え、条件を次回生成へ引き継ぐ機能を実装しています。所在地と真北はローカル設定で管理します。実敷地の条件確定、照度の校正、専用の歩行UIは未完了です。
 
 - `interior-white-model.html` — Three.js製の内装白模型。単体でブラウザに開ける。`generated/house-data.js` を読み込んで表示する
 - `index.html` — GitHub PagesのルートURL用リダイレクト（`interior-white-model.html`へ転送するだけ）

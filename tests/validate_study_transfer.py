@@ -19,6 +19,7 @@ for key in ('locationCm','rotationDeg'):
 assert actual['camera']['lensMm']==source['camera']['lensMm']
 assert report['unrealImportVerified'] and report['maxBoundsErrorCm']<.1
 assert report['comparisonState']==actual
+assert actual.get('solar')==source.get('solar'), 'Solar provenance lost during regeneration'
 result=dict(statePreserved=True,geometryVerified=True,cameraRotationPreserved=True,
             siteDaylightCalibrated=False)
 (args.project/'state-transfer-verification.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
