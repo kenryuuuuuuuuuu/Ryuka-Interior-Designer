@@ -205,6 +205,7 @@ const STAIRS = [
 ];
 
 const FURNITURE_CATALOG = {
+  'television': { label:'テレビ', category:'furniture', shape:'television', width:1.12, depth:0.06, height:0.65, clearance:0, rotationConvention:'source' },
   'kitchen-counter': { label:'システムキッチン', category:'fixture', shape:'kitchenCounter', width:2.55, depth:0.65, height:0.85, clearance:0.9 },
   'refrigerator': { label:'冷蔵庫', category:'furniture', shape:'boxAppliance', width:0.69, depth:0.7, height:1.83, clearance:0.7 },
   'washing-machine': { label:'洗濯機', category:'furniture', shape:'boxAppliance', width:0.64, depth:0.72, height:1.05, clearance:0.6 },
@@ -217,7 +218,7 @@ const FURNITURE_CATALOG = {
   'bed-double': { label:'ダブルベッド', category:'furniture', shape:'bed', width:1.4, depth:1.95, height:0.5, clearance:0.5 },
   'coffee-table': { label:'ローテーブル', category:'furniture', shape:'table', width:1, depth:0.5, height:0.4, clearance:0.3 },
   'counter-table': { label:'カウンターテーブル', category:'furniture', shape:'table', width:0.65, depth:0.35, height:1, clearance:0.4 },
-  'sofa-2seat': { label:'2人掛けソファ', category:'furniture', shape:'sofa', width:1.5, depth:0.85, height:0.8, clearance:0.4 },
+  'sofa-2seat': { label:'2人掛けソファ', category:'furniture', shape:'sofa', width:1.5, depth:0.85, height:0.8, clearance:0.4, rotationConvention:'source' },
   'sofa-3seat': { label:'3人掛けソファ', category:'furniture', shape:'sofa', width:1.9, depth:0.85, height:0.8, clearance:0.4 },
   'dining-table-4': { label:'ダイニングテーブル（4人）', category:'furniture', shape:'table', width:1.35, depth:0.8, height:0.72, clearance:0.75 },
   'dining-table-6': { label:'ダイニングテーブル（6人）', category:'furniture', shape:'table', width:1.8, depth:0.85, height:0.72, clearance:0.75 },
@@ -230,6 +231,7 @@ const FURNITURE_CATALOG = {
 };
 
 const FURNITURE_ITEMS = [
+  { id:'fur-045', type:'television', level:1, x:1.95, z:5.22, rotation:90, width:1.12, depth:0.06, height:0.65, label:'テレビ', status:'estimated', elevation:1, note:'参考画像の壁掛け案として追加。既存テレビボードfur-012の上方、西壁の室内側で東向き。底面は1階床上1.00m、外形は仮寸法で施工・購入仕様ではない。既存ボードは維持。金具・配線・視聴高さは今後確認。', room:'room-1f-06' }, // 参考画像の壁掛け案として追加。既存テレビボードfur-012の上方、西壁の室内側で東向き。底面は1階床上1.00m、外形は仮寸法で施工・購入仕様ではない。既存ボードは維持。金具・配線・視聴高さは今後確認。
   { id:'fur-035', type:'toilet', level:1, x:0.44, z:1.27, rotation:0, width:0.45, depth:0.75, height:1, label:'便器（タンク付き）', status:'estimated', room:'room-1f-01' },
   { id:'fur-001', type:'vanity', level:1, x:0.29, z:3.26, rotation:270, width:0.75, depth:0.53, height:1.9, label:'洗面化粧台', status:'estimated', room:'room-1f-03' },
   { id:'fur-002', type:'washing-machine', level:1, x:0.34, z:4.19, rotation:0, width:0.64, depth:0.72, height:1.05, label:'洗濯機', status:'estimated', room:'room-1f-03' },
@@ -243,7 +245,7 @@ const FURNITURE_ITEMS = [
   { id:'fur-008', type:'dining-table-4', level:1, x:5.36, z:5.06, rotation:0, width:0.8, depth:0.8, height:0.72, label:'ダイニングテーブル', status:'estimated', room:'room-1f-06' },
   { id:'fur-009', type:'chair', level:1, x:5.39, z:4.61, rotation:0, width:0.45, depth:0.5, height:0.85, label:'椅子1', status:'estimated', room:'room-1f-06' },
   { id:'fur-010', type:'chair', level:1, x:5.36, z:5.56, rotation:180, width:0.45, depth:0.5, height:0.85, label:'椅子2', status:'estimated', room:'room-1f-06' },
-  { id:'fur-011', type:'sofa-2seat', level:1, x:3.74, z:4.05, rotation:0, width:1.4, depth:0.7, height:0.7, label:'ソファ', status:'estimated', room:'room-1f-06' },
+  { id:'fur-011', type:'sofa-2seat', level:1, x:3.76, z:4.13, rotation:0, width:1.7, depth:0.78, height:0.78, label:'ソファ', status:'estimated', note:'参考画像の木枠ソファに合わせた検討案。施主より既存家具の寸法・配置変更可の指示。旧案は中心(3.74,4.05)、1.40×0.70×0.70m。新案は北壁室内側に収まるよう中心(3.76,4.13)、1.70×0.78×0.78mへ変更。製品未選定。', room:'room-1f-06' }, // 参考画像の木枠ソファに合わせた検討案。施主より既存家具の寸法・配置変更可の指示。旧案は中心(3.74,4.05)、1.40×0.70×0.70m。新案は北壁室内側に収まるよう中心(3.76,4.13)、1.70×0.78×0.78mへ変更。製品未選定。
   { id:'fur-012', type:'tv-board', level:1, x:2.05, z:5.22, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-1f-06' },
   { id:'fur-038', type:'coffee-table', level:1, x:3.66, z:4.9, rotation:0, width:0.5, depth:0.4, height:0.4, label:'ローテーブル', status:'estimated', room:'room-1f-06' },
   { id:'fur-043', type:'counter-table', level:1, x:3.67, z:6.11, rotation:180, width:1.7, depth:0.35, height:1, label:'カウンターテーブル', status:'estimated', room:'room-1f-06' },

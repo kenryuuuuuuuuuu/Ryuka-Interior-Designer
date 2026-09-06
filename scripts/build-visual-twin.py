@@ -34,7 +34,7 @@ def inputs():
     paths += [ROOT / p for p in ('generated/house-data.js', 'generated/interior-walls.json',
               'generated/exterior-walls.json', 'generated/visual-envelope.json', 'scripts/build-web-data.mjs',
               'blender/build_house.py', 'blender/wall_geometry.py', 'blender/interior_geometry.py',
-              'blender/build_interior.py', 'scripts/build-visual-twin.py')]
+              'blender/build_interior.py', 'blender/furniture_assets.py', 'scripts/build-visual-twin.py')]
     return {str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(
             p.read_bytes().replace(b'\r\n', b'\n')).hexdigest() for p in paths}
 
@@ -97,7 +97,7 @@ def main():
                     'generated/interior-walls.json', 'generated/exterior-walls.json']
         if args.interior:
             rendered += ['data/furniture.json', 'data/furniture-catalog.json',
-                         'data/visual/guest-ldk-study.json', 'generated/visual-envelope.json']
+                         'data/visual/guest-ldk-study.json', 'data/visual/asset-bindings.json', 'generated/visual-envelope.json']
         manifest = dict(schemaVersion='0.1.0', stage='geometry-transfer-prototype',
                         daylightReady=False, unrealImportVerified=False,
                         sourceCommit=run(['git', 'rev-parse', 'HEAD'], verbose=False).strip(),

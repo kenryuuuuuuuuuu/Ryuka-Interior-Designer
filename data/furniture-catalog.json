@@ -8,6 +8,18 @@
   },
   "types": [
     {
+      "type": "television",
+      "rotationConvention": "source",
+      "label": "テレビ",
+      "category": "furniture",
+      "shape": "television",
+      "width": 1.12,
+      "depth": 0.06,
+      "height": 0.65,
+      "clearance": 0,
+      "note": "参考画像の壁掛けテレビを表現する仮外形。製品未選定・画像からの実測値ではない。底面の床上高さは配置のelevationで指定。正面はローカル+z。取付金具・配線は未再現。"
+    },
+    {
       "type": "kitchen-counter",
       "label": "システムキッチン",
       "category": "fixture",
@@ -141,6 +153,7 @@
     },
     {
       "type": "sofa-2seat",
+      "rotationConvention": "source",
       "label": "2人掛けソファ",
       "category": "furniture",
       "shape": "sofa",

@@ -17,6 +17,7 @@ from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_house as house_builder
+from furniture_assets import validate_bindings, sofa_parts
 from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
 
@@ -216,6 +217,8 @@ def build_openings(ops, settings, mats):
 
 def build_furniture(data,settings,mats):
     catalog={t['type']:t for t in read(ROOT/'data/furniture-catalog.json')['types']}
+    bindings=validate_bindings(read(ROOT/'data/visual/asset-bindings.json'),
+        read(ROOT/'data/furniture.json')['items'],read(ROOT/'data/furniture-catalog.json'))
     room=next(r for r in data['rooms'] if r['id']==settings['roomId'])
     items=[i for i in read(ROOT/'data/furniture.json')['items'] if i['level']==room['level'] and
            point_in_room(i['x'],i['z'],room['polygon'])]
@@ -229,7 +232,13 @@ def build_furniture(data,settings,mats):
             obj['detail_note']='Procedural appearance only; source placement and outer dimensions retained. Product details unconfirmed.'
             return obj
         shape=profile['shape']
-        if shape in ('diningTable','coffeeTable','counterTable') or 'table' in item['type']:
+        if item['id'] in bindings:
+            binding=bindings[item['id']]
+            for spec in sofa_parts(w,d,h):
+                obj=part(spec['name'],*spec['bounds'],mats[spec['material']],spec['bevel'])
+                obj['asset_id']=binding['assetId']
+                obj['asset_binding_json']=json.dumps(binding,ensure_ascii=False)
+        elif shape in ('diningTable','coffeeTable','counterTable') or 'table' in item['type']:
             part('top',-w/2,w/2,-d/2,d/2,h-.04,h,mats['wood'],.015)
             for x in (-w/2+.045,w/2-.045):
                 for z in (-d/2+.045,d/2-.045):
@@ -291,6 +300,9 @@ def build_furniture(data,settings,mats):
             for name,lo,hi in [('freezer',0,h*.32-gap/2),('fridge',h*.32+gap/2,h)]:
                 part(name+'-door',-w/2,w/2,front-door,front-.003,lo,hi,mats['cabinet'],.012)
                 part(name+'-grip',w*.31,w*.43,front-.002,front,lo+(hi-lo)*.58,lo+(hi-lo)*.86,mats['frame'],.001)
+        elif item['type']=='television':
+            part('housing',-w/2,w/2,-d/2,d*.4,0,h,mats['black'],min(.003,d*.02))
+            part('screen',-w*.48,w*.48,d*.4,d/2,h*.03,h*.97,mats['black'],min(.001,d*.01))
         elif 'tv' in item['type']:
             part('cabinet',-w/2,w/2,-d/2,d/2,.06,h,mats['wood'])
         else:
@@ -301,7 +313,7 @@ def build_furniture(data,settings,mats):
         for obj in created:
             for vertex in obj.data.vertices:
                 x,y,z=vertex.co
-                vertex.co=(c*x-s*y+item['x'],s*x+c*y-item['z'],z+data['levels'][f"fl{item['level']}"])
+                vertex.co=(c*x-s*y+item['x'],s*x+c*y-item['z'],z+data['levels'][f"fl{item['level']}"]+item.get('elevation',0))
     return items
 
 

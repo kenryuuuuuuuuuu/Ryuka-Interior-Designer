@@ -27,6 +27,7 @@
         "widthOverride": { "type": "number", "exclusiveMinimum": 0 },
         "depthOverride": { "type": "number", "exclusiveMinimum": 0 },
         "heightOverride": { "type": "number", "exclusiveMinimum": 0 },
+        "elevation": { "type": "number", "minimum": 0, "description": "Floor to furniture bottom, metres; omitted means zero." },
         "status": { "enum": ["verified", "derived", "estimated"] },
         "note": { "type": "string" }
       }

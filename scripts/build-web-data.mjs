@@ -514,7 +514,7 @@ function buildStairs() {
 
 function buildFurnitureCatalog() {
   const rows = furnitureCatalog.types
-    .map((t) => `  ${str(t.type)}: { label:${str(t.label)}, category:${str(t.category)}, shape:${str(t.shape)}, width:${num(t.width)}, depth:${num(t.depth)}, height:${num(t.height)}, clearance:${num(t.clearance)} }`)
+    .map((t) => `  ${str(t.type)}: { label:${str(t.label)}, category:${str(t.category)}, shape:${str(t.shape)}, width:${num(t.width)}, depth:${num(t.depth)}, height:${num(t.height)}, clearance:${num(t.clearance)}${t.rotationConvention ? ', rotationConvention:'+str(t.rotationConvention) : ''} }`)
     .join(",\n");
   return `const FURNITURE_CATALOG = {\n${rows}\n};`;
 }
@@ -533,6 +533,11 @@ function buildFurnitureItems() {
       `label:${str(item.label ?? profile.label)}`,
       `status:${str(item.status)}`,
     ];
+    if (item.elevation !== undefined) {
+      if (typeof item.elevation !== 'number' || !Number.isFinite(item.elevation) || item.elevation < 0) throw new Error(`Invalid furniture elevation: ${item.id}`);
+      fields.push(`elevation:${num(item.elevation)}`);
+    }
+    if (item.note) fields.push(`note:${str(item.note)}`);
     if (item.room) fields.push(`room:${str(item.room)}`);
     return withNote(`  { ${fields.join(", ")} },`, item.note);
   });

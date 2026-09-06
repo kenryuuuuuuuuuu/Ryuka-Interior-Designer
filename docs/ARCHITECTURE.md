@@ -100,6 +100,8 @@ UEの表面模様・粗さは`data/visual/unreal-finishes.json`で管理しま�
 
 ## 家具・設備（furniture）
 
+2026-09-06追記：任意の `elevation`（床から家具底面までのm、省略時0）を追加しました。Three.jsの高さ編集・書き出しとBlender/Unreal生成で共有します。テレビの前面規約と歩行判定の範囲は[家具の設置高さ](FURNITURE_ELEVATION.md)を参照してください。
+
 - `data/furniture-catalog.json`：家具・設備の「型」。`type`（キー）ごとに`label`・`category`（`fixture`=施工会社が設置する造作／`furniture`=後から置く家具）・`shape`（下記）・標準寸法（`width`/`depth`/`height`）・`clearance`（前面等に必要な最小空き）を持つ
 - `data/furniture.json`：配置インスタンス。`type`でカタログを参照し、`x`/`z`（footprint中心、建物ローカル座標）・`level`・`rotation`・任意で`widthOverride`等（このインスタンスだけ標準寸法から変える場合）を持つ
 - **`label`の命名規則（配置インスタンスの`label`のみ。カタログ側の`label`＝型の一般名はこの限りではない）**：部屋が増えるほど平面図上でラベルが密集するため、部屋名・棟名（民泊／自宅／1F／2F／部屋の呼称など）はラベルに含めない。部屋自体のラベルで既に表示されているため冗長になる

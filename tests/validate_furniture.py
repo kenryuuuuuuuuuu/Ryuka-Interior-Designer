@@ -5,6 +5,7 @@ house.json 側の rooms/levels と整合しているかも確認する（部屋�
 """
 
 import json
+import math
 from pathlib import Path
 
 
@@ -37,6 +38,7 @@ def main():
     type_ids = [t["type"] for t in types]
     assert len(type_ids) == len(set(type_ids)), "furniture-catalog.json: type が重複している"
     for t in types:
+        assert t.get('rotationConvention', 'legacy') in ('legacy', 'source'), f"{t['type']}: invalid rotationConvention"
         for field in ("type", "label", "category", "shape", "width", "depth", "height", "clearance"):
             assert field in t, f"furniture-catalog.json: {t.get('type', '?')} に{field}がない"
         assert t["category"] in ("fixture", "furniture"), f"{t['type']}: 不正なcategory"
@@ -54,6 +56,8 @@ def main():
     assert len(ids) == len(set(ids)), "furniture.json: id が重複している"
 
     for item in items:
+        elevation = item.get('elevation', 0)
+        assert type(elevation) in (int, float) and math.isfinite(elevation) and elevation >= 0, f"{item['id']}: invalid elevation"
         assert item["type"] in by_type, f"{item['id']}: 未知のtype「{item['type']}」（furniture-catalog.jsonに存在しない）"
         assert item["rotation"] in VALID_ROTATION, f"{item['id']}: rotationは0/90/180/270のいずれか"
         assert item["status"] in VALID_STATUS, f"{item['id']}: 不正なstatus"

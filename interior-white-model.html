@@ -520,6 +520,9 @@
     <label>高さ<input type="number" id="fpHeight" step="0.05" min="0.05"></label>
   </div>
   <div class="fp-row">
+    <label>底面の床上高さ<input type="number" id="fpElevation" step="0.05" min="0"></label>
+  </div>
+  <div class="fp-row">
     <button id="fpReset">この家具をリセット</button>
   </div>
 </div>
@@ -1179,7 +1182,10 @@ const wallSegmentsByLevel = {};
 // 「物との距離が狭いか広いか」を体感できるようにする目的なので、家具の種類を問わず一律に
 // 当たり判定の対象にする
 const furnitureSegmentsByLevel = { 1: [], 2: [] };
-FURNITURE_ITEMS.forEach(f=>{
+function rebuildFurnitureSegments(){
+  furnitureSegmentsByLevel[1]=[]; furnitureSegmentsByLevel[2]=[];
+  FURNITURE_ITEMS.map(effectiveFurniture).forEach(f=>{
+  if((f.elevation ?? 0)>=1.8) return; // provisional standing body height
   const swapped = (f.rotation===90 || f.rotation===270);
   const w = swapped ? f.depth : f.width;
   const d = swapped ? f.width : f.depth;
@@ -1190,7 +1196,8 @@ FURNITURE_ITEMS.forEach(f=>{
   segs.push({orientation:'H', at:z1, from:x0, to:x1, thick:0});
   segs.push({orientation:'V', at:x0, from:z0, to:z1, thick:0});
   segs.push({orientation:'V', at:x1, from:z0, to:z1, thick:0});
-});
+  });
+}
 
 const PLAYER_RADIUS = 0.26; // 肩幅ぶんの当たり判定半径(m)
 // segList内のいずれかの区間から半径r以内かどうか（プレイヤーの歩行判定・三人称カメラの
@@ -1716,6 +1723,10 @@ const FMAT = {
   mirror:    new THREE.MeshStandardMaterial({color:0xaebfc9, roughness:0.2, metalness:0.3})
 };
 const FURNITURE_SHAPES = {
+  television(group,w,d,h){
+    fPart(group,w,h,d*.9,0,0,-d*.05,FMAT.dark);
+    fPart(group,w*.96,h*.94,d*.1,0,h*.03,d*.45,FMAT.mirror);
+  },
   boxAppliance(group,w,d,h){ fPart(group, w,h,d, 0,0,0, FMAT.metal); },
   kitchenCounter(group,w,d,h){
     fPart(group, w,h*0.85,d, 0,0,0, FMAT.counter);
@@ -1802,11 +1813,11 @@ function placeFurnitureItem(item){
   shapeFn(holder, item.width, item.depth, item.height);
   const baseY = item.level===1 ? LEVELS.fl1 : LEVELS.fl2;
   const [sx,sz] = toScene(item.x, item.z);
-  holder.position.set(sx, baseY, sz);
-  holder.rotation.y = -item.rotation * Math.PI/180; // Three.jsは反時計回り正のため符号反転
+  holder.position.set(sx, baseY + (item.elevation ?? 0), sz);
+  holder.rotation.y = (profile.rotationConvention==='source' ? 1 : -1) * item.rotation * Math.PI/180; // TVは正本の+zを正面とする。既存家具の向きは維持。
   const grp = item.level===1 ? groups.furniture1 : groups.furniture2;
   grp.add(holder);
-  const l = makeLabel(item.label, item.x, baseY+item.height+0.12, item.z, false);
+  const l = makeLabel(item.label, item.x, baseY+(item.elevation ?? 0)+item.height+0.12, item.z, false);
   l.floor = item.level; l.isFurniture = true;
   labels.push(l);
   furnitureMeshes.set(item.id, { holder, label: l, baseY });
@@ -1838,6 +1849,7 @@ function updateFurniturePanel(){
   document.getElementById('fpWidth').value = eff.width;
   document.getElementById('fpDepth').value = eff.depth;
   document.getElementById('fpHeight').value = eff.height;
+  document.getElementById('fpElevation').value = eff.elevation ?? 0;
   panel.style.display = 'block';
 }
 function updateFurnitureBar(){
@@ -1850,7 +1862,7 @@ function rotateSelected(){
   const next = (effectiveFurniture(base).rotation + 90) % 360;
   furnitureEdits[selectedFurnitureId] = {...(furnitureEdits[selectedFurnitureId]||{}), rotation: next};
   const entry = furnitureMeshes.get(selectedFurnitureId);
-  if(entry) entry.holder.rotation.y = -next * Math.PI/180;
+  if(entry) entry.holder.rotation.y = (FURNITURE_CATALOG[base.type].rotationConvention==='source' ? 1 : -1) * next * Math.PI/180;
   saveFurnitureEdits();
   setSelectedFurniture(selectedFurnitureId); // 選択枠(BoxHelper)を回転後の向きで作り直す
   updateFurnitureBar();
@@ -1858,7 +1870,7 @@ function rotateSelected(){
 function applySizeEdit(field, value){
   if(!selectedFurnitureId) return;
   const v = parseFloat(value);
-  if(!(v>0)) return;
+  if(!Number.isFinite(v) || (field==='elevation' ? v<0 : v<=0) || (field!=='elevation' && round2(v)<=0)){ updateFurniturePanel(); return; }
   furnitureEdits[selectedFurnitureId] = {...(furnitureEdits[selectedFurnitureId]||{}), [field]: round2(v)};
   saveFurnitureEdits();
   rebuildFurnitureItem(selectedFurnitureId);
@@ -1884,6 +1896,7 @@ function exportFurnitureJSON(){
     if(round2(eff.width) !== round2(cat.width)) out.widthOverride = round2(eff.width);
     if(round2(eff.depth) !== round2(cat.depth)) out.depthOverride = round2(eff.depth);
     if(round2(eff.height) !== round2(cat.height)) out.heightOverride = round2(eff.height);
+    if((eff.elevation ?? 0)!==0) out.elevation = eff.elevation;
     out.status = base.status;
     if(base.note) out.note = base.note;
     return out;
@@ -1906,6 +1919,7 @@ document.getElementById('fpReset').onclick = resetSelected;
 document.getElementById('fpWidth').onchange = e=> applySizeEdit('width', e.target.value);
 document.getElementById('fpDepth').onchange = e=> applySizeEdit('depth', e.target.value);
 document.getElementById('fpHeight').onchange = e=> applySizeEdit('height', e.target.value);
+document.getElementById('fpElevation').onchange = e=> applySizeEdit('elevation', e.target.value);
 document.getElementById('fbExport').onclick = exportFurnitureJSON;
 document.getElementById('fbClearAll').onclick = ()=>{
   if(Object.keys(furnitureEdits).length===0) return;
@@ -4598,6 +4612,7 @@ function restoreLayerVisibility(){
   grid.visible = document.getElementById('chkGrid').checked;
 }
 function enterWalkMode(spawn){
+  rebuildFurnitureSegments();
   clearFocus(); // 部屋フォーカス中に内覧へ入る場合は先に解除しておく（内覧側のgrid/roofAll設定が後で上書きされないように。focusedRoomId===nullなら即returnするので無害）
   savedFloorMode = floorMode;
   walkLevel = spawn.level; walkPos.x = spawn.x; walkPos.z = spawn.z; walkYaw = spawn.yaw; walkPitch = 0;

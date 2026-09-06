@@ -66,6 +66,32 @@ def main():
                     assert abs(local_x)<=w/2+.0001 and abs(local_z)<=d/2+.0001, part.name
                     assert -.0001<=v.z-house['levels'][f"fl{item['level']}"]<=h+.0001, part.name
         detail_checks['appliancePartsWithinSourceBounds']=True
+    # Every generated furniture part must retain its source and vertical offset.
+    import math
+    root_source=Path(__file__).resolve().parents[1]
+    furniture=json.loads((root_source/'data/furniture.json').read_text(encoding='utf-8'))['items']
+    cat={t['type']:t for t in json.loads((root_source/'data/furniture-catalog.json').read_text(encoding='utf-8'))['types']}
+    house=json.loads((root_source/'data/house.json').read_text(encoding='utf-8'))
+    for item in furniture:
+        parts=[o for o in meshes if o.name.startswith('furniture.'+item['id']+'.')]
+        if not parts: continue
+        for part in parts:
+            assert json.loads(part['source_json'])==item
+        if item['type']!='television': continue
+        w,d,h=[item.get(k+'Override',cat[item['type']][k]) for k in ('width','depth','height')]
+        theta=math.radians(item['rotation']); c,s=math.cos(theta),math.sin(theta)
+        coordinates=[]
+        for part in parts:
+            for vertex in part.data.vertices:
+                v=part.matrix_world @ vertex.co
+                px,py=v.x-item['x'],v.y+item['z']
+                coordinates.append((c*px+s*py,s*px-c*py,v.z-house['levels'][f"fl{item['level']}"]))
+        lo=[min(v[a] for v in coordinates) for a in range(3)]
+        hi=[max(v[a] for v in coordinates) for a in range(3)]
+        expected_lo=[-w/2,-d/2,item.get('elevation',0)]
+        expected_hi=[w/2,d/2,item.get('elevation',0)+h]
+        assert max(abs(a-b) for a,b in zip(lo+hi,expected_lo+expected_hi))<.0001
+        detail_checks['televisionSourceBoundsAndElevation']=True
     expected={o.name:bounds(o) for o in meshes}
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=str(root/'interior.glb'))

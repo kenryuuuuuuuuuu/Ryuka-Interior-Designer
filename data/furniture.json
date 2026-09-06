@@ -4,6 +4,19 @@
   "note": "家具・設備の配置インスタンス。type は data/furniture-catalog.json の type を参照する。x/z は建物ローカル座標での footprint 中心、rotation は0/90/180/270度のみ。ブラウザの配置編集機能から書き出したファイル。data/furniture.json に上書きしてコミットすること。",
   "items": [
     {
+      "id": "fur-045",
+      "type": "television",
+      "room": "room-1f-06",
+      "label": "テレビ",
+      "level": 1,
+      "x": 1.95,
+      "z": 5.22,
+      "rotation": 90,
+      "elevation": 1.0,
+      "status": "estimated",
+      "note": "参考画像の壁掛け案として追加。既存テレビボードfur-012の上方、西壁の室内側で東向き。底面は1階床上1.00m、外形は仮寸法で施工・購入仕様ではない。既存ボードは維持。金具・配線・視聴高さは今後確認。"
+    },
+    {
       "id": "fur-035",
       "type": "toilet",
       "room": "room-1f-01",
@@ -160,13 +173,14 @@
       "room": "room-1f-06",
       "label": "ソファ",
       "level": 1,
-      "x": 3.74,
-      "z": 4.05,
+      "x": 3.76,
+      "z": 4.13,
       "rotation": 0,
-      "widthOverride": 1.4,
-      "depthOverride": 0.7,
-      "heightOverride": 0.7,
-      "status": "estimated"
+      "widthOverride": 1.7,
+      "depthOverride": 0.78,
+      "heightOverride": 0.78,
+      "status": "estimated",
+      "note": "参考画像の木枠ソファに合わせた検討案。施主より既存家具の寸法・配置変更可の指示。旧案は中心(3.74,4.05)、1.40×0.70×0.70m。新案は北壁室内側に収まるよう中心(3.76,4.13)、1.70×0.78×0.78mへ変更。製品未選定。"
     },
     {
       "id": "fur-012",
