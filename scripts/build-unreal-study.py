@@ -6,8 +6,11 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'unreal'))
+from study_state import default_state, validate_state
 
 
 def main():
@@ -18,6 +21,7 @@ def main():
     parser.add_argument('--cache',type=Path,required=True,help='Writable DDC path, at most 119 characters')
     parser.add_argument('--sun-lux',type=float,default=50000,help='Provisional UE light intensity')
     parser.add_argument('--exposure-ev100',type=float,default=7.5,help='Fixed UE exposure (not Blender EV)')
+    parser.add_argument('--state',type=Path,help='Saved study-state.json; overrides finish, light, exposure and camera')
     args=parser.parse_args()
     exe=args.engine.resolve()/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe'
     output=args.output.resolve(); package=args.package.resolve(); cache=args.cache.resolve()
@@ -30,9 +34,21 @@ def main():
             parser.error('Package artifact checksum mismatch: '+name)
     verified=json.loads((package/'verification.json').read_text(encoding='utf-8'))
     if not verified.get('meshBoundsBlenderMetres'): parser.error('Rebuild package with current Blender verifier.')
+    study=json.loads((package/'study.json').read_text(encoding='utf-8'))
+    if args.state:
+        validate_state(json.loads(args.state.read_text(encoding='utf-8')),
+                       study)
+    else:
+        default_state(study,dict(sunLux=args.sun_lux,exposureEV100=args.exposure_ev100))
     shutil.copytree(ROOT/'unreal/template',output)
     shutil.copytree(package,output/'SourcePackage')
     shutil.copy2(ROOT/'unreal/import_study.py',output/'import_study.py')
+    scripts=output/'Content/Python'; scripts.mkdir(parents=True,exist_ok=True)
+    for name in ('study_controls.py','study_state.py'):
+        shutil.copy2(ROOT/'unreal'/name,scripts/name)
+    (scripts/'init_unreal.py').write_text('import study_controls\nstudy_controls.register_menu()\n',encoding='utf-8')
+    shutil.copy2(ROOT/'data/visual/unreal-finishes.json',output/'finish-settings.json')
+    if args.state: shutil.copy2(args.state,output/'study-state.json')
     (output/'import-job.json').write_text(json.dumps(dict(sunLux=args.sun_lux,
         exposureEV100=args.exposure_ev100),indent=2)+'\n',encoding='utf-8')
     cache.mkdir(parents=True,exist_ok=True)

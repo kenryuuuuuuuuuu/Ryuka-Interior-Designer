@@ -10,15 +10,54 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
 
 
-def material(name, color, roughness=.6, glass=False):
+def material(name, color, roughness=.6, glass=False, detail=None):
     asset = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
         'M_'+name, '/Game/Generated/Finishes', unreal.Material, unreal.MaterialFactoryNew())
     editing = unreal.MaterialEditingLibrary
+    def connect(source,output,target,pin):
+        if not editing.connect_material_expressions(source,output,target,pin):
+            raise RuntimeError(f'Material connection failed: {target.get_class().get_name()} / {pin}')
     rgb = [int(color[i:i+2], 16)/255 for i in (0, 2, 4)]
     rgb = [v/12.92 if v <= .04045 else ((v+.055)/1.055)**2.4 for v in rgb]
     node = editing.create_material_expression(asset, unreal.MaterialExpressionConstant3Vector)
     node.set_editor_property('constant', unreal.LinearColor(*rgb, 1))
-    editing.connect_material_property(node, '', unreal.MaterialProperty.MP_BASE_COLOR)
+    output=node
+    if detail:
+        # World coordinates are centimetres. No UV dependency or geometry displacement.
+        position=editing.create_material_expression(asset,unreal.MaterialExpressionWorldPosition)
+        scale=editing.create_material_expression(asset,unreal.MaterialExpressionConstant3Vector)
+        scale.set_editor_property('constant',unreal.LinearColor(*detail['noiseScalePerCm'],1))
+        stretched=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
+        connect(position,'',stretched,'A')
+        connect(scale,'',stretched,'B')
+        noise=editing.create_material_expression(asset,unreal.MaterialExpressionNoise)
+        for key,value in dict(scale=1.0,levels=2,quality=1,output_min=detail['colorMin'],output_max=detail['colorMax']).items():
+            noise.set_editor_property(key,value)
+        connect(stretched,'',noise,'')
+        modulation=noise
+        if detail.get('grain'):
+            # Long, gently distorted grain; small-scale random noise alone looks like grit.
+            noise.set_editor_property('output_min',0.0); noise.set_editor_property('output_max',1.0)
+            across=editing.create_material_expression(asset,unreal.MaterialExpressionComponentMask)
+            across.set_editor_property('r',False); across.set_editor_property('g',True)
+            across.set_editor_property('b',False); across.set_editor_property('a',False)
+            connect(stretched,'',across,'')
+            phase=editing.create_material_expression(asset,unreal.MaterialExpressionAdd)
+            connect(across,'',phase,'A')
+            connect(noise,'',phase,'B')
+            wave=editing.create_material_expression(asset,unreal.MaterialExpressionSine)
+            wave.set_editor_property('period',1.0)
+            connect(phase,'',wave,'')
+            amplitude=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
+            amplitude.set_editor_property('const_b',(detail['colorMax']-detail['colorMin'])/2)
+            connect(wave,'',amplitude,'A')
+            modulation=editing.create_material_expression(asset,unreal.MaterialExpressionAdd)
+            modulation.set_editor_property('const_b',(detail['colorMax']+detail['colorMin'])/2)
+            connect(amplitude,'',modulation,'A')
+        output=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
+        connect(node,'',output,'A')
+        connect(modulation,'',output,'B')
+    editing.connect_material_property(output, '', unreal.MaterialProperty.MP_BASE_COLOR)
     def scalar(prop, value):
         expr = editing.create_material_expression(asset, unreal.MaterialExpressionConstant)
         expr.set_editor_property('r', value)
@@ -66,14 +105,21 @@ def main():
         errors += [abs(x-y) for x,y in zip(reference, actual)]
         actor.set_folder_path('Generated/House')
     assert max(errors) < .1, f'Import bounds differ by {max(errors)} cm (limit 1mm).'
-    palette = study['settings']['variants'][study['variant']]
-    materials = {k: material(k, palette[k]) for k in ('wall','ceiling','wood','fabric','cabinet')}
-    materials['Glass_provisional'] = material('Glass_provisional', 'ffffff', .02, glass=True)
+    details=json.loads((project/'finish-settings.json').read_text(encoding='utf-8'))['roles']
+    library={variant:{role:material(variant+'_'+role,palette[role],
+        roughness=details[role]['roughness'],detail=details[role]) for role in details}
+        for variant,palette in study['settings']['variants'].items()}
+    materials=library[study['variant']]
+    glass=material('Glass_provisional','ffffff',.02,glass=True)
+    bindings={}
     for actor in meshes:
         comp = actor.static_mesh_component
         for index, mat in enumerate(comp.get_materials()):
             if mat.get_name() in materials:
+                bindings.setdefault(actor.get_actor_label(),{})[str(index)]=mat.get_name()
                 comp.set_material(index, materials[mat.get_name()])
+            elif mat.get_name()=='Glass_provisional':
+                comp.set_material(index,glass)
         if actor.get_actor_label().endswith('_glass'):
             comp.set_cast_shadow(False)
 
@@ -117,15 +163,22 @@ def main():
     focus.set_editor_property('focus_method',unreal.CameraFocusMethod.DISABLE)
     cc.set_editor_property('focus_settings',focus)
     unreal.EditorLevelLibrary.set_level_viewport_camera_info(position,camera.get_actor_rotation())
+    write_json(project/'study-bindings.json',bindings)
+    import study_controls
+    state=study_controls.initial_state()
+    study_controls.apply_state(state)
+    study_controls.save()
     unreal.EditorAssetLibrary.save_directory('/Game/Generated',only_if_is_dirty=False,recursive=True)
     assert level.save_current_level()
+    state=study_controls.current_state()
     result=dict(engineVersion=unreal.SystemLibrary.get_engine_version(), meshes=len(meshes),
                 maxBoundsErrorCm=max(errors),unrealImportVerified=True,siteDaylightCalibrated=False,
                 sourceManifestSHA256=hashlib.sha256((package/'manifest.json').read_bytes()).hexdigest(),
                 coordinates='UE centimetres: X=source x, Y=source z, Z=source y',
-                variant=study['variant'],sunAzimuth=lighting['azimuthDeg'],sunElevation=lighting['elevationDeg'],
-                sunLux=job['sunLux'],exposureEV100=job['exposureEV100'],
-                limitations=['UE finishes use uniform PBR colors; Blender procedural detail not transferred',
+                variant=state['variant'],sunAzimuth=state['azimuthDeg'],sunElevation=state['elevationDeg'],
+                sunLux=state['sunLux'],exposureEV100=state['exposureEV100'],
+                comparisonState=state,finishSettingsSHA256=hashlib.sha256((project/'finish-settings.json').read_bytes()).hexdigest(),
+                limitations=['Procedural world-space finishes are estimated, not measured product textures',
                              'Glass shadow disabled; transmission and illuminance not calibrated',
                              'Editor study; no runtime interface or collision walkthrough yet'])
     write_json(project/'import-verification.json',result)

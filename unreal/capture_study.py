@@ -7,6 +7,14 @@ import unreal
 project=Path(unreal.Paths.project_dir()).resolve()
 level=unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 assert level.load_level('/Game/Generated/House')
+job=json.loads((project/'capture-job.json').read_text(encoding='utf-8'))
+if (project/'study-state.json').exists():
+    import study_controls
+    state=study_controls.current_state()
+    if job.get('variant'): state['variant']=job['variant']
+    if job.get('elevation') is not None: state['elevationDeg']=job['elevation']
+    study_controls.apply_state(state)
+    (project/'Saved'/(job['name']+'-conditions.json')).write_text(json.dumps(state,indent=2),encoding='utf-8')
 camera=next(a for a in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
             if a.get_actor_label()=='Camera_guest_LDK')
 unreal.EditorLevelLibrary.set_level_viewport_camera_info(camera.get_actor_location(),camera.get_actor_rotation())
@@ -14,7 +22,6 @@ world=unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world
 for command in ('r.ScreenPercentage 100','sg.GlobalIlluminationQuality 4','sg.ReflectionQuality 4',
                 'r.HighResScreenshotDelay 64','r.Lumen.ScreenProbeGather.Temporal.MaxFramesAccumulated 32'):
     unreal.SystemLibrary.execute_console_command(world,command)
-job=json.loads((project/'capture-job.json').read_text(encoding='utf-8'))
 destination=project/'Saved'/(job['name']+'.png')
 unreal.AutomationLibrary.finish_loading_before_screenshot()
 start=time.monotonic()

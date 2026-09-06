@@ -41,6 +41,8 @@ data/electrical-estimate.json（電気工事見積書の明細）
 
 仕上げ・比較条件は`data/visual/guest-ldk-study.json`、転送はBlender標準GLBとUE Interchangeです。再生成・検証・未対応範囲は [VISUAL_TWIN_PLAN.md](VISUAL_TWIN_PLAN.md) を参照してください。
 
+UEの表面模様・粗さは`data/visual/unreal-finishes.json`で管理します。生成プロジェクトでは`study-bindings.json`がそのビルド内のActor／材質スロットと役割を対応付けます。この対応表自体は次回生成へ流用しません。比較条件の保存はローカルの`study-state.json`で、部屋ID・案名・光源・露出・カメラだけを新しい生成物へ再適用します。建物・家具データの逆輸入ではありません。
+
 - 単位: メートル
 - 座標系: 建物ローカル座標。`x` = 西→東、`z` = 北→南、`y` = GLからの高さ（上向き）
 - Blenderへのマッピング: `(x, z, y)` → Blenderの `(X, -Y, Z)`。北がBlenderの+Y方向になる

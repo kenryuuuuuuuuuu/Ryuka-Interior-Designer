@@ -193,9 +193,9 @@ python scripts/capture-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_
 
 材質はBlenderの選択案から基本色を再適用します。Lumen、ハードウェアレイトレーシング、太陽光と天空光、固定露出を設定します。初回はシェーダー準備に時間がかかります。既定は仮の50,000luxとEV100=7.5で、`--sun-lux`・`--exposure-ev100`により変更できます。Blenderの強度・露出との数値的な同一性や、エンジン間の色一致は保証しません。
 
-UEのガラスは仮の半透明材質で、影を無効化しています。Blenderのガラスと透過率は一致せず、材質もまだ均一な基本PBR色です。実製品の木目・壁紙凹凸・ガラス光学特性への置換は次の品質改善段階です。
+UEのガラスは仮の半透明材質で、影を無効化しています。Blenderのガラスと透過率は一致しません。木部・壁・布には9節の仮の表面模様と粗さを追加していますが、実製品の木目・壁紙凹凸・ガラス光学特性への置換は次の品質改善段階です。
 
-前回プロジェクトは上書きしません。仕上げ案とカメラは正本側の`data/visual/guest-ldk-study.json`から再適用します。**UEエディタ内で直接行った手修正を次回出力へ引き継ぐ機能はありません。**維持したい変更は先に生成設定へ反映します。将来の手作りアセット用レベルと生成レベルの合成は、現段階の新規プロジェクト生成とは別の拡張です。
+前回プロジェクトは上書きしません。既定の仕上げ案とカメラは`data/visual/guest-ldk-study.json`から再適用します。9節の比較条件は保存・引き継ぎできます。**UE内の任意のメッシュ編集・独自材質・家具移動を次回出力へ合成する機能はありません。**建物と家具の変更は正本へ反映します。
 
 出力は`.uproject`、`Content`、元パッケージ`SourcePackage`、取り込みスクリプト、条件`import-job.json`、検証結果を含みます。キャプチャは`Saved/interior-unreal.png`に保存します。ソースパッケージの`unrealImportVerified:false`はBlender生成時点の記録として保持し、UEでの検証結果はプロジェクト側へ追記します。
 
@@ -205,4 +205,49 @@ UEのガラスは仮の半透明材質で、影を無効化しています。Ble
 
 ```powershell
 python tests/validate_visual_regeneration.py --baseline build/guest-natural-v2 --output build/regeneration-v2 --blender 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --engine 'C:/Program Files/Epic Games/UE_5.8' --cache '../../ddc'
+```
+
+## 9. 内装比較メニューと条件の引き継ぎ
+
+2026-09-06追加。新しく生成したUEプロジェクトを開き、「ツール（Tools）→ 内装比較」を使います。[UEのToolMenu API](https://dev.epicgames.com/documentation/en-us/unreal-engine/python-api/class/ToolMenu)を使ったエディタ用メニューで、Play実行中や配布用ゲームのUIではありません。
+
+| 操作 | 結果 |
+|---|---|
+| 白壁・ナチュラルオーク／グレージュ・ウォルナット | 仕上げ2案を切り替えます。視点と太陽・露出は維持します |
+| 太陽高度30°／60° | 太陽高度だけを変更します。実際の日時を表す値ではありません |
+| 比較カメラを見る | 保存した比較カメラをパイロットします |
+| 現在の視点を比較カメラにする | ビューポートの位置・向きを採用します。焦点距離は比較カメラの値を維持します |
+| 比較条件とレベルを保存 | 現在のレベルとプロジェクト直下の`study-state.json`を保存します |
+
+自由に視点を動かすときは、カメラのパイロットを解除して通常のエディタ移動を使います。メニューの変更は即時反映し、保存操作までは書き出しません。Undoや手動変更後は、メモリに残った古い条件ではなくシーンの実際の状態を読み取ります。任意のカスタム材質が混ざり、既存2案のいずれにも一致しない状態の保存は停止します。
+
+保存対象は部屋ID、案名、太陽方位・高度、光源強度、固定露出、カメラ位置・向き・焦点距離です。カメラ位置はUEのGL基準cmで保存します。再生成時に床高や壁位置が変わった場合のカメラの自動退避・追従はしません。別の部屋、未知の案、非有限数、不正な範囲の値は適用前に拒否します。色そのものは新しいパッケージの案定義から読み直します。
+
+```powershell
+# Three.js側の正本更新後にBlenderパッケージを再生成し、保存した比較条件を適用します。
+python scripts/build-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.8' --package build/updated-package --output build/ue-updated --cache '../../ddc' --state build/ue-finish-study-v3/study-state.json
+```
+
+`--state`を指定した場合、その仕上げ・光源・露出・カメラが既定値と`--sun-lux`／`--exposure-ev100`に優先します。元のSourcePackageは変更しません。材質の割り当てはその都度新しい生成物から`study-bindings.json`を作るため、古い自動採番の壁IDを持ち越しません。
+
+`data/visual/unreal-finishes.json`はUE用の表面模様のスケール・粗さ・色変化を管理します。木部は引き伸ばしたノイズと周期模様、壁・天井・布は細かな色変化です。ワールド座標cmを使い、UVや建物寸法は変更しません。木目方向は建物軸に固定した仮表現で、部材ごとの木取りや実製品の再現ではありません。ファイルを出力へコピーし、ハッシュを記録します。材質ノードの接続失敗は生成時、シェーダーのコンパイル失敗はキャプチャ時にエラーにします。
+
+### 同じ視点での比較画像
+
+```powershell
+python scripts/capture-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/ue-finish-study-v3 --cache '../../ddc' --name natural --variant natural
+python scripts/capture-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/ue-finish-study-v3 --cache '../../ddc' --name warm --variant warm
+python scripts/capture-unreal-study.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/ue-finish-study-v3 --cache '../../ddc' --name high-sun --variant natural --elevation 60
+```
+
+撮影時の案・太陽高度指定は一時的な変更です。保存済みレベルのハッシュが変わらないことを検証します。画像ごとに`<name>-conditions.json`と、画像・条件・仕上げ設定のハッシュ、レイトレーシング状態を持つ`<name>.json`を残します。
+
+### 検証
+
+`tests/test_study_state.py`は互換性・範囲・カメラの入力検証です。`tests/validate_unreal_controls.py`はUE Python commandletで実行し、334材質スロットの切り替え、全545メッシュの外形不変、太陽とカメラの保存・復元、不正設定の拒否、メニュー登録を検証します。テストは元の比較条件を復元し、引き継ぎ用の例を`Saved/transfer-state.json`へ残します。
+
+窓を10cm移動したコピーのパッケージへ、この設定を`--state`で引き継いだプロジェクトでも検証済みです。再生成後の検証は次のコマンドで再実行できます。
+
+```powershell
+python tests/validate_study_transfer.py --state build/ue-controls-v2/Saved/transfer-state.json --project build/ue-controls-transfer-v2
 ```

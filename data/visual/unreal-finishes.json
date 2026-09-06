@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "status": "estimated",
+  "note": "UE用の仮の表面表現。ワールド座標cmで模様寸法を固定します。実製品の木目・壁紙・織物を測定した値ではありません。建物形状は変更しません。",
+  "roles": {
+    "wall": {"roughness": 0.82, "noiseScalePerCm": [3, 3, 3], "colorMin": 0.97, "colorMax": 1.0},
+    "ceiling": {"roughness": 0.87, "noiseScalePerCm": [2, 2, 2], "colorMin": 0.98, "colorMax": 1.0},
+    "wood": {"roughness": 0.55, "noiseScalePerCm": [0.007, 0.18, 0.18], "colorMin": 0.84, "colorMax": 1.02, "grain": true},
+    "fabric": {"roughness": 0.95, "noiseScalePerCm": [5, 5, 5], "colorMin": 0.9, "colorMax": 1.02},
+    "cabinet": {"roughness": 0.48, "noiseScalePerCm": [0.02, 0.6, 0.6], "colorMin": 0.94, "colorMax": 1.0}
+  }
+}
