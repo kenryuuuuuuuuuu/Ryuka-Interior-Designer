@@ -22,7 +22,7 @@ def main():
     parser.add_argument('--times',nargs='+',required=True,help='ISO timestamps including UTC offset, e.g. 2026-12-22T12:00:00+09:00')
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()
-    site=json.loads(local_path(args.site).read_text(encoding='utf-8'))
+    site=json.loads(local_path(args.site).read_text(encoding='utf-8-sig'))
     output=local_path(args.output)
     document=dict(schemaVersion='1.0.0',siteDaylightCalibrated=False,
                   cases=[make_case(site,t) for t in args.times])

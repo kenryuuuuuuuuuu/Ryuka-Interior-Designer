@@ -22,7 +22,25 @@ def material(name, color, roughness=.6, glass=False, detail=None):
     node = editing.create_material_expression(asset, unreal.MaterialExpressionConstant3Vector)
     node.set_editor_property('constant', unreal.LinearColor(*rgb, 1))
     output=node
-    if detail:
+    if detail and detail.get('planks'):
+        position=editing.create_material_expression(asset,unreal.MaterialExpressionWorldPosition)
+        pattern=editing.create_material_expression(asset,unreal.MaterialExpressionCustom)
+        pattern.set_editor_property('code',(Path(unreal.Paths.project_dir())/'floor_finish.hlsl').read_text(encoding='utf-8'))
+        pattern.set_editor_property('output_type',unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+        names=['P','Width','Length','Seam','Angle']
+        inputs=[]
+        for name in names:
+            custom_input=unreal.CustomInput(); custom_input.set_editor_property('input_name',name)
+            inputs.append(custom_input)
+        pattern.set_editor_property('inputs',inputs)
+        connect(position,'',pattern,'P')
+        for name,key in zip(names[1:],['widthCm','lengthCm','seamCm','rotationDeg']):
+            scalar_input=editing.create_material_expression(asset,unreal.MaterialExpressionConstant)
+            scalar_input.set_editor_property('r',detail['planks'][key])
+            connect(scalar_input,'',pattern,name)
+        output=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
+        connect(node,'',output,'A'); connect(pattern,'',output,'B')
+    elif detail:
         # World coordinates are centimetres. No UV dependency or geometry displacement.
         position=editing.create_material_expression(asset,unreal.MaterialExpressionWorldPosition)
         scale=editing.create_material_expression(asset,unreal.MaterialExpressionConstant3Vector)
@@ -106,7 +124,7 @@ def main():
         actor.set_folder_path('Generated/House')
     assert max(errors) < .1, f'Import bounds differ by {max(errors)} cm (limit 1mm).'
     details=json.loads((project/'finish-settings.json').read_text(encoding='utf-8'))['roles']
-    library={variant:{role:material(variant+'_'+role,palette[role],
+    library={variant:{role:material(variant+'_'+role,palette[details[role].get('paletteRole',role)],
         roughness=details[role]['roughness'],detail=details[role]) for role in details}
         for variant,palette in study['settings']['variants'].items()}
     materials=library[study['variant']]
@@ -116,8 +134,9 @@ def main():
         comp = actor.static_mesh_component
         for index, mat in enumerate(comp.get_materials()):
             if mat.get_name() in materials:
-                bindings.setdefault(actor.get_actor_label(),{})[str(index)]=mat.get_name()
-                comp.set_material(index, materials[mat.get_name()])
+                role='floor' if actor.get_actor_label().startswith('slab_') and mat.get_name()=='wood' else mat.get_name()
+                bindings.setdefault(actor.get_actor_label(),{})[str(index)]=role
+                comp.set_material(index, materials[role])
             elif mat.get_name()=='Glass_provisional':
                 comp.set_material(index,glass)
         if actor.get_actor_label().endswith('_glass'):
@@ -128,6 +147,12 @@ def main():
         actor.set_actor_label(label)
         actor.set_folder_path('Generated/Study')
         return actor
+    context_report=None
+    if (project/'site-context.json').exists():
+        from site_context import create_context
+        context_report=dict(sha256=hashlib.sha256((project/'site-context.json').read_bytes()).hexdigest(),
+            boxes=create_context(json.loads((project/'site-context.json').read_text(encoding='utf-8-sig')),
+                                 material('Context_estimated','9c9c9c',.85)))
     lighting = study['lighting']
     az = math.radians(lighting['azimuthDeg'])
     el = math.radians(lighting['elevationDeg'])
@@ -174,6 +199,8 @@ def main():
     result=dict(engineVersion=unreal.SystemLibrary.get_engine_version(), meshes=len(meshes),
                 maxBoundsErrorCm=max(errors),unrealImportVerified=True,siteDaylightCalibrated=False,
                 sourceManifestSHA256=hashlib.sha256((package/'manifest.json').read_bytes()).hexdigest(),
+                siteContext=context_report,
+                floorShaderSHA256=hashlib.sha256((project/'floor_finish.hlsl').read_bytes()).hexdigest(),
                 coordinates='UE centimetres: X=source x, Y=source z, Z=source y',
                 variant=state['variant'],sunAzimuth=state['azimuthDeg'],sunElevation=state['elevationDeg'],
                 sunLux=state['sunLux'],exposureEV100=state['exposureEV100'],

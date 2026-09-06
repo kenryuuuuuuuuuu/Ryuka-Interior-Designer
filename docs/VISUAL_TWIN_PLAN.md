@@ -254,6 +254,8 @@ python tests/validate_study_transfer.py --state build/ue-controls-v2/Saved/trans
 
 ## 10. 日時・地域・真北による太陽位置
 
+床材の改善と周辺遮蔽物の追加は[MATERIAL_SITE_STUDY.md](MATERIAL_SITE_STUDY.md)を参照してください。
+
 2026-09-06追加。`solar_position.py`は[NOAAのMeeus式による計算方式](https://gml.noaa.gov/grad/solcalc/calcdetails.html)に基づき、タイムゾーン付き日時から太陽の方位・高度を求めます。大気差を含まない太陽中心の幾何学的位置です。対応年はUTCで1901〜2099年。光源強度・露出・空の条件は固定したままなので、日時による日差しの方向を比較できます。天候や実際の室内照度は計算していません。
 
 敷地の入力ファイルと出力は、作業中のworktreeの`build/`内に置きます。所在地を公開データに追加する必要はありません。次は**実際の敷地とは無関係のサンプル**です。`build/site.local.json`として保存し、実際に使うときは所在地と方位の根拠に合わせて置き換えます。

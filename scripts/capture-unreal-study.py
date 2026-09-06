@@ -53,6 +53,9 @@ if 'Failed to compile Material' in log or 'LogPython: Error:' in log:
 report=dict(imageSHA256=hashlib.sha256(image.read_bytes()).hexdigest(),
     hardwareRayTracingEnabled='Ray tracing is enabled' in log,
     width=1600,height=900,siteDaylightCalibrated=False,levelFileUnchanged=True)
+import_report=json.loads((project/'import-verification.json').read_text(encoding='utf-8'))
+report['siteContext']=import_report.get('siteContext')
+report['floorShaderSHA256']=import_report.get('floorShaderSHA256')
 conditions=project/'Saved'/(args.name+'-conditions.json')
 if conditions.exists():
     report['comparisonState']=json.loads(conditions.read_text(encoding='utf-8'))

@@ -1,5 +1,6 @@
 """Editor-only study controls. Generated actor bindings are validated before any edit."""
 import copy
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -42,6 +43,10 @@ def scene():
 def apply_state(state):
     global _state
     state=validate_state(copy.deepcopy(state),read('SourcePackage/study.json'))
+    context_path=project()/'site-context.json'
+    if state.get('siteContextSHA256') and not context_path.exists():
+        raise ValueError('Saved conditions require site context; regenerate with --context')
+    if context_path.exists(): state['siteContextSHA256']=hashlib.sha256(context_path.read_bytes()).hexdigest()
     actors=scene()
     bindings=read('study-bindings.json')
     planned=[]

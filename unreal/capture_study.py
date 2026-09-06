@@ -1,12 +1,20 @@
 """Editor-only offscreen QA capture, launched with -ExecCmds (not a commandlet)."""
 from pathlib import Path
 import json
+import hashlib
 import time
 import unreal
 
 project=Path(unreal.Paths.project_dir()).resolve()
 level=unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 assert level.load_level('/Game/Generated/House')
+context_path=project/'site-context.json'
+if context_path.exists():
+    report=json.loads((project/'import-verification.json').read_text(encoding='utf-8'))
+    if hashlib.sha256(context_path.read_bytes()).hexdigest()!=report['siteContext']['sha256']:
+        raise RuntimeError('Local context changed; regenerate before capture')
+    from site_context import verify_scene
+    verify_scene(json.loads(context_path.read_text(encoding='utf-8-sig')))
 job=json.loads((project/'capture-job.json').read_text(encoding='utf-8'))
 if (project/'study-state.json').exists():
     import study_controls
