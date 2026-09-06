@@ -52,7 +52,7 @@ def main():
         house=json.loads((root_data/'house.json').read_text(encoding='utf-8'))
         import math
         for item in items:
-            if item['type'] not in ('kitchen-counter','refrigerator'): continue
+            if not any(k in item['type'] for k in ('kitchen','refrigerator')) or item['type']=='kitchen-faucet': continue
             parts=[o for o in meshes if o.name.startswith('furniture.'+item['id']+'.')]
             if not parts: continue
             w,d,h=[item.get(k+'Override',catalog[item['type']][k]) for k in ('width','depth','height')]

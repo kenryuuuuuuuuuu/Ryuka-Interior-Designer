@@ -72,3 +72,16 @@ for(const [id,w,d,h] of [['fur-008',1.2,.8,.75],['fur-009',.6,.6,.95]]){
   }
 }
 console.log('Dining: resized circular/elliptical table and chairs agree across four rotations.');
+for(const [id,w,d,h] of [['fur-047',.6,.5,.6],['fur-048',.1,.18,.3],['fur-049',.8,.25,.3]]){
+  for(const rotation of [0,90,180,270]){
+    run(`furnitureEdits['${id}']={rotation:${rotation},width:${w},depth:${d},height:${h},elevation:1};rebuildFurnitureItem('${id}');`);
+    const actual=run(`(()=>{const holder=furnitureMeshes.get('${id}').holder;holder.updateMatrixWorld(true);
+      const b=new THREE.Box3().setFromObject(holder);return [b.min.y,b.max.y,b.getSize(new THREE.Vector3()).x];})()`);
+    [1.707,1.707+h,rotation%180?d:w].forEach((v,i)=>assert.ok(Math.abs(v-actual[i])<1e-6,`${id}: ${actual}`));
+  }
+}
+for(const id of ['fur-006','fur-007']){
+  assert.equal(run(`FURNITURE_ITEMS.find(i=>i.id==='${id}').rotation`),270);
+  assert.ok(run(`new THREE.Vector3(0,0,1).applyQuaternion(furnitureMeshes.get('${id}').holder.quaternion).x < -.99`));
+}
+console.log('Fixtures: height/bounds in four rotations; guest kitchen and refrigerator face west.');

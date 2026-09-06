@@ -114,4 +114,27 @@ def chair_parts(w,d,h):
 
 def asset_parts(asset_id,w,d,h):
     return {'sofa-timber-v1':sofa_parts,'round-table-v1':round_table_parts,
-            'chair-timber-v1':chair_parts}[asset_id](w,d,h)
+            'chair-timber-v1':chair_parts,'range-hood-v1':hood_parts,
+            'faucet-v1':faucet_parts,'air-conditioner-v1':air_conditioner_parts}[asset_id](w,d,h)
+
+
+def hood_parts(w,d,h):
+    check_dimensions((w,d,h),((.4,1.2),(.3,.8),(.3,1.2)))
+    return [solid('canopy',[-w/2,w/2,-d/2,d/2,.012,.09],'metal',bevel=.009),
+            solid('filter',[-w*.38,w*.38,-d*.35,d*.35,0,.012],'black',bevel=.002),
+            solid('chimney',[-w*.24,w*.24,-d/2,-d*.02,.09,h],'metal',bevel=.008)]
+
+
+def faucet_parts(w,d,h):
+    check_dimensions((w,d,h),((.06,.18),(.12,.35),(.15,.5)))
+    return [solid('base',[-w/2,w/2,-d/2,0,0,h*.12],'metal',kind='ellipse',bevel=.003),
+            solid('stem',[-w*.16,w*.16,-d*.4,-d*.2,h*.1,h*.94],'metal',kind='ellipse',bevel=.006),
+            solid('spout',[-w*.16,w*.16,-d*.3,d/2,h*.82,h],'metal',bevel=.008),
+            solid('lever',[-w*.45,-w*.1,-d*.3,-d*.2,h*.3,h*.55],'metal',bevel=.004)]
+
+
+def air_conditioner_parts(w,d,h):
+    check_dimensions((w,d,h),((.6,1.2),(.15,.4),(.2,.5)))
+    return [solid('case',[-w/2,w/2,-d/2,d*.46,0,h],'stone',bevel=.025),
+            solid('front',[-w*.48,w*.48,d*.46,d/2,h*.18,h*.94],'stone',bevel=.016),
+            solid('outlet',[-w*.43,w*.43,d*.46,d/2,h*.03,h*.15],'black',bevel=.003)]

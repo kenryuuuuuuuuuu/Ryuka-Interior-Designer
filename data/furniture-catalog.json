@@ -285,6 +285,66 @@
       "height": 1.8,
       "clearance": 0.7,
       "note": "扉の開閉スペースを含めてclearanceを確保する"
+    },
+    {
+      "type": "kitchen-guest",
+      "label": "システムキッチン",
+      "category": "fixture",
+      "shape": "kitchenCounter",
+      "width": 2.55,
+      "depth": 0.65,
+      "height": 0.85,
+      "clearance": 0.9,
+      "note": "I型システムキッチンの一般的な間口2,550mm・奥行650mm・高さ850mm。clearanceは背面通路として推奨される900mm ゲストLDKの正面方向を正本規約へ統一する型。従来型は他室向けに維持。",
+      "rotationConvention": "source"
+    },
+    {
+      "type": "refrigerator-guest",
+      "label": "冷蔵庫",
+      "category": "furniture",
+      "shape": "refrigeratorFront",
+      "width": 0.69,
+      "depth": 0.7,
+      "height": 1.83,
+      "clearance": 0.7,
+      "note": "400〜500Lクラスの一般的な寸法。扉開閉のため前面にclearanceが必要 ゲストLDKの正面方向を正本規約へ統一する型。従来型は他室向けに維持。",
+      "rotationConvention": "source"
+    },
+    {
+      "type": "range-hood",
+      "label": "レンジフード",
+      "shape": "rangeHood",
+      "width": 0.6,
+      "depth": 0.5,
+      "height": 0.6,
+      "category": "fixture",
+      "clearance": 0,
+      "rotationConvention": "source",
+      "note": "IH上方の仮フード。取付高さ・排気経路は製品と施工会社に確認。"
+    },
+    {
+      "type": "kitchen-faucet",
+      "label": "水栓",
+      "shape": "faucet",
+      "width": 0.1,
+      "depth": 0.18,
+      "height": 0.3,
+      "category": "fixture",
+      "clearance": 0,
+      "rotationConvention": "source",
+      "note": "キッチン上面に置く仮水栓。穴位置・配管・製品未確定。"
+    },
+    {
+      "type": "air-conditioner",
+      "label": "エアコン",
+      "shape": "airConditioner",
+      "width": 0.8,
+      "depth": 0.25,
+      "height": 0.3,
+      "category": "fixture",
+      "clearance": 0,
+      "rotationConvention": "source",
+      "note": "壁掛け室内機の仮外形。配管・保守空間・製品未確定。"
     }
   ]
 }

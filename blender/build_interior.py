@@ -233,7 +233,8 @@ def build_furniture(data,settings,mats):
             return obj
         shape=profile['shape']
         binding=bindings.get(item['id'])
-        native_asset={'roundTable':'round-table-v1','timberChair':'chair-timber-v1'}.get(shape)
+        native_asset={'roundTable':'round-table-v1','timberChair':'chair-timber-v1',
+                      'rangeHood':'range-hood-v1','faucet':'faucet-v1','airConditioner':'air-conditioner-v1'}.get(shape)
         if binding or native_asset:
             binding=binding or dict(furnitureId=item['id'],assetId=native_asset,sizing='parametric',
                                     status='estimated',note='Default renderer for catalog shape; no explicit override.')

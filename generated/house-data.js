@@ -229,7 +229,12 @@ const FURNITURE_CATALOG = {
   'tv-board': { label:'テレビボード', category:'furniture', shape:'lowCabinet', width:1.5, depth:0.4, height:0.45, clearance:0.3 },
   'desk': { label:'デスク', category:'furniture', shape:'table', width:1.1, depth:0.6, height:0.72, clearance:0.75 },
   'shelf': { label:'収納棚・本棚', category:'furniture', shape:'shelf', width:0.9, depth:0.3, height:1.8, clearance:0.6 },
-  'wardrobe': { label:'ワードローブ・洋服ダンス', category:'furniture', shape:'shelf', width:1.2, depth:0.6, height:1.8, clearance:0.7 }
+  'wardrobe': { label:'ワードローブ・洋服ダンス', category:'furniture', shape:'shelf', width:1.2, depth:0.6, height:1.8, clearance:0.7 },
+  'kitchen-guest': { label:'システムキッチン', category:'fixture', shape:'kitchenCounter', width:2.55, depth:0.65, height:0.85, clearance:0.9, rotationConvention:'source' },
+  'refrigerator-guest': { label:'冷蔵庫', category:'furniture', shape:'refrigeratorFront', width:0.69, depth:0.7, height:1.83, clearance:0.7, rotationConvention:'source' },
+  'range-hood': { label:'レンジフード', category:'fixture', shape:'rangeHood', width:0.6, depth:0.5, height:0.6, clearance:0, rotationConvention:'source' },
+  'kitchen-faucet': { label:'水栓', category:'fixture', shape:'faucet', width:0.1, depth:0.18, height:0.3, clearance:0, rotationConvention:'source' },
+  'air-conditioner': { label:'エアコン', category:'fixture', shape:'airConditioner', width:0.8, depth:0.25, height:0.3, clearance:0, rotationConvention:'source' }
 };
 
 const FURNITURE_ITEMS = [
@@ -242,8 +247,8 @@ const FURNITURE_ITEMS = [
   { id:'fur-037', type:'bed-single', level:1, x:5.05, z:2.68, rotation:180, width:0.9, depth:1.9, height:0.5, label:'ベッド2', status:'estimated', room:'room-1f-05' },
   { id:'fur-041', type:'desk', level:1, x:6.9, z:1.47, rotation:90, width:1.1, depth:0.6, height:0.72, label:'デスク', status:'estimated', room:'room-1f-05' },
   { id:'fur-042', type:'chair', level:1, x:6.46, z:1.49, rotation:270, width:0.45, depth:0.5, height:0.85, label:'椅子', status:'estimated', room:'room-1f-05' },
-  { id:'fur-006', type:'kitchen-counter', level:1, x:6.87, z:5.43, rotation:90, width:1.8, depth:0.65, height:0.85, label:'キッチン', status:'estimated', room:'room-1f-06' },
-  { id:'fur-007', type:'refrigerator', level:1, x:6.86, z:4.06, rotation:90, width:0.69, depth:0.7, height:1.4, label:'冷蔵庫', status:'estimated', room:'room-1f-06' },
+  { id:'fur-006', type:'kitchen-guest', level:1, x:6.87, z:5.43, rotation:270, width:1.8, depth:0.65, height:0.85, label:'キッチン', status:'estimated', note:' ゲストLDK東壁の設備正面を西（室内側）へ統一。旧回転90度から正本規約の270度へ変更。中心・寸法は維持。', room:'room-1f-06' }, //  ゲストLDK東壁の設備正面を西（室内側）へ統一。旧回転90度から正本規約の270度へ変更。中心・寸法は維持。
+  { id:'fur-007', type:'refrigerator-guest', level:1, x:6.86, z:4.06, rotation:270, width:0.69, depth:0.7, height:1.4, label:'冷蔵庫', status:'estimated', note:' ゲストLDK東壁の設備正面を西（室内側）へ統一。旧回転90度から正本規約の270度へ変更。中心・寸法は維持。', room:'room-1f-06' }, //  ゲストLDK東壁の設備正面を西（室内側）へ統一。旧回転90度から正本規約の270度へ変更。中心・寸法は維持。
   { id:'fur-008', type:'dining-table-round', level:1, x:5.45, z:5.02, rotation:0, width:0.9, depth:0.9, height:0.72, label:'ダイニングテーブル', status:'estimated', note:' 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"dining-table-4","x":5.36,"z":5.06,"widthOverride":0.8}。仮寸法・仮配置、製品未選定。', room:'room-1f-06' }, //  参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"dining-table-4","x":5.36,"z":5.06,"widthOverride":0.8}。仮寸法・仮配置、製品未選定。
   { id:'fur-009', type:'chair-timber', level:1, x:5.45, z:4.31, rotation:0, width:0.45, depth:0.48, height:0.85, label:'椅子1', status:'estimated', note:' 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":5.39,"z":4.61}。仮寸法・仮配置、製品未選定。', room:'room-1f-06' }, //  参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":5.39,"z":4.61}。仮寸法・仮配置、製品未選定。
   { id:'fur-010', type:'chair-timber', level:1, x:5.45, z:5.73, rotation:180, width:0.45, depth:0.48, height:0.85, label:'椅子2', status:'estimated', note:' 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":5.36,"z":5.56}。仮寸法・仮配置、製品未選定。', room:'room-1f-06' }, //  参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{"type":"chair","x":5.36,"z":5.56}。仮寸法・仮配置、製品未選定。
@@ -275,6 +280,9 @@ const FURNITURE_ITEMS = [
   { id:'fur-032', type:'bed-double', level:2, x:18.07, z:5.07, rotation:90, width:2, depth:2, height:0.5, label:'ベッド', status:'estimated', room:'room-2f-06' },
   { id:'fur-040', type:'tv-board', level:2, x:15.72, z:5, rotation:90, width:1.5, depth:0.4, height:0.45, label:'テレビボード', status:'estimated', room:'room-2f-06' },
   { id:'fur-046', type:'chair-timber', level:1, x:4.05, z:5.67, rotation:0, width:0.45, depth:0.48, height:0.85, label:'椅子（カウンター2）', status:'estimated', note:'窓際カウンターを2席とする参考案。高さ740mmの天板と座面約450mmを組み合わせる。仮配置・製品未選定。', room:'room-1f-06' }, // 窓際カウンターを2席とする参考案。高さ740mmの天板と座面約450mmを組み合わせる。仮配置・製品未選定。
+  { id:'fur-047', type:'range-hood', level:1, x:6.94, z:5.98, rotation:270, width:0.6, depth:0.5, height:0.6, label:'レンジフード', status:'estimated', elevation:1.65, note:'キッチンfur-006のIH上方の仮配置。IH天面から底面まで約0.80mは検討用の仮値で、製品の設置条件ではない。キッチンを動かす際は水栓と共に位置を再確認。', room:'room-1f-06' }, // キッチンfur-006のIH上方の仮配置。IH天面から底面まで約0.80mは検討用の仮値で、製品の設置条件ではない。キッチンを動かす際は水栓と共に位置を再確認。
+  { id:'fur-048', type:'kitchen-faucet', level:1, x:7.1, z:5.23, rotation:270, width:0.1, depth:0.18, height:0.3, label:'水栓', status:'estimated', elevation:0.85, note:'キッチンfur-006のシンク背面に仮配置。底面を床上0.85mの天板に合わせた。キッチンの移動・寸法変更には自動追従せず、共通配置側で再調整する。', room:'room-1f-06' }, // キッチンfur-006のシンク背面に仮配置。底面を床上0.85mの天板に合わせた。キッチンの移動・寸法変更には自動追従せず、共通配置側で再調整する。
+  { id:'fur-049', type:'air-conditioner', level:1, x:2.07, z:5.22, rotation:90, width:0.8, depth:0.25, height:0.3, label:'エアコン', status:'estimated', elevation:2.1, note:'ゲストLDK西壁のテレビ上方に置く参考案。底面床上2.10m。コンセント・配管・保守空間は別途照合。', room:'room-1f-06' }, // ゲストLDK西壁のテレビ上方に置く参考案。底面床上2.10m。コンセント・配管・保守空間は別途照合。
 ];
 
 const ELECTRICAL_CATALOG = {

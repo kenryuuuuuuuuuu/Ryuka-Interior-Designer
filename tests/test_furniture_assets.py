@@ -6,10 +6,14 @@ import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'blender'))
-from furniture_assets import sofa_parts, validate_bindings, round_table_parts, chair_parts
+from furniture_assets import sofa_parts, validate_bindings, round_table_parts, chair_parts, hood_parts, faucet_parts, air_conditioner_parts
 
 
 class FurnitureAssets(unittest.TestCase):
+    def test_fixture_dimensions(self):
+        for factory,dims,count in [(hood_parts,(.6,.5,.6),3),(faucet_parts,(.1,.18,.3),4),(air_conditioner_parts,(.8,.25,.3),3)]:
+            self.assertEqual(len(factory(*dims)),count)
+            with self.assertRaises(ValueError): factory(0,dims[1],dims[2])
     def test_dining_assets(self):
         for factory,dimensions,count in [(round_table_parts,(.9,.9,.72),5),(chair_parts,(.45,.48,.85),9)]:
             self.assertEqual(len(factory(*dimensions)),count)

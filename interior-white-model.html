@@ -1723,6 +1723,26 @@ const FMAT = {
   mirror:    new THREE.MeshStandardMaterial({color:0xaebfc9, roughness:0.2, metalness:0.3})
 };
 const FURNITURE_SHAPES = {
+  rangeHood(group,w,d,h){
+    fPart(group,w,.078,d,0,.012,0,FMAT.metal);
+    fPart(group,w*.76,.012,d*.7,0,0,0,FMAT.dark);
+    fPart(group,w*.48,h-.09,d*.48,0,.09,-d*.26,FMAT.metal);
+  },
+  faucet(group,w,d,h){
+    fPart(group,w,h*.12,d*.5,0,0,-d*.25,FMAT.metal,true);
+    fPart(group,w*.32,h*.84,d*.2,0,h*.1,-d*.3,FMAT.metal,true);
+    fPart(group,w*.32,h*.18,d*.8,0,h*.82,d*.1,FMAT.metal);
+  },
+  airConditioner(group,w,d,h){
+    fPart(group,w,h,d*.96,0,0,-d*.02,FMAT.white);
+    fPart(group,w*.96,h*.76,d*.04,0,h*.18,d*.48,FMAT.white);
+    fPart(group,w*.86,h*.12,d*.04,0,h*.03,d*.48,FMAT.dark);
+  },
+  refrigeratorFront(group,w,d,h){
+    fPart(group,w,h,d*.94,0,0,-d*.03,FMAT.metal);
+    fPart(group,w,h*.315,d*.06,0,0,d*.47,FMAT.white);
+    fPart(group,w,h*.68,d*.06,0,h*.32,d*.47,FMAT.white);
+  },
   roundTable(group,w,d,h){
     const top=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,1,64),FMAT.wood);
     top.scale.set(w,.035,d);top.position.y=h-.0175;group.add(top);
