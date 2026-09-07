@@ -21,6 +21,7 @@ from surface_finishes import assign_surface_uv, apply_pattern
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
 from finish_settings import details_for_variant
 from furniture_assets import validate_bindings, asset_parts
+from guest_decor import build as build_decor
 from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
 
@@ -391,6 +392,7 @@ def main():
         if detail.get('pattern'): apply_pattern(mats[role],palette[detail['paletteRole']],detail,rgb)
     ops=build_envelope(data,mats); build_openings(ops,settings,mats)
     items=build_furniture(data,settings,mats)
+    decorations=build_decor(read(ROOT/'data/visual/guest-decor.json'),data,items,ops,mats,block,mesh)
     block('Ground.context-provisional',-60,70,-60,60,-.1,0,material('Ground','888276'))
     for obj in bpy.context.scene.objects:
         if obj.type=='MESH' and obj.name.startswith(('slab.','ceiling.')): assign_surface_uv(obj)
@@ -416,7 +418,7 @@ def main():
     scene.render.image_settings.file_format='PNG'; scene.render.filepath='//interior.png'
     scene['study_status']='estimated-manual-sun-angle'; scene['site_daylight_calibrated']=False
     report=dict(status='estimated',variant=args.variant,roomId=settings['roomId'],settings=settings,lighting=light,
-                furnitureIds=[i['id'] for i in items],siteDaylightCalibrated=False,unrealImportVerified=False,
+                decorations=decorations,furnitureIds=[i['id'] for i in items],siteDaylightCalibrated=False,unrealImportVerified=False,
                 limitations=['Furniture is procedural, with approximate details; source placement retained',
                              'Window frames and per-surface shadow transmittance .9 (pane approx .81) are estimated',
                              'All actual door leaves closed; no operation animation',
