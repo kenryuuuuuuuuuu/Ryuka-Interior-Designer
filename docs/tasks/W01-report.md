@@ -1,103 +1,173 @@
-# W01 実装報告
+# W01 実装報告（第2版）
 
-状態：BLOCKED
+状態：BLOCKED（描画復旧は未完了。ただし停止箇所と例外発生地点を実スタックで特定）
 開始BASE（完全SHA）：`9882f564587d4f40ec9721c82c095aa1458c7596`
-使用モデル：Claude Opus 5（`claude-opus-5`。セッションで実際に選択されたモデルを確認）
-環境（OS/UE/ツール版、変更した設定）：Windows 11 25H2 [10.0.26200.9278] / UE 5.8.2（CL-56702186、Launcher外の直接インストール）/ DirectX Agility SDK `D3D12Core.dll 1.618.5.0`（UE同梱）/ NVIDIA GeForce RTX 5060 Ti ドライバ 32.0.15.9186 / AMD Ryzen 7 5700X / Python 3.14 / Node。**環境設定の変更は行っていません**（ドライバ・Engine・OS設定・キャッシュ削除はいずれも未実施）。
+使用モデル：Claude Opus 5（`claude-opus-5`）
+環境（OS/UE/ツール版）：Windows 11 25H2 [10.0.26200.9278] / UE 5.8.2（CL-56702186）/ Agility SDK `D3D12Core.dll 1.618.5.0`（UE同梱）/ NVIDIA GeForce RTX 5060 Ti ドライバ 32.0.15.9186 / AMD Ryzen 7 5700X / Avast Antivirus 26.8.11125（稼働中）。
+
+第2版で追加した環境変更：**診断ツールのみ**を導入しました。Microsoft ProcDump 12.01（`build/W01-diag/tools/`へ展開、常駐登録`-i`は未実施）と WinDbg 1.2606.22001.0（winget、`Microsoft.WinDbg`）です。**Engine・GPUドライバ・Agility SDK・OS設定・アンチウイルス設定はいずれも変更していません。**
 
 ## 結果
 
-描画初期化の失敗箇所を`FD3D12DynamicRHIModule::IsSupported()`内まで特定し、有力仮説を4つ検証して全て否定しました。UEの外ではD3D12が完全に正常動作することを実証済みです。**根本原因の特定と描画復旧には環境変更（ドライバ更新／Engine改変／デバッガ導入）が必要な段階に達したため、仕様書の停止条件に従いBLOCKEDとします。** AC2/AC3/AC5は未完了です。既存の状態・生成物・施主保存ファイルは保全し、回帰がないことを確認しました。
+実プロセスのハング中ダンプを2点採取し、**60秒待機の正体と例外発生地点を実スタックで特定**しました。60秒は「デバイス生成の待ち」ではなく、**先に発生した例外に対するUEのクラッシュ報告処理の待機**でした。描画自体は復旧していないためBLOCKEDを維持し、AC2/AC3/AC5は未完了です。第1版に対するレビュー指摘R1〜R4はすべて修正しました。
 
-| 条件ID | 判定 | 証拠パス・コマンド・終了コード・実行したコード版 |
+| 条件ID | 判定 | 証拠・コマンド・終了コード |
 |---|---|---|
-| AC1 | PASS | 下記「診断表」。観測事実と仮説を分離して記載。ログ：`build/W01-baseline/textiles-v4-render-fail.log`、`build/refresh-walk-v3/ue/Saved/Logs/RyukaInterior.log`、`build/W01-diag/minimal-project/Saved/Logs/Minimal.log`、`build/W01-diag/*.log`。コード版はBASE（`9882f56`）から未変更 |
-| AC2 | FAIL | `python scripts/launch-unreal-walkthrough.py --engine <UE5.8> --project build/refresh-walk-v3/ue --cache '../../ddc' --smoke` → 終了コード1（UE側は終了コード3）。60.185秒のハング後に致命的エラー。smoke PNGは生成されず、`renderVerified`は`false`のまま |
-| AC3 | BLOCKED | GUI版`UnrealEditor.exe`で実プロジェクトを起動 → ウィンドウは生成されるが同一箇所で60.195秒後に致命的エラー。実画面でのLDK表示は未達。自動テストでの代用はしていません |
-| AC4 | PASS | `python -m unittest discover -s tests -p 'test_*.py'` → 48 tests OK / `validate_house.py`（33室・35壁）/ `validate_furniture.py`（30型・45件）/ `validate_openings.py`（15型・19+31件）/ `validate_electrical.py`（23型・143件）/ `node scripts/build-web-data.mjs --check`（最新）/ `node tests/test_furniture_web.mjs`（合格）。いずれも終了コード0。施主保存ファイル`build/ue-walk-v1/Saved/walkthrough-state.json`のSHA-256は実行前後とも`35e81125087dc3c72d5fb65befa27594964460a8c0763d064819c31ff369ad10`で不変。`build/refresh-walk-v3/ue/Saved/walkthrough-state.json`は実行前後とも不在（記録） |
-| AC5 | N/A | 根本原因が未特定のため生成器・ランチャーへの修正を行っていません。仕様書の「盲目的なフラグ変更をしない」に従い、裏付けのない回避フラグの恒久化は見送りました |
+| AC1 | PASS | 下記「診断表」「スタック解析」。証拠：`build/W01-diag/windbg-t12.log`、`windbg-t22.log`、`stacks-t12.log`、`build/W01-diag/dumps/*.dmp`、各`*-stdout.log` |
+| AC2 | FAIL | `python scripts/launch-unreal-walkthrough.py --engine <UE5.8> --project build/refresh-walk-v3/ue --cache '../../ddc' --smoke` → ランチャー終了コード1／UE終了コード3。smoke PNG未生成、`renderVerified`は`false`のまま |
+| AC3 | BLOCKED | GUI版`UnrealEditor.exe`でも同一箇所で失敗（60.195秒）。実画面でのLDK表示は未達。自動テストで代用していません |
+| AC4 | PASS | `python -m unittest discover -s tests -p 'test_*.py'` → 48 tests OK。`validate_house.py`（33室・35壁）／`validate_furniture.py`（30型・45件）／`validate_openings.py`（15型・19+31件）／`validate_electrical.py`（23型・143件）／`node scripts/build-web-data.mjs --check`（最新）／`node tests/test_furniture_web.mjs`（合格）。すべて終了コード0。施主保存ファイル`build/ue-walk-v1/Saved/walkthrough-state.json`のSHA-256は実行前後とも`35e81125087dc3c72d5fb65befa27594964460a8c0763d064819c31ff369ad10`で不変。`build/refresh-walk-v3/ue/Saved/walkthrough-state.json`は実行前後とも不在 |
+| AC5 | N/A | 生成器・ランチャーへの修正は未実施。原因はUE内部とGPUドライバの相互作用にあり、ランチャー引数で回避できる箇所ではないためです（詳細は「次の対応」） |
 
-## 診断表（AC1）
+## スタック解析（第2版の中核）
 
-すべて同一プロジェクト・同一コマンド系統で、**一度に変えた条件は1つ**です。所要時間は「Checking if RHI ...」ログから致命的エラーまでの実測値です。
+ProcDumpで**ハング中**のフルダンプを2点採取しました（`-ma`、常駐登録なし）。採取はプロセスを一時停止させるため、タイミングへの影響がありうることを記録します。3点目は採取前にUEが終了したため取得できていません。
 
-| # | ケース（変えた条件） | 結果 | ハング時間 | 得られた新しい証拠 |
+| ダンプ | 採取時刻 | 対象PID | 採取時CPU | サイズ | SHA-256 |
+|---|---|---|---|---|---|
+| `hang-t12.dmp` | 07:26:54 | 26628 | 2.4秒 | 1,577,378,704 | `A8EF211D69EB93C41C6ED744AB6904482E86FF81442A107D151EED793F3F421C` |
+| `hang-t22.dmp` | 07:27:17 | 26628 | 2.4秒 | 1,577,289,376 | `1AF0463C3F1E98A75BE70531CD4F4F2B7A5EC9142B463546988D3FFC8434F311` |
+
+両ダンプの主スレッドのスタックは**フレーム構成もスタックアドレスも完全に一致**（先頭 `00000063af974138`）し、23秒間まったく進行していません。同一の待機が継続していることを確認しました。
+
+シンボル読込状況：Microsoft公開シンボル（`ntdll`/`KERNELBASE`/`kernel32`）は解決済み。**UEモジュールとNVIDIAドライバはPDBが無くエクスポート記号のみ**のため、`UnrealEditor_Core!MemoryTrace_GetActiveTag+0x7d5` のような表示は「最も近いエクスポート関数からのオフセット」であり、**その関数自体を指すとは限りません**。関数名レベルの断定はできず、モジュール単位の帰属が確実な情報です。
+
+主スレッドの呼び出し順（下＝古い、上＝新しい。抜粋、パスは匿名化不要な範囲）：
+
+```
+2d UnrealEditor_Cmd!LaunchWindowsStartup
+2c UnrealEditor_RHI!RHIInit+0x101
+29 UnrealEditor_D3D12RHI!ThisIsAnUnrealEngineModule+0xc1efd
+27 UnrealEditor_WindowsD3D!FWindowsD3D::ChooseD3D12Adapter+0x2b6
+26 D3D12!D3D12CreateDevice+0x3b
+24-21 D3D12Core (Agility SDK 1.618)
+19 nvwgf2umx!OpenAdapter10+0x1c182b            ← NVIDIA ユーザーモードドライバ
+18-12 nvwgf2umx 内部
+11 KERNELBASE!LoadLibraryExW+0xff              ← ドライバがDLLを読み込もうとする
+10 ntdll!LdrLoadDll+0x170
+0f-0a ntdll ローダー内部（DLLロード通知の配送）
+09 UnrealEditor_Core!(MemoryTrace_GetActiveTag+0x7d5 付近)
+08 UnrealEditor_Core!(FResourceSizeEx::AddDedicatedVideoMemoryBytes+0x383 付近)
+07 ntdll!KiUserExceptionDispatcher+0x2e        ← ここで例外が発生
+04 VCRUNTIME140!_C_specific_handler
+02 UnrealEditor_Core!ReportCrash+0x14d         ← UEのクラッシュ報告処理
+01 KERNELBASE!WaitForSingleObjectEx+0xaf
+00 ntdll!NtWaitForSingleObject+0x14            ← 60秒待機の実体
+```
+
+### 読み取れること（観測）と推定の区別
+
+**観測（スタックから直接読める）**：
+
+1. 60秒の待機は`ReportCrash`配下の`WaitForSingleObject`であり、**デバイス生成そのものの待ちではありません**。待機に入る前に既に例外が発生しています。第1版で「タイムアウト打ち切り」と書いた解釈は、より正確には「例外発生 → クラッシュ報告処理が待機」です。
+2. 例外は`ntdll!KiUserExceptionDispatcher`の直下、**`UnrealEditor_Core`内のコード**で発生しています。
+3. その呼び出し元は`ntdll!LdrLoadDll`（DLLロード）であり、さらに遡ると`nvwgf2umx`（NVIDIAユーザーモードドライバ）が`LoadLibraryExW`を呼んでいます。
+4. 起点は`FWindowsD3D::ChooseD3D12Adapter` → `D3D12CreateDevice` → Agility SDK → NVIDIAドライバです。第1版で「`IsSupported()`内」と推定した範囲は、実スタックにより`ChooseD3D12Adapter`と確認されました（推定が結果的に当たっていましたが、第1版時点では推定にすぎませんでした）。
+
+**推定（ソース読解との突き合わせ。断定ではありません）**：
+
+`Engine/Source/Runtime/Core/Private/ProfilingDebugging/Microsoft/WindowsModuleDiagnostics.cpp`の`FModuleTrace`は、`LdrRegisterDllNotification`でDLLロード通知を登録し（105行）、`OnDllLoaded()`でロードされたDLLの**PEヘッダとデバッグディレクトリを直接読み取ります**（161〜179行）。フレーム08〜09が`UnrealEditor_Core`であり、呼び出し元がローダーであることは、この通知コールバックが実行中に例外を起こした像と整合します。ただしPDBが無いため、**例外を起こした関数がこの`OnDllLoaded`であるという確証はありません**。
+
+なお`FModuleTrace::Initialize()`のうち、トレースチャネル（`ModuleChannel`）で制御されるのはログ出力のみで、**`LdrRegisterDllNotification`の登録自体は無条件**です。したがってコマンドライン引数でこの監視を止めることはできません（AC5をN/Aとした理由）。
+
+### 引き金となったDLLの候補
+
+ダンプのモジュール一覧を**ダンプ内の並び順**（ローダーの一覧順を反映し、新しくロードされたものほど後ろに来ます）で読むと、末尾はD3D12デバイス生成の流れそのものでした。両ダンプで完全に同一です（`build/W01-diag/last-modules-t12.log`、`last-modules-t22.log`）。
+
+```
+D3D12.dll → D3D12Core.dll（Agility SDK）→ nvldumdx.dll
+→ cryptnet / wldp / drvstore / devobj / imagehlp / cryptsp / rsaenh（コード署名検証まわり）
+→ nvgpucomp64.dll（約77MB）→ NvMemMapStoragex.dll
+→ nvwgf2umx.dll（約81MB）→ nvppex.dll（最後）
+```
+
+最後に現れるのは`nvppex.dll`（NVIDIA Corporation、`32.0.15.9186`＝現行ドライバと同版、`C:\Windows\System32\DriverStore\FileRepository\nv_dispig.inf_amd64_...\`）です。DLLロード通知はイメージがマップされた後に配送されるため、**通知処理中に例外が起きたDLLは一覧に載っている**はずで、`nvppex.dll`が引き金である可能性が最も高いと考えます。
+
+**ただし断定はしません。** ミニダンプのモジュール一覧の並びがロード順である保証はなく、`LdrLoadDll`へ渡された文字列そのものは読み出せていません（`dps`によるスタック走査では該当文字列を取得できませんでした）。確定するには引数文字列の直接読み出しが要ります。
+
+## 診断表（AC1、第1版から修正）
+
+すべて同一プロジェクト・同一コマンド系統で、一度に変えた条件は1つです。
+
+| # | ケース（変えた条件） | 結果 | 停止直前の最後のログ | 得られた証拠 |
 |---|---|---|---|---|
-| 1 | 描画付きsmoke（実行コンテキストを非対話サンドボックス→**対話セッション1・通常ユーザー**へ変更） | 同一失敗 | 60.185秒 | 実行コンテキストは原因ではない |
-| 2 | **UEを介さないD3D12プローブ**（`build/W01-diag/d3d12_probe.py`） | 全て成功 | — | DXGIファクトリ0.01秒、アダプタ列挙即時、`D3D12CreateDevice`サポート確認がFL11_0〜**12_2**まで各0.08秒 |
-| 3 | 同上＋**実デバイス生成**（`d3d12_device_probe.py`） | 成功 | — | 実際の`ID3D12Device`生成が**0.18秒**で成功（`hr=0x00000000`） |
-| 4 | `-nohmd`（**HMD検出を無効化**） | 同一失敗 | 60.185秒 | HMD/VRランタイム検出は原因ではない。OpenXR ActiveRuntimeは未登録・VRプロセスも皆無 |
-| 5 | **最小UEプロジェクト**（プラグイン・C++モジュール・Contentすべて無し、`build/W01-diag/minimal-project/`） | 同一失敗 | 65.6秒（終了コード3） | **プロジェクト固有ではない**。生成物・Config・C++内覧モジュールは無関係 |
-| 6 | **GUI版`UnrealEditor.exe`**（起動方法の変更） | 同一失敗 | 60.195秒 | 起動方法にも依存しない。ウィンドウは生成されるがCPUを消費せず待機し、同一箇所で落ちる |
-| 7 | **Agility SDK経由のプローブ**（`agility_probe.py`） | **検証不成立** | — | `SetSDKVersion`は成功するが`D3D12CreateDevice`が`hr=0x887e0003`（SDK_COMPONENT_MISSING）で即時失敗。UEと同条件を再現できておらず、**仮説の裏付けにも反証にもならない** |
+| 1 | 実行コンテキストを非対話サンドボックス→対話セッション1・通常ユーザーへ | 同一失敗 60.185秒 | `Checking if RHI D3D12 ...` | 実行コンテキストは原因ではない |
+| 2 | UEを介さないD3D12（`d3d12_probe.py`） | 成功 | — | DXGIファクトリ0.01秒、アダプタ列挙即時、`D3D12CreateDevice`の**サポート確認**がFL11_0〜12_2で各0.08秒 |
+| 3 | UEを介さない**実デバイス生成**（`d3d12_device_probe.py`、ABI修正後） | 成功・完走 | — | default 0.18秒／NVIDIA RTX 5060 Ti 0.12秒／Microsoft Basic Render Driver 0.00秒、いずれも`GetNodeCount=1`。終了コード0 |
+| 4 | `-nohmd`（HMD検出の無効化） | 同一失敗 60.185秒 | `Checking if RHI D3D12 ...` | HMD検出は原因ではない。OpenXR ActiveRuntimeは未登録、VRプロセスも皆無 |
+| 5 | 最小UEプロジェクト（プラグイン・C++・Content無し） | 失敗 60.218秒 | **`Running DelayedAutoRegister Phase PreRHIInit`** | **停止直前のログが実プロジェクトと異なります**（下記R2参照） |
+| 6 | GUI版`UnrealEditor.exe`（起動方法） | 同一失敗 60.195秒 | `Checking if RHI D3D12 ...` | 起動方法には依存しない |
+| 7 | Agility SDK経由のプローブ（`agility_probe.py`） | **検証不成立** | — | `SetSDKVersion`は成功するが`D3D12CreateDevice`が`hr=0x887e0003`（SDK_COMPONENT_MISSING）で即時失敗。UEと同条件を再現できておらず、裏付けにも反証にもなりません |
+| 8 | Avastフックの影響範囲確認 | 反証 | — | `aswhook.dll`はUEだけでなく**通常のPowerShellプロセスにも注入**されており、正常動作した`d3d12_device_probe.py`も同条件です。注入の有無だけでは原因になりません |
 
-### 観測事実（すべて再現性あり、計4回の描画付き実行で一致）
+## レビュー指摘への対応
 
-1. 失敗箇所は常に `LogRHI: Checking if RHI D3D12 with Feature Level SM6 is supported by your system.` の直後で、そこから **60.17〜60.20秒** 後に `LogWindows: Error: === Critical error: ===`。**エラー本文は空**。終了コードは3（ランチャー経由では1）。
-2. ハング中のプロセスは**CPUをほとんど消費しない**（60秒間でCPU約2.5〜2.8秒、メモリ726MBで不変）。通常のクラッシュではなく待機・タイムアウト打ち切りの挙動です。
-3. ハング中に NVIDIA ユーザーモードドライバ（`nvwgf2umx.dll`、`nvldumdx.dll`、`nvgpucomp64.dll` 等）と `d3d12.dll`／`D3D12Core.dll`／`UnrealEditor-WindowsD3D.dll` はロード済み。
-4. WMI（`Win32_VideoController`）0.15秒、レガシーWMI 0.05秒、GPUドライバのレジストリ照会0.02秒でいずれも正常。GPU情報照会は原因ではありません。
-5. DXGIアダプタは2つ：`NVIDIA GeForce RTX 5060 Ti`（16051MB）と`Microsoft Basic Render Driver`（WARP）。
-6. 描画なし（`-NullRHI` / `--logic-only`）の実行は成功し続けており、`runtimeVerified=true`は維持されています。
-
-### エンジンソースの読解で絞り込んだ範囲（仮説であり断定ではありません）
-
-`Engine/Source/Runtime/RHI/Private/Windows/WindowsDynamicRHI.cpp:1374` のログ出力直後に `DynamicRHIModule->IsSupported()` が呼ばれます。`IsSupported()` が false を返した場合は `HandleUnsupportedFeatureLevel` / `HandleUnsupportedRHI` が **専用のログを必ず出力**しますが、それが一切出ていません。また `SafeTestD3D12CreateDevice()` が成功した場合に必ず出る `Found D3D12 adapter 0: ...`（`WindowsD3D12Device.cpp:872`）も、`DirectX Agility SDK runtime found/not found`（同937行）も出力されていません。
-
-したがって停止位置は **`FD3D12DynamicRHIModule::IsSupported()` に入った後、最初のアダプタに対する`SafeTestD3D12CreateDevice()`の完了前**（その手前の`FWindowsD3D::ChooseD3D12Adapter()`を含む区間）と絞れます。この区間はログを出力しないため、これ以上はログのみでは切り分けられません。なお`CheckDeviceForEmulatedAtomic64Support()`はIntel GPU専用で、本環境では該当しません。
-
-**未確定**：この区間のどのAPI呼び出しがブロックしているかは特定できていません。UE外では同等の処理（アダプタ列挙・デバイス生成・機能レベル確認）がいずれも0.2秒未満で完了するため、「UEが使うDirectX Agility SDK 1.618経由の経路と、このNVIDIAドライバの組み合わせ」を有力な仮説としていますが、ケース7の検証が不成立のため**裏付けは取れていません**。
+- **R1（プローブの例外終了と過大な結論）**：`d3d12_device_probe.py`の`GetNodeCount`呼び出しでvtableスロットを10と誤指定していたのが原因のアクセス違反でした。`ID3D12Device::GetNodeCount`は**スロット7**（IUnknown 0-2、ID3D12Object 3-6）です。修正して再実行し、全アダプタで完走・終了コード0を確認しました（`build/W01-diag/d3d12_device_probe_fixed.log`）。**プローブ内の例外はGPU障害ではなく私のABI誤りでした。** 記述も「UE外では完全に正常」から「UE外からのデバイス生成とノード数取得は0.2秒未満で成功する。ただしUEが続けて行う各種`CheckFeatureSupport`は未検証」に限定しました。ドライバ全般の否定という表現も撤回します。
+- **R2（最小プロジェクトの停止位置）**：ご指摘のとおりです。最小プロジェクトのログは`PreRHIInit`の直後に約60秒で終了しており、`Using Forced RHI: D3D12`も`Checking if RHI D3D12 ...`も出力されていません。実プロジェクトとは**停止直前のログが異なり、同じ停止APIとは断定できません**。「複数プロジェクトで起動に失敗する」という事実に記述を弱め、「プロジェクト固有ではない」という結論も「少なくとも本プロジェクト固有の設定・プラグイン・C++モジュールだけが原因ではない」に留めます。なお今回スタックを取得したのは**実プロジェクト**であり、最小プロジェクト側のスタックは未取得です。
+- **R3（スタックで必ず確定できるとは限らない）**：そのとおりでした。実際にUEとNVIDIAドライバのPDBが無く、**関数名レベルでは断定できていません**。本版では「モジュール単位の帰属＝観測」「関数名・原因＝推定」を明示的に分けて記載しています。
+- **R4（復旧手順のパス）**：修正しました。下記「再現・復旧」に元パスと復元先の対応を明記しています。
 
 ## 変更と判断
 
-- **コード変更はありません。** 原因が未特定の段階でランチャーや生成器へ回避フラグを入れることは、仕様書が禁止する「盲目的なフラグ変更」に当たるため見送りました。本報告書の追加のみです。
-- 設計からの差異：なし。追加依存：なし。環境変更：なし。
-- 診断用の未追跡成果物（すべて`build/`配下、`.gitignore`対象）：
-  - `build/W01-baseline/` — 診断開始前に退避した既存証拠（仕様書の指示による）
-  - `build/W01-diag/d3d12_probe.py` / `d3d12_device_probe.py` / `agility_probe.py` と各`.log` — UE外D3D12の計測。いずれも**環境を変更しない読み取り専用のプローブ**
-  - `build/W01-diag/minimal-project/` — 最小UEプロジェクト（診断ケース5）
-  - `build/W01-diag/verbose-*.log`、`run3-*.log`、`nohmd-*.log`、`minimal-*.log` — 各試行の出力
-- 実行手順上の誤りとその扱い：詳細ログ取得の初回試行で、uprojectを相対パスで渡したこと、およびGit Bashのパス自動変換で`/Game/Generated/House`が別パスへ変換されたことにより、UEがプロジェクトを読めず早期終了しました（`build/W01-diag/verbose-d3d12.log`）。**この試行は無効**として扱い、PowerShellで絶対パス指定に修正して再実行しています。
-- 保全と復旧：smoke実行はスクリプト仕様上、既存の`walkthrough-smoke*`を削除します。開始前に`build/W01-baseline/`へ退避し、検証後に復元しました。`walkthrough-verification.json`は退避物とSHA-256が一致（`819559f1...`）し、`renderVerified=false`のまま維持されています。施主保存ファイルは上表AC4のとおり不変です。
+- **アプリケーションのコード変更はありません。** 変更は本報告書と、`build/`配下（Git管理外）の診断スクリプト・ログ・ダンプのみです。
+- 追加した環境変更は診断ツール2件のみ（ProcDump展開、WinDbgインストール）。Engine・ドライバ・Agility SDK・OS設定・Avast設定は未変更です。
+- ダンプ（各約1.5GB）は`build/W01-diag/dumps/`に置き、**Gitへ追加していません**（プロセスメモリを含むため）。
+- 診断スクリプト：`d3d12_probe.py`／`d3d12_device_probe.py`（ABI修正済）／`agility_probe.py`（検証不成立）／`dump_stacks.py`（PDB無しでモジュール帰属を見るための自作パーサ。フルダンプではスタックメモリが`Memory64ListStream`に入るため簡易スキャンは機能せず、最終的な解析はWinDbgで実施しました）。
 
 ## 残ること
 
-**未完了**：AC2（DX12/SM6での描画）、AC3（実ウィンドウでのLDK表示）、AC5（生成器修正後の再確認）。W01は合格していません。
+**未完了**：AC2（描画）、AC3（実ウィンドウ表示）、AC5。W01は合格していません。
 
-**否定した仮説**：実行コンテキスト（対話/非対話・権限）、D3D12およびGPUドライバ全般の不具合、HMD/VRランタイム検出、プロジェクト固有の設定・プラグイン・C++モジュール、起動方法（Cmd版/GUI版）。
+**未確認**：引き金のDLLは`nvppex.dll`が最有力ですが、上記のとおり**確定はしていません**（`LdrLoadDll`の引数文字列は未読出し）。例外を起こした関数がUEの`FModuleTrace::OnDllLoaded`であることも、PDB不在のため推定に留まります。最小プロジェクト側のスタックは未取得で、実プロジェクトと同一原因かは不明のままです。施主自身の操作環境での手動起動結果も未回答です。
 
-**検証不成立**：Agility SDK経由の再現（ケース7）。Pythonプロセスからのopt-inが機能せず、UEと同条件を作れませんでした。
+**否定・限定した仮説**：実行コンテキスト、HMD検出、起動方法、Avastフックの注入有無（いずれも反証あり）。プロジェクト固有性は「本プロジェクト固有ではない」に限定。D3D12/ドライバ全般の否定は撤回し、「UE外の限定的な経路では正常」に留めます。
 
-**未確認事項**：施主による手動起動の結果は、今回私が代理でGUI版を起動して同一失敗を確認しましたが、施主自身の操作環境での結果は依然として未回答です。
+### 次の対応（提案）
 
-### 次に試す1手（いずれも環境変更を伴うため施主の承認が必要です）
+実スタックを根拠に、優先順位を付けて提案します。**いずれも実施前に承認が必要です。**
 
-優先度順に、影響と得られるものを併記します。
+1. **NVIDIAドライバの更新またはクリーンインストール**（環境変更・要承認・推奨）。例外は、ドライバ同梱DLL（最有力は`nvppex.dll`、現行`32.0.15.9186`）がD3D12デバイス生成中にロードされ、それをUE側が解析する過程で発生しています。ドライバを入れ替えれば当該DLL自体が置き換わるため、**現時点で最も直接的な対処**です。影響：BlenderのOptiXレンダリングにも及ぶため、実施前に既存の生成物を確定させ、復旧できるよう現行ドライバ版（`32.0.15.9186`）を記録しておいてください。DDU等での完全削除まで行うかは、まず通常の上書き更新を試してから判断で十分と考えます。
+2. **引き金DLLの確定**（環境変更なし）。採取済みダンプから`LdrLoadDll`の第3引数（`PUNICODE_STRING`）を直接読み出し、`nvppex.dll`かどうかを確定させます。追加採取は不要です。1を先に実施して解消した場合、この確定作業は不要になります。
+3. **UEバージョンを変える検証**（環境変更・要承認）。`FModuleTrace`の登録は無条件で引数では回避できないため、UE 5.8.2固有かを切り分けるには別バージョンでの起動確認が要ります。1が効かなかった場合の次手です。
+4. **Epicへの不具合報告**。DLLロード通知コールバック内でのPEヘッダ・デバッグディレクトリ解析は、外部DLLの構造次第で例外を起こしうる箇所です。報告する場合は上記2の確定結果とスタックを添えるべきです。
 
-1. **デバッガ導入によるハング中のスタック取得**（推奨）。`procdump`または Windows SDK の`cdb`を導入し、ハング中の60秒間にダンプを取得すれば、停止しているAPI呼び出しを**確定的に**特定できます。影響：開発ツールの追加インストールのみで、Engine・ドライバ・プロジェクトには変更を加えません。最も情報量が多く、副作用が最も小さい選択肢です。
-2. **NVIDIAドライバの更新またはクリーンインストール**。現在32.0.15.9186。RTX 5060 Ti（Blackwell世代）とUE 5.8.2同梱のAgility SDK 1.618の組み合わせを変える検証です。影響：GPUドライバの入替のためBlender側のOptiXレンダリングにも影響しうるので、実施前に既存の生成物を確定させておく必要があります。
-3. **UE同梱Agility SDKの一時無効化**（`Engine/Binaries/Win64/D3D12`のリネーム）。ケース7で確認できなかった仮説を直接検証できます。影響：**Engineインストールの改変**にあたり、他プロジェクトにも影響し、UEの再インストールで復旧が必要になる可能性があります。実施するなら復旧手順を用意した上で。
-4. 参考：`-d3d11`（DX11）での起動可否の再確認。ただし仕様書のとおりDX11は画質目標の達成扱いにできず、切り分け情報としてのみ使えます。
+補足：`aswhook.dll`（Avast）はUE以外の通常プロセスにも注入されており、正常動作したプローブも同条件でした。現時点でAvastを疑う根拠はなく、**アンチウイルスの停止や除外設定は提案しません**。
+
+Agility SDKのリネームは、ケース7が不成立で仮説の裏付けが無いまま影響の大きい改変になるため、現時点では提案しません。
 
 ## 再現・復旧
 
-再実行コマンド（専用ワークツリーをカレントディレクトリにします。`<UE5.8>`は実際のインストールパスに置換）：
+再実行コマンド（専用ワークツリーをカレントディレクトリに。`<UE5.8>`は実インストールパスへ置換）：
 
 ```powershell
 # 描画なし（現在も成功する基準線）
 python scripts/launch-unreal-walkthrough.py --engine '<UE5.8>' --project build/refresh-walk-v3/ue --cache '../../ddc' --smoke --logic-only
 
-# 描画付き（現在60秒で失敗する）
+# 描画付き（現在60秒で失敗）
 python scripts/launch-unreal-walkthrough.py --engine '<UE5.8>' --project build/refresh-walk-v3/ue --cache '../../ddc' --smoke
 
 # UE外のD3D12計測（環境を変更しません）
 python build/W01-diag/d3d12_probe.py
 python build/W01-diag/d3d12_device_probe.py
 
-# 最小プロジェクトでの再現（プロジェクト非依存の確認）
-& '<UE5.8>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' 'build/W01-diag/minimal-project/Minimal.uproject' -game -d3d12 -sm6 -RenderOffscreen -unattended -nosplash -NoSound -NoSourceControl
+# ハング中のダンプ採取（常駐登録はしません）
+build\W01-diag\tools\procdump64.exe -accepteula -ma <PID> build\W01-diag\dumps\hang.dmp
+
+# ダンプ解析
+& "$env:LOCALAPPDATA\Microsoft\WindowsApps\WinDbgX.exe" -z build\W01-diag\dumps\hang-t12.dmp -c ".symfix C:\symbols; .reload /f ntdll.dll; ~0 k 40; q" -logo build\W01-diag\windbg.log
 ```
 
-以前の生成物へ戻す方法：`build/W01-baseline/refresh-walk-v3-ue/`に診断開始前の`walkthrough-verification.json`・`walkthrough-smoke-state.json`・`walkthrough-smoke.txt`・`walkthrough-smoke.log`とNullRHI成功時のログを保存してあります。`Saved/`配下へコピーすれば開始時点に戻ります（本報告時点で復元済み）。全ログは`build/W01-diag/`および`build/W01-baseline/`配下にあります。
+**開始時点への復元（元パスと復元先の対応）**：診断開始前の証拠は`build/W01-baseline/refresh-walk-v3-ue/`に退避してあります。復元先はファイルごとに異なります。
 
-正本（`data/`）・生成物（`generated/`）・Three.js側（`interior-white-model.html`）には一切変更を加えていません。
+| 退避先のファイル | 復元先 |
+|---|---|
+| `walkthrough-verification.json` | `build/refresh-walk-v3/ue/walkthrough-verification.json`（プロジェクト直下） |
+| `walkthrough-smoke.log` | `build/refresh-walk-v3/ue/walkthrough-smoke.log`（プロジェクト直下） |
+| `walkthrough-smoke-state.json` | `build/refresh-walk-v3/ue/Saved/walkthrough-smoke-state.json` |
+| `walkthrough-smoke.txt` | `build/refresh-walk-v3/ue/Saved/walkthrough-smoke.txt` |
+| `RyukaInterior-nullrhi.log` | 参照用のNullRHI成功時ログ（復元不要） |
+| `textiles-v4-render-fail.log` | 参照用の旧プロジェクト失敗ログ（復元不要） |
+
+本報告時点で`Saved/`配下の2件は復元済みで、`walkthrough-verification.json`は退避物とSHA-256が一致（`819559f1...`）し`renderVerified=false`のまま維持されています。
+
+正本（`data/`）・生成物（`generated/`）・Three.js側（`interior-white-model.html`）には一切変更を加えていません。全ログは`build/W01-diag/`と`build/W01-baseline/`配下にあります。
