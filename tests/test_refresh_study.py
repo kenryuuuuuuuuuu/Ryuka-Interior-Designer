@@ -29,6 +29,18 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(set(m.retained_inputs(self.previous)),{'state'})
         with self.assertRaises(ValueError): m.retained_inputs(self.previous,gallery=True)
 
+    def test_latest_walkthrough_state_retained_and_validated(self):
+        import os
+        (self.previous/'Saved').mkdir()
+        runtime=self.previous/'Saved/walkthrough-state.json'
+        self.write('Saved/walkthrough-state.json',dict(self.state,variant='reference'))
+        os.utime(self.previous/'study-state.json',(100,100)); os.utime(runtime,(200,200))
+        self.assertEqual(m.retained_inputs(self.previous)['state'],runtime)
+        os.utime(self.previous/'study-state.json',(300,300))
+        self.assertEqual(m.retained_inputs(self.previous)['state'],self.previous/'study-state.json')
+        self.write('Saved/walkthrough-state.json',dict(self.state,roomId='wrong-room'))
+        with self.assertRaises(ValueError): m.retained_inputs(self.previous)
+
     def test_context_preserved_missing_or_changed_rejected(self):
         context=dict(schemaVersion='1.0.0',boxes=[])
         self.write('site-context.json',context)

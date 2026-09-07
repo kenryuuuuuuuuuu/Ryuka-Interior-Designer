@@ -148,6 +148,25 @@ def save():
     unreal.log('比較条件を study-state.json に保存しました。次回生成の --state で引き継げます。')
 
 
+def start_walkthrough():
+    import subprocess
+    if not (project()/'walkthrough-verification.json').exists():
+        raise RuntimeError('先に enable-unreal-walkthrough.py を実行してください。')
+    save()
+    executable=Path(unreal.Paths.engine_dir()).resolve()/'Binaries/Win64/UnrealEditor.exe'
+    subprocess.Popen([str(executable),str(project()/'RyukaInterior.uproject'),
+        '/Game/Generated/House','-game','-sm6','-windowed','-ResX=1600','-ResY=900','-NoSourceControl',
+        '-DDC=InstalledNoZenLocalFallback','-LocalDataCachePath='+read('walkthrough.json')['cachePath']],
+        cwd=project(),creationflags=subprocess.CREATE_NO_WINDOW)
+
+
+def load_walkthrough():
+    state=read('Saved/walkthrough-state.json')
+    apply_state(state)
+    save()
+    fixed_view()
+
+
 def register_menu():
     menus=unreal.ToolMenus.get()
     parent=menus.extend_menu('LevelEditor.MainMenu.Tools')
@@ -160,6 +179,9 @@ def register_menu():
              ('View','比較カメラを見る','fixed_view()'),
              ('Remember','現在の視点を比較カメラにする','remember_view()'),
              ('Save','比較条件とレベルを保存','save()')]
+    if (project()/'walkthrough.json').exists():
+        entries += [('Walk','内覧を別ウィンドウで開始','start_walkthrough()'),
+                    ('WalkLoad','内覧で保存した視点・条件を反映','load_walkthrough()')]
     if (project()/'sun-cases.json').exists():
         for index,case in enumerate(validate_cases(read('sun-cases.json'))['cases']):
             if case['usable']:

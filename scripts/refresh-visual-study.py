@@ -25,7 +25,7 @@ def sources():
     result={}
     for folder in ('data','blender','unreal','scripts','generated','tests'):
         for path in (ROOT/folder).rglob('*'):
-            if path.is_file() and path.suffix in ('.json','.py','.mjs','.js','.hlsl','.ini','.uproject'):
+            if path.is_file() and path.suffix in ('.json','.py','.mjs','.js','.hlsl','.ini','.uproject','.cpp','.h','.cs'):
                 result[path.relative_to(ROOT).as_posix()]=hashlib.sha256(path.read_bytes().replace(b'\r\n',b'\n')).hexdigest()
     return result
 
@@ -34,8 +34,11 @@ def retained_inputs(previous, gallery=False):
     report=read(previous/'import-verification.json')
     if not report.get('unrealImportVerified'): raise ValueError('Previous study must have a successful import report')
     settings=read(ROOT/'data/visual/guest-ldk-study.json')
-    state=validate_state(read(previous/'study-state.json'),dict(roomId=settings['roomId'],settings=settings))
-    paths={'state':previous/'study-state.json'}
+    state_path=previous/'study-state.json'
+    runtime=previous/'Saved/walkthrough-state.json'
+    if runtime.exists() and runtime.stat().st_mtime>state_path.stat().st_mtime: state_path=runtime
+    state=validate_state(read(state_path),dict(roomId=settings['roomId'],settings=settings))
+    paths={'state':state_path}
     if (previous/'sun-cases.json').exists():
         cases=validate_cases(read(previous/'sun-cases.json'))['cases']
         paths['sunCases']=previous/'sun-cases.json'
@@ -104,13 +107,13 @@ def main():
         note=args.note,gallery=args.gallery,siteDaylightCalibrated=False,sourceHashes=before,
         changedSourceFiles=changed,retainedHashes=retained_hashes,steps=[])
     output.mkdir(parents=True); saved=output/'retained'; saved.mkdir()
-    for key,path in retained.items(): shutil.copy2(path,saved/path.name)
+    for key,path in retained.items(): shutil.copy2(path,saved/('study-state.json' if key=='state' else path.name))
     save(output,report)
     def unchanged():
         if sources()!=before: raise RuntimeError('Source files changed during regeneration; use a new output after edits finish')
         if any(sha(retained[k])!=h for k,h in retained_hashes.items()):
             raise RuntimeError('Previous saved conditions changed during regeneration')
-        if any(sha(saved/retained[k].name)!=h for k,h in retained_hashes.items()):
+        if any(sha(saved/('study-state.json' if k=='state' else retained[k].name))!=h for k,h in retained_hashes.items()):
             raise RuntimeError('Retained condition snapshot changed during regeneration')
     def run(name,command):
         step=dict(name=name,status='running'); report['steps'].append(step); save(output,report)
@@ -136,6 +139,8 @@ def main():
         for key,flag in [('sunCases','--sun-cases'),('context','--context')]:
             if key in retained: command += [flag,saved/retained[key].name]
         run('03-unreal',command)
+        if (previous/'walkthrough.json').exists():
+            run('04-walkthrough',[sys.executable,ROOT/'scripts/enable-unreal-walkthrough.py','--engine',args.engine,'--project',output/'ue','--cache',args.cache])
         run('04-state-check',[sys.executable,ROOT/'tests/validate_study_transfer.py',
             '--state',saved/'study-state.json','--project',output/'ue'])
         if args.gallery:

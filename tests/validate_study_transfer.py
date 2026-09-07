@@ -1,6 +1,7 @@
 """Compare an exported UE state against a separately regenerated UE project."""
 import argparse
 import json
+import struct
 from pathlib import Path
 
 parser=argparse.ArgumentParser(description=__doc__)
@@ -16,7 +17,9 @@ for key in ('azimuthDeg','elevationDeg','sunLux','exposureEV100'):
     assert abs(actual[key]-source[key])<1e-6,key
 for key in ('locationCm','rotationDeg'):
     assert all(abs(a-b)<1e-6 for a,b in zip(actual['camera'][key],source['camera'][key])),key
-assert actual['camera']['lensMm']==source['camera']['lensMm']
+# CineCamera stores focal length as float32; native runtime JSON may contain float64.
+expected_lens=struct.unpack('<f',struct.pack('<f',source['camera']['lensMm']))[0]
+assert actual['camera']['lensMm']==expected_lens, 'Camera lens changed beyond float32 storage precision'
 assert report['unrealImportVerified'] and report['maxBoundsErrorCm']<.1
 assert report['comparisonState']==actual
 assert actual.get('solar')==source.get('solar'), 'Solar provenance lost during regeneration'
