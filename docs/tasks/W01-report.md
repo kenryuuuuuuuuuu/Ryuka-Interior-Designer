@@ -1,23 +1,40 @@
-# W01 実装報告（第2版）
+# W01 実装報告（第3版・解決）
 
-状態：BLOCKED（描画復旧は未完了。ただし停止箇所と例外発生地点を実スタックで特定）
+状態：READY_FOR_REVIEW（**描画復旧を確認**。GPUドライバ更新により解消）
 開始BASE（完全SHA）：`9882f564587d4f40ec9721c82c095aa1458c7596`
 使用モデル：Claude Opus 5（`claude-opus-5`）
-環境（OS/UE/ツール版）：Windows 11 25H2 [10.0.26200.9278] / UE 5.8.2（CL-56702186）/ Agility SDK `D3D12Core.dll 1.618.5.0`（UE同梱）/ NVIDIA GeForce RTX 5060 Ti ドライバ 32.0.15.9186 / AMD Ryzen 7 5700X / Avast Antivirus 26.8.11125（稼働中）。
+環境（OS/UE/ツール版）：Windows 11 25H2 [10.0.26200.9278] / UE 5.8.2（CL-56702186）/ Agility SDK `D3D12Core.dll 1.618.5.0`（UE同梱）/ AMD Ryzen 7 5700X / Blender 5.2.0 LTS / Avast Antivirus 26.8.11125（稼働中、未変更）。
 
-第2版で追加した環境変更：**診断ツールのみ**を導入しました。Microsoft ProcDump 12.01（`build/W01-diag/tools/`へ展開、常駐登録`-i`は未実施）と WinDbg 1.2606.22001.0（winget、`Microsoft.WinDbg`）です。**Engine・GPUドライバ・Agility SDK・OS設定・アンチウイルス設定はいずれも変更していません。**
+**GPUドライバ（施主が実施）**：NVIDIA GeForce RTX 5060 Ti を `32.0.15.9186`（616.56より前の591.86）から **`32.0.16.1656`（616.56、2026-08-20）** へクリーンインストールで更新。NVIDIA App は導入せず、グラフィックスドライバ・HDオーディオ・PhysXのみ。
+
+第2版で導入した診断ツール（Microsoft ProcDump 12.01を`build/W01-diag/tools/`へ展開、WinDbg 1.2606.22001.0）はそのままです。常駐登録（`-i`）は未実施。**Engine・Agility SDK・OS設定・アンチウイルス設定は最後まで変更していません。**
 
 ## 結果
 
-実プロセスのハング中ダンプを2点採取し、**60秒待機の正体と例外発生地点を実スタックで特定**しました。60秒は「デバイス生成の待ち」ではなく、**先に発生した例外に対するUEのクラッシュ報告処理の待機**でした。描画自体は復旧していないためBLOCKEDを維持し、AC2/AC3/AC5は未完了です。第1版に対するレビュー指摘R1〜R4はすべて修正しました。
+第2版で特定した「NVIDIAドライバのDLLロード中に発生する例外」という診断に基づき、施主がGPUドライバを更新しました。**その結果、描画初期化が復旧し、AC1〜AC4がすべてPASSしました。** 診断の裏付けとして、問題のDLLは実際に置き換わっています（`nvppex.dll`：1,824,864 → 7,624,352 bytes、ドライバストアも`nv_dispig.inf_...`→`nv_dispsi.inf_...`）。
+
+失敗箇所の所要時間が決定的に変化しました。
+
+| ログ位置 | 更新前 | 更新後 |
+|---|---|---|
+| `Checking if RHI D3D12 with Feature Level SM6 ...` から次の出力まで | **60.19秒 → Critical error（本文空）** | **0.356秒 → 成功** |
+| `Found D3D12 adapter 0` | 出力されず | `NVIDIA GeForce RTX 5060 Ti (VendorId: 10de, DeviceId: 2d04)` |
+| `DirectX Agility SDK runtime` | 到達せず | `found.` |
+| 判定行 | なし | `RHI D3D12 with Feature Level SM6 is supported and will be used.` |
 
 | 条件ID | 判定 | 証拠・コマンド・終了コード |
 |---|---|---|
-| AC1 | PASS | 下記「診断表」「スタック解析」。証拠：`build/W01-diag/windbg-t12.log`、`windbg-t22.log`、`stacks-t12.log`、`build/W01-diag/dumps/*.dmp`、各`*-stdout.log` |
-| AC2 | FAIL | `python scripts/launch-unreal-walkthrough.py --engine <UE5.8> --project build/refresh-walk-v3/ue --cache '../../ddc' --smoke` → ランチャー終了コード1／UE終了コード3。smoke PNG未生成、`renderVerified`は`false`のまま |
-| AC3 | BLOCKED | GUI版`UnrealEditor.exe`でも同一箇所で失敗（60.195秒）。実画面でのLDK表示は未達。自動テストで代用していません |
-| AC4 | PASS | `python -m unittest discover -s tests -p 'test_*.py'` → 48 tests OK。`validate_house.py`（33室・35壁）／`validate_furniture.py`（30型・45件）／`validate_openings.py`（15型・19+31件）／`validate_electrical.py`（23型・143件）／`node scripts/build-web-data.mjs --check`（最新）／`node tests/test_furniture_web.mjs`（合格）。すべて終了コード0。施主保存ファイル`build/ue-walk-v1/Saved/walkthrough-state.json`のSHA-256は実行前後とも`35e81125087dc3c72d5fb65befa27594964460a8c0763d064819c31ff369ad10`で不変。`build/refresh-walk-v3/ue/Saved/walkthrough-state.json`は実行前後とも不在 |
-| AC5 | N/A | 生成器・ランチャーへの修正は未実施。原因はUE内部とGPUドライバの相互作用にあり、ランチャー引数で回避できる箇所ではないためです（詳細は「次の対応」） |
+| AC1 | PASS | 下記「診断表」「スタック解析」。証拠：`build/W01-diag/windbg-t12.log`、`windbg-t22.log`、`last-modules-t12.log`、`last-modules-t22.log`、`build/W01-diag/dumps/*.dmp`。ドライバ更新後の成功ログ：`build/refresh-walk-v3/ue/Saved/Logs/RyukaInterior.log` |
+| AC2 | **PASS** | `python scripts/launch-unreal-walkthrough.py --engine <UE5.8> --project build/refresh-walk-v3/ue --cache '../../ddc' --smoke` → 終了コード0。`renderVerified: true`／`renderRHI: "d3d12"`／`runtimeVerified: true`、4項目（safe spawn／blocking capsule sweep／finish and sun switch／state save and restore）合格。新規生成した`build/refresh-walk-v3/ue/Saved/walkthrough-smoke.png`（483,923 bytes）を目視確認し、窓からの採光・家具・HUDが正しく描画されていることを確認 |
+| AC3 | **PASS** | `--smoke`なしで内覧を実起動。ウィンドウタイトル`RyukaInterior (64-bit Development PCD3D_SM6)`、CPU 809.1秒・メモリ4,193MB（更新前は2.4秒で待機のまま）。画面証拠`build/W01-diag/ac3-window.png`にデスクトップ上のウィンドウとLDK表示を記録。キー操作はしていないため施主保存ファイルは未書換 |
+| AC4 | PASS | ドライバ更新後に再実行。`python -m unittest discover -s tests -p 'test_*.py'` → 48 tests OK。`validate_house.py`（33室・35壁）／`validate_furniture.py`（30型・45件）／`validate_openings.py`（15型・19+31件）／`validate_electrical.py`（23型・143件）／`node scripts/build-web-data.mjs --check`（最新）／`node tests/test_furniture_web.mjs`（合格）。すべて終了コード0。施主保存ファイル`build/ue-walk-v1/Saved/walkthrough-state.json`のSHA-256は一連の作業を通じて`35e81125087dc3c72d5fb65befa27594964460a8c0763d064819c31ff369ad10`で不変、`build/refresh-walk-v3/ue/Saved/walkthrough-state.json`は不在のまま維持 |
+| AC5 | N/A | **ソース変更が不要**でした（原因はGPUドライバ側にあり、生成器・ランチャーの修正では回避できない箇所のため）。ただし復旧後に正本から新規パッケージを再生成し、描画まで通ることを確認しています（下記「再生成の確認」） |
+
+### 再生成の確認（AC5の補足・Blender OptiX回帰）
+
+`python scripts/build-visual-twin.py --blender <Blender5.2> --interior --variant natural --output build/W01-postdriver-natural` を新しい出力先で実行し、終了コード0。データ検証（33室・45家具・19+31開口・143電気設備）、内部テスト（3件・5件）、形状検証とGLB往復検証がすべて合格し、`interior.png`（1,711,972 bytes）を目視確認しました。
+
+**Blender OptiXに回帰はありません。** レンダー所要は更新前15.250秒に対し更新後14.844秒。OptiXキャッシュは更新前「`AppData\Local\NVIDIA\OptixCache`を作成できず出力先へ退避」という警告つきでしたが、更新後は正規の場所に`optix7cache.db`（1,638,400 bytes、実行時刻に更新）が作成されており、**むしろ正常化しています**。ログの`HIPEW initialization failed`はAMD GPU用ライブラリ不在の警告で、NVIDIA環境では無害です。
 
 ## スタック解析（第2版の中核）
 
@@ -116,22 +133,22 @@ D3D12.dll → D3D12Core.dll（Agility SDK）→ nvldumdx.dll
 
 ## 残ること
 
-**未完了**：AC2（描画）、AC3（実ウィンドウ表示）、AC5。W01は合格していません。
+**W01の受入条件は満たしました**（AC1〜AC4がPASS、AC5は理由付きN/A）。以下は解決後も残る事項です。
 
-**未確認**：引き金のDLLは`nvppex.dll`が最有力ですが、上記のとおり**確定はしていません**（`LdrLoadDll`の引数文字列は未読出し）。例外を起こした関数がUEの`FModuleTrace::OnDllLoaded`であることも、PDB不在のため推定に留まります。最小プロジェクト側のスタックは未取得で、実プロジェクトと同一原因かは不明のままです。施主自身の操作環境での手動起動結果も未回答です。
+**根本原因の確定には至っていません。** ドライバ更新で事象は解消しましたが、これは「ドライバ側の何かが変わった」ことを示すもので、旧ドライバのどの処理が例外を起こしたかを証明したわけではありません。具体的には次が未確定のままです。
 
-**否定・限定した仮説**：実行コンテキスト、HMD検出、起動方法、Avastフックの注入有無（いずれも反証あり）。プロジェクト固有性は「本プロジェクト固有ではない」に限定。D3D12/ドライバ全般の否定は撤回し、「UE外の限定的な経路では正常」に留めます。
+- 引き金DLLが`nvppex.dll`であるという特定は、**モジュール一覧の並び順に基づく推定**です。`LdrLoadDll`へ渡された引数文字列は読み出せていません（確定させるなら採取済みダンプから追加解析が可能ですが、事象が解消した今は優先度が低いと判断します）。
+- 例外を起こした関数がUEの`FModuleTrace::OnDllLoaded`であることも、UEのPDB不在のため**推定**です。
+- 最小プロジェクト（`build/W01-diag/minimal-project/`）は停止直前のログが実プロジェクトと異なり、スタックも未取得のため、**同一原因かは未確認**です。ドライバ更新後に再試行していません。
+- 旧ドライバへ戻した場合に再現するかの逆検証は行っていません（実施の必要性は低いと考えます）。
 
-### 次の対応（提案）
+**否定・限定した仮説**：実行コンテキスト、HMD検出、起動方法、Avastフックの注入有無（いずれも反証あり）。プロジェクト固有性は「本プロジェクト固有ではない」に限定。`aswhook.dll`（Avast）はUE以外の通常プロセスにも注入されており、**Avastは無関係と判断**しました（設定変更は一切していません）。
 
-実スタックを根拠に、優先順位を付けて提案します。**いずれも実施前に承認が必要です。**
+### 次に検討できること（W01の範囲外・任意）
 
-1. **NVIDIAドライバの更新またはクリーンインストール**（環境変更・要承認・推奨）。例外は、ドライバ同梱DLL（最有力は`nvppex.dll`、現行`32.0.15.9186`）がD3D12デバイス生成中にロードされ、それをUE側が解析する過程で発生しています。ドライバを入れ替えれば当該DLL自体が置き換わるため、**現時点で最も直接的な対処**です。影響：BlenderのOptiXレンダリングにも及ぶため、実施前に既存の生成物を確定させ、復旧できるよう現行ドライバ版（`32.0.15.9186`）を記録しておいてください。DDU等での完全削除まで行うかは、まず通常の上書き更新を試してから判断で十分と考えます。
-2. **引き金DLLの確定**（環境変更なし）。採取済みダンプから`LdrLoadDll`の第3引数（`PUNICODE_STRING`）を直接読み出し、`nvppex.dll`かどうかを確定させます。追加採取は不要です。1を先に実施して解消した場合、この確定作業は不要になります。
-3. **UEバージョンを変える検証**（環境変更・要承認）。`FModuleTrace`の登録は無条件で引数では回避できないため、UE 5.8.2固有かを切り分けるには別バージョンでの起動確認が要ります。1が効かなかった場合の次手です。
-4. **Epicへの不具合報告**。DLLロード通知コールバック内でのPEヘッダ・デバッグディレクトリ解析は、外部DLLの構造次第で例外を起こしうる箇所です。報告する場合は上記2の確定結果とスタックを添えるべきです。
-
-補足：`aswhook.dll`（Avast）はUE以外の通常プロセスにも注入されており、正常動作したプローブも同条件でした。現時点でAvastを疑う根拠はなく、**アンチウイルスの停止や除外設定は提案しません**。
+1. **UNREAL_WALKTHROUGH.mdとSTATUS.mdの更新**。「描画付き内覧は未検証」「GPU初期化が約60秒後に失敗」という記述が現状と合わなくなりました。ドライバ要件（`32.0.16.1656`以降で確認）を追記すべきです。**本報告では未実施です**（文書更新の範囲をW02以降のどこに含めるかはGPTの判断に委ねます）。
+2. **Epicへの不具合報告**。DLLロード通知コールバック内でのPEヘッダ・デバッグディレクトリ解析は、外部DLLの構造次第で例外を起こしうる箇所です。報告するなら引き金DLLの確定を先に行うべきです。
+3. **W02（歩行体験の合格）への移行**。実ウィンドウでの起動が可能になったため、マウス操作感・歩きやすさの手動確認が実施できる状態になりました。
 
 Agility SDKのリネームは、ケース7が不成立で仮説の裏付けが無いまま影響の大きい改変になるため、現時点では提案しません。
 
@@ -140,11 +157,17 @@ Agility SDKのリネームは、ケース7が不成立で仮説の裏付けが�
 再実行コマンド（専用ワークツリーをカレントディレクトリに。`<UE5.8>`は実インストールパスへ置換）：
 
 ```powershell
-# 描画なし（現在も成功する基準線）
+# 描画なし（基準線）
 python scripts/launch-unreal-walkthrough.py --engine '<UE5.8>' --project build/refresh-walk-v3/ue --cache '../../ddc' --smoke --logic-only
 
-# 描画付き（現在60秒で失敗）
+# 描画付き（ドライバ 32.0.16.1656 以降で成功する）
 python scripts/launch-unreal-walkthrough.py --engine '<UE5.8>' --project build/refresh-walk-v3/ue --cache '../../ddc' --smoke
+
+# 実ウィンドウでの内覧（F5を押さない限り施主保存ファイルは書き換わりません）
+python scripts/launch-unreal-walkthrough.py --engine '<UE5.8>' --project build/refresh-walk-v3/ue --cache '../../ddc'
+
+# Blenderからの再生成（OptiX回帰確認を兼ねる。出力先は毎回新しい名前に）
+python scripts/build-visual-twin.py --blender '<Blender5.2>' --interior --variant natural --output build/<new-name>
 
 # UE外のD3D12計測（環境を変更しません）
 python build/W01-diag/d3d12_probe.py
