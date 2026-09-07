@@ -17,6 +17,9 @@ from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_house as house_builder
+from surface_finishes import assign_surface_uv, apply_pattern
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
+from finish_settings import details_for_variant
 from furniture_assets import validate_bindings, asset_parts
 from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
@@ -150,7 +153,7 @@ def build_envelope(data, mats):
             panel(f"wall.{w['id']}.{i}",w,poly,mats['wall'],dict(wall=w,openings=cuts))
     for i,r in enumerate(data['envelope']['slabs']):
         y = data['levels'][f"fl{r['level']}"]
-        block(f"slab.{r['footprintId']}.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y-.12,y,mats['wood'])
+        block(f"slab.{r['footprintId']}.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y-.12,y,mats.get('floor',mats['wood']))
     for i,r in enumerate(data['envelope']['flatCeilings']):
         y = data['levels'][f"fl{r['level']}"]+data['defaults']['ceilingHeight']
         block(f"ceiling.flat.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y,y+.025,mats['ceiling'])
@@ -383,9 +386,14 @@ def main():
           for key,value in palette.items() if key!='label'}
     mats.update(frame=material('Frame','38332d',.38),stone=material('Counter','e4e0d5',.32),
                 metal=material('Metal','b8b8b2',.3,.7),black=material('Glass.black','15191b',.12))
+    surface_details=details_for_variant(read(ROOT/'data/visual/unreal-finishes.json'),args.variant)
+    for role,detail in surface_details.items():
+        if detail.get('pattern'): apply_pattern(mats[role],palette[detail['paletteRole']],detail,rgb)
     ops=build_envelope(data,mats); build_openings(ops,settings,mats)
     items=build_furniture(data,settings,mats)
     block('Ground.context-provisional',-60,70,-60,60,-.1,0,material('Ground','888276'))
+    for obj in bpy.context.scene.objects:
+        if obj.type=='MESH' and obj.name.startswith(('slab.','ceiling.')): assign_surface_uv(obj)
     light=setup_lighting(settings,args)
     room=next(r for r in data['rooms'] if r['id']==settings['roomId']); floor=data['levels'][f"fl{room['level']}"]
     x,z,y=settings['camera']['position']; bpy.ops.object.camera_add(location=(x,-z,y+floor))

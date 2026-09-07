@@ -44,7 +44,7 @@ def gallery(document):
     for entry in document['captures']:
         if entry['status']!='complete': continue
         report=entry['report']; state=report['comparisonState']; solar=state['solar']
-        label={'natural':'白壁・ナチュラルオーク','warm':'グレージュ・ウォルナット'}[state['variant']]
+        label={'natural':'白壁・ナチュラルオーク','warm':'グレージュ・ウォルナット','reference':'石調の床・木板天井'}[state['variant']]
         precision='概算の位置・方位' if 'estimated' in (solar['locationStatus'],solar['northStatus']) else '位置・方位の入力確認済み'
         cards.append(f'<figure><a href="{esc(entry["image"])}"><img src="{esc(entry["image"])}" alt="{esc(label)}"></a>'
             f'<figcaption><strong>{esc(label)}</strong><br>{esc(solar["localTimestamp"])}'
@@ -77,7 +77,7 @@ def main():
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--note',default='実敷地との対応は未確認です。',help='Visible note identifying sample/site conditions')
     parser.add_argument('--sun-cases',type=int,nargs='+',help='Zero-based case indices; defaults to all usable cases')
-    parser.add_argument('--variants',choices=('natural','warm'),nargs='+',default=['natural','warm'])
+    parser.add_argument('--variants',choices=('natural','warm','reference'),nargs='+',default=['natural','warm'])
     args=parser.parse_args()
     project=args.project.resolve(); output=args.output.resolve()
     if not output.is_relative_to(ROOT/'build'): parser.error('Keep comparison output inside this worktree build/.')

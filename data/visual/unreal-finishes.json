@@ -3,11 +3,98 @@
   "status": "estimated",
   "note": "UE用の仮の表面表現。ワールド座標cmで模様寸法を固定します。実製品の木目・壁紙・織物を測定した値ではありません。建物形状は変更しません。",
   "roles": {
-    "floor": {"paletteRole":"wood", "roughness":0.55, "planks":{"widthCm":15,"lengthCm":180,"seamCm":0.08,"rotationDeg":0}, "status":"estimated", "note":"幅150mm・長さ1800mm・目地0.8mmの仮フローリング。長手は図面東西方向。実製品・張り方向は未確定。"},
-    "wall": {"roughness": 0.82, "noiseScalePerCm": [3, 3, 3], "colorMin": 0.97, "colorMax": 1.0},
-    "ceiling": {"roughness": 0.87, "noiseScalePerCm": [2, 2, 2], "colorMin": 0.98, "colorMax": 1.0},
-    "wood": {"roughness": 0.55, "noiseScalePerCm": [0.007, 0.18, 0.18], "colorMin": 0.84, "colorMax": 1.02, "grain": true},
-    "fabric": {"roughness": 0.95, "noiseScalePerCm": [5, 5, 5], "colorMin": 0.9, "colorMax": 1.02},
-    "cabinet": {"roughness": 0.48, "noiseScalePerCm": [0.02, 0.6, 0.6], "colorMin": 0.94, "colorMax": 1.0}
+    "floor": {
+      "paletteRole": "wood",
+      "roughness": 0.55,
+      "planks": {
+        "widthCm": 15,
+        "lengthCm": 180,
+        "seamCm": 0.08,
+        "rotationDeg": 0
+      },
+      "status": "estimated",
+      "note": "幅150mm・長さ1800mm・目地0.8mmの仮フローリング。長手は図面東西方向。実製品・張り方向は未確定。"
+    },
+    "wall": {
+      "roughness": 0.82,
+      "noiseScalePerCm": [
+        3,
+        3,
+        3
+      ],
+      "colorMin": 0.97,
+      "colorMax": 1.0
+    },
+    "ceiling": {
+      "roughness": 0.87,
+      "noiseScalePerCm": [
+        2,
+        2,
+        2
+      ],
+      "colorMin": 0.98,
+      "colorMax": 1.0
+    },
+    "wood": {
+      "roughness": 0.55,
+      "noiseScalePerCm": [
+        0.007,
+        0.18,
+        0.18
+      ],
+      "colorMin": 0.84,
+      "colorMax": 1.02,
+      "grain": true
+    },
+    "fabric": {
+      "roughness": 0.95,
+      "noiseScalePerCm": [
+        5,
+        5,
+        5
+      ],
+      "colorMin": 0.9,
+      "colorMax": 1.02
+    },
+    "cabinet": {
+      "roughness": 0.48,
+      "noiseScalePerCm": [
+        0.02,
+        0.6,
+        0.6
+      ],
+      "colorMin": 0.94,
+      "colorMax": 1.0
+    }
+  },
+  "variantOverrides": {
+    "reference": {
+      "floor": {
+        "paletteRole": "floor",
+        "roughness": 0.72,
+        "pattern": {
+          "kind": "tile",
+          "widthCm": 60,
+          "lengthCm": 60,
+          "seamCm": 0.2,
+          "rotationDeg": 0
+        },
+        "status": "estimated",
+        "note": "参考画像の淡い石調床。600mm角・目地2mmの仮設定。製品未選定。"
+      },
+      "ceiling": {
+        "paletteRole": "ceiling",
+        "roughness": 0.65,
+        "pattern": {
+          "kind": "boards",
+          "widthCm": 10,
+          "lengthCm": 360,
+          "seamCm": 0.12,
+          "rotationDeg": 0
+        },
+        "status": "estimated",
+        "note": "参考画像の木板天井。幅100mm・長さ3600mm・目地1.2mmの仮設定。板の長手は図面東西方向。勾配面に沿った実寸で表示。"
+      }
+    }
   }
 }

@@ -56,8 +56,9 @@ def main():
     shutil.copytree(package,output/'SourcePackage')
     shutil.copy2(ROOT/'unreal/import_study.py',output/'import_study.py')
     shutil.copy2(ROOT/'unreal/floor_finish.hlsl',output/'floor_finish.hlsl')
+    shutil.copy2(ROOT/'unreal/surface_finish.hlsl',output/'surface_finish.hlsl')
     scripts=output/'Content/Python'; scripts.mkdir(parents=True,exist_ok=True)
-    for name in ('study_controls.py','study_state.py','solar_position.py','site_context.py'):
+    for name in ('study_controls.py','study_state.py','solar_position.py','site_context.py','finish_settings.py'):
         shutil.copy2(ROOT/'unreal'/name,scripts/name)
     (scripts/'init_unreal.py').write_text('import study_controls\nstudy_controls.register_menu()\n',encoding='utf-8')
     shutil.copy2(ROOT/'data/visual/unreal-finishes.json',output/'finish-settings.json')

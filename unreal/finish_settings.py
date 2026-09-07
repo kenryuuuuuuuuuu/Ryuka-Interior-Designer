@@ -23,4 +23,20 @@ def validate_finishes(document):
                 raise ValueError('Invalid texture scale: '+role)
             if not number(detail.get('colorMin'),0,2) or not number(detail.get('colorMax'),0,2) or detail['colorMin']>detail['colorMax']:
                 raise ValueError('Invalid finish modulation: '+role)
+    for variant,overrides in document.get('variantOverrides',{}).items():
+        if variant!='reference' or not isinstance(overrides,dict): raise ValueError('Unknown finish variant override')
+        for role,detail in overrides.items():
+            if role not in ('floor','ceiling'): raise ValueError('Unsupported surface override')
+            if detail.get('paletteRole')!=role or detail.get('status')!='estimated' or not detail.get('note'):
+                raise ValueError('Surface override requires palette and provenance')
+            if not number(detail.get('roughness'),0,1): raise ValueError('Invalid surface roughness')
+            pattern=detail.get('pattern',{})
+            if pattern.get('kind') not in ('tile','boards'): raise ValueError('Invalid surface pattern')
+            for key,low,high in [('widthCm',3,200),('lengthCm',10,600),('seamCm',.01,1),('rotationDeg',0,360)]:
+                if not number(pattern.get(key),low,high): raise ValueError('Invalid surface '+key)
     return document
+
+
+def details_for_variant(document, variant):
+    validate_finishes(document)
+    return {**document['roles'],**document.get('variantOverrides',{}).get(variant,{})}

@@ -4,6 +4,7 @@ import json
 import math
 from pathlib import Path
 import unreal
+from finish_settings import details_for_variant
 
 
 def write_json(path, value):
@@ -22,7 +23,23 @@ def material(name, color, roughness=.6, glass=False, detail=None):
     node = editing.create_material_expression(asset, unreal.MaterialExpressionConstant3Vector)
     node.set_editor_property('constant', unreal.LinearColor(*rgb, 1))
     output=node
-    if detail and detail.get('planks'):
+    if detail and detail.get('pattern'):
+        coordinates=editing.create_material_expression(asset,unreal.MaterialExpressionTextureCoordinate)
+        coordinates.set_editor_property('coordinate_index',0)
+        pattern=editing.create_material_expression(asset,unreal.MaterialExpressionCustom)
+        pattern.set_editor_property('code',(Path(unreal.Paths.project_dir())/'surface_finish.hlsl').read_text(encoding='utf-8'))
+        pattern.set_editor_property('output_type',unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+        names=['UV','Width','Length','Seam','Angle','Mode']; inputs=[]
+        for key in names:
+            entry=unreal.CustomInput();entry.set_editor_property('input_name',key);inputs.append(entry)
+        pattern.set_editor_property('inputs',inputs);connect(coordinates,'',pattern,'UV')
+        values=[detail['pattern'][k] for k in ['widthCm','lengthCm','seamCm','rotationDeg']]+[1 if detail['pattern']['kind']=='boards' else 0]
+        for key,value in zip(names[1:],values):
+            constant=editing.create_material_expression(asset,unreal.MaterialExpressionConstant)
+            constant.set_editor_property('r',value);connect(constant,'',pattern,key)
+        output=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
+        connect(node,'',output,'A');connect(pattern,'',output,'B')
+    elif detail and detail.get('planks'):
         position=editing.create_material_expression(asset,unreal.MaterialExpressionWorldPosition)
         pattern=editing.create_material_expression(asset,unreal.MaterialExpressionCustom)
         pattern.set_editor_property('code',(Path(unreal.Paths.project_dir())/'floor_finish.hlsl').read_text(encoding='utf-8'))
@@ -123,10 +140,12 @@ def main():
         errors += [abs(x-y) for x,y in zip(reference, actual)]
         actor.set_folder_path('Generated/House')
     assert max(errors) < .1, f'Import bounds differ by {max(errors)} cm (limit 1mm).'
-    details=json.loads((project/'finish-settings.json').read_text(encoding='utf-8'))['roles']
-    library={variant:{role:material(variant+'_'+role,palette[details[role].get('paletteRole',role)],
-        roughness=details[role]['roughness'],detail=details[role]) for role in details}
-        for variant,palette in study['settings']['variants'].items()}
+    finish_document=json.loads((project/'finish-settings.json').read_text(encoding='utf-8'))
+    library={}
+    for variant,palette in study['settings']['variants'].items():
+        details=details_for_variant(finish_document,variant)
+        library[variant]={role:material(variant+'_'+role,palette[detail.get('paletteRole',role)],
+            roughness=detail['roughness'],detail=detail) for role,detail in details.items()}
     materials=library[study['variant']]
     glass=material('Glass_provisional','ffffff',.02,glass=True)
     bindings={}
@@ -200,6 +219,7 @@ def main():
                 maxBoundsErrorCm=max(errors),unrealImportVerified=True,siteDaylightCalibrated=False,
                 sourceManifestSHA256=hashlib.sha256((package/'manifest.json').read_bytes()).hexdigest(),
                 siteContext=context_report,
+                surfaceShaderSHA256=hashlib.sha256((project/'surface_finish.hlsl').read_bytes()).hexdigest(),
                 floorShaderSHA256=hashlib.sha256((project/'floor_finish.hlsl').read_bytes()).hexdigest(),
                 coordinates='UE centimetres: X=source x, Y=source z, Z=source y',
                 variant=state['variant'],sunAzimuth=state['azimuthDeg'],sunElevation=state['elevationDeg'],

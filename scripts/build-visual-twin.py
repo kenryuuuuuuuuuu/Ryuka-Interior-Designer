@@ -34,7 +34,7 @@ def inputs():
     paths += [ROOT / p for p in ('generated/house-data.js', 'generated/interior-walls.json',
               'generated/exterior-walls.json', 'generated/visual-envelope.json', 'scripts/build-web-data.mjs',
               'blender/build_house.py', 'blender/wall_geometry.py', 'blender/interior_geometry.py',
-              'blender/build_interior.py', 'blender/furniture_assets.py', 'scripts/build-visual-twin.py')]
+              'blender/build_interior.py', 'blender/furniture_assets.py', 'blender/surface_finishes.py', 'unreal/finish_settings.py', 'scripts/build-visual-twin.py')]
     return {str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(
             p.read_bytes().replace(b'\r\n', b'\n')).hexdigest() for p in paths}
 
@@ -44,7 +44,7 @@ def main():
     parser.add_argument('--blender', required=True, type=Path)
     parser.add_argument('--output', type=Path, default=Path('build/visual-twin-baseline'))
     parser.add_argument('--interior', action='store_true', help='Build and render the provisional guest LDK study')
-    parser.add_argument('--variant', choices=('natural','warm'), default='natural')
+    parser.add_argument('--variant', choices=('natural','warm','reference'), default='natural')
     parser.add_argument('--width', type=int, default=1600)
     parser.add_argument('--samples', type=int, default=128)
     parser.add_argument('--elevation', type=float)

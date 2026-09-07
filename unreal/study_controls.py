@@ -154,6 +154,7 @@ def register_menu():
     menu=parent.add_sub_menu('RyukaStudy','RyukaStudy','RyukaStudy','内装比較','仮仕上げ・手動太陽角度の比較')
     entries=[('Natural','白壁・ナチュラルオーク',"set_variant('natural')"),
              ('Warm','グレージュ・ウォルナット',"set_variant('warm')"),
+             ('Reference','石調の床・木板天井',"set_variant('reference')"),
              ('Sun30','太陽高度30°（手動）','set_elevation(30)'),
              ('Sun60','太陽高度60°（手動）','set_elevation(60)'),
              ('View','比較カメラを見る','fixed_view()'),
@@ -164,6 +165,8 @@ def register_menu():
             if case['usable']:
                 provenance='概算' if 'estimated' in (case['locationStatus'],case['northStatus']) else '入力確認済み'
                 entries.append(('Date'+str(index),case['localTimestamp']+'（'+provenance+'）',f'set_sun_case({index})'))
+    if 'reference' not in read('SourcePackage/study.json')['settings']['variants']:
+        entries=[entry for entry in entries if entry[0]!='Reference']
     for name,label,command in entries:
         entry=unreal.ToolMenuEntry(name='Ryuka'+name,type=unreal.MultiBlockType.MENU_ENTRY)
         entry.set_label(label)
