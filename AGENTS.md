@@ -15,7 +15,7 @@
 
 ## 正本（Source of truth）
 
-- `data/house.json` がこのリポジトリの唯一の正本。建物の寸法・開口部・部屋・壁はここだけを編集する
+- `data/house.json` が建物の寸法・部屋・屋根の正本。壁は部屋から導出する。開口は `data/openings.json` / `data/interior-doors.json`、家具は `data/furniture.json`、電気設備は `data/electrical.json` と各カタログが正本。生成物へ直接書き込まず、詳細はARCHITECTURE.mdを参照
 - `interior-white-model.html` は表示・操作ロジックのみを持ち、建物データを直接埋め込まない。`generated/house-data.js`（`house.json`から自動生成）を`<script src>`で読み込む
 - 詳細な変更手順とデータ契約は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照
 
@@ -42,3 +42,7 @@
 - Blenderが利用可能な環境では、寸法に影響する変更のあとに `blender/build_house.py` を実行して `.blend` を再生成する。生成された `.blend` やレンダー画像は成果物であり、承認済みの参照アーティファクトとして明示的に依頼された場合を除きコミットしない
 - コミット前に `data/house.json` を検証する
 - コミュニケーションは「ですます調」。個人名は使わず「施主」、施工会社名も「施工会社」と汎用化する。このリポジトリはGitHub無料枠のためPublicなので、個人情報を含めないこと。個人情報を含む資料（施工会社図面PDFなど）は `.gitignore` で除外し、ローカル参照のみに留める
+
+## 設計・実装の分担（2026-09-08）
+
+現在の施主指定は、GPTが仕様設計・レビュー、Claude Codeが実装・実行検証です。[開発手順](docs/DEVELOPMENT_WORKFLOW.md) と [残りの計画](docs/IMPLEMENTATION_ROADMAP.md) を使用します。実装指示・結果・レビュー対象コミットを文書に残します。

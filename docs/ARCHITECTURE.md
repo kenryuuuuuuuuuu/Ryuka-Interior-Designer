@@ -1,5 +1,7 @@
 # アーキテクチャ・データ契約
 
+2026-09-08補足：以下にはThree.js/白模型のみだった時点の記述が残っています。現在は家具を含むBlender→UEのvisual生成系があります。追加契約は [VISUAL_TWIN_PLAN.md](VISUAL_TWIN_PLAN.md)、状態更新は [REFRESH_WORKFLOW.md](REFRESH_WORKFLOW.md)、内覧は [UNREAL_WALKTHROUGH.md](UNREAL_WALKTHROUGH.md) を参照してください。家具・電気・開口の正本はそれぞれのJSONであり、house.jsonへ戻して統合しません。
+
 このリポジトリの「正本はどこか」「どう変更するか」を定義する。技術的な仕組みの解説。プロジェクトの背景・経緯は [BACKGROUND.md](BACKGROUND.md)、現在の進捗・未解決事項は [STATUS.md](STATUS.md) を参照。
 
 ## 正本と生成パイプライン
