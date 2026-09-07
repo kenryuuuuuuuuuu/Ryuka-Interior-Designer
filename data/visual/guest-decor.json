@@ -2,9 +2,54 @@
   "schemaVersion": "0.1.0",
   "roomId": "room-1f-06",
   "items": [
-    {"id":"decor-rug","kind":"rug","furnitureId":"fur-038","width":1.6,"depth":1.2,"status":"estimated","note":"参考画像のラグを実際のLDKに合わせた仮寸法。コーヒーテーブル中心・回転に追従。製品未選定。"},
-    {"id":"decor-blind-main","kind":"blind","openingId":"op-006","dropFraction":0.22,"status":"estimated","note":"窓上端に追従する一部下げたロールスクリーン。生地は不透明の仮表現で透過率は未校正。"},
-    {"id":"decor-blind-small","kind":"blind","openingId":"op-007","dropFraction":0.22,"status":"estimated","note":"小窓にも同じ仮スクリーン。幅と上端は開口部正本から導出。"},
-    {"id":"decor-slat","kind":"slat","furnitureId":"fur-011","width":0.95,"height":1.1,"bottom":1.15,"status":"estimated","note":"参考画像の楕円格子飾りと棚の仮モデル。ソファ中心の北側にある部屋境界へ取り付け。構造材ではありません。"}
+    {
+      "id": "decor-rug",
+      "kind": "rug",
+      "furnitureId": "fur-038",
+      "width": 1.6,
+      "depth": 1.2,
+      "status": "estimated",
+      "note": "参考画像のラグを実際のLDKに合わせた仮寸法。コーヒーテーブル中心・回転に追従。製品未選定。"
+    },
+    {
+      "id": "decor-blind-main",
+      "kind": "blind",
+      "openingId": "op-006",
+      "dropFraction": 0.22,
+      "status": "estimated",
+      "note": "窓上端に追従する一部下げたロールスクリーン。生地は不透明の仮表現で透過率は未校正。"
+    },
+    {
+      "id": "decor-blind-small",
+      "kind": "blind",
+      "openingId": "op-007",
+      "dropFraction": 0.22,
+      "status": "estimated",
+      "note": "小窓にも同じ仮スクリーン。幅と上端は開口部正本から導出。"
+    },
+    {
+      "id": "decor-slat",
+      "kind": "slat",
+      "furnitureId": "fur-011",
+      "width": 0.95,
+      "height": 1.1,
+      "bottom": 1.15,
+      "status": "estimated",
+      "note": "参考画像の楕円格子飾りと棚の仮モデル。ソファ中心の北側にある部屋境界へ取り付け。構造材ではありません。"
+    },
+    {
+      "id": "decor-sofa-textiles",
+      "kind": "sofa-textiles",
+      "furnitureId": "fur-011",
+      "status": "estimated",
+      "note": "参考画像をもとに置きクッション2個と掛け布を追加。座面高さ・外寸・回転に追従。布形状は手続き生成で実製品・物理シミュレーションではありません。"
+    },
+    {
+      "id": "decor-tabletop",
+      "kind": "tabletop",
+      "furnitureId": "fur-038",
+      "status": "estimated",
+      "note": "ローテーブル天板に本2冊と花器を仮配置。天板高さ・回転に追従。寸法は推定、植物は後続作業。"
+    }
   ]
 }

@@ -392,7 +392,7 @@ def main():
         if detail.get('pattern'): apply_pattern(mats[role],palette[detail['paletteRole']],detail,rgb)
     ops=build_envelope(data,mats); build_openings(ops,settings,mats)
     items=build_furniture(data,settings,mats)
-    decorations=build_decor(read(ROOT/'data/visual/guest-decor.json'),data,items,ops,mats,block,mesh)
+    decorations=build_decor(read(ROOT/'data/visual/guest-decor.json'),data,items,ops,mats,block,mesh,read(ROOT/'data/furniture-catalog.json'))
     block('Ground.context-provisional',-60,70,-60,60,-.1,0,material('Ground','888276'))
     for obj in bpy.context.scene.objects:
         if obj.type=='MESH' and obj.name.startswith(('slab.','ceiling.')): assign_surface_uv(obj)

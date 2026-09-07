@@ -4,6 +4,7 @@ This first wall-mounted implementation deliberately supports south windows and
 north-facing room boundaries only; unsupported anchors fail instead of drifting.
 """
 import math
+from textile_assets import styling_parts
 
 
 def number(item, key, low, high):
@@ -13,7 +14,7 @@ def number(item, key, low, high):
     return value
 
 
-def resolve(document, data, furniture, openings):
+def resolve(document, data, furniture, openings, catalog=None):
     if document.get('schemaVersion') != '0.1.0':
         raise ValueError('Unsupported decoration schema')
     room = next((r for r in data['rooms'] if r['id'] == document['roomId']), None)
@@ -30,13 +31,21 @@ def resolve(document, data, furniture, openings):
         seen.add(ident)
         kind = item.get('kind')
         resolved = dict(item, floor=floor)
-        if kind in ('rug', 'slat'):
+        if kind in ('rug', 'slat', 'sofa-textiles', 'tabletop'):
             parent = by_furniture.get(item.get('furnitureId'))
             if parent is None or parent['level'] != room['level']:
                 raise ValueError(f'{ident}: furniture anchor missing from study room')
             resolved.update(x=parent['x'], z=parent['z'], rotation=parent.get('rotation', 0))
-            number(item, 'width', .3, 3)
-        if kind == 'rug':
+            if kind in ('rug', 'slat'): number(item, 'width', .3, 3)
+        if kind in ('sofa-textiles', 'tabletop'):
+            profile = next((t for t in (catalog or {}).get('types', []) if t['type']==parent['type']), None)
+            expected = 'sofa' if kind == 'sofa-textiles' else 'table'
+            if profile is None or profile['shape'] != expected:
+                raise ValueError(f'{ident}: requires a {expected} furniture anchor')
+            dimensions = [parent.get(k+'Override',profile[k]) for k in ('width','depth','height')]
+            resolved.update(width=dimensions[0],depth=dimensions[1],height=dimensions[2],elevation=parent.get('elevation',0))
+            styling_parts(kind,*dimensions)
+        elif kind == 'rug':
             number(item, 'depth', .3, 3)
         elif kind == 'blind':
             op = by_opening.get(item.get('openingId'))
@@ -62,15 +71,22 @@ def resolve(document, data, furniture, openings):
     return result
 
 
-def build(document, data, furniture, openings, mats, block, mesh):
-    resolved = resolve(document, data, furniture, openings)
+def build(document, data, furniture, openings, mats, block, mesh, catalog=None):
+    resolved = resolve(document, data, furniture, openings, catalog)
     for item in resolved:
         prefix = 'decoration.'+item['id']+'.'
         x, z, floor = item['x'], item['z'], item['floor']
         w = item['width']
         def box(name, bounds, role, bevel=0):
             return block(prefix+name, *bounds, mats[role], bevel, item)
-        if item['kind'] == 'rug':
+        if item['kind'] in ('sofa-textiles','tabletop'):
+            angle=math.radians(item['rotation']); c,s=math.cos(angle),math.sin(angle)
+            for part in styling_parts(item['kind'],w,item['depth'],item['height']):
+                vertices=[(x+c*vx+s*vz, -z+s*vx-c*vz, floor+item['elevation']+vy) for vx,vz,vy in part['vertices']]
+                obj=mesh(prefix+part['name'],vertices,part['faces'],mats[part['role']],item)
+                if part.get('smooth'):
+                    for polygon in obj.data.polygons: polygon.use_smooth=True
+        elif item['kind'] == 'rug':
             d = item['depth']
             obj = box('woven', (-w/2,w/2,-d/2,d/2,.002,.012), 'fabric', .003)
             # Same source-to-Blender convention as furniture.

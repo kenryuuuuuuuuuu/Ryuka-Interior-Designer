@@ -34,7 +34,7 @@ def inputs():
     paths += [ROOT / p for p in ('generated/house-data.js', 'generated/interior-walls.json',
               'generated/exterior-walls.json', 'generated/visual-envelope.json', 'scripts/build-web-data.mjs',
               'blender/build_house.py', 'blender/wall_geometry.py', 'blender/interior_geometry.py',
-              'blender/build_interior.py', 'blender/furniture_assets.py', 'blender/surface_finishes.py', 'blender/guest_decor.py', 'unreal/finish_settings.py', 'scripts/build-visual-twin.py')]
+              'blender/build_interior.py', 'blender/furniture_assets.py', 'blender/surface_finishes.py', 'blender/guest_decor.py', 'blender/textile_assets.py', 'unreal/finish_settings.py', 'scripts/build-visual-twin.py')]
     return {str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(
             p.read_bytes().replace(b'\r\n', b'\n')).hexdigest() for p in paths}
 
