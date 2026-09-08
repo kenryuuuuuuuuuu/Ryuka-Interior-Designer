@@ -62,7 +62,14 @@ static bool RecoverSaveIfNeeded(FString& OutMessage) {
  FString Path,Backup; SavedViewPaths(Path,Backup);
  if(IFileManager::Get().FileExists(*Path)||!IFileManager::Get().FileExists(*Backup)) return true;
  if(IFileManager::Get().Move(*Path,*Backup,true,true)) return true; // auto-recovered
- OutMessage=TEXT("前回の保存の復旧が必要です。バックアップ「")+Backup+TEXT("」を確認してください。復旧するまで保存できません。");
+ // Project-relative name (always plain ASCII), not FPaths::ProjectDir()'s
+ // absolute path: this project's directory name is not itself ASCII, and
+ // embedding the absolute path here was observed to come out corrupted in
+ // this on-screen Message (FPaths::ProjectDir() round-trips correctly for
+ // real file I/O -- confirmed by every save/restore in this fix actually
+ // working -- but not through JSON/log serialization of that particular
+ // string on this system). The relative name is also more readable on HUD.
+ OutMessage=TEXT("前回の保存の復旧が必要です。バックアップ「")+SavedViewName()+TEXT(".bak」を確認してください。復旧するまで保存できません。");
  return false;
 }
 AWalkthroughCharacter::AWalkthroughCharacter() {
@@ -287,7 +294,9 @@ void AWalkthroughCharacter::SaveView() {
     // the top of this function keeps every later save from touching it
     // until this is resolved) and say so explicitly instead of silently
     // reporting a plain "failed to save".
-    Message=TEXT("保存に失敗し、旧データの復元にも失敗しました。バックアップ「")+Backup+TEXT("」が残っています。復旧するまで保存できません。");
+    // Relative name, not the absolute Backup path -- see the matching note
+    // in RecoverSaveIfNeeded() above.
+    Message=TEXT("保存に失敗し、旧データの復元にも失敗しました。バックアップ「")+SavedViewName()+TEXT(".bak」が残っています。復旧するまで保存できません。");
     return;
    }
    // If the rename-to-Backup step itself failed, Path was never touched and
@@ -441,7 +450,7 @@ void AWalkthroughCharacter::Tick(float Delta) {
    Result->SetBoolField(TEXT("blockedOnF9WhileFaulted"),BlockedOnF9);
    Result->SetStringField(TEXT("messageAfterF9"),MessageAfterF9);
    Result->SetBoolField(TEXT("passed"),Passed);
-   Result->SetStringField(TEXT("note"),TEXT("Obstruction left on disk on purpose -- relaunch with no switches (or -RyukaVerifyRecovery) to check restart recognition, then delete the directory at ")+Path+TEXT(" and relaunch again to check auto-recovery."));
+   Result->SetStringField(TEXT("note"),TEXT("Obstruction left on disk on purpose -- relaunch with no switches (or -RyukaVerifyRecovery) to check restart recognition, then delete the directory at <project>/")+SavedViewName()+TEXT(" and relaunch again to check auto-recovery."));
    FString Out; FJsonSerializer::Serialize(Result,TJsonWriterFactory<>::Create(&Out));
    FFileHelper::SaveStringToFile(Out,*(FPaths::ProjectSavedDir()/TEXT("walkthrough-fault-save.json")));
    FFileHelper::SaveStringToFile(Passed?TEXT("PASS"):TEXT("FAIL"),*(FPaths::ProjectSavedDir()/TEXT("walkthrough-fault-save.txt")));
