@@ -28,7 +28,21 @@
 IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl,RyukaInterior,"RyukaInterior");
 
 static FString SavedViewName() {
- return FParse::Param(FCommandLine::Get(),TEXT("RyukaSmoke")) ? TEXT("Saved/walkthrough-smoke-state.json") : TEXT("Saved/walkthrough-state.json");
+ if(FParse::Param(FCommandLine::Get(),TEXT("RyukaSmoke"))) return TEXT("Saved/walkthrough-smoke-state.json");
+#if !UE_BUILD_SHIPPING
+ // The native fault-injection/regression tests below (-RyukaFaultSave,
+ // -RyukaVerifyRecovery, -RyukaBoundaryFaultTest) call the real SaveView()/
+ // RestoreView() -- deliberately, so the exact production code path is what
+ // gets exercised -- but must never read, write, or delete the player's
+ // actual Saved/walkthrough-state.json or its .bak. Routing all three (and
+ // only these three; RyukaSmoke keeps its own separate name above) through
+ // one shared test-only name here, at the single place SaveView()/
+ // RestoreView() ask "which file", is what makes that guarantee hold without
+ // duplicating either function.
+ if(FParse::Param(FCommandLine::Get(),TEXT("RyukaFaultSave"))||FParse::Param(FCommandLine::Get(),TEXT("RyukaVerifyRecovery"))||FParse::Param(FCommandLine::Get(),TEXT("RyukaBoundaryFaultTest")))
+  return TEXT("Saved/walkthrough-test-state.json");
+#endif
+ return TEXT("Saved/walkthrough-state.json");
 }
 static TSharedPtr<FJsonObject> ReadJSON(const FString& Name) {
  FString Text; TSharedPtr<FJsonObject> Value;
@@ -406,6 +420,13 @@ void AWalkthroughCharacter::Tick(float Delta) {
    }
   } else LastSafeLocation=Current;
  }
+#if !UE_BUILD_SHIPPING
+ // Everything down to the matching #endif below (all three native
+ // regression-test blocks: -RyukaFaultSave, -RyukaVerifyRecovery,
+ // -RyukaBoundaryFaultTest) is compiled out of shipping builds entirely, not
+ // just the fault-injection line inside SaveView(). None of it runs, and
+ // none of these command-line switches have any effect, unless a developer
+ // build was explicitly launched with one of them.
  // -RyukaFaultSave: deterministic, native, single-process regression for the
  // "final replace fails AND restoring Backup also fails" path (required fix
  // A). The actual fault is injected inside SaveView() itself (see the
@@ -424,10 +445,16 @@ void AWalkthroughCharacter::Tick(float Delta) {
    Done=true;
    auto ReadAbs=[](const FString& AbsPath)->FString{FString S;FFileHelper::LoadFileToString(S,*AbsPath);return S;};
    FString Path,Backup; SavedViewPaths(Path,Backup);
+   // Non-recursive (Tree=false): a leftover obstruction directory from a
+   // prior faulted run here is always empty (this test alone ever creates
+   // it, via SaveView()'s MakeDirectory), so a plain (non-recursive)
+   // RemoveDirectory removes it; if anything unexpected ever put real
+   // content there, Windows refuses to remove a non-empty directory and this
+   // silently leaves it in place rather than deleting whatever is inside it.
    IFileManager::Get().Delete(*Path,false,true,true);
-   IFileManager::Get().DeleteDirectory(*Path,false,true);
+   IFileManager::Get().DeleteDirectory(*Path,false,false);
    IFileManager::Get().Delete(*Backup,false,true,true);
-   IFileManager::Get().DeleteDirectory(*Backup,false,true);
+   IFileManager::Get().DeleteDirectory(*Backup,false,false);
    SaveView(); // Path did not exist: plain first save, no injection runs yet
    const FString Original=ReadAbs(Path);
    const bool CreatedInitialSave=!Original.IsEmpty();
@@ -554,6 +581,7 @@ void AWalkthroughCharacter::Tick(float Delta) {
   }
   if(Phase==9) {FPlatformMisc::RequestExit(false); return;}
  }
+#endif
  if(FParse::Param(FCommandLine::Get(),TEXT("RyukaSmoke"))&&GetWorld()->GetTimeSeconds()>3&&!bSmokeDone) {
   bSmokeDone=true; bool Passed=bReady;
   if(bReady) {

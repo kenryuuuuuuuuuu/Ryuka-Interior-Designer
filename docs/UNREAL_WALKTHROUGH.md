@@ -10,10 +10,10 @@
 
 ## 起動
 
-専用ワークツリーをカレントディレクトリにして実行します。出力先は再生成のたびに変わるため、実際に使うパスは`build/`配下の最新の生成結果に読み替えてください（例：`build/W02-refresh-v4/ue`）。
+専用ワークツリーをカレントディレクトリにして実行します。出力先は再生成のたびに変わるため、実際に使うパスは`build/`配下の最新の生成結果に読み替えてください（例：`build/W02-refresh-v5/ue`）。
 
 ```powershell
-python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v4/ue --cache '../../ddc'
+python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v5/ue --cache '../../ddc'
 ```
 
 編集画面の Tools → 内装比較 →「内覧を別ウィンドウで開始」からも起動できます。開始時に編集画面の比較条件を保存します。「内覧で保存した視点・条件を反映」で編集画面へ戻し、固定画像の比較に利用できます。複数の内覧ウィンドウから同時に保存しないでください。
@@ -61,10 +61,10 @@ C++のビルドには対応するVisual Studio C++ツールチェーンとWindow
 
 ## 検証状況（2026-09-08、W02で更新）
 
-48件のPythonテストと既存Three.js家具チェックが成功。`build/W02-refresh-v4/` で正本からの一括再生成・視点と条件の引継ぎ・内覧モジュール再構築が完了し、再生成後にNullRHI（描画なしのロジック検証）とDX12（実際の描画検証）の両方が成功しています（`stateVerification`：statePreserved/geometryVerified/cameraRotationPreserved すべてtrue）。
+48件のPythonテストと既存Three.js家具チェックが成功。`build/W02-refresh-v5/` で正本からの一括再生成・視点と条件の引継ぎ・内覧モジュール再構築が完了し、再生成後にNullRHI（描画なしのロジック検証）とDX12（実際の描画検証）の両方が成功しています（`stateVerification`：statePreserved/geometryVerified/cameraRotationPreserved すべてtrue）。
 
 ```powershell
-python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v4/ue --cache '../../ddc' --smoke --logic-only
+python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v5/ue --cache '../../ddc' --smoke --logic-only
 ```
 
 `--logic-only` を外すと描画付きの検証です。自動テストの状態と画像は `Saved/walkthrough-smoke*` に分離しており、施主の保存視点を上書きしません。`walkthrough-verification.json` の `runtimeVerified` と `renderVerified` を区別してください。
@@ -79,6 +79,7 @@ python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Game
 5. **保存の成否判定に型の取り違えによる論理反転バグがありました**（`IFileManager::Move()`の`bool`戻り値をenum定数と比較しており、実際には成否判定が逆になっていました）。読み取り専用ファイルでの実地テスト中に発見し、修正しました。
 6. 保存の置換が失敗した際の復元（バックアップを元に戻す）自体が失敗する二重障害で、旧保存の所在が追跡されないまま基準状態へ黙ってフォールバックし、次の保存でバックアップが上書きされ得る不具合がありました。この状態をディスク上のファイル有無だけで検出し、復旧するまで保存を拒否・バックアップを保護する方式に修正しました（[W02-report.md](tasks/W02-report.md)第4版）。
 7. 境界補正が2回とも失敗した場合、安全でない位置のまま移動・保存操作が継続できる不具合がありました。両方失敗した場合は操作を停止し、F9での復帰を促すよう修正しました（同上）。
+8. 上記6・7の検証用ネイティブテスト（`-RyukaFaultSave`等）が、通常起動と同じ`Saved/walkthrough-state.json`を使って前処理の削除を行っており、実データがある状態でこれらのスイッチを指定すると保存を消しかねない不具合がありました。テスト専用の保存名（`Saved/walkthrough-test-state.json`）に分離し、テストブロック全体をShippingビルドから除外、削除処理も非再帰に変更しました（[W02-report.md](tasks/W02-report.md)第5版）。
 
 一般的な壁際（家具から離れた場所）での斜め歩行は大きく改善しましたが（実測：直進1秒で約45cm→斜め1.5秒で約114cm、正規化前の想定値と整合）、家具と部屋境界が極端に近接する一部の狭い箇所では、なお進みが遅い場合があります（実測：同条件で約2〜25cm）。これは既知の制限として残っています。
 
