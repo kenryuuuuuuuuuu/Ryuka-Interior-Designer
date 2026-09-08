@@ -16,6 +16,7 @@ public:
  virtual void Tick(float Delta) override;
  void Finish1(); void Finish2(); void Finish3(); void SunLow(); void SunHigh();
  void SaveView(); void RestoreView(); void ToggleMouse();
+ FString CurrentVariantLabel() const;
  FString Message;
  bool bReady=false;
  bool bInitialized=false;

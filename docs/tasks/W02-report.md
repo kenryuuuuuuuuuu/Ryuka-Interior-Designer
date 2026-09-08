@@ -1,69 +1,80 @@
-# W02 実装報告
+# W02 実装報告（第2版・レビューR1〜R4対応）
 
 状態：READY_FOR_REVIEW
-開始BASE（完全SHA）：`0ebb9f616930fa06436fddaed652e00a3334746c`
+開始BASE（完全SHA）：`0ebb9f616930fa06436fddaed652e00a3334746c`（第1版と同じBASEからの累積差分）
 使用モデル：Claude Sonnet 5（`claude-sonnet-5`）
-環境（OS/UE/ツール版、変更した設定）：Windows 11 25H2 [10.0.26200.9278] / UE 5.8.2（CL-56702186）/ NVIDIA GeForce RTX 5060 Ti ドライバ 32.0.16.1656 / Blender 5.2.0 LTS / Avast Antivirus稼働中。環境設定の変更は行っていません。実キー・マウス入力の検証には、テスト専用のC#ヘルパー（`build/W02-diag/InputSim.cs`、Win32 `SendInput`を使いOSレベルの入力イベントを注入。関数の直接呼び出しではない）を使用しました。
+環境（OS/UE/ツール版、変更した設定）：Windows 11 25H2 [10.0.26200.9278] / UE 5.8.2（CL-56702186）/ NVIDIA GeForce RTX 5060 Ti ドライバ 32.0.16.1656 / Blender 5.2.0 LTS / Avast Antivirus稼働中。環境設定の変更は行っていません。実キー・マウス入力の検証には、テスト専用のC#ヘルパー（`build/W02-diag/InputSim.cs`、Win32 `SendInput`でOS入力を注入し、`EnumWindows`+`GetWindowText`でフォーカスを確認してから送信。関数の直接呼び出しではない）を使用しました。
 
 ## 結果
 
-ゲストLDK内覧を実際のキーボード・マウス入力（`SendInput`によるOS入力）で操作確認し、3件の不具合（壁際の斜め歩行固まり、視点上下角度の上限なし、保存画角の復帰未反映）を修正しました。保存/復帰の正常系・異常系（JSON破損、必須フィールド欠落、別部屋、両保存無効、保存位置の重なり）をすべて実機で確認し、いずれもクラッシュせず安全に処理されることを確認しました。HUDは日本語表示です。正本から新しい出力先への一括再生成後もDX12描画・状態引継ぎが成功することを確認しました。一般的な壁際での斜め歩行は大きく改善しましたが、家具と部屋境界が極端に近接する一部の狭い箇所では、なお改善の余地があります（AC2は部分達成として報告します）。
+`docs/tasks/W02-review.md`のR1〜R4すべてに対応しました。安全性の欠落（R1）を修正し、太陽変更失敗時のロールバック（R2）、schemaVersion検証と失敗理由の保持・常時仕上げ表示（R4）を追加し、未実施だった検証（R3：異なる画角での往復、安全候補なし、保存失敗のファイルハッシュ確認）を実際にファイルを壊して実施しました。**この過程で、レビュー未指摘の重大なバグを新たに1件発見・修正しました**：`SaveView()`の保存成否判定が`IFileManager::Move()`（`bool`を返す）を`ECopyResult::COPY_OK`（enumの0）と比較しており、C++の通常の算術変換規則により判定が反転していました（実際に失敗した保存が「成功」と表示され、成功した保存が理論上「失敗」と表示され得る状態）。読み取り専用ファイルでの実地テストで、`DeleteFile`が実際に失敗したログが残っているにもかかわらず「視点と条件を保存しました」と表示されたことから発見しました。
 
 | 条件ID | 判定 | 証拠・コマンド・終了コード |
 |---|---|---|
-| AC1 | PASS | 実入力（`InputSim.cs`経由の`SendInput`、ウィンドウタイトル検索でフォーカスを確認してから送信）で確認。前後左右移動（W/S/A/D、各方向の実測移動距離）、停止（キーを離すと位置不変）、斜め移動の速度不正規化なし（D単独0.6秒=72.4cm、W+D斜め0.6秒=68.6cm。理論上の√2倍=102.4cmには程遠く、正しく正規化）、マウスによる視点操作（yaw/pitch変化を確認）、Tab解放中はマウス移動が視点に無反応（yaw差0.0）、再取得で反応再開（yaw差39.9）。証拠：`build/W02-diag/ac-state-*.json`（位置・向きのログ）、`build/W02-diag/50-*.png`〜`51-*.png`（Tab確認のスクリーンショット） |
-| AC2 | 部分PASS | 家具から離れた壁際：斜め移動で大幅改善（直進1秒=44.6cm→斜め1.5秒=113.6cm、修正前は壁際で移動入力自体がブロックされ0cm固着）。低fps（`t.MaxFPS 30`起動）でも床抜け・部屋外逸脱なし（Z座標232.85で不変、XY座標はポリゴン範囲内）を確認。**既知の制限**：家具（冷蔵庫等）と部屋境界（26cm）が極端に近接する狭い箇所では、斜め移動が完全な壁沿いスライドにならず進みが遅い場合がある（同条件で2〜25cm、複数回の改善を試みたが完全解消には至らず）。証拠：`build/W02-diag/ac-state-38〜49-*.json`、`build/W02-diag/52〜56-*.json`（低fps）、UEログの`is stuck and failed to move`警告（改善前） |
-| AC3 | PASS | 1/2/3で仕上げ切替（`natural`/`warm`/`reference`）、4/5で太陽高度切替を実入力で確認。F5保存→別状態へ変更→F9復帰で保存内容と完全一致（variant一致、位置X/Y差0.1cm未満）を確認（`build/W02-diag/62〜64-*.json`）。lensMmは保存時21.4516mm、復帰後も同値で往復（float32丸め内）。UEプロセス完全終了→再起動でも保存内容から自動復元（`build/W02-diag/70-restart-restored.png`、「視点を復元しました」表示）。画角80度以外の基準（reference仕上げ・21.45mm）からの復帰も確認済み |
-| AC4 | PASS | 実際にファイルを破損させて検証。(1)JSON構文エラー→クラッシュせず`study-state.json`へ安全にフォールバック（`build/W02-diag/71-corrupt-json-result.png`）。(2)`camera`フィールド欠落→クラッシュせず（ログにcritical/fatal/assertなし）。(3)別部屋roomId→クラッシュせず正本にフォールバック（`72-wrongroom-result.png`）。(4)両保存とも無効（構文エラー）→移動開始せず「有効な視点を復元できません」表示、ファイル未上書き（`73-both-invalid-result.png`）。(5)保存位置が家具（冷蔵庫）の中心と重なる→安全候補探索が機能し「空いている最も近い位置へ移動しました」と表示（`74-collision-result.png`）。すべて既存ファイルは書き換わらず、施主の実データには一切触れていません（このworktreeの生成専用プロジェクトのみを操作） |
-| AC5 | PASS | 実画面で日本語HUDの表示を確認、文字化けなし（`build/W02-diag/50-tab-before.png`ほか多数）。追加のフォントアセットは使用せず、UE標準フォントで日本語グリフが正しく描画されることを確認しました |
-| AC6 | PASS | `python scripts/refresh-visual-study.py --previous build/refresh-walk-v3/ue --output build/W02-refresh-v1 --blender <Blender5.2> --engine <UE5.8> --cache '../../ddc'` → 終了コード0、`refresh.json`の`status:"complete"`、`stateVerification`（statePreserved/geometryVerified/cameraRotationPreserved すべてtrue）。新出力先`build/W02-refresh-v1/ue`でNullRHI・DX12両smoke実行、ともに終了コード0・`renderVerified`はlogic-onlyでfalse／通常実行でtrue。コード反映版：本報告のHEAD（`unreal/walkthrough/Source/RyukaInterior/Walkthrough.cpp`・`.h`の全修正を含む） |
-| AC7 | PASS | 下記回帰コマンドすべて成功。`docs/STATUS.md`・`docs/UNREAL_WALKTHROUGH.md`を現況（ドライバ更新後に描画復旧、W02で操作確認、残る既知制限）に更新 |
+| AC1 | PASS（第1版から維持） | 実入力で確認済み。レビューの「採用可能な部分は維持」に従い変更なし |
+| AC2 | 部分PASS（安全性の欠落を修正、速度改善は据え置き） | **R1修正を反映**：境界補正の候補点判定を`InsideRoom()`のみから`Safe()`（境界＋家具/壁の重なりなし）に変更し、候補点への移動もテレポートからスイープ移動（`SetActorLocation(...,true,&Hit,...)`）に変更、着地点を再度`Safe()`で確認してから採用する設計にしました。これにより経路上の家具貫通を防ぎます。冷蔵庫付近での再測定は前回と同じ数値（斜め移動2.0cm→24.8cm、二分探索・軸独立化の効果は維持）で、速度自体はまだ完全なスライドに至っていません。家具のない壁際は引き続き大幅改善（44.6cm→113.6cm）。証拠：`build/W02-diag/v2-state-*.json`、`v2-05-refrigerator-position.png` |
+| AC3 | PASS（R3の画角実測を追加） | 第1版の保存/復帰・再起動復帰に加え、**R3で指摘された「80度以外の画角」を実際にJSONへ設定して検証**：lensMm=35mm（FOV≈54.43度）を復帰後に保存し直すと35.000002mmで往復、lensMm=18mm（FOV=90度）は18mmちょうどで往復。いずれもfloat精度の範囲内で契約通り機能することを確認しました |
+| AC4 | PASS（R2・R4修正、および未実施2ケースを追加実施） | **R2**：`study-bindings.json`を実際に破損させた状態で太陽高度変更（4キー）を実行し、`ApplyConditions()`失敗時にelevationDegが変更前の値のまま保持される（60→60、変更されない）こと、Message「太陽角度を変更できません」を確認（`build/W02-diag/v2-07-setsun-rollback.png`）。**R4**：schemaVersion="2.0.0"（未知バージョン）を実際に保存ファイルに設定して起動し、拒否されて基準状態にフォールバックすること、かつ具体的な理由（「保存データの形式（バージョン）が無効です」）が汎用メッセージで消されずに複合メッセージとして表示されることを確認（`v2-08-schema-version-reject.png`）。**未実施だった2ケースを追加**：(a) 部屋ポリゴンを10cm四方に一時的に縮小し「安全候補なし」を実際に再現、具体的理由が正しく表示されること確認（`v2-10-no-safe-candidate-fixed.png`、これも当初R4の実装漏れで上書きされていたバグを発見・修正）。(b) 保存ファイルを読み取り専用にして保存失敗を発生させ、前後のSHA-256ハッシュが完全一致することを確認（既存ファイル保護）、かつ上記のMove()比較バグ修正後は正しく「保存に失敗しました」と表示されることを確認（`v2-13-readonly-save-fixed.png`） |
+| AC5 | PASS（R4の常時仕上げ表示を追加） | HUDに「現在の仕上げ：〇〇」を常時表示するよう追加（`CurrentVariantLabel()`）。日本語グリフは通常のLit表示で確認済み（`v2-01-hud-variant.png`）。復帰失敗時は「現在の仕上げ：－」を表示 |
+| AC6 | PASS（最新コード反映版で再実行） | `python scripts/refresh-visual-study.py --previous build/W02-refresh-v1/ue --output build/W02-refresh-v2 ...` → 終了コード0、`status:"complete"`、`stateVerification`全項目true。`changedSourceFiles`に`Walkthrough.cpp`が含まれることを確認（＝本報告の全修正が反映された状態で再生成）。新出力先`build/W02-refresh-v2/ue`でNullRHI/DX12両smoke実行、ともに終了コード0、`renderVerified`はlogic-onlyでfalse・通常実行でtrue |
+| AC7 | PASS（記述を訂正） | 48テスト成功は維持。**レビュー指摘どおり訂正**：`UNREAL_WALKTHROUGH.md`の「NullRHIの描画検証」という記述を「描画なしのロジック検証」に修正しました（下記参照）。既存Pythonテストは家屋データの検証であり、今回のC++歩行ロジックの検証ではない旨も明記します |
 
-回帰：`python -m unittest discover -s tests -p 'test_*.py'`→48 tests OK。`python tests/validate_house.py`→33室・35壁 checks passed。`python tests/validate_furniture.py`→30型・45件 checks passed。`node scripts/build-web-data.mjs --check`→最新。`node tests/test_furniture_web.mjs`→合格。いずれも終了コード0。
+回帰：`python -m unittest discover -s tests -p 'test_*.py'`→48 tests OK。`validate_house.py`→33室・35壁。`validate_furniture.py`→30型・45件。`build-web-data.mjs --check`→最新。`test_furniture_web.mjs`→合格。すべて終了コード0。
+
+## R1〜R4への個別回答
+
+**R1（高：境界補正が家具へのめり込みを防いでいない）**：ご指摘の通りでした。修正前は`KeepX`/`KeepY`/二分探索点を`InsideRoom()`のみで採否判定し、`SetActorLocation`もスイープなしで実行していたため、候補点自体が別の家具と重なる可能性、および経路上の家具を貫通する可能性の両方を防げていませんでした。`Safe()`（境界＋オーバーラップ判定）で候補を選び、候補への移動をスイープ（`SetActorLocation(Candidate,true,&Hit,ETeleportType::TeleportPhysics)`）に変更し、着地点を再度`Safe()`で確認してから`LastSafeLocation`に採用する設計に修正しました。安全でなければ前フレームの位置へ戻します（そこは前フレームで`Safe()`確認済みのためスイープ不要と判断）。「Super::Tickだけで移動完了を保証した」という根拠不明のコメントは、実際に確認できる範囲（このプロジェクトでの観測順序であり、UEの一般的なtick-group保証ではないこと）に修正しました。ヒステリシスの追加や全家具のコリジョン一律変更は行っていません。速度面の改善（AC2）は完全解消しておらず、部分PASSのまま報告します。
+
+**R2（中：太陽変更失敗時の状態不一致）**：`SetSun()`に、`ApplyConditions()`失敗時のロールバックを追加しました。`TSharedPtr`の単純なコピーは同じ`FJsonObject`を指すため、その場での`SetNumberField`/`RemoveField`はロールバック用のコピーも変更してしまう点を踏まえ、`MakeShared<FJsonObject>(*State)`でオブジェクト自体（`Values`マップ）を複製してから変更し、失敗時はこのバックアップに戻す実装にしました。`SetSun()`はトップレベルの`elevationDeg`/`solar`のみを扱うため、この方式で十分ロールバックできます。実際に`study-bindings.json`を破損させて検証済みです。
+
+**R3（中：画角・異常系の合格根拠が不足）**：ご指摘の通り、第1版の「80度以外の基準＝21.45mm」という記述は誤りでした（18/tan(40°)≈21.4516mmは実際にはFOV=80度そのものです）。35mm・18mmという実際に異なる画角で往復精度を検証し直しました（上表AC3参照）。安全候補なしと保存失敗も、専用プロジェクトのファイルを実際に壊して検証しました（上表AC4参照）。保存失敗はメッセージだけでなくSHA-256ハッシュの前後一致で確認し、その過程で「一時ファイルだから常に保護される」という前提が実際には保存成否判定バグにより無関係に成立していた（表示は誤っていたが、Move失敗時にファイルは実際に上書きされていなかった）ことも確認しました。
+
+**R4（中：復帰状態の版検証と利用者表示が不足）**：`Restore()`の先頭で`schemaVersion`を検証し、`"1.0.0"`以外は拒否するようにしました（既存契約を維持し、新スキーマは作っていません）。各失敗パス（バージョン不正・部屋不一致・カメラ情報不正・画角不正・安全候補なし・条件適用失敗）にそれぞれ具体的な`Message`を設定しました。`RestoreView()`は、保存側の復元が失敗して基準状態にフォールバックした場合、その理由を保持して複合メッセージ（「保存データが無効なため基準状態に戻しました（理由）」）を表示するようにしました。**この実装の過程で、両方とも失敗した場合に正本（study-state.json）側の具体的理由がSaved側の理由で上書きされてしまう別のバグを実装中に発見し、その場で修正しました**（`Message=Reason;`という上書き行を削除）。現在の仕上げはHUDに常時表示するようにしました（`CurrentVariantLabel()`）。
 
 ## 変更と判断
 
-### コード変更（`unreal/walkthrough/Source/RyukaInterior/Walkthrough.cpp`・`.h`）
+### コード変更（`unreal/walkthrough/Source/RyukaInterior/Walkthrough.cpp`・`.h`、第2版で追加した差分）
 
-1. **壁際の斜め移動固まり**：`Tick()`が移動前に`Safe(Next)`で移動先全体をチェックし、境界26cm以内なら移動入力自体を拒否していました（家具・壁の衝突とポリゴン境界の判定が同じ関数`Safe()`に混在）。`Safe()`を`InsideRoom()`（ポリゴン境界のみ）と`Safe()`（境界+衝突、開始位置探索用に維持）に分離し、`Tick()`では家具・壁の衝突をCharacterMovementの標準スイープ・スライドに委ね（常に`AddMovementInput`を呼ぶ）、部屋ポリゴンの境界（開口部など物理壁がない場所）だけを移動後に検出して補正する設計に変更しました。
-   - 初回実装（直前の安全位置へ完全ロールバック）は、境界にほぼ接した状態で家具に沿ってスライドしようとするとCharacterMovementの押し出し処理と競合し「stuck」状態（UE標準ログの`is stuck and failed to move!`警告）を再現してしまいました。二分探索で「境界内の最遠点」まで部分的な前進を許す方式に変更し、さらに軸独立（X/Yそれぞれ単独ならポリゴン内かを先に試す）に変更して改善しました。ただし完全解消には至っていません（AC2参照）。
-2. **視点上下角度の上限なし**：`AddControllerPitchInput`後に`GetControlRotation()`を読んで手動クランプする実装を最初に試しましたが、この入力が実際に`ControlRotation`へ反映されるのはPlayerControllerの内部更新（本Tickの後）のため、常に1フレーム遅れた値を読んでしまい機能しませんでした。UE標準の`PlayerCameraManager::ViewPitchMin/Max`（内覧開始時に-80/80を設定）に変更し、正しく機能することを確認しました。
-3. **保存画角の復帰未反映**：`Restore()`が`camera.lensMm`を読み込まず、`Eye->FieldOfView`はコンストラクタの80度のまま固定されていました。`SaveView()`と同じ36mm換算センサー幅の契約（`lensMm=18/tan(FOV/2)`）の逆変換（`FOV=2*atan(18/lensMm)`）を追加し、Python側`study_state.py`と同じ許容範囲（12〜120mm）で検証してから適用します。
-4. HUD・状態メッセージ（`Message`）をすべて日本語化。仕上げ名のラベルはEditor側`study_controls.py`の`register_menu()`と表記を一致させました。
+1. `InsideRoom()`ベースだった境界補正の候補判定を`Safe()`ベースに変更し、候補への移動をスイープに変更（R1）。
+2. `SetSun()`にJSON差し替えによるロールバックを追加（R2）。
+3. `Restore()`にschemaVersion検証と型検証を追加、各失敗パスに具体的なMessageを設定（R4前半）。
+4. `RestoreView()`のフォールバックメッセージ処理を、具体的な失敗理由を保持するよう修正（R4後半、実装中に発見した二次バグも含む）。
+5. `CurrentVariantLabel()`を追加し、`DrawHUD()`で現在の仕上げを常時表示（R4）。
+6. **`SaveView()`の保存成否判定バグを修正**：`IFileManager::Move()`は`bool`を返すが`ECopyResult::COPY_OK`（enumの0）と比較しており、`(int)bool==(int)enum`という通常の算術変換により判定が反転する状態でした。`==COPY_OK`を削除し、`bool`の戻り値をそのまま使うよう修正しました。これはレビューのR1〜R4のいずれにも直接指摘されていませんが、R3の「保存失敗のハッシュ確認」を実施する過程で発見したものです。
 
-設計からの差異：仕様書は「WASDは視点の水平向きに沿い、斜め歩きで速くならないこと」「Safe(Next)の書き換え」を明確に指示しており、これに沿って実装しました。二分探索・軸独立判定は仕様書に明記されていない実装判断ですが、「床と衝突を扱うCharacterMovementのスイープ/滑りを活かして修正」「ポリゴン外への移動防止は維持」という制約の範囲内での対応です。
+設計からの差異：なし（前回報告の設計方針を踏襲）。追加依存：なし。環境変更：なし。
 
-追加依存：なし。環境変更：なし。
-
-未追跡/ignored成果物：`build/W02-diag/`（診断スクリプト`InputSim.cs`・`dump_stacks.py`は今回未使用、実測ログ・スクリーンショット多数）、`build/W02-refresh-v1/`（一括再生成の出力一式）、`build/W02-baseline/`（作業開始前の`walkthrough-verification.json`退避）。いずれも`.gitignore`対象で未コミットです。
+未追跡/ignored成果物：`build/W02-diag/`（第2版の追加証拠：`v2-*.png`、`v2-state-*.json`、破損テスト用のバックアップファイル）、`build/W02-refresh-v2/`（最新コード反映版の一括再生成出力）。前回の`build/W02-refresh-v1/`も検証環境として維持しています。いずれも`.gitignore`対象で未コミットです。
 
 ## 残ること
 
-**未解決の既知の制限**：家具と部屋境界（26cm）が極端に近接する狭い箇所で、斜め移動が完全な壁沿いスライドにならない場合があります（AC2）。二分探索・軸独立クランプの2段階の改善を試みましたが、根本解消には至っていません。この位置は`fur-007`（冷蔵庫、guest LDK北壁際）付近で再現します。次段階での追加調査候補：家具の`CollisionTraceFlag`（現状`CTF_UseComplexAsSimple`）をシンプルコリジョンに変更する、または境界判定のヒステリシス（一度安全と判定した範囲を数フレーム保持する）を追加する、などが考えられますが、いずれも未検証です。
+**未解決の既知の制限（AC2、変更なし）**：家具と部屋境界が極端に近接する狭い箇所で、斜め移動が完全な壁沿いスライドにならない場合があります。R1の安全性修正（貫通防止）は完了しましたが、速度・滑らかさの改善は達成できていません。次段階の候補（家具コリジョンのシンプル化、境界判定のヒステリシス）は未検証のまま残っています。
 
-**テスト手法上の教訓**（今回の調査で判明、次回の参考に記録）：
-- Windowsの`Process.MainWindowHandle`は`UnrealEditor-Cmd.exe`に対して不安定（フォーカスが実際には奪われていてもtrueを返す場合がある）で、ウィンドウタイトルの直接検索（`EnumWindows`+`GetWindowText`）に切り替える必要がありました。フォーカス確認を怠った一部の初期テストで「完全固着」と誤診断した箇所がありましたが、本報告の数値はすべてフォーカス確認済みの再テストによるものです。
-- F5保存直後にF9やF5を連続で呼ぶテスト方法は、直前の呼び出しのMessageを次の呼び出しが上書きしてしまい、実際の成否を誤認する原因になりました（F9は実際には成功していたのに、直後のF5が高負荷で偶発的に失敗し「F9が失敗した」ように見えました）。個々の操作の結果はスクリーンショットで直接確認する必要があります。
+**新たに判明した事実**：`Walkthrough.cpp`には`==COPY_OK`の比較バグがあり、これは今回R3の追加検証（保存失敗のハッシュ確認）で偶然発見しました。この経験から、成否判定ロジックはメッセージ表示だけでなく、実際のファイル状態（ハッシュ等）で裏付けることの重要性を再確認しました。同種の型不一致が他の判定ロジックに潜んでいないか、次段階で一度確認する価値があるかもしれませんが、今回の修正範囲（R1〜R4に限定）を超えるため、本報告では実施していません。
 
-**未検証**：施主自身の実機での操作感（マウス感度、歩きやすさの主観評価）は未確認です。実ゲームパッド入力は対象外（仕様書にも記載なし）。
+**未検証**：施主自身の実機での操作感（マウス感度、歩きやすさの主観評価）は引き続き未確認です。
 
 ## 再現・復旧
 
 ```powershell
-# コンパイル・反映（既存の検証済みプロジェクトへ）
-python scripts/enable-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v1/ue --cache '../../ddc'
+# コンパイル・反映
+python scripts/enable-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v2/ue --cache '../../ddc'
 
 # NullRHI / DX12 両smoke
-python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v1/ue --cache '../../ddc' --smoke --logic-only
-python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v1/ue --cache '../../ddc' --smoke
+python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v2/ue --cache '../../ddc' --smoke --logic-only
+python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v2/ue --cache '../../ddc' --smoke
 
 # 実ウィンドウでの内覧
-python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v1/ue --cache '../../ddc'
+python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v2/ue --cache '../../ddc'
 
 # 正本からの一括再生成（新しい出力先を使用）
-python scripts/refresh-visual-study.py --previous build/W02-refresh-v1/ue --output build/<new-name> --blender 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --engine 'C:/Program Files/Epic Games/UE_5.8' --cache '../../ddc'
+python scripts/refresh-visual-study.py --previous build/W02-refresh-v2/ue --output build/<new-name> --blender 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --engine 'C:/Program Files/Epic Games/UE_5.8' --cache '../../ddc'
 ```
 
-異常系の再現には`build/<project>/ue/Saved/walkthrough-state.json`または`study-state.json`を手動で破損・改変してから起動します（このworktreeの生成専用プロジェクトに対してのみ実施し、施主の実データには行いません）。
+異常系の再現手順（このworktreeの生成専用プロジェクトに対してのみ実施し、施主の実データには行いません）：
+- schemaVersion不正：`Saved/walkthrough-state.json`の`schemaVersion`を`"1.0.0"`以外に書き換えて起動
+- 太陽変更失敗：`study-bindings.json`を無効なJSONに置き換えてから太陽高度キー（4/5）を押す
+- 安全候補なし：`walkthrough.json`の`polygonCm`を身体が入らない極小の矩形に置き換えて起動
+- 保存失敗：`Saved/walkthrough-state.json`を読み取り専用属性にしてからF5を押す（前後のSHA-256を比較）
 
-全ログ・スクリーンショット・状態JSONは`build/W02-diag/`配下、一括再生成の成果物は`build/W02-refresh-v1/`配下にあります。
+全ログ・スクリーンショット・状態JSONは`build/W02-diag/`配下、一括再生成の成果物は`build/W02-refresh-v2/`配下にあります。

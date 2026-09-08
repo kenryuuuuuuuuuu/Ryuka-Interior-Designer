@@ -10,10 +10,10 @@
 
 ## 起動
 
-専用ワークツリーをカレントディレクトリにして実行します。出力先は再生成のたびに変わるため、実際に使うパスは`build/`配下の最新の生成結果に読み替えてください（例：`build/W02-refresh-v1/ue`）。
+専用ワークツリーをカレントディレクトリにして実行します。出力先は再生成のたびに変わるため、実際に使うパスは`build/`配下の最新の生成結果に読み替えてください（例：`build/W02-refresh-v2/ue`）。
 
 ```powershell
-python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v1/ue --cache '../../ddc'
+python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v2/ue --cache '../../ddc'
 ```
 
 編集画面の Tools → 内装比較 →「内覧を別ウィンドウで開始」からも起動できます。開始時に編集画面の比較条件を保存します。「内覧で保存した視点・条件を反映」で編集画面へ戻し、固定画像の比較に利用できます。複数の内覧ウィンドウから同時に保存しないでください。
@@ -42,7 +42,7 @@ HUDは常時、操作キー一覧・現在の仕上げ名・採光が仮条件�
 - 保存した位置が新しい家具・壁と重なる場合は、同じ部屋内の空いた候補を15cm間隔で探索し、元の位置に近い候補へ移します。候補がなければ内覧移動を開始しません。設置高さは対象階の床から再設定します。
 - 窓や家具などの正本は今回変更していません。Three.js側で編集した場合は正本JSONへ反映してから更新します。
 - 保存内容にはカメラの画角（`lensMm`）も含み、復帰時にEyeコンポーネントの視野角へ逆算して反映します（36mm換算センサー幅の契約、Python側`study_state.py`と同じ許容範囲12〜120mm）。固定の80度で上書きしません。
-- 保存/復帰・JSON破損・部屋不一致・保存位置の重なり・両保存の同時無効の各異常系は、実際にファイルを壊した状態でUnrealを起動して確認しています（クラッシュなし、ファイル未破壊、理由をHUDに表示）。まれにF5保存の直後（特にシェーダーの初回コンパイル直後など高負荷時）に書込みが一時的に失敗することがありますが、その場合もHUDに「保存に失敗しました」と表示され、直前の保存内容は保護されます（一時ファイル経由の書き込みのため）。
+- 保存/復帰・JSON破損（schemaVersion不一致を含む）・部屋不一致・保存位置の重なり・安全候補なし・両保存の同時無効・保存失敗の各異常系は、実際にファイルを破損・読み取り専用化してUnrealを起動して確認しています（クラッシュなし、ファイル未破壊、失敗理由をHUDに具体的に表示。基準状態へフォールバックした場合は、その旨と元の失敗理由を合わせて表示）。仕上げ・太陽条件の変更が何らかの理由（例：`study-bindings.json`の破損）で失敗した場合も、変更前の状態にロールバックし失敗を表示します。F5保存は一時ファイル経由の書き込みのため、失敗時も直前の保存内容が保護されることをファイルハッシュの前後比較で確認済みです。
 
 ```powershell
 python scripts/refresh-visual-study.py --previous build/ue-walk-v1 --output build/refresh-walk-next --cache '../../ddc'
@@ -60,20 +60,22 @@ C++のビルドには対応するVisual Studio C++ツールチェーンとWindow
 
 ## 検証状況（2026-09-08、W02で更新）
 
-48件のPythonテストと既存Three.js家具チェックが成功。`build/W02-refresh-v1/` で正本からの一括再生成・視点と条件の引継ぎ・内覧モジュール再構築が完了し、再生成後のNullRHI/DX12両方の描画検証が成功しています（`stateVerification`：statePreserved/geometryVerified/cameraRotationPreserved すべてtrue）。
+48件のPythonテストと既存Three.js家具チェックが成功。`build/W02-refresh-v2/` で正本からの一括再生成・視点と条件の引継ぎ・内覧モジュール再構築が完了し、再生成後にNullRHI（描画なしのロジック検証）とDX12（実際の描画検証）の両方が成功しています（`stateVerification`：statePreserved/geometryVerified/cameraRotationPreserved すべてtrue）。
 
 ```powershell
-python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v1/ue --cache '../../ddc' --smoke --logic-only
+python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v2/ue --cache '../../ddc' --smoke --logic-only
 ```
 
 `--logic-only` を外すと描画付きの検証です。自動テストの状態と画像は `Saved/walkthrough-smoke*` に分離しており、施主の保存視点を上書きしません。`walkthrough-verification.json` の `runtimeVerified` と `renderVerified` を区別してください。
 
 **描画付き内覧は確認済みです。** 実ウィンドウを起動し、Windows APIで実際のキーボード・マウス入力（`SendInput`によるOSレベルの入力で、関数の直接呼び出しではありません）を送って操作を確認しました。前後左右移動・停止・斜め移動の速度不正規化なし・マウスでの視点操作・Tabによるカーソル解放/再取得・仕上げ/太陽切替・F5保存とF9復帰（画角の往復を含む）・アプリ終了後の再起動での復帰、をいずれも実機で確認しています。
 
-この過程で3件の不具合を修正しました：
-1. 移動先が壁際26cm以内というだけで移動入力全体を拒否しており、壁際の斜め歩行が固まっていました。家具・壁の衝突判定はCharacterMovementの標準スイープ・スライドに委ね、部屋ポリゴンの境界だけを歩行後に検出して補正する方式に変更しました。
+この過程で不具合を修正しました：
+1. 移動先が壁際26cm以内というだけで移動入力全体を拒否しており、壁際の斜め歩行が固まっていました。家具・壁の衝突判定はCharacterMovementの標準スイープ・スライドに委ね、部屋ポリゴンの境界だけを歩行後に検出して補正する方式に変更しました。境界補正の候補点は、境界だけでなく家具・壁との重なりも判定（`Safe()`）した上で、候補への移動自体もスイープさせ、経路上の家具貫通を防いでいます。
 2. マウスでの見上げ・見下ろしに角度の上限がなく、視点が仕様（±80度）を超えていました。`PlayerCameraManager`のViewPitchMin/Maxで制限する方式に修正しました。
-3. 保存した画角（`lensMm`）が復帰時にEyeの視野角へ反映されておらず、常に初期値の80度になっていました。逆算処理を追加しました。
+3. 保存した画角（`lensMm`）が復帰時にEyeの視野角へ反映されておらず、常に初期値の80度になっていました。逆算処理を追加し、35mm・18mmなど異なる画角でも往復精度を確認しています。
+4. 太陽条件の変更が失敗した場合に状態と画面が不一致になる不具合、復帰時のschemaVersion検証の欠落、失敗理由が汎用メッセージで消される不具合を修正しました。
+5. **保存の成否判定に型の取り違えによる論理反転バグがありました**（`IFileManager::Move()`の`bool`戻り値をenum定数と比較しており、実際には成否判定が逆になっていました）。読み取り専用ファイルでの実地テスト中に発見し、修正しました。
 
 一般的な壁際（家具から離れた場所）での斜め歩行は大きく改善しましたが（実測：直進1秒で約45cm→斜め1.5秒で約114cm、正規化前の想定値と整合）、家具と部屋境界が極端に近接する一部の狭い箇所では、なお進みが遅い場合があります（実測：同条件で約2〜25cm）。これは既知の制限として残っています。
 
