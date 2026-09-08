@@ -50,7 +50,11 @@ class ScenarioTests(unittest.TestCase):
     def run_save(self,name,note='',output=None):
         output=output or self.scenarios_root/name.replace(' ','-')
         argv=['save-study-scenario','--project',str(self.project),'--name',name,'--note',note,'--output',str(output)]
-        with mock.patch.object(sys,'argv',argv), mock.patch.object(save_scenario,'ROOT',self.fake_root):
+        # The build/-relative-path check now lives in refresh_inputs.save_scenario_package()
+        # (also called directly, in-process, by the UE editor's own menu action -- see that
+        # module's docstring). It checks SCENARIO_ROOT specifically (not ROOT, which
+        # retained_inputs() uses to read real repo fixtures and must stay real here).
+        with mock.patch.object(sys,'argv',argv), mock.patch.object(refresh_inputs,'SCENARIO_ROOT',self.fake_root):
             save_scenario.main()
         return output
 
@@ -110,14 +114,18 @@ class ScenarioTests(unittest.TestCase):
     def test_save_refuses_mid_recovery_runtime_state(self):
         # No current runtime save, only its backup: the disk signature W02's
         # RecoverSaveIfNeeded() leaves after a failed replace+restore. Must
-        # abort, not silently fall back to study-state.json.
+        # abort, not silently fall back to study-state.json. save-study-scenario.py's
+        # main() turns save_scenario_package()'s ValueError into a clean SystemExit
+        # (parser.error); refresh_inputs.save_scenario_package() itself (called
+        # in-process by the UE editor's own menu action, study_controls.save_scenario())
+        # still raises the raw ValueError there.
         self.write('Saved/walkthrough-state.json.bak',dict(self.state,variant='natural'))
-        with self.assertRaises(ValueError):
+        with self.assertRaises(SystemExit):
             self.run_save('復旧待ち中の保存')
 
     def test_save_rejects_invalid_state(self):
         self.write('study-state.json',dict(marker='not a real state'))
-        with self.assertRaises(ValueError):
+        with self.assertRaises(SystemExit):
             self.run_save('壊れた状態')
 
     # --- list: an invalid scenario does not block the others --------------

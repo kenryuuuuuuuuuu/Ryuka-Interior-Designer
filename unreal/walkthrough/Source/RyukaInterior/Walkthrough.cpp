@@ -240,18 +240,51 @@ bool AWalkthroughCharacter::ApplyConditions() {
  if(SurfaceBindings.IsValid()&&FinishDocument.IsValid()&&StudyVariants.IsValid()) {
   const TSharedPtr<FJsonObject>* SurfacesObj;
   if(!SurfaceBindings->TryGetObjectField(TEXT("surfaces"),SurfacesObj)) return false;
+  // W04 review R4: surfaceOverrides must be validated with the same rigour
+  // as unreal/study_state.py's validate_surface_overrides() -- a state
+  // predating this field (1.0.0) is fine without it, but a PRESENT value of
+  // the wrong type, an override naming an id that is not an actual bound
+  // surface (unknown id, no-surface, or a different room), or an override
+  // object with an unknown field/out-of-range value must all abort the
+  // whole apply, not be silently skipped or ignored one field at a time.
   const TSharedPtr<FJsonObject>* OverridesObj=nullptr;
-  State->TryGetObjectField(TEXT("surfaceOverrides"),OverridesObj);
+  if(State->HasField(TEXT("surfaceOverrides"))&&!State->TryGetObjectField(TEXT("surfaceOverrides"),OverridesObj)) return false;
+  FString RoomId; if(!State->TryGetStringField(TEXT("roomId"),RoomId)) return false;
+  auto IsHex6=[](const FString& S){
+   if(S.Len()!=6) return false;
+   for(TCHAR C:S) {
+    const bool bOk=(C>=TEXT('0')&&C<=TEXT('9'))||(C>=TEXT('a')&&C<=TEXT('f'))||(C>=TEXT('A')&&C<=TEXT('F'));
+    if(!bOk) return false;
+   }
+   return true;
+  };
+  TSet<FString> ConsumedOverrideKeys;
   const TSharedPtr<FJsonObject>* RolesObj;
   if(!FinishDocument->TryGetObjectField(TEXT("roles"),RolesObj)) return false;
   const TSharedPtr<FJsonObject>* VariantOverridesObj=nullptr;
   FinishDocument->TryGetObjectField(TEXT("variantOverrides"),VariantOverridesObj);
   for(auto& SurfaceEntry:(*SurfacesObj)->Values) {
-   auto Info=SurfaceEntry.Value->AsObject(); FString Status,Kind;
+   auto Info=SurfaceEntry.Value->AsObject(); FString Status,Kind,SurfaceRoomId;
    if(!Info->TryGetStringField(TEXT("status"),Status)||Status!=TEXT("bound")) continue;
    if(!Info->TryGetStringField(TEXT("kind"),Kind)) return false;
+   if(!Info->TryGetStringField(TEXT("roomId"),SurfaceRoomId)) return false;
    const TSharedPtr<FJsonObject>* Override=nullptr;
-   if(OverridesObj) (*OverridesObj)->TryGetObjectField(SurfaceEntry.Key,Override);
+   // .Key is UE::FSharedString here (FJsonObject::Values), not FString --
+   // FString(*Entry.Key) is the existing conversion idiom already used above
+   // for the Bindings->Values loop.
+   if(OverridesObj&&(*OverridesObj)->TryGetObjectField(SurfaceEntry.Key,Override)) {
+    ConsumedOverrideKeys.Add(FString(*SurfaceEntry.Key));
+    // A bound surface belonging to a different room being targeted is the
+    // same class of mistake as an unknown/no-surface id -- fail, not skip.
+    if(SurfaceRoomId!=RoomId) return false;
+    for(auto& Field:(*Override)->Values)
+     if(Field.Key!=TEXT("variant")&&Field.Key!=TEXT("colorHex")&&Field.Key!=TEXT("roughness")) return false;
+    FString OverrideColorCheck;
+    if((*Override)->TryGetStringField(TEXT("colorHex"),OverrideColorCheck)&&!IsHex6(OverrideColorCheck)) return false;
+    double OverrideRoughnessCheck;
+    if((*Override)->TryGetNumberField(TEXT("roughness"),OverrideRoughnessCheck)&&
+       (!FMath::IsFinite(OverrideRoughnessCheck)||OverrideRoughnessCheck<0.||OverrideRoughnessCheck>1.)) return false;
+   }
    FString EffectiveVariant=Variant;
    if(Override) (*Override)->TryGetStringField(TEXT("variant"),EffectiveVariant);
    TSharedPtr<FJsonObject> Detail;
@@ -291,6 +324,13 @@ bool AWalkthroughCharacter::ApplyConditions() {
     SurfacePlan.Add({Component,Slot,Base,FLinearColor(FColor::FromHex(ColorHex)),(float)Roughness});
    }
   }
+  // Any surfaceOverrides key that was never consumed above names something
+  // that is not an actually-bound surface in this room at all (unknown id,
+  // or a registered id whose status is not "bound") -- same as Python's
+  // resolve_overrides() treating that as a stop condition, not something to
+  // silently drop.
+  if(OverridesObj) for(auto& OverrideEntry:(*OverridesObj)->Values)
+   if(!ConsumedOverrideKeys.Contains(FString(*OverrideEntry.Key))) return false;
  }
  for(auto& Item:Plan) Item.Component->SetMaterial(Item.Slot,Item.Material);
  for(auto& Item:SurfacePlan) {

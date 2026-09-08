@@ -107,9 +107,14 @@ def prism(name, polygon, vector, mat, source=None, role=None, face_materials=Non
                 [(i, (i+1)%n, (i+1)%n+n, i+n) for i in range(n)], mat, source, role, face_materials)
 
 
-def block(name, x0, x1, z0, z1, y0, y1, mat, bevel=0, source=None):
+def block(name, x0, x1, z0, z1, y0, y1, mat, bevel=0, source=None, face_materials=None):
+    # face_materials (W04 review R5): {0: mat} for the bottom cap (at y0) or
+    # {1: mat} for the top cap (at y1) -- see prism()'s own face_materials
+    # note. Used to give a floor slab's walkable TOP or a ceiling slab's
+    # room-facing UNDERSIDE its own surface-registry marker material without
+    # recolouring the opposite face or the thin side faces.
     obj = prism(name, [(x0,-z0,y0), (x1,-z0,y0), (x1,-z1,y0), (x0,-z1,y0)],
-                (0,0,y1-y0), mat, source)
+                (0,0,y1-y0), mat, source, face_materials=face_materials)
     if bevel:
         mod = obj.modifiers.new('Soft edges', 'BEVEL'); mod.width = bevel; mod.segments = 3
         obj.modifiers.new('Weighted normals', 'WEIGHTED_NORMAL')
@@ -171,12 +176,19 @@ class SurfaceBinder:
             if s['status'] != 'resolved':
                 continue
             self.by_room_kind.setdefault((s['roomId'], s['kind']), []).append(s)
-            self.status[s['id']] = dict(roomId=s['roomId'], kind=s['kind'], state='no-surface')
+            self.status[s['id']] = dict(roomId=s['roomId'], kind=s['kind'], label=s.get('label'), state='no-surface')
             finish = resolve_finish(finish_document, study_variants, s['kind'], base_variant, overrides.get(s['id']))
             self.detail[s['id']] = finish
+            # W04 review R1: this material's own detail texture (noise/plank/
+            # tile) is applied below via apply_pattern -- material() itself is
+            # called flat here (no `texture=`) since apply_pattern already
+            # covers every registrable kind's own pattern. The override's
+            # resolved colorHex is what apply_pattern must modulate, not the
+            # un-overridden palette colour, or an override's colour is
+            # silently cancelled back out by the pattern step.
             mat = material(marker_material_name(s['kind'], s['id']), finish['colorHex'], roughness=finish['roughness'])
             if finish['pattern']:
-                apply_pattern(mat, study_variants[finish['variant']][finish['paletteRole']], finish, rgb)
+                apply_pattern(mat, finish['colorHex'], finish, rgb)
             self.materials[s['id']] = mat
 
     def room_polygon(self, room_id): return self.rooms_by_id[room_id]['polygon']
@@ -193,8 +205,8 @@ class SurfaceBinder:
     def bindings_json(self):
         surfaces={}
         for surface_id,info in self.status.items():
-            surfaces[surface_id]=dict(roomId=info['roomId'],kind=info['kind'],status=info['state'],
-                meshes=self.bound_meshes.get(surface_id,[]))
+            surfaces[surface_id]=dict(roomId=info['roomId'],kind=info['kind'],label=info.get('label'),
+                status=info['state'],meshes=self.bound_meshes.get(surface_id,[]))
         return dict(schemaVersion='1.0.0',surfaces=surfaces)
 
 
@@ -284,6 +296,10 @@ def build_envelope(data, mats, binder=None):
         rect=(r['x0'],r['x1'],r['z0'],r['z1'])
         remainder=[rect]
         for s in floor_registrations:
+            # W04 review R5: a room's own level must match this slab's level
+            # too, not just its planar (x,z) footprint -- two different
+            # floors can share the same footprint rectangle.
+            if binder.rooms_by_id[s['roomId']]['level'] != r['level']: continue
             room=binder.room_polygon(s['roomId'])
             if not _rects_overlap(rect,_room_bbox(room)): continue
             # Intersect each of the room's own rectangles with THIS slab only
@@ -293,9 +309,12 @@ def build_envelope(data, mats, binder=None):
             for room_rect in decompose_rectilinear(room):
                 overlap=intersect_rect(room_rect,rect)
                 if not overlap: continue
+                # W04 review R5: only the walkable TOP face (cap 1, see
+                # block()) gets the marker material -- the underside and thin
+                # side faces keep the plain floor material.
                 obj=block(f"slab.{r['footprintId']}.{i}.{s['id']}.{len(binder.bound_meshes.get(s['id'],[]))}",
-                    *overlap,y-.12,y,binder.materials[s['id']])
-                binder.mark_bound(s['id'],obj.name,0)
+                    *overlap,y-.12,y,mats.get('floor',mats['wood']),face_materials={1:binder.materials[s['id']]})
+                binder.mark_bound(s['id'],obj.name,1)
                 remainder=subtract_rects(remainder,[overlap])
         if remainder==[rect]:
             block(f"slab.{r['footprintId']}.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y-.12,y,mats.get('floor',mats['wood']))
@@ -310,6 +329,8 @@ def build_envelope(data, mats, binder=None):
             for room_id in {rid for rid,kind in binder.by_room_kind if kind=='ceiling'}:
                 ceiling_surface=binder.ceiling_surface(room_id)
                 if not ceiling_surface: continue
+                # W04 review R5: level match, same reasoning as the floor loop above.
+                if binder.rooms_by_id[room_id]['level'] != r['level']: continue
                 room=binder.room_polygon(room_id)
                 # The room's floor-plan rectangles minus whatever part of it is
                 # already sloped ceiling (built separately below): only THAT
@@ -322,9 +343,13 @@ def build_envelope(data, mats, binder=None):
                 for flat_rect in subtract_rects(decompose_rectilinear(room),sloped_rects):
                     overlap=intersect_rect(flat_rect,rect)
                     if not overlap: continue
+                    # W04 review R5: only the room-facing UNDERSIDE (cap 0,
+                    # see block()) gets the marker material -- the topside
+                    # (above the ceiling void) and thin side faces keep the
+                    # plain ceiling material.
                     obj=block(f"ceiling.flat.{i}.{ceiling_surface['id']}.{len(binder.bound_meshes.get(ceiling_surface['id'],[]))}",
-                        *overlap,y,y+.025,binder.materials[ceiling_surface['id']])
-                    binder.mark_bound(ceiling_surface['id'],obj.name,0)
+                        *overlap,y,y+.025,mats['ceiling'],face_materials={0:binder.materials[ceiling_surface['id']]})
+                    binder.mark_bound(ceiling_surface['id'],obj.name,1)
                     remainder=subtract_rects(remainder,[overlap])
         if remainder==[rect]:
             block(f"ceiling.flat.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y,y+.025,mats['ceiling'])
@@ -336,11 +361,15 @@ def build_envelope(data, mats, binder=None):
         if not p['sloped']:
             continue
         ceiling_surface = binder.ceiling_surface(p['roomId']) if binder else None
-        ceiling_mat = binder.materials[ceiling_surface['id']] if ceiling_surface else mats['ceiling']
         y0,y1 = ceiling_y(data,p,p['z0']),ceiling_y(data,p,p['z1'])
+        # W04 review R5: only the room-facing face (cap 0 -- the polygon as
+        # given, before the .025m extrusion into the roof-side topside) gets
+        # the marker material; the base `mat` (plain ceiling) covers the
+        # topside and thin edge faces.
+        face_materials = {0: binder.materials[ceiling_surface['id']]} if ceiling_surface else None
         obj=prism(f"ceiling.{p['roomId']}.{i}",[(p['x0'],-p['z0'],y0),(p['x1'],-p['z0'],y0),
-              (p['x1'],-p['z1'],y1),(p['x0'],-p['z1'],y1)],(0,0,.025),ceiling_mat,p,'ceiling')
-        if ceiling_surface: binder.mark_bound(ceiling_surface['id'],obj.name,0)
+              (p['x1'],-p['z1'],y1),(p['x0'],-p['z1'],y1)],(0,0,.025),mats['ceiling'],p,'ceiling',face_materials)
+        if ceiling_surface: binder.mark_bound(ceiling_surface['id'],obj.name,1)
         for flat in pieces:
             if flat['sloped'] or flat['roomId'] != p['roomId']:
                 continue
@@ -350,9 +379,12 @@ def build_envelope(data, mats, binder=None):
                 a,b = max(p['z0'],flat['z0']),min(p['z1'],flat['z1'])
                 if b-a > 1e-6:
                     low = data['levels']['fl1']+data['defaults']['ceilingHeight']
-                    riser=panel(f"ceiling.riser.{i}.{at}",dict(orientation='V',x0=at,thickness=.04),
-                          [(a,low),(b,low),(b,ceiling_y(data,p,b)),(a,ceiling_y(data,p,a))],ceiling_mat,p)
-                    if ceiling_surface: binder.mark_bound(ceiling_surface['id'],riser.name,0)
+                    # W04 review R5: the riser (the short vertical step where
+                    # the slope height jumps) is explicitly out of scope for
+                    # per-surface finishing -- always the plain ceiling
+                    # material, never marked bound.
+                    panel(f"ceiling.riser.{i}.{at}",dict(orientation='V',x0=at,thickness=.04),
+                          [(a,low),(b,low),(b,ceiling_y(data,p,b)),(a,ceiling_y(data,p,a))],mats['ceiling'],p)
     # Retain the rest of the building as sun occluders.
     roof_coll = house_builder.collection('Roofs')
     fps = {f['id']:f for f in data['footprints']}

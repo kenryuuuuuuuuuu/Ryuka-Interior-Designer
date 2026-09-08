@@ -82,8 +82,9 @@ def main():
     surface_bindings = {}
     for surface_id, info in blender_bindings['surfaces'].items():
         finish = resolve_finish(finish_document, study['settings']['variants'], info['kind'], study['variant'])
-        marker = marker_material('Surf_'+surface_id, finish['colorHex'], finish['roughness'])
-        entry = dict(roomId=info['roomId'], kind=info['kind'], status=info['status'], meshes=[])
+        marker = marker_material('Surf_'+surface_id, finish['colorHex'], finish['roughness'], detail=finish['detail'])
+        entry = dict(roomId=info['roomId'], kind=info['kind'], status=info['status'],
+            label=info.get('label'), meshes=[])
         for mesh_ref in info['meshes']:
             actor_label = mesh_ref['name'].replace('.', '_')
             actor = actor_by_label.get(actor_label)

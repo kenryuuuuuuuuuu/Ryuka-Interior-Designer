@@ -107,5 +107,67 @@ class ResolveOverridesTests(unittest.TestCase):
         usable,issues=sfo.resolve_overrides({'surf-does-not-exist':{'colorHex':'ff2222'}},self.bindings)
         self.assertEqual(usable,{}); self.assertEqual(len(issues),1)
 
+    def test_other_room_override_is_an_issue_not_silently_applied(self):
+        # W04 review R4: a registered+bound id belonging to a DIFFERENT room
+        # than the one being applied to must not be treated as usable.
+        usable,issues=sfo.resolve_overrides({'surf-guest-wall-001':{'colorHex':'ff2222'}},
+            self.bindings,room_id='room-1f-99')
+        self.assertEqual(usable,{}); self.assertEqual(len(issues),1)
+
+    def test_matching_room_override_is_still_usable(self):
+        usable,issues=sfo.resolve_overrides({'surf-guest-wall-001':{'colorHex':'ff2222'}},
+            self.bindings,room_id='room-1f-06')
+        self.assertEqual(list(usable),['surf-guest-wall-001']); self.assertEqual(issues,[])
+
+
+class ResolveFinishDetailTests(unittest.TestCase):
+    def test_detail_carries_pattern_for_marker_material_reuse(self):
+        # W04 review R1: resolve_finish() must expose the same per-kind/
+        # variant detail dict (pattern/planks/noise) used for the
+        # whole-scene role materials, so a marker material can reuse it and
+        # keep its texture instead of going flat.
+        finish=sfo.resolve_finish(FINISH_DOC,STUDY['settings']['variants'],'floor','reference')
+        self.assertIn('pattern',finish['detail']); self.assertEqual(finish['detail']['pattern']['kind'],'tile')
+
+    def test_detail_carries_noise_for_non_pattern_roles(self):
+        finish=sfo.resolve_finish(FINISH_DOC,STUDY['settings']['variants'],'wall','natural')
+        self.assertIn('noiseScalePerCm',finish['detail'])
+
+
+class SurfaceOverride110StrictnessTests(unittest.TestCase):
+    # W04 review R4: study_state.py's `state.get('surfaceOverrides') or {}`
+    # silently masked a 1.1.0 state's null/[]/false surfaceOverrides into an
+    # empty dict. Only 1.0.0's total absence is meant to be tolerated.
+    def test_1_1_0_missing_surface_overrides_is_rejected(self):
+        state=dict(schemaVersion='1.1.0',roomId='room-1f-06',variant='natural',
+            azimuthDeg=180,elevationDeg=30,sunLux=50000,exposureEV100=7.5,camera=None)
+        with self.assertRaises(ValueError): ss.validate_state(state,STUDY)
+
+    def test_1_1_0_null_surface_overrides_is_rejected(self):
+        # Built directly, not via base_state(): that helper's own `overrides
+        # or {}` would mask exactly the falsy values this test needs to send through.
+        state=dict(schemaVersion='1.1.0',roomId='room-1f-06',variant='natural',
+            azimuthDeg=180,elevationDeg=30,sunLux=50000,exposureEV100=7.5,camera=None,surfaceOverrides=None)
+        with self.assertRaises(ValueError): ss.validate_state(state,STUDY)
+
+    def test_1_1_0_list_surface_overrides_is_rejected(self):
+        state=dict(schemaVersion='1.1.0',roomId='room-1f-06',variant='natural',
+            azimuthDeg=180,elevationDeg=30,sunLux=50000,exposureEV100=7.5,camera=None,surfaceOverrides=[])
+        with self.assertRaises(ValueError): ss.validate_state(state,STUDY)
+
+    def test_1_0_0_missing_surface_overrides_still_normalizes_to_empty(self):
+        state=dict(schemaVersion='1.0.0',roomId='room-1f-06',variant='natural',
+            azimuthDeg=180,elevationDeg=30,sunLux=50000,exposureEV100=7.5,camera=None)
+        result=ss.validate_state(state,STUDY)
+        self.assertEqual(result['surfaceOverrides'],{})
+
+    def test_1_0_0_explicit_garbage_surface_overrides_is_still_rejected(self):
+        # "だけ" -- only the field's total ABSENCE is tolerated for 1.0.0, not
+        # an explicit wrong-type value someone hand-edited in.
+        state=dict(schemaVersion='1.0.0',roomId='room-1f-06',variant='natural',
+            azimuthDeg=180,elevationDeg=30,sunLux=50000,exposureEV100=7.5,camera=None,
+            surfaceOverrides=[])
+        with self.assertRaises(ValueError): ss.validate_state(state,STUDY)
+
 
 if __name__=='__main__': unittest.main()

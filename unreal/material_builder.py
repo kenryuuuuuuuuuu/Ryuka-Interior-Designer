@@ -3,16 +3,22 @@ the ongoing editor session (study_controls.py) -- moved out of import_study.py
 so both can create materials identically without study_controls.py reaching
 into a script that only runs once via the import commandlet.
 
-material() builds a plain baked-constant material (whole-scene finish roles;
-unchanged behaviour from before W04). marker_material() builds a PARAMETRIC
-one (Color/Roughness parameters, default value the base finish) for a single
-surface-registry id: a UMaterialInstanceDynamic made from it is how a
-per-surface override actually gets applied, at both editor-time
-(study_controls.py) and PIE/packaged runtime (Walkthrough.cpp) -- creating a
-brand-new material ASSET per arbitrary colour choice is an editor-only
-operation and not available in the C++ walkthrough. A marker material has no
-procedural noise/pattern texture (kept on the underlying M_<variant>_<role>
-materials only); an overridden surface renders as a flat colour."""
+material() builds the node graph for one finish (whole-scene role material,
+or -- with parametric=True -- a single surface-registry id's marker
+material). Both share the exact same pattern/plank/noise logic (`detail`),
+so a registered-but-un-overridden surface renders with the same texture as
+its surroundings, not a flat colour (W04 review R1: replacing every bound
+surface's material with a flat Color/Roughness constant regressed even
+un-overridden surfaces). parametric=True additionally exposes the material's
+base colour/roughness as a MaterialExpressionVectorParameter/
+ScalarParameter ('Color'/'Roughness') instead of baked constants, still
+multiplied against the same pattern/noise nodes -- a UMaterialInstanceDynamic
+made from it is how a per-surface override actually changes just the colour/
+roughness while keeping the pattern, at both editor-time (study_controls.py)
+and PIE/packaged runtime (Walkthrough.cpp). Creating a brand-new material
+ASSET per arbitrary colour choice is an editor-only operation and not
+available in the C++ walkthrough, hence the MID approach instead.
+marker_material() is a thin wrapper kept for import_study.py's call site."""
 from pathlib import Path
 import unreal
 
@@ -23,7 +29,7 @@ def rgb(color):
 _rgb = rgb  # internal alias kept for the long-standing call sites below
 
 
-def material(name, color, roughness=.6, glass=False, detail=None):
+def material(name, color, roughness=.6, glass=False, detail=None, parametric=False):
     asset = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
         'M_'+name, '/Game/Generated/Finishes', unreal.Material, unreal.MaterialFactoryNew())
     editing = unreal.MaterialEditingLibrary
@@ -31,8 +37,17 @@ def material(name, color, roughness=.6, glass=False, detail=None):
         if not editing.connect_material_expressions(source,output,target,pin):
             raise RuntimeError(f'Material connection failed: {target.get_class().get_name()} / {pin}')
     rgb = _rgb(color)
-    node = editing.create_material_expression(asset, unreal.MaterialExpressionConstant3Vector)
-    node.set_editor_property('constant', unreal.LinearColor(*rgb, 1))
+    if parametric:
+        # Overridable base colour (W04 per-surface override), still fed into
+        # the same pattern/noise multiply chain below as the plain constant
+        # would be -- a MID made from this asset can change 'Color' without
+        # losing the underlying texture.
+        node = editing.create_material_expression(asset, unreal.MaterialExpressionVectorParameter)
+        node.set_editor_property('parameter_name', 'Color')
+        node.set_editor_property('default_value', unreal.LinearColor(*rgb, 1))
+    else:
+        node = editing.create_material_expression(asset, unreal.MaterialExpressionConstant3Vector)
+        node.set_editor_property('constant', unreal.LinearColor(*rgb, 1))
     output=node
     if detail and detail.get('pattern'):
         coordinates=editing.create_material_expression(asset,unreal.MaterialExpressionTextureCoordinate)
@@ -108,7 +123,13 @@ def material(name, color, roughness=.6, glass=False, detail=None):
         expr = editing.create_material_expression(asset, unreal.MaterialExpressionConstant)
         expr.set_editor_property('r', value)
         editing.connect_material_property(expr, '', prop)
-    scalar(unreal.MaterialProperty.MP_ROUGHNESS, roughness)
+    if parametric:
+        rough_param = editing.create_material_expression(asset, unreal.MaterialExpressionScalarParameter)
+        rough_param.set_editor_property('parameter_name', 'Roughness')
+        rough_param.set_editor_property('default_value', roughness)
+        editing.connect_material_property(rough_param, '', unreal.MaterialProperty.MP_ROUGHNESS)
+    else:
+        scalar(unreal.MaterialProperty.MP_ROUGHNESS, roughness)
     if glass:
         asset.set_editor_property('blend_mode', unreal.BlendMode.BLEND_TRANSLUCENT)
         scalar(unreal.MaterialProperty.MP_OPACITY, .08)
@@ -118,23 +139,15 @@ def material(name, color, roughness=.6, glass=False, detail=None):
     return asset
 
 
-def marker_material(name, color, roughness=.6):
+def marker_material(name, color, roughness=.6, detail=None):
     """A parametric base for one surface-registry id's marker slot: 'Color'
     (Vector) and 'Roughness' (Scalar) parameters, defaulted to `color`/
-    `roughness` (the surface's un-overridden, base-variant finish). A
-    UMaterialInstanceDynamic created from this and given different parameter
-    values is how an override is actually applied -- this asset itself never
-    changes after creation."""
-    asset = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
-        'M_'+name, '/Game/Generated/Finishes', unreal.Material, unreal.MaterialFactoryNew())
-    editing = unreal.MaterialEditingLibrary
-    color_param = editing.create_material_expression(asset, unreal.MaterialExpressionVectorParameter)
-    color_param.set_editor_property('parameter_name', 'Color')
-    color_param.set_editor_property('default_value', unreal.LinearColor(*_rgb(color), 1))
-    editing.connect_material_property(color_param, '', unreal.MaterialProperty.MP_BASE_COLOR)
-    rough_param = editing.create_material_expression(asset, unreal.MaterialExpressionScalarParameter)
-    rough_param.set_editor_property('parameter_name', 'Roughness')
-    rough_param.set_editor_property('default_value', roughness)
-    editing.connect_material_property(rough_param, '', unreal.MaterialProperty.MP_ROUGHNESS)
-    editing.recompile_material(asset)
-    return asset
+    `roughness` (the surface's un-overridden, base-variant finish), with
+    `detail` (the same per-kind/variant pattern/plank/noise dict passed to
+    the whole-scene role materials -- see surface_finish_overrides.
+    resolve_finish()'s 'detail' field) reused so an un-overridden or
+    colour-only-overridden registered surface keeps its texture (W04 review
+    R1). A UMaterialInstanceDynamic created from this and given different
+    parameter values is how an override is actually applied -- this asset
+    itself never changes after creation."""
+    return material(name, color, roughness, detail=detail, parametric=True)

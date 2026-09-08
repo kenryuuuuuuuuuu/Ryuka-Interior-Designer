@@ -53,11 +53,25 @@ def surface_bindings():
 
 def apply_state(state):
     global _state
-    state=validate_state(copy.deepcopy(state),read('SourcePackage/study.json'))
+    study=read('SourcePackage/study.json')
+    state=validate_state(copy.deepcopy(state),study)
     context_path=project()/'site-context.json'
-    if state.get('siteContextSHA256') and not context_path.exists():
-        raise ValueError('Saved conditions require site context; regenerate with --context')
-    if context_path.exists(): state['siteContextSHA256']=hashlib.sha256(context_path.read_bytes()).hexdigest()
+    expected=state.get('siteContextSHA256')
+    # W04 review R2: this state may come from anywhere -- a named scenario, a
+    # runtime save, an A/B comparison's stashed a/b state -- that was saved
+    # against a DIFFERENT site-context.json than this project currently has.
+    # Silently substituting the current project's hash here (the old
+    # behaviour) would make an incompatible surroundings condition look like
+    # it always matched; refuse instead, the same way retained_inputs()/
+    # scenario_inputs() do for the CLI paths. Nothing is mutated before this
+    # check runs.
+    if context_path.exists():
+        actual=hashlib.sha256(context_path.read_bytes()).hexdigest()
+        if expected is not None and expected!=actual:
+            raise ValueError('この比較条件は別の周辺条件（site-context.json）で保存されたものです。現在のプロジェクトには適用できません。')
+        state['siteContextSHA256']=actual
+    elif expected:
+        raise ValueError('この比較条件は周辺条件（site-context.json）を必要としますが、現在のプロジェクトにはありません。')
     actors=scene()
     bindings=read('study-bindings.json')
     planned=[]
@@ -77,10 +91,9 @@ def apply_state(state):
     # the caller sees exactly why, and nothing gets half-applied since this
     # is all still resolved before the single transaction below runs.
     surfaces=surface_bindings()['surfaces']
-    usable,issues=resolve_overrides(state['surfaceOverrides'],dict(surfaces=surfaces))
+    usable,issues=resolve_overrides(state['surfaceOverrides'],dict(surfaces=surfaces),room_id=state['roomId'])
     if issues: raise RuntimeError('surfaceOverrides: '+'; '.join(i['reason'] for i in issues))
     finish_document=read('finish-settings.json')
-    study=read('SourcePackage/study.json')
     surface_planned=[]
     for surface_id,info in surfaces.items():
         if info['status']!='bound': continue
@@ -175,6 +188,37 @@ def scene_state(base):
     # the already-managed state every apply_state() call goes through and
     # just re-validates its shape below.
     state['surfaceOverrides']=copy.deepcopy(base.get('surfaceOverrides',{}))
+    # W04 review R3: _state/base is a plain Python dict, invisible to Unreal's
+    # own Undo system -- if the operator presses Ctrl+Z after a surface
+    # override was applied, the SCENE's material reverts but this dict does
+    # not. Re-deriving overrides from scene inspection instead is fragile (a
+    # MID's parameters do not reveal whether the original override was a
+    # named variant preset or an explicit colour that happens to match one),
+    # so this still trusts the dict for its CONTENT, but verifies the live
+    # scene actually matches it before letting anything be saved from it --
+    # an unmanaged/undone change is refused with a reason, not silently
+    # saved as if the override were still in effect.
+    surfaces=surface_bindings()['surfaces']
+    bound_surfaces={sid:info for sid,info in surfaces.items() if info['status']=='bound'}
+    if bound_surfaces:
+        finish_document=read('finish-settings.json')
+        for surface_id,info in bound_surfaces.items():
+            finish=resolve_finish(finish_document,variants,info['kind'],state['variant'],
+                state['surfaceOverrides'].get(surface_id))
+            expected_color=rgb(finish['colorHex'])
+            for mesh_ref in info['meshes']:
+                actor=actors.get(mesh_ref['actor'])
+                if actor is None: continue
+                live=actor.static_mesh_component.get_material(mesh_ref['slot'])
+                mismatch=not isinstance(live,unreal.MaterialInstanceDynamic)
+                if not mismatch:
+                    color=live.get_vector_parameter_value('Color')
+                    roughness=live.get_scalar_parameter_value('Roughness')
+                    mismatch=(abs(color.r-expected_color[0])>1e-3 or abs(color.g-expected_color[1])>1e-3
+                        or abs(color.b-expected_color[2])>1e-3 or abs(roughness-finish['roughness'])>1e-3)
+                if mismatch:
+                    raise RuntimeError(f'面{surface_id}の材質が保存内容と一致しません（Undo等の影響が考えられます）。'
+                        '比較条件を再適用してから保存してください。')
     direction=actors['Sun_manual_angle'].get_actor_forward_vector()
     state['azimuthDeg']=math.degrees(math.atan2(-direction.x,direction.y))%360
     state['elevationDeg']=round(math.degrees(math.asin(max(-1,min(1,-direction.z)))),8)
@@ -241,6 +285,10 @@ def _repo_root():
     return Path(json.loads(info.read_text(encoding='utf-8'))['root'])
 
 
+def _surface_label(surface_id, info):
+    return info.get('label') or surface_id
+
+
 def select_surface(surface_id):
     global _selected_surface
     surfaces=surface_bindings()['surfaces']
@@ -252,17 +300,32 @@ def select_surface(surface_id):
     targets=[live[m['actor']] for m in entry['meshes'] if m['actor'] in live]
     if targets:
         unreal.get_editor_subsystem(unreal.EditorActorSubsystem).set_selected_level_actors(targets)
-    unreal.log(f"選択中の面: {surface_id}（{entry['kind']}）")
+    # W04 review R3: an Actor selection outlines the whole wall mesh -- both
+    # the room-facing cap this operates on AND the opposite side/back face of
+    # the same thin prism -- so the outline alone cannot show which face is
+    # actually the target. Say so explicitly every time.
+    unreal.log(f"選択中の面: {_surface_label(surface_id,entry)}（{entry['kind']}・変更対象は部屋側の面のみです）")
+    register_menu()  # refresh the 面編集 submenu's status entry
 
 
 def _apply_override(update):
     if _selected_surface is None: raise RuntimeError('先に面を選択してください（面編集の一覧から）。')
     state=current_state()
     overrides=dict(state['surfaceOverrides'])
-    if update is None: overrides.pop(_selected_surface,None)
-    else: overrides[_selected_surface]=update
+    if update is None:
+        overrides.pop(_selected_surface,None)
+    else:
+        # W04 review R3: merge into whatever this surface already has,
+        # instead of replacing it outright -- picking a colour after a
+        # variant preset must not silently drop that preset (or vice versa),
+        # and giving just a colour must not silently drop a roughness set
+        # earlier (or vice versa).
+        merged=dict(overrides.get(_selected_surface,{}))
+        merged.update(update)
+        overrides[_selected_surface]=merged
     state['surfaceOverrides']=overrides
     apply_state(state)
+    register_menu()
 
 
 def apply_preset_to_selected(variant): _apply_override(dict(variant=variant))
@@ -270,17 +333,23 @@ def reset_selected(): _apply_override(None)
 
 
 def apply_color_to_selected():
-    hex_value=_prompt('面の色','16進カラー（#なし、例 c7beb0）','').strip().lstrip('#')
-    if not hex_value: return
+    hex_value=_prompt('面の色','16進カラー（#なし、例 c7beb0。空欄でroughnessのみ変更）','').strip().lstrip('#')
     roughness_text=_prompt('面のroughness','0〜1の数値（空欄で変更なし）','').strip()
-    update=dict(colorHex=hex_value)
+    # W04 review R3: colour and roughness are independent -- leaving the
+    # colour box empty must still let a roughness-only change through
+    # (previously the function returned immediately whenever colorHex was
+    # blank, making a roughness-only edit impossible from this dialog).
+    update={}
+    if hex_value: update['colorHex']=hex_value
     if roughness_text: update['roughness']=float(roughness_text)
+    if not update: return  # both left blank: nothing to apply
     _apply_override(update)
 
 
 def reset_all_overrides():
     state=current_state(); state['surfaceOverrides']={}
     apply_state(state)
+    register_menu()
 
 
 def apply_preset_to_room(variant):
@@ -291,6 +360,21 @@ def apply_preset_to_room(variant):
             overrides[surface_id]=dict(variant=variant)
     state['surfaceOverrides']=overrides
     apply_state(state)
+    register_menu()
+
+
+def _refresh_inputs():
+    # W03-A's own scripts/refresh_inputs.py (scenario_inputs/save_scenario_package),
+    # imported from the ACTUAL repo, in-process. Not a subprocess: inside UE's
+    # embedded Python, sys.executable is UnrealEditor(-Cmd).exe itself, not a
+    # plain `python script.py` launcher (W04 review R3), and this module is
+    # pure Python (no bpy/unreal dependency) so importing it directly is safe.
+    root=_repo_root()
+    for sub in ('scripts','unreal'):
+        path=str(root/sub)
+        if path not in sys.path: sys.path.insert(0,path)
+    import refresh_inputs
+    return refresh_inputs
 
 
 def save_scenario():
@@ -298,15 +382,16 @@ def save_scenario():
     if not name: return
     note=_prompt('案の保存','メモ（任意）','')
     save()
+    refresh_inputs=_refresh_inputs()
     root=_repo_root()
     scenarios=root/'build/scenarios'
     slug=''.join(c if c.isalnum() else '-' for c in name).strip('-') or 'scenario'
     output=scenarios/slug; n=1
     while output.exists(): n+=1; output=scenarios/f'{slug}-{n}'
-    result=subprocess.run([sys.executable,str(root/'scripts/save-study-scenario.py'),
-        '--project',str(project()),'--name',name,'--note',note,'--output',str(output)],
-        capture_output=True,text=True)
-    if result.returncode: raise RuntimeError('案の保存に失敗しました: '+(result.stderr or result.stdout))
+    try:
+        scenario,output=refresh_inputs.save_scenario_package(project(),name,note,output)
+    except ValueError as error:
+        raise RuntimeError('案の保存に失敗しました: '+str(error))
     unreal.log('案を保存しました: '+str(output))
     register_menu()  # refresh so the new scenario appears in 読込/比較 without reopening the editor
 
@@ -322,23 +407,42 @@ def list_scenarios():
     unreal.log('保存済みの案:\n'+'\n'.join(f'{i}: {p.name}' for i,p in enumerate(dirs)) if dirs else '保存済みの案はありません。')
 
 
+def _load_scenario_state(refresh_inputs, index, dirs):
+    # W04 review R2: reuse W03-A's own scenario_inputs() -- the same
+    # hash/schema/room/variant/site-context self-consistency check the CLI
+    # (--scenario) path already applies -- rather than reading
+    # study-state.json out of the package directly. A stale/corrupted/
+    # tampered scenario package is refused here, before apply_state() ever
+    # runs, and stays listed (not removed) so the operator can still see it.
+    try:
+        paths,_=refresh_inputs.scenario_inputs(dirs[index])
+    except ValueError as error:
+        raise RuntimeError(f'案「{dirs[index].name}」は現在の状態と整合しません: {error}')
+    return json.loads(paths['state'].read_text(encoding='utf-8'))
+
+
 def load_scenario(index):
     dirs=_scenario_dirs()
     if not 0<=index<len(dirs): raise RuntimeError('案が見つかりません。')
-    apply_state(json.loads((dirs[index]/'study-state.json').read_text(encoding='utf-8')))
+    state=_load_scenario_state(_refresh_inputs(),index,dirs)
+    apply_state(state)  # also re-checks the CURRENT project's own site-context.json
     unreal.log('案を読み込みました: '+dirs[index].name)
+    register_menu()
 
 
 def start_compare(index_a, index_b):
     dirs=_scenario_dirs()
     if not (0<=index_a<len(dirs) and 0<=index_b<len(dirs)): raise RuntimeError('案が見つかりません。')
+    refresh_inputs=_refresh_inputs()
+    # Both scenarios validated BEFORE anything is touched -- an A/B compare
+    # must not start half-usable, and a broken B must not leave A already applied.
+    state_a=_load_scenario_state(refresh_inputs,index_a,dirs)
+    state_b=_load_scenario_state(refresh_inputs,index_b,dirs)
     base=current_state()
     fixed=dict(azimuthDeg=base['azimuthDeg'],elevationDeg=base['elevationDeg'],
         sunLux=base['sunLux'],exposureEV100=base['exposureEV100'],camera=base['camera'])
     global _compare
-    _compare=dict(fixed=fixed,before=base,
-        a=json.loads((dirs[index_a]/'study-state.json').read_text(encoding='utf-8')),
-        b=json.loads((dirs[index_b]/'study-state.json').read_text(encoding='utf-8')),
+    _compare=dict(fixed=fixed,before=base,a=state_a,b=state_b,
         names=(dirs[index_a].name,dirs[index_b].name),current=None)
     show_compare('a')
 
@@ -348,10 +452,13 @@ def show_compare(which):
     # The scenario's own camera/sun/exposure -- and any date/time provenance
     # tied to those angles -- are deliberately NOT what gets shown here; only
     # its variant/surfaceOverrides are, under the CURRENT fixed conditions.
+    # apply_state() itself still re-checks this project's site-context.json
+    # against whichever of A/B is about to be shown (W04 review R2).
     state=dict(_compare[which]); state.update(_compare['fixed']); state.pop('solar',None)
     apply_state(state)
     _compare['current']=which
     unreal.log(f"比較中：{_compare['names'][0 if which=='a' else 1]}（視点・太陽・露出は比較開始時点で固定）")
+    register_menu()
 
 
 def show_compare_a(): show_compare('a')
@@ -364,6 +471,7 @@ def end_compare():
     apply_state(_compare['before'])
     _compare=None
     unreal.log('A/B比較を終了し、比較開始前の状態に戻しました。')
+    register_menu()
 
 
 _compare_pick_a=None
@@ -373,11 +481,40 @@ def pick_compare_a(index):
     global _compare_pick_a
     _compare_pick_a=index
     unreal.log('比較A: '+_scenario_dirs()[index].name+'。続けて比較Bを選んでください。')
+    register_menu()
 
 
 def pick_compare_b(index):
     if _compare_pick_a is None: raise RuntimeError('先に比較Aを選んでください。')
     start_compare(_compare_pick_a,index)
+
+
+def _selected_surface_status_text():
+    # W04 review R3: this is shown as a menu LABEL (register_menu() rebuilds
+    # it after every mutating action below), not just logged -- selection
+    # state must be visible on the normal Tools menu, not only in the
+    # Output Log.
+    if _selected_surface is None:
+        return '選択中の面：なし'
+    info=surface_bindings()['surfaces'].get(_selected_surface,{})
+    return f'選択中の面：{_surface_label(_selected_surface,info)}［{info.get("kind","?")}・部屋側の面のみ対象］'
+
+
+def show_selected_surface(): unreal.log(_selected_surface_status_text())
+
+
+def _compare_status_text():
+    if _compare is None:
+        return '比較中の案：なし'
+    which=_compare.get('current')
+    shown={'a':'A','b':'B'}.get(which,'未表示')
+    fixed=_compare['fixed']
+    return (f"A/B比較中（表示中：{shown}）　A＝{_compare['names'][0]}　B＝{_compare['names'][1]}　"
+        f"固定条件＝太陽高度{fixed['elevationDeg']:.0f}°・方位{fixed['azimuthDeg']:.0f}°・"
+        f"露出EV{fixed['exposureEV100']:.1f}・視点固定")
+
+
+def show_compare_status(): unreal.log(_compare_status_text())
 
 
 def register_menu():
@@ -422,8 +559,9 @@ def register_menu():
     bound=sorted((sid,info) for sid,info in surfaces.items() if info['status']=='bound')
     if bound:
         surface_menu=parent.add_sub_menu('RyukaSurfaces','RyukaSurfaces','RyukaSurfaces','面編集','壁・床・天井ごとの仕上げ')
+        add(surface_menu,'Status','SurfaceStatus',_selected_surface_status_text(),'show_selected_surface()')
         for sid,info in bound:
-            add(surface_menu,'Select','SurfaceSelect'+sid,f"選択：[{info['kind']}] {sid}",f'select_surface("{sid}")')
+            add(surface_menu,'Select','SurfaceSelect'+sid,f"選択：[{info['kind']}] {_surface_label(sid,info)}",f'select_surface("{sid}")')
         for name,label,command in [('Natural','選択面をnaturalへ',"apply_preset_to_selected('natural')"),
                 ('Warm','選択面をwarmへ',"apply_preset_to_selected('warm')"),
                 ('Reference','選択面をreferenceへ',"apply_preset_to_selected('reference')"),
@@ -439,6 +577,7 @@ def register_menu():
     # W04: named scenarios (save/load, reusing W03-A's own script/validation)
     # and A/B comparison under the current fixed view/sun/exposure.
     scenario_menu=parent.add_sub_menu('RyukaScenarios','RyukaScenarios','RyukaScenarios','案の保存・比較','名前付き案の保存・読込・A/B比較')
+    add(scenario_menu,'Status','ScenarioStatus',_compare_status_text(),'show_compare_status()')
     add(scenario_menu,'Save','ScenarioSave','名前を付けて保存','save_scenario()')
     add(scenario_menu,'Save','ScenarioList','一覧をログへ表示','list_scenarios()')
     dirs=_scenario_dirs() if (project()/'repo-root.json').exists() else []

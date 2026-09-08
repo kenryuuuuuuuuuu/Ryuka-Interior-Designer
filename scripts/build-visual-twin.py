@@ -82,6 +82,25 @@ def main():
             reasons = '; '.join(i['reason'] for i in surfaces['issues'])
             parser.error('Surface registry has unresolved entries: ' + reasons
                 + ' Run scripts/check-study-surfaces.py for details.')
+        if args.state:
+            # W04 review R4: an override naming a surface id that is not even
+            # a currently-registered/resolved id must stop HERE, before
+            # Blender starts -- not partway through the Blender build
+            # (build_interior.py's own check catches this too, but only
+            # after bpy has already loaded; that is not "before Blender").
+            # The no-surface case (a registered id with no matching real
+            # geometry) is a separate, genuinely model-dependent check that
+            # correctly stays in build_interior.py, after Blender builds the
+            # geometry and before Unreal import.
+            try:
+                state_overrides = json.loads(args.state.read_text(encoding='utf-8')).get('surfaceOverrides')
+            except Exception:
+                state_overrides = None  # malformed/unreadable; let build_interior.py's real validate_state() report it
+            if isinstance(state_overrides, dict):
+                known_ids = {s['id'] for s in surfaces['surfaces']}
+                unknown = sorted(set(state_overrides) - known_ids)
+                if unknown:
+                    parser.error('surfaceOverrides references unknown surface id(s): ' + ', '.join(unknown))
     output.parent.mkdir(parents=True, exist_ok=True)
     # Stage a new package; failures cannot replace the last successful build.
     with tempfile.TemporaryDirectory(prefix='.visual-twin-', dir=output.parent) as temp:

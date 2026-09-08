@@ -35,12 +35,24 @@ def validate_state(state, study):
     if not isinstance(state, dict): raise ValueError('Invalid comparison state')
     if state.get('schemaVersion') not in SUPPORTED_SCHEMA_VERSIONS:
         raise ValueError('Unsupported comparison state schema')
-    # 1.0.0 states predate per-surface overrides; read them as carrying none.
+    # 1.0.0 states predate per-surface overrides; tolerate the field being
+    # totally absent (or explicitly None) there, reading it as carrying none.
     # Writers should stamp 1.1.0 once the state actually has overrides, but
     # this function does not rewrite schemaVersion -- it only normalizes the
     # in-memory field so every caller can rely on state['surfaceOverrides']
     # existing without an extra schemaVersion branch of their own.
-    state['surfaceOverrides'] = validate_surface_overrides(state.get('surfaceOverrides') or {}, study)
+    #
+    # W04 review R4: this must be schema-gated, not a blanket `or {}` -- that
+    # silently turned a 1.1.0 state's null/[]/false/'' surfaceOverrides into
+    # an empty dict too, masking a real type error a 1.1.0 state (which is
+    # always supposed to carry this field) should never have in the first
+    # place. Only 1.0.0's specific "field predates this schema" absence is
+    # tolerated; anything else -- present-but-wrong-type, in either schema --
+    # still reaches validate_surface_overrides() and is rejected there.
+    raw_overrides = state.get('surfaceOverrides')
+    if state.get('schemaVersion') == '1.0.0' and raw_overrides is None:
+        raw_overrides = {}
+    state['surfaceOverrides'] = validate_surface_overrides(raw_overrides, study)
     if state.get('roomId') != study['roomId']:
         raise ValueError('Comparison state belongs to another room')
     if state.get('variant') not in study['settings']['variants']:
