@@ -166,8 +166,12 @@ def main():
             step['status']='failed'; save(output,report)
             raise RuntimeError('Current surface registry has unresolved entries; inspect '+str(output/'surface-resolution.json'))
         step['status']='complete'; save(output,report)
+        # --state (not just --variant) so Blender also reflects surfaceOverrides
+        # (W04); build_interior.py uses state.variant over --variant when both
+        # are given, so --variant here is only a readable fallback/log value.
         run('02-blender',[sys.executable,ROOT/'scripts/build-visual-twin.py','--blender',args.blender,
-            '--interior','--output',output/'blender','--variant',read(saved/'study-state.json')['variant']])
+            '--interior','--output',output/'blender','--variant',read(saved/'study-state.json')['variant'],
+            '--state',saved/'study-state.json'])
         command=[sys.executable,ROOT/'scripts/build-unreal-study.py','--engine',args.engine,
             '--package',output/'blender','--output',output/'ue','--cache',args.cache,
             '--state',saved/'study-state.json']

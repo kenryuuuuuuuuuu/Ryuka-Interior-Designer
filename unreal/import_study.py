@@ -5,106 +5,12 @@ import math
 from pathlib import Path
 import unreal
 from finish_settings import details_for_variant
+from material_builder import material, marker_material
+from surface_finish_overrides import resolve_finish
 
 
 def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
-
-
-def material(name, color, roughness=.6, glass=False, detail=None):
-    asset = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
-        'M_'+name, '/Game/Generated/Finishes', unreal.Material, unreal.MaterialFactoryNew())
-    editing = unreal.MaterialEditingLibrary
-    def connect(source,output,target,pin):
-        if not editing.connect_material_expressions(source,output,target,pin):
-            raise RuntimeError(f'Material connection failed: {target.get_class().get_name()} / {pin}')
-    rgb = [int(color[i:i+2], 16)/255 for i in (0, 2, 4)]
-    rgb = [v/12.92 if v <= .04045 else ((v+.055)/1.055)**2.4 for v in rgb]
-    node = editing.create_material_expression(asset, unreal.MaterialExpressionConstant3Vector)
-    node.set_editor_property('constant', unreal.LinearColor(*rgb, 1))
-    output=node
-    if detail and detail.get('pattern'):
-        coordinates=editing.create_material_expression(asset,unreal.MaterialExpressionTextureCoordinate)
-        coordinates.set_editor_property('coordinate_index',0)
-        pattern=editing.create_material_expression(asset,unreal.MaterialExpressionCustom)
-        pattern.set_editor_property('code',(Path(unreal.Paths.project_dir())/'surface_finish.hlsl').read_text(encoding='utf-8'))
-        pattern.set_editor_property('output_type',unreal.CustomMaterialOutputType.CMOT_FLOAT1)
-        names=['UV','Width','Length','Seam','Angle','Mode']; inputs=[]
-        for key in names:
-            entry=unreal.CustomInput();entry.set_editor_property('input_name',key);inputs.append(entry)
-        pattern.set_editor_property('inputs',inputs);connect(coordinates,'',pattern,'UV')
-        values=[detail['pattern'][k] for k in ['widthCm','lengthCm','seamCm','rotationDeg']]+[1 if detail['pattern']['kind']=='boards' else 0]
-        for key,value in zip(names[1:],values):
-            constant=editing.create_material_expression(asset,unreal.MaterialExpressionConstant)
-            constant.set_editor_property('r',value);connect(constant,'',pattern,key)
-        output=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
-        connect(node,'',output,'A');connect(pattern,'',output,'B')
-    elif detail and detail.get('planks'):
-        position=editing.create_material_expression(asset,unreal.MaterialExpressionWorldPosition)
-        pattern=editing.create_material_expression(asset,unreal.MaterialExpressionCustom)
-        pattern.set_editor_property('code',(Path(unreal.Paths.project_dir())/'floor_finish.hlsl').read_text(encoding='utf-8'))
-        pattern.set_editor_property('output_type',unreal.CustomMaterialOutputType.CMOT_FLOAT1)
-        names=['P','Width','Length','Seam','Angle']
-        inputs=[]
-        for name in names:
-            custom_input=unreal.CustomInput(); custom_input.set_editor_property('input_name',name)
-            inputs.append(custom_input)
-        pattern.set_editor_property('inputs',inputs)
-        connect(position,'',pattern,'P')
-        for name,key in zip(names[1:],['widthCm','lengthCm','seamCm','rotationDeg']):
-            scalar_input=editing.create_material_expression(asset,unreal.MaterialExpressionConstant)
-            scalar_input.set_editor_property('r',detail['planks'][key])
-            connect(scalar_input,'',pattern,name)
-        output=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
-        connect(node,'',output,'A'); connect(pattern,'',output,'B')
-    elif detail:
-        # World coordinates are centimetres. No UV dependency or geometry displacement.
-        position=editing.create_material_expression(asset,unreal.MaterialExpressionWorldPosition)
-        scale=editing.create_material_expression(asset,unreal.MaterialExpressionConstant3Vector)
-        scale.set_editor_property('constant',unreal.LinearColor(*detail['noiseScalePerCm'],1))
-        stretched=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
-        connect(position,'',stretched,'A')
-        connect(scale,'',stretched,'B')
-        noise=editing.create_material_expression(asset,unreal.MaterialExpressionNoise)
-        for key,value in dict(scale=1.0,levels=2,quality=1,output_min=detail['colorMin'],output_max=detail['colorMax']).items():
-            noise.set_editor_property(key,value)
-        connect(stretched,'',noise,'')
-        modulation=noise
-        if detail.get('grain'):
-            # Long, gently distorted grain; small-scale random noise alone looks like grit.
-            noise.set_editor_property('output_min',0.0); noise.set_editor_property('output_max',1.0)
-            across=editing.create_material_expression(asset,unreal.MaterialExpressionComponentMask)
-            across.set_editor_property('r',False); across.set_editor_property('g',True)
-            across.set_editor_property('b',False); across.set_editor_property('a',False)
-            connect(stretched,'',across,'')
-            phase=editing.create_material_expression(asset,unreal.MaterialExpressionAdd)
-            connect(across,'',phase,'A')
-            connect(noise,'',phase,'B')
-            wave=editing.create_material_expression(asset,unreal.MaterialExpressionSine)
-            wave.set_editor_property('period',1.0)
-            connect(phase,'',wave,'')
-            amplitude=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
-            amplitude.set_editor_property('const_b',(detail['colorMax']-detail['colorMin'])/2)
-            connect(wave,'',amplitude,'A')
-            modulation=editing.create_material_expression(asset,unreal.MaterialExpressionAdd)
-            modulation.set_editor_property('const_b',(detail['colorMax']+detail['colorMin'])/2)
-            connect(amplitude,'',modulation,'A')
-        output=editing.create_material_expression(asset,unreal.MaterialExpressionMultiply)
-        connect(node,'',output,'A')
-        connect(modulation,'',output,'B')
-    editing.connect_material_property(output, '', unreal.MaterialProperty.MP_BASE_COLOR)
-    def scalar(prop, value):
-        expr = editing.create_material_expression(asset, unreal.MaterialExpressionConstant)
-        expr.set_editor_property('r', value)
-        editing.connect_material_property(expr, '', prop)
-    scalar(unreal.MaterialProperty.MP_ROUGHNESS, roughness)
-    if glass:
-        asset.set_editor_property('blend_mode', unreal.BlendMode.BLEND_TRANSLUCENT)
-        scalar(unreal.MaterialProperty.MP_OPACITY, .08)
-        # Provisional clear visual pane. No calibrated transmitted shadows/refraction.
-        asset.set_editor_property('two_sided', True)
-    editing.recompile_material(asset)
-    return asset
 
 
 def main():
@@ -160,6 +66,33 @@ def main():
                 comp.set_material(index,glass)
         if actor.get_actor_label().endswith('_glass'):
             comp.set_cast_shadow(False)
+
+    # W04: rebuild surface-bindings.json using the ACTUAL imported actor
+    # labels (Blender's own dotted mesh names get sanitized on import, same
+    # rule already used above for meshBoundsBlenderMetres). Each marker slot
+    # gets a fresh PARAMETRIC material (Color/Roughness), defaulted to this
+    # variant's plain finish for that kind -- not yet any operator override;
+    # study_controls.apply_state() below (same call already made for every
+    # import) is what actually applies the state's surfaceOverrides, via a
+    # MaterialInstanceDynamic per bound slot, exactly like it will on every
+    # later apply. No new material ASSET is ever created again after this.
+    blender_bindings = json.loads((package/'surface-bindings.json').read_text(encoding='utf-8'))
+    finish_document = json.loads((project/'finish-settings.json').read_text(encoding='utf-8'))
+    actor_by_label = {a.get_actor_label(): a for a in meshes}
+    surface_bindings = {}
+    for surface_id, info in blender_bindings['surfaces'].items():
+        finish = resolve_finish(finish_document, study['settings']['variants'], info['kind'], study['variant'])
+        marker = marker_material('Surf_'+surface_id, finish['colorHex'], finish['roughness'])
+        entry = dict(roomId=info['roomId'], kind=info['kind'], status=info['status'], meshes=[])
+        for mesh_ref in info['meshes']:
+            actor_label = mesh_ref['name'].replace('.', '_')
+            actor = actor_by_label.get(actor_label)
+            if actor is None:
+                continue  # should not happen: the earlier bounds check already asserted no meshes were lost on import
+            actor.static_mesh_component.set_material(mesh_ref['slot'], marker)
+            entry['meshes'].append(dict(actor=actor_label, slot=mesh_ref['slot']))
+        surface_bindings[surface_id] = entry
+    write_json(project/'surface-bindings.json', dict(schemaVersion='1.0.0', surfaces=surface_bindings))
 
     def spawn(cls, label, location=unreal.Vector(), rotation=unreal.Rotator()):
         actor = actors.spawn_actor_from_class(cls, location, rotation)

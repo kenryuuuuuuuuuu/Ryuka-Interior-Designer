@@ -2,11 +2,45 @@
 import math
 from solar_position import validate_case, matches
 
+SUPPORTED_SCHEMA_VERSIONS = ('1.0.0', '1.1.0')
+
+
+def validate_surface_overrides(overrides, study):
+    """Structural/type validation only -- whether a surfaceId still exists and
+    is bound to real geometry is a separate, model-dependent check (see
+    surface_finish_overrides.resolve_overrides), kept out of this function so
+    a saved state with a now-orphaned reference still parses and can be
+    listed/explained rather than rejected outright."""
+    if not isinstance(overrides, dict): raise ValueError('surfaceOverrides must be an object')
+    variants = study['settings']['variants']
+    for surface_id, override in overrides.items():
+        if not isinstance(surface_id, str) or not surface_id: raise ValueError('Invalid surfaceOverrides key')
+        if not isinstance(override, dict): raise ValueError(f'surfaceOverrides[{surface_id}] must be an object')
+        unknown = set(override) - {'variant', 'colorHex', 'roughness'}
+        if unknown: raise ValueError(f'surfaceOverrides[{surface_id}] has unknown fields: {sorted(unknown)}')
+        if 'variant' in override and override['variant'] not in variants:
+            raise ValueError(f'surfaceOverrides[{surface_id}]: unknown variant')
+        if 'colorHex' in override:
+            value = override['colorHex']
+            if not isinstance(value, str) or len(value) != 6 or any(c not in '0123456789abcdefABCDEF' for c in value):
+                raise ValueError(f'surfaceOverrides[{surface_id}]: colorHex must be 6 hex characters, no #')
+        if 'roughness' in override:
+            value = override['roughness']
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
+                raise ValueError(f'surfaceOverrides[{surface_id}]: roughness must be a finite number in [0, 1]')
+    return overrides
+
 
 def validate_state(state, study):
     if not isinstance(state, dict): raise ValueError('Invalid comparison state')
-    if state.get('schemaVersion') != '1.0.0':
+    if state.get('schemaVersion') not in SUPPORTED_SCHEMA_VERSIONS:
         raise ValueError('Unsupported comparison state schema')
+    # 1.0.0 states predate per-surface overrides; read them as carrying none.
+    # Writers should stamp 1.1.0 once the state actually has overrides, but
+    # this function does not rewrite schemaVersion -- it only normalizes the
+    # in-memory field so every caller can rely on state['surfaceOverrides']
+    # existing without an extra schemaVersion branch of their own.
+    state['surfaceOverrides'] = validate_surface_overrides(state.get('surfaceOverrides') or {}, study)
     if state.get('roomId') != study['roomId']:
         raise ValueError('Comparison state belongs to another room')
     if state.get('variant') not in study['settings']['variants']:

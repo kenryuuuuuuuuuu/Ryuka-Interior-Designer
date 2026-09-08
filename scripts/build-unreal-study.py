@@ -58,9 +58,17 @@ def main():
     shutil.copy2(ROOT/'unreal/floor_finish.hlsl',output/'floor_finish.hlsl')
     shutil.copy2(ROOT/'unreal/surface_finish.hlsl',output/'surface_finish.hlsl')
     scripts=output/'Content/Python'; scripts.mkdir(parents=True,exist_ok=True)
-    for name in ('study_controls.py','study_state.py','solar_position.py','site_context.py','finish_settings.py'):
+    # UE adds <Project>/Content/Python to sys.path for all editor Python
+    # execution, so import_study.py (run once, from the project root, via the
+    # commandlet) can import these too without a separate root-level copy.
+    for name in ('study_controls.py','study_state.py','solar_position.py','site_context.py',
+                 'finish_settings.py','material_builder.py','surface_finish_overrides.py'):
         shutil.copy2(ROOT/'unreal'/name,scripts/name)
     (scripts/'init_unreal.py').write_text('import study_controls\nstudy_controls.register_menu()\n',encoding='utf-8')
+    # W04: lets study_controls.py's menu (named-scenario save/list/A-B) shell
+    # out to this worktree's scripts/*.py, which the generated project itself
+    # has no other reference to (it is a standalone copy).
+    (output/'repo-root.json').write_text(json.dumps(dict(root=str(ROOT)))+'\n',encoding='utf-8')
     shutil.copy2(ROOT/'data/visual/unreal-finishes.json',output/'finish-settings.json')
     if args.state: shutil.copy2(args.state,output/'study-state.json')
     if args.sun_cases: shutil.copy2(args.sun_cases,output/'sun-cases.json')

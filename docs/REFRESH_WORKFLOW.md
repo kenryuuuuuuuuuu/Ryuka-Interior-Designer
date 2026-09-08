@@ -24,7 +24,7 @@ python scripts/refresh-visual-study.py --previous build/ue-context-v3 --output b
 | 対象 | 扱い |
 |---|---|
 | 建物・家具・開口・設備 | 現在の作業ブランチの正本から読み直します |
-| 仕上げ案名、視点、太陽角度・日時、光源強度、露出 | 前回の`study-state.json`をコピーして保持します |
+| 仕上げ案名、視点、太陽角度・日時、光源強度、露出、面ごとの仕上げ上書き（`surfaceOverrides`） | 前回の`study-state.json`をコピーして保持します |
 | 日時メニュー | 前回の`sun-cases.json`があれば保持します |
 | 隣棟・塀 | 前回の`site-context.json`を保持し、保存条件のハッシュと照合します |
 | 床材などの生成設定 | 現在のソースから読み直します。UEで任意に編集した材質のコピーはしません |
@@ -50,7 +50,7 @@ python scripts/refresh-visual-study.py --previous build/ue-context-v3 --output b
 
 ## 名前付きの検討案を保存・一覧・再適用する（W03-A、2026-09-08追加）
 
-内覧・編集画面で決めた比較条件（仕上げ・視点・太陽条件）を、名前を付けて`build/scenarios/`配下に保存し、後から選んで別の再生成に適用できます。家の形状・家具配置は常に現在の正本から生成するため、案作成時とソースが異なれば見た目は変わり得ます。家具配置案そのものの複数管理、壁面単位の仕上げは対象外です。
+内覧・編集画面で決めた比較条件（仕上げ・視点・太陽条件・面ごとの仕上げ上書き）を、名前を付けて`build/scenarios/`配下に保存し、後から選んで別の再生成に適用できます。家の形状・家具配置は常に現在の正本から生成するため、案作成時とソースが異なれば見た目は変わり得ます。家具配置案そのものの複数管理は対象外です。
 
 ```powershell
 # 保存：projectは既存UEプロジェクト、outputは未作成ディレクトリ。Blender/UEは起動しません。
@@ -91,3 +91,9 @@ python scripts/check-study-changes.py --previous build/W02-refresh-v5/ue --outpu
 ```powershell
 python scripts/check-study-surfaces.py --output build/W03-C-check-v1
 ```
+
+## 面ごとの仕上げ変更（W04、2026-09-08追加）
+
+前回の保存状態（`--previous`の`Saved/walkthrough-state.json`または編集画面の`study-state.json`）・選んだ名前付き案（`--scenario`）に含まれる`surfaceOverrides`（面ごとの色・粗さ・バリアント上書き）は、上記の面の永続ID確認の直後、Blender起動時に`--state`引数（内部的に`build-visual-twin.py --interior --state <一時ファイル>`として渡す）で自動的に引き継がれます。ユーザーが個別に指定する操作はありません。
+
+対象IDが未解決（登録が見つからない）・面に紐付いていない（`no-surface`）場合は、前者はBlender起動前に停止（面の永続ID確認と同様）、後者は上書きだけ無視して残りの生成・保存条件は継続します（案自体は壊しません）。UEエディタでの面ごとの色・プリセット編集、案の保存・A/B比較の操作はARCHITECTURE.md「面ごとの仕上げ変更」を参照してください。

@@ -18,12 +18,17 @@ from mathutils import Vector
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_house as house_builder
 from surface_finishes import assign_surface_uv, apply_pattern
+from surface_bindings import split_wall_range, wall_cap_for_room, decompose_rectilinear, subtract_rects, intersect_rect
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
 from finish_settings import details_for_variant
 from furniture_assets import validate_bindings, asset_parts
 from guest_decor import build as build_decor
 from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
+from study_state import validate_state
+from surface_finish_overrides import resolve_finish, marker_material_name
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+from surface_registry import resolve_from as resolve_surface_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -66,14 +71,28 @@ def material(name, color, roughness=.6, metallic=0, texture=None):
     return mat
 
 
-def mesh(name, vertices, faces, mat, source=None, role=None):
+def mesh(name, vertices, faces, mat, source=None, role=None, face_materials=None):
+    # face_materials (W04): {face_index: material} assigns specific faces (by
+    # their position in `faces`) to an ADDITIONAL slot, on top of the default
+    # `mat` in slot 0 -- used to give a wall panel's room-facing cap its own
+    # surface-registry marker material without recolouring the rest of the
+    # same prism (back face, thickness edges).
     data = bpy.data.meshes.new(name)
     data.from_pydata(vertices, [], faces); data.update()
     bm = bmesh.new(); bm.from_mesh(data)
-    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces)); bm.to_mesh(data); bm.free()
-    obj = bpy.data.objects.new(name, data); bpy.context.scene.collection.objects.link(obj)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
     if mat:
         data.materials.append(mat)
+    if face_materials:
+        bm.faces.ensure_lookup_table()
+        slot_for = {}
+        for face_index, extra_mat in face_materials.items():
+            if extra_mat.name not in slot_for:
+                data.materials.append(extra_mat)
+                slot_for[extra_mat.name] = len(data.materials)-1
+            bm.faces[face_index].material_index = slot_for[extra_mat.name]
+    bm.to_mesh(data); bm.free()
+    obj = bpy.data.objects.new(name, data); bpy.context.scene.collection.objects.link(obj)
     if source:
         obj['source_json'] = json.dumps(source, ensure_ascii=False)
     if role:
@@ -81,11 +100,11 @@ def mesh(name, vertices, faces, mat, source=None, role=None):
     return obj
 
 
-def prism(name, polygon, vector, mat, source=None, role=None):
+def prism(name, polygon, vector, mat, source=None, role=None, face_materials=None):
     n = len(polygon)
     vertices = polygon + [tuple(Vector(v)+Vector(vector)) for v in polygon]
     return mesh(name, vertices, [tuple(range(n-1, -1, -1)), tuple(range(n, 2*n))] +
-                [(i, (i+1)%n, (i+1)%n+n, i+n) for i in range(n)], mat, source, role)
+                [(i, (i+1)%n, (i+1)%n+n, i+n) for i in range(n)], mat, source, role, face_materials)
 
 
 def block(name, x0, x1, z0, z1, y0, y1, mat, bevel=0, source=None):
@@ -97,7 +116,12 @@ def block(name, x0, x1, z0, z1, y0, y1, mat, bevel=0, source=None):
     return obj
 
 
-def panel(name, wall, polygon, mat, source=None):
+def panel(name, wall, polygon, mat, source=None, marker=None):
+    # marker (W04): (cap_index, material) -- cap_index 0 is the face at the
+    # ORIGINAL polygon position (prism()'s "cap A": the smaller-at side, i.e.
+    # north for a horizontal wall / west for a vertical one); 1 is the
+    # extruded "cap B" (south/east). See surface_bindings.wall_cap_for_room(),
+    # which this module calls to decide which one a given room is on.
     t = wall['thickness']
     if wall['orientation'] == 'H':
         at = wall['z0']
@@ -105,7 +129,8 @@ def panel(name, wall, polygon, mat, source=None):
     else:
         at = wall['x0']
         vertices = [(at-t/2, -u, y) for u, y in polygon]; vector = (t,0,0)
-    return prism(name, vertices, vector, mat, source or wall, 'wall')
+    face_materials = {marker[0]: marker[1]} if marker else None
+    return prism(name, vertices, vector, mat, source or wall, 'wall', face_materials)
 
 
 def openings(data):
@@ -125,7 +150,63 @@ def openings(data):
     return result
 
 
-def build_envelope(data, mats):
+class SurfaceBinder:
+    """W04: tracks which surface-registry.json IDs actually got real
+    geometry during this build (and with what material), so build_envelope()
+    can look up "does this wall/floor/ceiling piece belong to a registered
+    surface, and if so which marker material" and later write
+    surface-bindings.json. Only ever sees resolved (roomId/edge exist in the
+    current house.json) registrations -- build-visual-twin.py's --interior
+    preflight (and refresh-visual-study.py's own step) already stop before
+    Blender runs if anything is unresolved, so there is nothing to recover
+    from here."""
+    def __init__(self, data, resolved_surfaces, overrides, finish_document, study_variants, base_variant):
+        self.rooms_by_id = {r['id']: r for r in data['rooms']}
+        self.by_room_kind = {}
+        self.materials = {}
+        self.detail = {}
+        self.status = {}
+        self.bound_meshes = {}
+        for s in resolved_surfaces:
+            if s['status'] != 'resolved':
+                continue
+            self.by_room_kind.setdefault((s['roomId'], s['kind']), []).append(s)
+            self.status[s['id']] = dict(roomId=s['roomId'], kind=s['kind'], state='no-surface')
+            finish = resolve_finish(finish_document, study_variants, s['kind'], base_variant, overrides.get(s['id']))
+            self.detail[s['id']] = finish
+            mat = material(marker_material_name(s['kind'], s['id']), finish['colorHex'], roughness=finish['roughness'])
+            if finish['pattern']:
+                apply_pattern(mat, study_variants[finish['variant']][finish['paletteRole']], finish, rgb)
+            self.materials[s['id']] = mat
+
+    def room_polygon(self, room_id): return self.rooms_by_id[room_id]['polygon']
+    def wall_surfaces(self): return [s for (rid,kind),ss in self.by_room_kind.items() if kind=='wall' for s in ss]
+    def floor_surfaces(self): return [s for (rid,kind),ss in self.by_room_kind.items() if kind=='floor' for s in ss]
+    def ceiling_surface(self, room_id):
+        matches = self.by_room_kind.get((room_id,'ceiling'),[])
+        return matches[0] if matches else None
+
+    def mark_bound(self, surface_id, obj_name, slot):
+        self.status[surface_id]['state']='bound'
+        self.bound_meshes.setdefault(surface_id,[]).append(dict(name=obj_name,slot=slot))
+
+    def bindings_json(self):
+        surfaces={}
+        for surface_id,info in self.status.items():
+            surfaces[surface_id]=dict(roomId=info['roomId'],kind=info['kind'],status=info['state'],
+                meshes=self.bound_meshes.get(surface_id,[]))
+        return dict(schemaVersion='1.0.0',surfaces=surfaces)
+
+
+def _room_bbox(polygon):
+    return (min(p[0] for p in polygon),max(p[0] for p in polygon),min(p[1] for p in polygon),max(p[1] for p in polygon))
+
+
+def _rects_overlap(a,b):
+    return not (a[1]<=b[0] or a[0]>=b[1] or a[3]<=b[2] or a[2]>=b[3])
+
+
+def build_envelope(data, mats, binder=None):
     ops = openings(data)
     walls = [dict(w, thickness=data['defaults']['wallThickness']) for w in data['exteriorWalls']]
     walls += [dict(w, thickness=data['defaults']['interiorWallThickness']) for w in data['walls']]
@@ -146,25 +227,120 @@ def build_envelope(data, mats):
         walls.append(dict(g, x0=g['from'] if horizontal else g['at'], x1=g['to'] if horizontal else g['at'],
                           z0=g['at'] if horizontal else g['from'], z1=g['at'] if horizontal else g['to'],
                           guardHeight=g['height'], thickness=data['defaults']['interiorWallThickness']))
+    wall_registrations = binder.wall_surfaces() if binder else []
     for w in walls:
-        at = w['z0'] if w['orientation']=='H' else w['x0']
+        horizontal = w['orientation']=='H'
+        at = w['z0'] if horizontal else w['x0']
         cuts = [] if 'guardHeight' in w else [o for o in ops if o['level']==w['level'] and
                 o['orientation']==w['orientation'] and abs(o['at']-at)<1e-6]
+        # Registered wall surfaces on this same wall LINE (same orientation +
+        # at) whose registered edge overlaps this wall entity's own span.
+        # There can be up to two (a wall shared by two registered rooms); a
+        # merged wall's span can also be longer than a single room's edge.
+        wall_start,wall_end = (w['x0'],w['x1']) if horizontal else (w['z0'],w['z1'])
+        matches=[]
+        for s in wall_registrations:
+            (ex0,ez0),(ex1,ez1) = s['edge']
+            s_horizontal = abs(ez0-ez1) < 1e-6
+            if s_horizontal != horizontal: continue
+            s_at = ez0 if s_horizontal else ex0
+            if abs(s_at-at) > 1e-6: continue
+            lo,hi = sorted((ex0,ex1) if horizontal else (ez0,ez1))
+            lo,hi = max(lo,wall_start),min(hi,wall_end)
+            if hi-lo > 1e-6: matches.append((lo,hi,s))
         for i, poly in enumerate(wall_polygons(data,w,cuts)):
-            panel(f"wall.{w['id']}.{i}",w,poly,mats['wall'],dict(wall=w,openings=cuts))
+            if not matches:
+                panel(f"wall.{w['id']}.{i}",w,poly,mats['wall'],dict(wall=w,openings=cuts))
+                continue
+            # Carve each matching registered range out of this piece with the
+            # same half-plane clip wall_polygons() already uses for openings;
+            # whatever is left (outside every registered range) keeps the
+            # plain default wall material, unsplit.
+            remaining=[poly]
+            for lo,hi,s in matches:
+                next_remaining=[]
+                for piece in remaining:
+                    before,within,after = split_wall_range(piece,lo,hi)
+                    next_remaining += [p for p in (before,after) if p]
+                    if within:
+                        mid=(lo+hi)/2
+                        cap=wall_cap_for_room(at,mid,horizontal,binder.room_polygon(s['roomId']))
+                        if cap is None:
+                            # Edge/room mismatch (should not happen once
+                            # surface_registry has resolved the edge against
+                            # this same room polygon) -- fail safe to the
+                            # plain default material rather than guessing.
+                            next_remaining.append(within)
+                        else:
+                            obj=panel(f"wall.{w['id']}.{i}.{s['id']}",w,within,mats['wall'],
+                                dict(wall=w,openings=cuts),marker=(cap,binder.materials[s['id']]))
+                            binder.mark_bound(s['id'],obj.name,1)
+                remaining=next_remaining
+            for j,piece in enumerate(remaining):
+                panel(f"wall.{w['id']}.{i}.rest.{j}",w,piece,mats['wall'],dict(wall=w,openings=cuts))
+    floor_registrations = binder.floor_surfaces() if binder else []
     for i,r in enumerate(data['envelope']['slabs']):
         y = data['levels'][f"fl{r['level']}"]
-        block(f"slab.{r['footprintId']}.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y-.12,y,mats.get('floor',mats['wood']))
+        rect=(r['x0'],r['x1'],r['z0'],r['z1'])
+        remainder=[rect]
+        for s in floor_registrations:
+            room=binder.room_polygon(s['roomId'])
+            if not _rects_overlap(rect,_room_bbox(room)): continue
+            # Intersect each of the room's own rectangles with THIS slab only
+            # (not the room's full rectangles unconditionally): a room whose
+            # bbox merely brushes a neighbouring slab, without its polygon
+            # actually reaching it, must not get duplicate floor geometry there.
+            for room_rect in decompose_rectilinear(room):
+                overlap=intersect_rect(room_rect,rect)
+                if not overlap: continue
+                obj=block(f"slab.{r['footprintId']}.{i}.{s['id']}.{len(binder.bound_meshes.get(s['id'],[]))}",
+                    *overlap,y-.12,y,binder.materials[s['id']])
+                binder.mark_bound(s['id'],obj.name,0)
+                remainder=subtract_rects(remainder,[overlap])
+        if remainder==[rect]:
+            block(f"slab.{r['footprintId']}.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y-.12,y,mats.get('floor',mats['wood']))
+        else:
+            for j,(x0,x1,z0,z1) in enumerate(remainder):
+                block(f"slab.{r['footprintId']}.{i}.rest.{j}",x0,x1,z0,z1,y-.12,y,mats.get('floor',mats['wood']))
     for i,r in enumerate(data['envelope']['flatCeilings']):
         y = data['levels'][f"fl{r['level']}"]+data['defaults']['ceilingHeight']
-        block(f"ceiling.flat.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y,y+.025,mats['ceiling'])
+        rect=(r['x0'],r['x1'],r['z0'],r['z1'])
+        remainder=[rect]
+        if binder:
+            for room_id in {rid for rid,kind in binder.by_room_kind if kind=='ceiling'}:
+                ceiling_surface=binder.ceiling_surface(room_id)
+                if not ceiling_surface: continue
+                room=binder.room_polygon(room_id)
+                # The room's floor-plan rectangles minus whatever part of it is
+                # already sloped ceiling (built separately below): only THAT
+                # leftover is genuinely flat-ceiling area for this room. A
+                # fully-sloped room (like room-1f-06) yields none here, so a
+                # flatCeilings rectangle that merely bbox-overlaps its polygon
+                # (e.g. the notch of an L-shaped room) is correctly left alone.
+                sloped_rects=[(p['x0'],p['x1'],p['z0'],p['z1']) for p in data['envelope']['slopedCeilingPieces']
+                              if p['roomId']==room_id and p['sloped']]
+                for flat_rect in subtract_rects(decompose_rectilinear(room),sloped_rects):
+                    overlap=intersect_rect(flat_rect,rect)
+                    if not overlap: continue
+                    obj=block(f"ceiling.flat.{i}.{ceiling_surface['id']}.{len(binder.bound_meshes.get(ceiling_surface['id'],[]))}",
+                        *overlap,y,y+.025,binder.materials[ceiling_surface['id']])
+                    binder.mark_bound(ceiling_surface['id'],obj.name,0)
+                    remainder=subtract_rects(remainder,[overlap])
+        if remainder==[rect]:
+            block(f"ceiling.flat.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y,y+.025,mats['ceiling'])
+        else:
+            for j,(x0,x1,z0,z1) in enumerate(remainder):
+                block(f"ceiling.flat.{i}.rest.{j}",x0,x1,z0,z1,y,y+.025,mats['ceiling'])
     pieces = data['envelope']['slopedCeilingPieces']
     for i,p in enumerate(pieces):
         if not p['sloped']:
             continue
+        ceiling_surface = binder.ceiling_surface(p['roomId']) if binder else None
+        ceiling_mat = binder.materials[ceiling_surface['id']] if ceiling_surface else mats['ceiling']
         y0,y1 = ceiling_y(data,p,p['z0']),ceiling_y(data,p,p['z1'])
-        prism(f"ceiling.{p['roomId']}.{i}",[(p['x0'],-p['z0'],y0),(p['x1'],-p['z0'],y0),
-              (p['x1'],-p['z1'],y1),(p['x0'],-p['z1'],y1)],(0,0,.025),mats['ceiling'],p,'ceiling')
+        obj=prism(f"ceiling.{p['roomId']}.{i}",[(p['x0'],-p['z0'],y0),(p['x1'],-p['z0'],y0),
+              (p['x1'],-p['z1'],y1),(p['x0'],-p['z1'],y1)],(0,0,.025),ceiling_mat,p,'ceiling')
+        if ceiling_surface: binder.mark_bound(ceiling_surface['id'],obj.name,0)
         for flat in pieces:
             if flat['sloped'] or flat['roomId'] != p['roomId']:
                 continue
@@ -174,8 +350,9 @@ def build_envelope(data, mats):
                 a,b = max(p['z0'],flat['z0']),min(p['z1'],flat['z1'])
                 if b-a > 1e-6:
                     low = data['levels']['fl1']+data['defaults']['ceilingHeight']
-                    panel(f"ceiling.riser.{i}.{at}",dict(orientation='V',x0=at,thickness=.04),
-                          [(a,low),(b,low),(b,ceiling_y(data,p,b)),(a,ceiling_y(data,p,a))],mats['ceiling'],p)
+                    riser=panel(f"ceiling.riser.{i}.{at}",dict(orientation='V',x0=at,thickness=.04),
+                          [(a,low),(b,low),(b,ceiling_y(data,p,b)),(a,ceiling_y(data,p,a))],ceiling_mat,p)
+                    if ceiling_surface: binder.mark_bound(ceiling_surface['id'],riser.name,0)
     # Retain the rest of the building as sun occluders.
     roof_coll = house_builder.collection('Roofs')
     fps = {f['id']:f for f in data['footprints']}
@@ -362,6 +539,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',required=True,type=Path)
     parser.add_argument('--variant',default='natural')
+    parser.add_argument('--state',type=Path,help='Validated study-state.json/scenario state; '
+        'overrides --variant with state.variant and carries surfaceOverrides. Omit for the plain default (no overrides).')
     parser.add_argument('--render',action='store_true')
     parser.add_argument('--samples',type=int,default=128)
     parser.add_argument('--width',type=int,default=1600)
@@ -370,12 +549,19 @@ def main():
     if args.samples < 1 or args.width < 64 or (args.elevation is not None and not 0 < args.elevation <= 90):
         parser.error('samples >= 1, width >= 64 and 0 < sun elevation <= 90 are required.')
     args.output=args.output.resolve()
+    if args.state: args.state=args.state.resolve()  # before chdir below, or a relative --state cannot be found
     if args.output.exists():
         raise RuntimeError('Choose a new output directory; existing studies are never overwritten.')
     args.output.mkdir(parents=True)
     # Drivers may fall back to cwd when their user-profile cache is unavailable.
     os.chdir(args.output)
-    settings=read(ROOT/'data/visual/guest-ldk-study.json'); palette=settings['variants'][args.variant]
+    settings=read(ROOT/'data/visual/guest-ldk-study.json')
+    state=None
+    if args.state:
+        state=validate_state(json.loads(args.state.read_text(encoding='utf-8')),dict(roomId=settings['roomId'],settings=settings))
+    variant=state['variant'] if state else args.variant
+    overrides=state['surfaceOverrides'] if state else {}
+    palette=settings['variants'][variant]
     data=house_builder.load_data(ROOT/'data/house.json')
     data['envelope']=read(ROOT/'generated/visual-envelope.json')
     profiles={t['type']:t for filename in ('door-catalog.json','window-catalog.json') for t in read(ROOT/'data'/filename)['types']}
@@ -387,10 +573,27 @@ def main():
           for key,value in palette.items() if key!='label'}
     mats.update(frame=material('Frame','38332d',.38),stone=material('Counter','e4e0d5',.32),
                 metal=material('Metal','b8b8b2',.3,.7),black=material('Glass.black','15191b',.12))
-    surface_details=details_for_variant(read(ROOT/'data/visual/unreal-finishes.json'),args.variant)
+    finish_document=read(ROOT/'data/visual/unreal-finishes.json')
+    surface_details=details_for_variant(finish_document,variant)
     for role,detail in surface_details.items():
         if detail.get('pattern'): apply_pattern(mats[role],palette[detail['paletteRole']],detail,rgb)
-    ops=build_envelope(data,mats); build_openings(ops,settings,mats)
+    # W04: registered surface IDs -> real wall/floor/ceiling geometry. Every
+    # override key here must resolve to real bound geometry; anything else
+    # stops the build rather than silently dropping the override. The
+    # surface-registry preflight (build-visual-twin.py --interior, and
+    # refresh-visual-study.py's own step) already guarantee every REGISTERED
+    # id here is resolved against the current house.json -- an override
+    # naming something outside that resolved set at all is a plain unknown id.
+    resolved=resolve_surface_registry(ROOT)
+    binder=SurfaceBinder(data,resolved['surfaces'],overrides,finish_document,settings['variants'],variant)
+    unknown=[surface_id for surface_id in overrides if surface_id not in binder.materials]
+    if unknown:
+        raise RuntimeError('surfaceOverrides references unknown surface id(s): '+', '.join(unknown))
+    ops=build_envelope(data,mats,binder); build_openings(ops,settings,mats)
+    no_surface=[surface_id for surface_id in overrides if binder.status[surface_id]['state']!='bound']
+    if no_surface:
+        raise RuntimeError('surfaceOverrides references no-surface id(s) (no matching geometry found): '+', '.join(no_surface))
+    (args.output/'surface-bindings.json').write_text(json.dumps(binder.bindings_json(),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     items=build_furniture(data,settings,mats)
     decorations=build_decor(read(ROOT/'data/visual/guest-decor.json'),data,items,ops,mats,block,mesh,read(ROOT/'data/furniture-catalog.json'))
     block('Ground.context-provisional',-60,70,-60,60,-.1,0,material('Ground','888276'))
@@ -417,7 +620,7 @@ def main():
     scene.view_settings.view_transform='AgX'; scene.view_settings.exposure=light['exposure']; scene.view_settings.gamma=1
     scene.render.image_settings.file_format='PNG'; scene.render.filepath='//interior.png'
     scene['study_status']='estimated-manual-sun-angle'; scene['site_daylight_calibrated']=False
-    report=dict(status='estimated',variant=args.variant,roomId=settings['roomId'],settings=settings,lighting=light,
+    report=dict(status='estimated',variant=variant,surfaceOverrides=overrides,roomId=settings['roomId'],settings=settings,lighting=light,
                 decorations=decorations,furnitureIds=[i['id'] for i in items],siteDaylightCalibrated=False,unrealImportVerified=False,
                 limitations=['Furniture is procedural, with approximate details; source placement retained',
                              'Window frames and per-surface shadow transmittance .9 (pane approx .81) are estimated',

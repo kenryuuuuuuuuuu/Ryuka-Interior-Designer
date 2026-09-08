@@ -10,6 +10,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/World.h"
@@ -123,11 +124,24 @@ void AWalkthroughCharacter::BeginPlay() {
  for(auto Value:Config->GetArrayField(TEXT("polygonCm"))) {
   auto P=Value->AsArray(); Room.Add(FVector2D(P[0]->AsNumber(),P[1]->AsNumber()));
  }
+ // W04: optional -- absent for a project generated before this feature, in
+ // which case ApplyConditions() below just finds nothing to apply per-surface.
+ SurfaceBindings=ReadJSON(TEXT("surface-bindings.json"));
+ FinishDocument=ReadJSON(TEXT("finish-settings.json"));
+ if(auto Study=ReadJSON(TEXT("SourcePackage/study.json"))) {
+  const TSharedPtr<FJsonObject>* SettingsObj;
+  if(Study->TryGetObjectField(TEXT("settings"),SettingsObj)) {
+   const TSharedPtr<FJsonObject>* VariantsObj;
+   if((*SettingsObj)->TryGetObjectField(TEXT("variants"),VariantsObj)) StudyVariants=*VariantsObj;
+  }
+ }
  GetCharacterMovement()->DisableMovement();
 }
 bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
  FString Schema;
- if(!Candidate.IsValid()||!Candidate->TryGetStringField(TEXT("schemaVersion"),Schema)||Schema!=TEXT("1.0.0")) {
+ // 1.1.0 (W04) adds surfaceOverrides; a 1.0.0 save simply has none -- both
+ // are otherwise the same shape, matching study_state.py's SUPPORTED_SCHEMA_VERSIONS.
+ if(!Candidate.IsValid()||!Candidate->TryGetStringField(TEXT("schemaVersion"),Schema)||(Schema!=TEXT("1.0.0")&&Schema!=TEXT("1.1.0"))) {
   Message=TEXT("保存データの形式（バージョン）が無効です"); return false;
  }
  FString RoomId,ExpectedRoomId; auto WalkConfig=ReadJSON(TEXT("walkthrough.json"));
@@ -213,7 +227,78 @@ bool AWalkthroughCharacter::ApplyConditions() {
  }
  auto Sun=Cast<ADirectionalLight>(Actors.FindRef(TEXT("Sun_manual_angle")));
  auto Post=Cast<APostProcessVolume>(Actors.FindRef(TEXT("Fixed_exposure"))); if(!Sun||!Post) return false;
+ // W04: per-surface overrides, resolved and validated fully here (still no
+ // scene mutation yet) so a bad override aborts before ANY change, same as
+ // every check above. Mirrors unreal/surface_finish_overrides.py's
+ // resolve_finish() exactly -- same finish-settings.json roles/
+ // variantOverrides and study.json settings.variants palette -- so Blender/
+ // editor/walkthrough never disagree about what a (kind, variant, override)
+ // combination looks like. Absent SurfaceBindings/FinishDocument/
+ // StudyVariants (a pre-W04 project) just means there is nothing to plan.
+ struct FSurfaceAssignment {UStaticMeshComponent* Component; int32 Slot; UMaterialInterface* Base; FLinearColor Color; float Roughness;};
+ TArray<FSurfaceAssignment> SurfacePlan;
+ if(SurfaceBindings.IsValid()&&FinishDocument.IsValid()&&StudyVariants.IsValid()) {
+  const TSharedPtr<FJsonObject>* SurfacesObj;
+  if(!SurfaceBindings->TryGetObjectField(TEXT("surfaces"),SurfacesObj)) return false;
+  const TSharedPtr<FJsonObject>* OverridesObj=nullptr;
+  State->TryGetObjectField(TEXT("surfaceOverrides"),OverridesObj);
+  const TSharedPtr<FJsonObject>* RolesObj;
+  if(!FinishDocument->TryGetObjectField(TEXT("roles"),RolesObj)) return false;
+  const TSharedPtr<FJsonObject>* VariantOverridesObj=nullptr;
+  FinishDocument->TryGetObjectField(TEXT("variantOverrides"),VariantOverridesObj);
+  for(auto& SurfaceEntry:(*SurfacesObj)->Values) {
+   auto Info=SurfaceEntry.Value->AsObject(); FString Status,Kind;
+   if(!Info->TryGetStringField(TEXT("status"),Status)||Status!=TEXT("bound")) continue;
+   if(!Info->TryGetStringField(TEXT("kind"),Kind)) return false;
+   const TSharedPtr<FJsonObject>* Override=nullptr;
+   if(OverridesObj) (*OverridesObj)->TryGetObjectField(SurfaceEntry.Key,Override);
+   FString EffectiveVariant=Variant;
+   if(Override) (*Override)->TryGetStringField(TEXT("variant"),EffectiveVariant);
+   TSharedPtr<FJsonObject> Detail;
+   const TSharedPtr<FJsonObject>* ForVariant;
+   if(VariantOverridesObj&&(*VariantOverridesObj)->TryGetObjectField(EffectiveVariant,ForVariant)) {
+    const TSharedPtr<FJsonObject>* KindOverride;
+    if((*ForVariant)->TryGetObjectField(Kind,KindOverride)) Detail=*KindOverride;
+   }
+   if(!Detail.IsValid()) {
+    const TSharedPtr<FJsonObject>* Base;
+    if(!(*RolesObj)->TryGetObjectField(Kind,Base)) return false;
+    Detail=*Base;
+   }
+   FString PaletteRole=Kind; Detail->TryGetStringField(TEXT("paletteRole"),PaletteRole);
+   const TSharedPtr<FJsonObject>* PaletteForVariant;
+   if(!StudyVariants->TryGetObjectField(EffectiveVariant,PaletteForVariant)) return false;
+   FString ColorHex; if(!(*PaletteForVariant)->TryGetStringField(PaletteRole,ColorHex)) return false;
+   double Roughness=.6; Detail->TryGetNumberField(TEXT("roughness"),Roughness);
+   if(Override) {
+    FString OverrideColor; if((*Override)->TryGetStringField(TEXT("colorHex"),OverrideColor)) ColorHex=OverrideColor;
+    double OverrideRoughness; if((*Override)->TryGetNumberField(TEXT("roughness"),OverrideRoughness)) Roughness=OverrideRoughness;
+   }
+   const TArray<TSharedPtr<FJsonValue>>* MeshesArray;
+   if(!Info->TryGetArrayField(TEXT("meshes"),MeshesArray)) return false;
+   for(auto& MeshValue:*MeshesArray) {
+    auto MeshInfo=MeshValue->AsObject(); FString MeshActorLabel; int32 Slot;
+    if(!MeshInfo->TryGetStringField(TEXT("actor"),MeshActorLabel)) return false;
+    Slot=MeshInfo->GetIntegerField(TEXT("slot"));
+    auto Actor=Cast<AStaticMeshActor>(Actors.FindRef(MeshActorLabel)); if(!Actor) return false;
+    auto Component=Actor->GetStaticMeshComponent();
+    if(Slot<0||Slot>=Component->GetNumMaterials()) return false;
+    UMaterialInterface* CurrentMaterial=Component->GetMaterial(Slot);
+    auto BaseMaterial=Cast<UMaterialInstanceDynamic>(CurrentMaterial);
+    UMaterialInterface* Base=CurrentMaterial;
+    if(BaseMaterial) Base=BaseMaterial->Parent;
+    if(!Base) return false;
+    SurfacePlan.Add({Component,Slot,Base,FLinearColor(FColor::FromHex(ColorHex)),(float)Roughness});
+   }
+  }
+ }
  for(auto& Item:Plan) Item.Component->SetMaterial(Item.Slot,Item.Material);
+ for(auto& Item:SurfacePlan) {
+  auto Mid=UMaterialInstanceDynamic::Create(Item.Base,Item.Component);
+  Mid->SetVectorParameterValue(TEXT("Color"),Item.Color);
+  Mid->SetScalarParameterValue(TEXT("Roughness"),Item.Roughness);
+  Item.Component->SetMaterial(Item.Slot,Mid);
+ }
  Az=FMath::DegreesToRadians(Az); El=FMath::DegreesToRadians(El);
  Sun->SetActorRotation(FVector(-sin(Az)*cos(El),cos(Az)*cos(El),-sin(El)).Rotation());
  Sun->GetLightComponent()->SetIntensity(Lux);

@@ -36,7 +36,10 @@ def inputs():
     paths += [ROOT / p for p in ('generated/house-data.js', 'generated/interior-walls.json',
               'generated/exterior-walls.json', 'generated/visual-envelope.json', 'scripts/build-web-data.mjs',
               'blender/build_house.py', 'blender/wall_geometry.py', 'blender/interior_geometry.py',
-              'blender/build_interior.py', 'blender/furniture_assets.py', 'blender/surface_finishes.py', 'blender/guest_decor.py', 'blender/textile_assets.py', 'unreal/finish_settings.py', 'scripts/build-visual-twin.py')]
+              'blender/build_interior.py', 'blender/furniture_assets.py', 'blender/surface_finishes.py',
+              'blender/surface_bindings.py', 'blender/guest_decor.py', 'blender/textile_assets.py',
+              'unreal/finish_settings.py', 'unreal/study_state.py', 'unreal/solar_position.py',
+              'unreal/surface_finish_overrides.py', 'scripts/surface_registry.py', 'scripts/build-visual-twin.py')]
     return {str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(
             p.read_bytes().replace(b'\r\n', b'\n')).hexdigest() for p in paths}
 
@@ -47,6 +50,8 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('build/visual-twin-baseline'))
     parser.add_argument('--interior', action='store_true', help='Build and render the provisional guest LDK study')
     parser.add_argument('--variant', choices=('natural','warm','reference'), default='natural')
+    parser.add_argument('--state', type=Path, help='--interior only: validated study-state.json/scenario state; '
+        'overrides --variant with state.variant and carries surfaceOverrides through to Blender')
     parser.add_argument('--width', type=int, default=1600)
     parser.add_argument('--samples', type=int, default=128)
     parser.add_argument('--elevation', type=float)
@@ -56,6 +61,8 @@ def main():
         parser.error('Output already exists; choose a new package directory.')
     if not args.blender.is_file():
         parser.error('Blender executable not found.')
+    if args.state and not args.interior:
+        parser.error('--state only applies to --interior.')
     node = shutil.which('node')
     if not node:
         parser.error('Node executable not found.')
@@ -89,6 +96,8 @@ def main():
                        '--variant', args.variant, '--samples', args.samples, '--width', args.width, '--render']
             if args.elevation is not None:
                 command += ['--elevation', args.elevation]
+            if args.state:
+                command += ['--state', args.state]
             build_log = run(command, verbose=False)
         else:
             build_log = run([args.blender, '--background', '--factory-startup', '--python-exit-code', '1',
@@ -128,7 +137,7 @@ def main():
                                      'Generated wall sequence IDs are not stable finish bindings'],
                         artifacts={name: dict(bytes=(staging / name).stat().st_size,
                                    sha256=hashlib.sha256((staging / name).read_bytes()).hexdigest())
-                                   for name in (('interior.blend','interior.glb','interior.png','study.json')
+                                   for name in (('interior.blend','interior.glb','interior.png','study.json','surface-bindings.json')
                                                 if args.interior else ('house.blend', 'house.glb'))})
         if args.interior:
             manifest['stage'] = 'guest-ldk-visual-study'

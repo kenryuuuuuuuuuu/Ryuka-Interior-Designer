@@ -26,6 +26,13 @@ private:
  TSharedPtr<class FJsonObject> State;
  TArray<FVector2D> Room;
  float Floor=0;
+ // W04: loaded once in BeginPlay(); invalid/empty for a pre-W04 generated
+ // project (no surface-bindings.json/no registered surfaces there), in
+ // which case ApplyConditions() simply has no per-surface overrides to
+ // apply -- not an error.
+ TSharedPtr<class FJsonObject> SurfaceBindings;
+ TSharedPtr<class FJsonObject> FinishDocument;
+ TSharedPtr<class FJsonObject> StudyVariants;
  FVector LastSafeLocation=FVector::ZeroVector;
  void SetFinish(const FString& Name,const FString& Label);
  void SetSun(float Elevation);
