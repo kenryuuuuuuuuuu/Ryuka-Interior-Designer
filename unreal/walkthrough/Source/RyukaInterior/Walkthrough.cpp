@@ -207,15 +207,40 @@ void AWalkthroughCharacter::SaveView() {
  Camera->SetNumberField(TEXT("lensMm"),18./tan(FMath::DegreesToRadians(Eye->FieldOfView/2)));
  State->SetObjectField(TEXT("camera"),Camera);
  FString Text; FJsonSerializer::Serialize(State.ToSharedRef(),TJsonWriterFactory<>::Create(&Text));
- FString Path=FPaths::ProjectDir()/SavedViewName(),Tmp=Path+TEXT(".tmp");
- // IFileManager::Move() returns bool (true on success), not ECopyResult; the
+ const FString Path=FPaths::ProjectDir()/SavedViewName(),Tmp=Path+TEXT(".tmp"),Backup=Path+TEXT(".bak");
+ // IFileManager::Move() returns bool (true on success), not ECopyResult; a
  // previous `==COPY_OK` (0) compared a bool against an unscoped enum, which
  // usual arithmetic conversions evaluate as (int)bool==(int)enum, inverting
  // the result (success/true(1)==0 is false; failure/false(0)==0 is true).
  // Confirmed via a read-only-file test: Move() logged an actual delete
- // failure yet the old comparison still reported success.
- if(FFileHelper::SaveStringToFile(Text,*Tmp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)&&IFileManager::Get().Move(*Path,*Tmp,true,true)) Message=TEXT("視点と条件を保存しました");
- else Message=TEXT("保存に失敗しました");
+ // failure yet the old comparison still reported success. Fixed by using the
+ // bool directly.
+ //
+ // That alone still left the previous save unprotected mid-replace, though:
+ // FFileManagerGeneric::Move(Path,Tmp,Replace=true,...) deletes Path first and
+ // only then renames Tmp over it (Engine/Source/Runtime/Core/Private/HAL/
+ // FileManagerGeneric.cpp), so a MoveFile failure *after* that delete
+ // succeeds would return false having already destroyed the old save. Rename
+ // any existing save out of the way first (a rename, survives on disk, not a
+ // delete) and only remove that backup once Tmp has actually replaced Path;
+ // restore it if the final rename fails. This is deliberately not the same
+ // Move() wrapped differently -- Path is never deleted up front.
+ bool bSuccess=false;
+ if(FFileHelper::SaveStringToFile(Text,*Tmp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) {
+  if(!IFileManager::Get().FileExists(*Path)) {
+   bSuccess=IFileManager::Get().Move(*Path,*Tmp,true,true); // first save, nothing to protect
+  } else if(IFileManager::Get().Move(*Backup,*Path,true,true)) { // rename old save aside
+   if(IFileManager::Get().Move(*Path,*Tmp,true,true)) {
+    bSuccess=true;
+    IFileManager::Get().Delete(*Backup,false,true,true);
+   } else {
+    IFileManager::Get().Move(*Path,*Backup,true,true); // restore the previous save
+   }
+  }
+  // If the rename-to-Backup step itself failed, Path was never touched and
+  // the previous save is intact; bSuccess stays false either way here.
+ }
+ Message=bSuccess?TEXT("視点と条件を保存しました"):TEXT("保存に失敗しました");
 }
 void AWalkthroughCharacter::ToggleMouse() {auto PC=Cast<APlayerController>(Controller); PC->bShowMouseCursor=!PC->bShowMouseCursor; if(PC->bShowMouseCursor) PC->SetInputMode(FInputModeGameAndUI()); else PC->SetInputMode(FInputModeGameOnly());}
 void AWalkthroughCharacter::SetupPlayerInputComponent(UInputComponent* I) {
@@ -242,19 +267,30 @@ void AWalkthroughCharacter::Tick(float Delta) {
  // diagonal movement along a wall does not stall. The room polygon boundary
  // has no physical wall at openings, so it is enforced here instead: if the
  // actor ends up outside it, correct back to a nearby point that is inside.
- // This runs after Super::Tick(), which in this project's observed component
- // tick order applies the previous frame's AddMovementInput before we read
- // GetActorLocation() here; it is not a general UE tick-group guarantee, and
- // AC1/AC2 exercise it directly with real input to confirm the ordering holds
- // in practice for this pawn.
+ // This runs after Super::Tick(), which is guaranteed (not just observed) to
+ // have already applied the previous frame's AddMovementInput here:
+ // UMovementComponent's constructor sets bTickBeforeOwner=true, and its
+ // RegisterComponentTickFunctions (Engine/Source/Runtime/Engine/Private/
+ // Components/MovementComponent.cpp) adds itself as a tick prerequisite of
+ // the owning Actor's PrimaryActorTick when that is set, so the engine's own
+ // tick scheduler -- not this project's Tick() -- orders CharacterMovement's
+ // component tick before this Character's Tick(). No custom tick machinery
+ // is added here to rely on that; it is the engine's default for any
+ // ACharacter/CharacterMovementComponent pair, unchanged in this project.
  if(bReady) {
   const FVector Current=GetActorLocation();
-  if(!InsideRoom(Current)) {
-   // Candidates must be Safe() (boundary AND furniture/wall overlap), not just
-   // InsideRoom(): a point picked by keeping one axis from LastSafeLocation can
-   // itself sit inside a different piece of furniture (e.g. rounding a corner).
-   // All room edges here are axis-aligned, so try keeping each axis
-   // independently before falling back to a binary search along the segment.
+  if(!Safe(Current)) {
+   // Safe(), not InsideRoom(): the normal branch below records Current as
+   // LastSafeLocation, so it must confirm no furniture overlap too, or a
+   // sweep that (rarely) ends up embedded in geometry would be recorded as
+   // a safe point to fall back to later.
+   //
+   // Candidates must likewise be Safe() (boundary AND furniture/wall
+   // overlap), not just InsideRoom(): a point picked by keeping one axis
+   // from LastSafeLocation can itself sit inside a different piece of
+   // furniture (e.g. rounding a corner). All room edges here are
+   // axis-aligned, so try keeping each axis independently before falling
+   // back to a binary search along the segment.
    FVector Candidate;
    const FVector KeepX(Current.X,LastSafeLocation.Y,Current.Z);
    const FVector KeepY(LastSafeLocation.X,Current.Y,Current.Z);
@@ -275,9 +311,22 @@ void AWalkthroughCharacter::Tick(float Delta) {
    FHitResult Hit;
    SetActorLocation(Candidate,true,&Hit,ETeleportType::TeleportPhysics);
    GetCharacterMovement()->Velocity=FVector::ZeroVector;
-   const FVector Landed=GetActorLocation();
+   FVector Landed=GetActorLocation();
+   if(!Safe(Landed)) {
+    // The sweep toward Candidate was itself blocked partway and the landing
+    // spot is still unsafe. A non-sweeping teleport to LastSafeLocation here
+    // would ignore anything between Landed and LastSafeLocation -- "the old
+    // point was safe" says nothing about the path from here to it. Sweep
+    // there too instead of assuming the direct line is clear.
+    SetActorLocation(LastSafeLocation,true,&Hit,ETeleportType::TeleportPhysics);
+    GetCharacterMovement()->Velocity=FVector::ZeroVector;
+    Landed=GetActorLocation();
+   }
+   // Only ever record a Safe() landing spot. If both sweeps still leave the
+   // actor unsafe, LastSafeLocation keeps its last known-Safe value and the
+   // actor stays wherever the second sweep stopped (a sweep endpoint, never
+   // a location reached by ignoring collision) for the next Tick to retry.
    if(Safe(Landed)) LastSafeLocation=Landed;
-   else SetActorLocation(LastSafeLocation,false,nullptr,ETeleportType::TeleportPhysics); // LastSafeLocation was Safe() as of last frame.
   } else LastSafeLocation=Current;
  }
  if(FParse::Param(FCommandLine::Get(),TEXT("RyukaSmoke"))&&GetWorld()->GetTimeSeconds()>3&&!bSmokeDone) {

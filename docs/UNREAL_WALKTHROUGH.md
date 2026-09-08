@@ -10,10 +10,10 @@
 
 ## 起動
 
-専用ワークツリーをカレントディレクトリにして実行します。出力先は再生成のたびに変わるため、実際に使うパスは`build/`配下の最新の生成結果に読み替えてください（例：`build/W02-refresh-v2/ue`）。
+専用ワークツリーをカレントディレクトリにして実行します。出力先は再生成のたびに変わるため、実際に使うパスは`build/`配下の最新の生成結果に読み替えてください（例：`build/W02-refresh-v3/ue`）。
 
 ```powershell
-python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v2/ue --cache '../../ddc'
+python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v3/ue --cache '../../ddc'
 ```
 
 編集画面の Tools → 内装比較 →「内覧を別ウィンドウで開始」からも起動できます。開始時に編集画面の比較条件を保存します。「内覧で保存した視点・条件を反映」で編集画面へ戻し、固定画像の比較に利用できます。複数の内覧ウィンドウから同時に保存しないでください。
@@ -42,7 +42,8 @@ HUDは常時、操作キー一覧・現在の仕上げ名・採光が仮条件�
 - 保存した位置が新しい家具・壁と重なる場合は、同じ部屋内の空いた候補を15cm間隔で探索し、元の位置に近い候補へ移します。候補がなければ内覧移動を開始しません。設置高さは対象階の床から再設定します。
 - 窓や家具などの正本は今回変更していません。Three.js側で編集した場合は正本JSONへ反映してから更新します。
 - 保存内容にはカメラの画角（`lensMm`）も含み、復帰時にEyeコンポーネントの視野角へ逆算して反映します（36mm換算センサー幅の契約、Python側`study_state.py`と同じ許容範囲12〜120mm）。固定の80度で上書きしません。
-- 保存/復帰・JSON破損（schemaVersion不一致を含む）・部屋不一致・保存位置の重なり・安全候補なし・両保存の同時無効・保存失敗の各異常系は、実際にファイルを破損・読み取り専用化してUnrealを起動して確認しています（クラッシュなし、ファイル未破壊、失敗理由をHUDに具体的に表示。基準状態へフォールバックした場合は、その旨と元の失敗理由を合わせて表示）。仕上げ・太陽条件の変更が何らかの理由（例：`study-bindings.json`の破損）で失敗した場合も、変更前の状態にロールバックし失敗を表示します。F5保存は一時ファイル経由の書き込みのため、失敗時も直前の保存内容が保護されることをファイルハッシュの前後比較で確認済みです。
+- 保存/復帰・JSON破損（schemaVersion不一致を含む）・部屋不一致・保存位置の重なり・安全候補なし・両保存の同時無効・保存失敗の各異常系は、実際にファイルを破損・読み取り専用化してUnrealを起動して確認しています（クラッシュなし、ファイル未破壊、失敗理由をHUDに具体的に表示。基準状態へフォールバックした場合は、その旨と元の失敗理由を合わせて表示）。仕上げ・太陽条件の変更が何らかの理由（例：`study-bindings.json`の破損）で失敗した場合も、変更前の状態にロールバックし失敗を表示します。
+- F5保存は、一時ファイルへの書き込み後、既存の保存を削除せずまず退避してから置換し、置換が失敗した場合は退避先から復元する方式です。置換処理の途中（一時ファイル完成後、最終的な置換の実行中）で失敗する経路も、実際にファイル操作を妨害して再現し、失敗前の保存内容がSHA-256ハッシュ一致で完全に保護されること、F9復帰・再起動後の復帰も正しく機能することを確認しています。
 
 ```powershell
 python scripts/refresh-visual-study.py --previous build/ue-walk-v1 --output build/refresh-walk-next --cache '../../ddc'
@@ -60,10 +61,10 @@ C++のビルドには対応するVisual Studio C++ツールチェーンとWindow
 
 ## 検証状況（2026-09-08、W02で更新）
 
-48件のPythonテストと既存Three.js家具チェックが成功。`build/W02-refresh-v2/` で正本からの一括再生成・視点と条件の引継ぎ・内覧モジュール再構築が完了し、再生成後にNullRHI（描画なしのロジック検証）とDX12（実際の描画検証）の両方が成功しています（`stateVerification`：statePreserved/geometryVerified/cameraRotationPreserved すべてtrue）。
+48件のPythonテストと既存Three.js家具チェックが成功。`build/W02-refresh-v3/` で正本からの一括再生成・視点と条件の引継ぎ・内覧モジュール再構築が完了し、再生成後にNullRHI（描画なしのロジック検証）とDX12（実際の描画検証）の両方が成功しています（`stateVerification`：statePreserved/geometryVerified/cameraRotationPreserved すべてtrue）。
 
 ```powershell
-python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v2/ue --cache '../../ddc' --smoke --logic-only
+python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Games/UE_5.8' --project build/W02-refresh-v3/ue --cache '../../ddc' --smoke --logic-only
 ```
 
 `--logic-only` を外すと描画付きの検証です。自動テストの状態と画像は `Saved/walkthrough-smoke*` に分離しており、施主の保存視点を上書きしません。`walkthrough-verification.json` の `runtimeVerified` と `renderVerified` を区別してください。
