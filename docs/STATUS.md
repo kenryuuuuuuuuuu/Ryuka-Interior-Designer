@@ -1,5 +1,7 @@
 # 進捗・未解決事項
 
+最新レビュー：W03-A（名前付き検討案の保存・一覧・再適用）を受け入れました。対象157eed4。[レビュー](tasks/W03-A-review.md)。次はW03-Bの詳細設計です。
+
 2026-09-08更新（W03-A）：比較条件（仕上げ・視点・太陽条件）を名前付きの案として保存し、一覧表示し、現在の正本から再生成した家へ適用できるようになりました。`scripts/save-study-scenario.py`・`scripts/list-study-scenarios.py`・`scripts/refresh-visual-study.py --scenario`を追加しています。家具配置の複数管理・壁面単位の仕上げ・UE内の新しい選択UIは対象外です。詳細は[REFRESH_WORKFLOW.md](REFRESH_WORKFLOW.md)、[W03-A報告](tasks/W03-A-report.md)を参照してください。
 
 最新レビュー：W02を完了として受け入れました（対象5c41a25）。[最終レビュー](tasks/W02-review-v5.md)。ゲストLDKの操作・保存復帰・再生成とテスト保存の分離を確認済みです。狭所の滑らかさは非阻害の残件。次は[実装計画](IMPLEMENTATION_ROADMAP.md)のW03の詳細設計です。
