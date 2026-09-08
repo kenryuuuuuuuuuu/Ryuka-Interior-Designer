@@ -83,3 +83,11 @@ python scripts/check-study-changes.py --previous build/W02-refresh-v5/ue --outpu
 `source-changes.json`（schemaVersion 1.0.0）は`baselineStatus`（`available`/`unavailable`）・比較したファイルのハッシュ・rooms/furniture/catalogそれぞれのadded/removed/modified・`issues`（参照切れ・重複ID、修正必須）・`warnings`（比較範囲の限定を含む）を記録します。前回パッケージの原本コピーが無い/ハッシュが一致しない場合は`unavailable`となり、「詳細比較できません」と案内します。この場合も現在の全件を追加扱いにはせず、参照確認自体は実施します。終了コードは、現在の参照切れ・重複があれば1、なければ0です（比較元が古いだけなら警告のみで0）。
 
 通常の`refresh-visual-study.py`実行では、この確認結果が`refresh.json`の`sourceChanges`、完了後の`index.html`の「前回モデルからの変更」欄、`changes.html`（詳細）に反映されます。対象はrooms/furniture/furniture-catalogの追加・削除・変更（IDごと、配列の並び替えは変更扱いにしません）と、限定した参照先の有無だけです。屋根・階段・設備・開口全体の変更検出は含みません。
+
+## 面の永続ID・登録の確認（W03-C、2026-09-08追加）
+
+`refresh-visual-study.py`は上記の参照確認に続けて、`data/visual/surface-registry.json`（部屋境界の壁・床・天井の識別設定）を現在の`house.json`と照合します。未解決（壁の移動・分割で登録した辺が見つからない、登録した部屋が無くなった等）があれば、同様にBlender起動前で停止し`surface-resolution.json`を案内します。単独確認・詳細はARCHITECTURE.md「面の永続ID」を参照してください。
+
+```powershell
+python scripts/check-study-surfaces.py --output build/W03-C-check-v1
+```

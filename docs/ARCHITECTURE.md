@@ -306,6 +306,16 @@ UEの表面模様・粗さは`data/visual/unreal-finishes.json`で管理しま�
   - Blender（`blender/build_house.py`）は未対応
   - `SOUND_WALL`の俯瞰・平面図モード側の表示（`groups.sound`、`topY=3.4`固定）は、南側で新しい勾配天井（最大約3.5m）より低くなる場合があるが、今回は内覧モードの壁高さ計算（`wallSegmentsByLevel`経由）だけを直し、`groups.sound`自体の`topY`は変更していない
 
+## 面の永続ID（surface-registry.json、W03-C・2026-09-08追加）
+
+W04（面ごとの仕上げ設定）がキーとして参照するための、部屋境界面（壁・床・天井）の識別設定。`data/visual/surface-registry.json`（schemaVersion 1.0.0）に、手動で確定したASCII文字列のID（例：`surf-guest-wall-001`）と、壁なら対応する`house.json`のroom polygon辺の両端座標（`edge`、source座標・メートル）、床・天井ならroomIdを記録する。**建物形状の新しい正本ではない**（形状は常にhouse.json等から取得）。壁番号・メッシュ名は配列順・開口分割で変わるため永続IDにしていない。
+
+- `scripts/surface_registry.py`：`resolve_from(root)`が現在の`house.json`と照合し、壁は端点座標一致（順序不問、許容差1e-6m）で辺を再特定、床・天井はroomIdでその部屋の現在のpolygon/ceilingへ追従する。一致なし・複数一致・部屋が消えている場合は`unresolved`として`issues`（対象ID・理由・修正案内）に記録する。座標の近さや部分一致・方位だけでの推測、登録の自動更新は行わない。ラベル・家具・開口の変更だけでは登録IDは変わらない（窓移動でできる複数の壁片も同じ部屋境界面として同じIDを維持できる）。壁位置が変わった／辺が分割・結合された場合は、登録の`edge`を明示的に更新するまで`unresolved`のまま。旧IDは自動では新しい辺へ引き継がれず、他の面へも再利用しない。
+- `scripts/check-study-surfaces.py --output <新規ディレクトリ>`：Blender/UEを起動せず`surface-resolution.json`と部屋輪郭の簡易SVGを含む`index.html`を出力する軽量CLI。未解決・重複・登録の欠落/不正schemaがあれば終了コード1。
+- 接続：`scripts/build-visual-twin.py --interior`はBlender起動前に検証し、未解決があれば停止する（`--interior`なしの白模型のみの生成はこの検証の対象外）。`scripts/refresh-visual-study.py`もBlender起動前（W03-Bの参照確認の直後）に検証し、未解決があれば同様に停止して`surface-resolution.json`を案内する。`scripts/build-visual-twin.py`の既存`inputs()`（`data/`配下のJSON全体を対象）が`surface-registry.json`のハッシュ計算・`SourcePackage/inputs/`へのコピーも自動的に含む。
+
+初期登録は`room-1f-06`（ゲストLDK）の6辺と床1面・天井1面の計8面。共有壁は両側の部屋がそれぞれ別のroomId・別のIDで登録する想定（同一室内の同一辺・同一室のfloor/ceilingの重複、id自体の重複は拒否）。他の部屋は未登録でもエラーにならない。過去のパッケージ・W03-Aの案（scenario.json）はこの登録がなくても読める（現在の登録欠落は移行上の警告のみ）。**面ごとの材質適用・UEでの面選択・メッシュ分割はW04の対象で、今回は未実装**。梁・段差の立ち上がり・窓枠・開口の見込み・巾木も対象外。
+
 ## 内覧モード（walk）
 
 俯瞰・平面図の間取りを実際に歩いて体験できることを目的としたモード。壁の当たり判定は上記「rooms / walls について」の自動導出壁（`wallSegmentsByLevel`）を使い、これに加えてドアの扉本体（近づくと開く演出）と家具の当たり判定を持つ。

@@ -129,5 +129,44 @@ class RefreshTests(unittest.TestCase):
         self.assertTrue(any('fur-MISSING' in i['message'] for i in m.read(output/'source-changes.json')['issues']))
         self.assertFalse((output/'index.html').exists())
 
+    def test_unresolved_surface_registry_stops_before_blender_or_unreal(self):
+        # W03-C: an unresolved registered surface must also fail before any
+        # subprocess (Blender/Unreal) is launched, same as a reference issue.
+        root=self.previous/'repo'
+        data=root/'data'; visual=data/'visual'; visual.mkdir(parents=True)
+        (visual/'unreal-finishes.json').write_text((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8'),encoding='utf-8')
+        def write(relative,value): (root/relative).write_text(json.dumps(value),encoding='utf-8')
+        write('data/house.json',dict(rooms=[dict(id='room-a',level='1F',label='A',polygon=[[0,0],[2,0],[2,2],[0,2]],status='estimated',note='')]))
+        write('data/furniture.json',dict(items=[]))
+        write('data/furniture-catalog.json',dict(categories=[],types=[]))
+        write('data/visual/guest-ldk-study.json',dict(roomId='room-a'))
+        write('data/visual/asset-bindings.json',dict(bindings=[]))
+        write('data/visual/guest-decor.json',dict(roomId='room-a',items=[]))
+        write('data/openings.json',dict(items=[]))
+        # References a wall edge that does not exist in room-a's polygon above.
+        write('data/visual/surface-registry.json',dict(schemaVersion='1.0.0',surfaces=[
+            dict(id='surf-x',roomId='room-a',kind='wall',label='X',note='',edge=[[9,9],[9,10]])]))
+        engine=root/'engine'; (engine/'Engine/Binaries/Win64').mkdir(parents=True)
+        (engine/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe').touch()
+        blender=root/'blender.exe'; blender.touch()
+        (self.previous/'SourcePackage').mkdir()
+        self.write('SourcePackage/manifest.json',dict(sourceHashes={}))
+        output=root/'build/result'
+        argv=['refresh','--previous',str(self.previous),'--output',str(output),'--engine',str(engine),
+              '--blender',str(blender),'--cache',str(self.previous/'cache')]
+        with mock.patch.object(m,'ROOT',root),mock.patch.object(m.source_changes,'ROOT',root),\
+             mock.patch.object(m.surface_registry,'ROOT',root),\
+             mock.patch.object(m.sys,'argv',argv),\
+             mock.patch.object(m,'retained_inputs',return_value={'state':self.previous/'study-state.json'}),\
+             mock.patch.object(m.shutil,'which',return_value='node'),\
+             mock.patch.object(m,'sources',return_value={'input':'a'}),\
+             mock.patch.object(m.subprocess,'run',return_value=SimpleNamespace(returncode=0)) as run:
+            with self.assertRaisesRegex(RuntimeError,'surface registry'): m.main()
+            self.assertEqual(run.call_count,1)  # only 01-source-check; Blender/Unreal never launched
+        result=m.read(output/'refresh.json')
+        self.assertEqual(result['status'],'failed')
+        self.assertEqual(m.read(output/'surface-resolution.json')['issues'][0]['id'],'surf-x')
+        self.assertFalse((output/'index.html').exists())
+
 
 if __name__=='__main__': unittest.main()

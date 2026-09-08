@@ -15,6 +15,8 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+from surface_registry import resolve_from as resolve_surfaces
 
 
 def run(command, verbose=True):
@@ -64,6 +66,15 @@ def main():
                 'validate_electrical.py', 'test_blender_wall_geometry.py', 'test_interior_geometry.py')]
     for command in checks:
         run(command)
+    if args.interior:
+        # Only the visual study needs registered surface IDs (W04 will apply
+        # per-surface finishes keyed by them); the plain white-model build
+        # must not be blocked by this visual-only setup being incomplete.
+        surfaces = resolve_surfaces(ROOT)
+        if surfaces['issues']:
+            reasons = '; '.join(i['reason'] for i in surfaces['issues'])
+            parser.error('Surface registry has unresolved entries: ' + reasons
+                + ' Run scripts/check-study-surfaces.py for details.')
     output.parent.mkdir(parents=True, exist_ok=True)
     # Stage a new package; failures cannot replace the last successful build.
     with tempfile.TemporaryDirectory(prefix='.visual-twin-', dir=output.parent) as temp:

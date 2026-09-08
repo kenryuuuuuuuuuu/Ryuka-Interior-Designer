@@ -15,6 +15,7 @@ sys.path.insert(0,str(ROOT/'scripts'))
 from finish_settings import validate_finishes
 from refresh_inputs import read, sha, retained_inputs, scenario_inputs
 import source_changes
+import surface_registry
 
 
 def sources():
@@ -151,6 +152,19 @@ def main():
         if changes['issues']:
             step['status']='failed'; save(output,report)
             raise RuntimeError('Current source has unresolved reference issues; inspect '+str(output/'changes.html'))
+        step['status']='complete'; save(output,report)
+        # Persistent surface IDs (W03-C): resolved purely against the current
+        # source, independent of --previous/--scenario. An unresolved
+        # registered surface (moved/split wall, deleted room) stops here,
+        # before Blender, the same way a reference issue does above.
+        step=dict(name='01c-surface-registry',status='running'); report['steps'].append(step); save(output,report)
+        surfaces=surface_registry.resolve_from(ROOT)
+        (output/'surface-resolution.json').write_text(json.dumps(surfaces,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+        report['surfaceRegistry']=dict(issueCount=len(surfaces['issues']),jsonPath='surface-resolution.json')
+        save(output,report)
+        if surfaces['issues']:
+            step['status']='failed'; save(output,report)
+            raise RuntimeError('Current surface registry has unresolved entries; inspect '+str(output/'surface-resolution.json'))
         step['status']='complete'; save(output,report)
         run('02-blender',[sys.executable,ROOT/'scripts/build-visual-twin.py','--blender',args.blender,
             '--interior','--output',output/'blender','--variant',read(saved/'study-state.json')['variant']])

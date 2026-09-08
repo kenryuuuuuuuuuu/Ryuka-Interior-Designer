@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0.0",
+  "surfaces": [
+    {
+      "id": "surf-guest-wall-001",
+      "roomId": "room-1f-06",
+      "kind": "wall",
+      "label": "北側の壁（間仕切り短辺・東寄り）",
+      "note": "house.jsonのroom-1f-06 polygon辺0（頂点[1.82,2.73]-[2.73,2.73]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [[1.82, 2.73], [2.73, 2.73]]
+    },
+    {
+      "id": "surf-guest-wall-002",
+      "roomId": "room-1f-06",
+      "kind": "wall",
+      "label": "西側の壁（間仕切り短辺・北寄り）",
+      "note": "house.jsonのroom-1f-06 polygon辺1（頂点[2.73,2.73]-[2.73,3.691]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [[2.73, 2.73], [2.73, 3.691]]
+    },
+    {
+      "id": "surf-guest-wall-003",
+      "roomId": "room-1f-06",
+      "kind": "wall",
+      "label": "北側の壁（主要面）",
+      "note": "house.jsonのroom-1f-06 polygon辺2（頂点[2.73,3.691]-[7.28,3.691]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [[2.73, 3.691], [7.28, 3.691]]
+    },
+    {
+      "id": "surf-guest-wall-004",
+      "roomId": "room-1f-06",
+      "kind": "wall",
+      "label": "東側の壁",
+      "note": "house.jsonのroom-1f-06 polygon辺3（頂点[7.28,3.691]-[7.28,6.37]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [[7.28, 3.691], [7.28, 6.37]]
+    },
+    {
+      "id": "surf-guest-wall-005",
+      "roomId": "room-1f-06",
+      "kind": "wall",
+      "label": "南側の壁",
+      "note": "house.jsonのroom-1f-06 polygon辺4（頂点[7.28,6.37]-[1.82,6.37]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [[7.28, 6.37], [1.82, 6.37]]
+    },
+    {
+      "id": "surf-guest-wall-006",
+      "roomId": "room-1f-06",
+      "kind": "wall",
+      "label": "西側の壁（主要面）",
+      "note": "house.jsonのroom-1f-06 polygon辺5（頂点[1.82,6.37]-[1.82,2.73]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [[1.82, 6.37], [1.82, 2.73]]
+    },
+    {
+      "id": "surf-guest-floor-001",
+      "roomId": "room-1f-06",
+      "kind": "floor",
+      "label": "床",
+      "note": "house.jsonのroom-1f-06部屋全体。部屋status=verifiedを引き継ぐ。"
+    },
+    {
+      "id": "surf-guest-ceiling-001",
+      "roomId": "room-1f-06",
+      "kind": "ceiling",
+      "label": "天井（片流れ勾配、roof-a1直下）",
+      "note": "house.jsonのroom-1f-06部屋全体。ceiling:\"sloped\"（本棟上屋根roof-a1、docs/ARCHITECTURE.md「勾配天井」参照）。部屋status=verifiedを引き継ぐ。"
+    }
+  ]
+}

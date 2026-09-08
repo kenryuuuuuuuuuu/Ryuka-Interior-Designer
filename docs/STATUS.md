@@ -1,5 +1,7 @@
 # 進捗・未解決事項
 
+2026-09-08更新（W03-C）：ゲストLDKの部屋境界面（壁6・床1・天井1の計8面）に手動確定の永続ID（`data/visual/surface-registry.json`）を登録し、現在の`house.json`形状へ解決できるかを確認できるようになりました。W04が仕上げ設定の対象として参照するデータ契約で、面ごとの材質適用・UEでの面選択・メッシュ分割は今回は未実装です。`scripts/check-study-surfaces.py`・`scripts/surface_registry.py`を追加し、`refresh-visual-study.py`・`build-visual-twin.py --interior`のBlender前チェックへ接続しています。詳細は[ARCHITECTURE.md「面の永続ID」](ARCHITECTURE.md#面の永続idsurface-registryjsonw03-c2026-09-08追加)、[W03-C報告](tasks/W03-C-report.md)を参照してください。
+
 2026-09-08更新（W03-B）：前回モデルと現在の正本を比較し、家具・部屋・家具カタログの追加/削除/変更をID単位で一覧表示できるようになりました。削除した家具に装飾設定が残っている等の参照切れは、Blender/UEの重い処理を始める前に案内して停止します。`scripts/check-study-changes.py`・`scripts/source_changes.py`を追加し、`refresh-visual-study.py`の結果ページへ接続しています。詳細は[REFRESH_WORKFLOW.md](REFRESH_WORKFLOW.md)、[W03-B報告](tasks/W03-B-report.md)を参照してください。
 
 最新レビュー：W03-B（前回モデルからの変更一覧・参照切れの事前案内）を受け入れました。対象ad90829。必須修正なし。[レビュー](tasks/W03-B-review.md)。次は[W03-C：面の永続ID](tasks/W03-C-surface-identities.md)を実装します（仕様READY）。
