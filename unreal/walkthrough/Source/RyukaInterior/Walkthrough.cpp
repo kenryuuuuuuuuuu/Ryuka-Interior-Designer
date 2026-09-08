@@ -247,8 +247,19 @@ bool AWalkthroughCharacter::ApplyConditions() {
   // surface (unknown id, no-surface, or a different room), or an override
   // object with an unknown field/out-of-range value must all abort the
   // whole apply, not be silently skipped or ignored one field at a time.
+  // W04 review v2 R4: a 1.1.0 state (the only kind that can carry real
+  // overrides) must have this field even when empty, exactly like Python's
+  // validate_state() -- only a 1.0.0 state (which predates the field) may
+  // omit it. HasField()==false alone does not distinguish "1.0.0, fine" from
+  // "1.1.0, missing -- reject", so schemaVersion decides which is which.
+  FString SchemaVersion; State->TryGetStringField(TEXT("schemaVersion"),SchemaVersion);
   const TSharedPtr<FJsonObject>* OverridesObj=nullptr;
-  if(State->HasField(TEXT("surfaceOverrides"))&&!State->TryGetObjectField(TEXT("surfaceOverrides"),OverridesObj)) return false;
+  const bool bHasOverridesField=State->HasField(TEXT("surfaceOverrides"));
+  if(bHasOverridesField) {
+   if(!State->TryGetObjectField(TEXT("surfaceOverrides"),OverridesObj)) return false;
+  } else if(SchemaVersion!=TEXT("1.0.0")) {
+   return false;
+  }
   FString RoomId; if(!State->TryGetStringField(TEXT("roomId"),RoomId)) return false;
   auto IsHex6=[](const FString& S){
    if(S.Len()!=6) return false;
@@ -268,22 +279,37 @@ bool AWalkthroughCharacter::ApplyConditions() {
    if(!Info->TryGetStringField(TEXT("status"),Status)||Status!=TEXT("bound")) continue;
    if(!Info->TryGetStringField(TEXT("kind"),Kind)) return false;
    if(!Info->TryGetStringField(TEXT("roomId"),SurfaceRoomId)) return false;
-   const TSharedPtr<FJsonObject>* Override=nullptr;
    // .Key is UE::FSharedString here (FJsonObject::Values), not FString --
    // FString(*Entry.Key) is the existing conversion idiom already used above
    // for the Bindings->Values loop.
+   const FString SurfaceId=FString(*SurfaceEntry.Key);
+   const TSharedPtr<FJsonObject>* Override=nullptr;
    if(OverridesObj&&(*OverridesObj)->TryGetObjectField(SurfaceEntry.Key,Override)) {
-    ConsumedOverrideKeys.Add(FString(*SurfaceEntry.Key));
+    ConsumedOverrideKeys.Add(SurfaceId);
     // A bound surface belonging to a different room being targeted is the
     // same class of mistake as an unknown/no-surface id -- fail, not skip.
     if(SurfaceRoomId!=RoomId) return false;
     for(auto& Field:(*Override)->Values)
      if(Field.Key!=TEXT("variant")&&Field.Key!=TEXT("colorHex")&&Field.Key!=TEXT("roughness")) return false;
-    FString OverrideColorCheck;
-    if((*Override)->TryGetStringField(TEXT("colorHex"),OverrideColorCheck)&&!IsHex6(OverrideColorCheck)) return false;
-    double OverrideRoughnessCheck;
-    if((*Override)->TryGetNumberField(TEXT("roughness"),OverrideRoughnessCheck)&&
-       (!FMath::IsFinite(OverrideRoughnessCheck)||OverrideRoughnessCheck<0.||OverrideRoughnessCheck>1.)) return false;
+    // W04 review v2 R4: a field that IS present must be fetched successfully
+    // (right JSON type) AND satisfy its range -- TryGet*Field returning
+    // false (wrong type, e.g. colorHex:123 or roughness:"bad") must reject,
+    // not be treated the same as the field being absent. Checking HasField()
+    // first is what the previous version was missing: `TryGet(...)&&!Valid`
+    // silently let a present-but-wrong-type field fall through unchecked.
+    if((*Override)->HasField(TEXT("colorHex"))) {
+     FString OverrideColorCheck;
+     if(!(*Override)->TryGetStringField(TEXT("colorHex"),OverrideColorCheck)||!IsHex6(OverrideColorCheck)) return false;
+    }
+    if((*Override)->HasField(TEXT("roughness"))) {
+     double OverrideRoughnessCheck;
+     if(!(*Override)->TryGetNumberField(TEXT("roughness"),OverrideRoughnessCheck)||
+        !FMath::IsFinite(OverrideRoughnessCheck)||OverrideRoughnessCheck<0.||OverrideRoughnessCheck>1.) return false;
+    }
+    if((*Override)->HasField(TEXT("variant"))) {
+     FString OverrideVariantCheck;
+     if(!(*Override)->TryGetStringField(TEXT("variant"),OverrideVariantCheck)) return false;
+    }
    }
    FString EffectiveVariant=Variant;
    if(Override) (*Override)->TryGetStringField(TEXT("variant"),EffectiveVariant);
@@ -316,10 +342,16 @@ bool AWalkthroughCharacter::ApplyConditions() {
     auto Actor=Cast<AStaticMeshActor>(Actors.FindRef(MeshActorLabel)); if(!Actor) return false;
     auto Component=Actor->GetStaticMeshComponent();
     if(Slot<0||Slot>=Component->GetNumMaterials()) return false;
-    UMaterialInterface* CurrentMaterial=Component->GetMaterial(Slot);
-    auto BaseMaterial=Cast<UMaterialInstanceDynamic>(CurrentMaterial);
-    UMaterialInterface* Base=CurrentMaterial;
-    if(BaseMaterial) Base=BaseMaterial->Parent;
+    // W04 review v2 R1: load the parent by (surface, EFFECTIVE variant)
+    // instead of reusing whatever MID/asset currently happens to sit in the
+    // slot. import_study.py now builds one parametric marker material per
+    // (surface, variant) -- each with that variant's own pattern already
+    // baked in (planks/tile/plain noise) -- precisely so switching variant
+    // (whole-scene, a per-surface override, a loaded scenario, A/B) changes
+    // the actual pattern, not just the MID's Color/Roughness on top of
+    // whichever pattern happened to be loaded last.
+    UMaterialInterface* Base=LoadObject<UMaterialInterface>(nullptr,
+     *(TEXT("/Game/Generated/Finishes/M_Surf_")+SurfaceId+TEXT("_")+EffectiveVariant));
     if(!Base) return false;
     SurfacePlan.Add({Component,Slot,Base,FLinearColor(FColor::FromHex(ColorHex)),(float)Roughness});
    }

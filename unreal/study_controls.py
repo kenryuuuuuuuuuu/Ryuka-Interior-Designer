@@ -98,13 +98,19 @@ def apply_state(state):
     for surface_id,info in surfaces.items():
         if info['status']!='bound': continue
         finish=resolve_finish(finish_document,study['settings']['variants'],info['kind'],state['variant'],usable.get(surface_id))
+        # W04 review v2 R1: load the parent by (surface, EFFECTIVE variant) --
+        # finish['variant'] -- instead of reusing whatever's currently in the
+        # slot. Each variant's own pattern (planks/tile/plain noise) is baked
+        # into that variant's own marker material at import time; reusing
+        # "whatever parent happens to be there" only ever changes Color/
+        # Roughness on top of the PREVIOUS variant's pattern, never the
+        # pattern itself.
+        base_asset=unreal.load_asset(f"/Game/Generated/Finishes/M_Surf_{surface_id}_{finish['variant']}")
+        if base_asset is None: raise RuntimeError(f'Missing marker material for surface {surface_id} variant {finish["variant"]}')
         for mesh_ref in info['meshes']:
             actor=actors.get(mesh_ref['actor'])
             if actor is None: raise RuntimeError('Missing generated actor: '+mesh_ref['actor'])
             component=actor.static_mesh_component
-            current=component.get_material(mesh_ref['slot'])
-            base_asset=current.get_editor_property('parent') if isinstance(current,unreal.MaterialInstanceDynamic) else current
-            if base_asset is None: raise RuntimeError(f'Missing marker material for surface {surface_id}')
             surface_planned.append((component,mesh_ref['slot'],base_asset,finish))
     sun=actors['Sun_manual_angle']; post=actors['Fixed_exposure']; camera=actors['Camera_guest_LDK']
     with unreal.ScopedEditorTransaction('内装比較条件の変更'):
@@ -206,11 +212,18 @@ def scene_state(base):
             finish=resolve_finish(finish_document,variants,info['kind'],state['variant'],
                 state['surfaceOverrides'].get(surface_id))
             expected_color=rgb(finish['colorHex'])
+            expected_parent=f"/Game/Generated/Finishes/M_Surf_{surface_id}_{finish['variant']}"
             for mesh_ref in info['meshes']:
                 actor=actors.get(mesh_ref['actor'])
                 if actor is None: continue
                 live=actor.static_mesh_component.get_material(mesh_ref['slot'])
                 mismatch=not isinstance(live,unreal.MaterialInstanceDynamic)
+                if not mismatch:
+                    # W04 review v2 R1: the PARENT must also match the
+                    # effective variant, not just Color/Roughness -- a wrong
+                    # parent (stale pattern) can still show the right colour.
+                    parent=live.get_editor_property('parent')
+                    mismatch=parent is None or parent.get_path_name().split('.')[0]!=expected_parent
                 if not mismatch:
                     color=live.get_vector_parameter_value('Color')
                     roughness=live.get_scalar_parameter_value('Roughness')
@@ -421,11 +434,32 @@ def _load_scenario_state(refresh_inputs, index, dirs):
     return json.loads(paths['state'].read_text(encoding='utf-8'))
 
 
+def _context_compatible(state):
+    """Pure check -- no mutation, no scene access -- for whether `state`'s
+    siteContextSHA256 expectation matches the CURRENT project's
+    site-context.json presence/hash. W04 review v2 R2: unlike apply_state()'s
+    own bootstrap-friendly auto-adopt (needed so a state that has never yet
+    been through this project's apply_state() at all -- e.g. default_state()
+    on a brand new WITH-context project -- can be applied the first time),
+    a state coming from ELSEWHERE (a saved scenario, --previous) must agree
+    with the current project on BOTH "has a context" and "which one", not
+    merely avoid an explicit conflict. A state saved with no context at all
+    (expected is None) is therefore INCOMPATIBLE with a current project that
+    does have one, not silently treated as compatible with anything."""
+    context_path=project()/'site-context.json'
+    expected=state.get('siteContextSHA256')
+    if context_path.exists():
+        return expected==hashlib.sha256(context_path.read_bytes()).hexdigest()
+    return not expected
+
+
 def load_scenario(index):
     dirs=_scenario_dirs()
     if not 0<=index<len(dirs): raise RuntimeError('案が見つかりません。')
     state=_load_scenario_state(_refresh_inputs(),index,dirs)
-    apply_state(state)  # also re-checks the CURRENT project's own site-context.json
+    if not _context_compatible(state):
+        raise RuntimeError(f'案「{dirs[index].name}」は現在のプロジェクトの周辺条件（site-context.json）と一致しません。')
+    apply_state(state)
     unreal.log('案を読み込みました: '+dirs[index].name)
     register_menu()
 
@@ -438,6 +472,9 @@ def start_compare(index_a, index_b):
     # must not start half-usable, and a broken B must not leave A already applied.
     state_a=_load_scenario_state(refresh_inputs,index_a,dirs)
     state_b=_load_scenario_state(refresh_inputs,index_b,dirs)
+    for name,state in ((dirs[index_a].name,state_a),(dirs[index_b].name,state_b)):
+        if not _context_compatible(state):
+            raise RuntimeError(f'案「{name}」は現在のプロジェクトの周辺条件（site-context.json）と一致しません。')
     base=current_state()
     fixed=dict(azimuthDeg=base['azimuthDeg'],elevationDeg=base['elevationDeg'],
         sunLux=base['sunLux'],exposureEV100=base['exposureEV100'],camera=base['camera'])

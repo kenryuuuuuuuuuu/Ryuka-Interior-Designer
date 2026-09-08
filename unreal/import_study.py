@@ -69,20 +69,33 @@ def main():
 
     # W04: rebuild surface-bindings.json using the ACTUAL imported actor
     # labels (Blender's own dotted mesh names get sanitized on import, same
-    # rule already used above for meshBoundsBlenderMetres). Each marker slot
-    # gets a fresh PARAMETRIC material (Color/Roughness), defaulted to this
-    # variant's plain finish for that kind -- not yet any operator override;
-    # study_controls.apply_state() below (same call already made for every
-    # import) is what actually applies the state's surfaceOverrides, via a
-    # MaterialInstanceDynamic per bound slot, exactly like it will on every
-    # later apply. No new material ASSET is ever created again after this.
+    # rule already used above for meshBoundsBlenderMetres).
+    #
+    # W04 review v2 R1: one PARAMETRIC marker material is built per (surface,
+    # variant) -- not just the current study.variant -- because each
+    # variant's own pattern (planks/tile/plain noise; resolve_finish()'s
+    # 'detail') is baked into that material's node graph at creation time,
+    # not something a MID's Color/Roughness parameters can change. Switching
+    # the effective variant later (whole-scene, a per-surface override, a
+    # loaded scenario, A/B) means switching which of these PARENT materials
+    # a slot's MID is built from -- see study_controls.apply_state() and
+    # Walkthrough.cpp's ApplyConditions(), which both load
+    # M_Surf_<surfaceId>_<variant> by name rather than reusing whatever
+    # parent happens to already be assigned. Only the slot for the initial
+    # study.variant is actually assigned here; every later apply (including
+    # the one study_controls.apply_state() below performs for this same
+    # import) picks the correct parent itself.
     blender_bindings = json.loads((package/'surface-bindings.json').read_text(encoding='utf-8'))
     finish_document = json.loads((project/'finish-settings.json').read_text(encoding='utf-8'))
     actor_by_label = {a.get_actor_label(): a for a in meshes}
     surface_bindings = {}
     for surface_id, info in blender_bindings['surfaces'].items():
-        finish = resolve_finish(finish_document, study['settings']['variants'], info['kind'], study['variant'])
-        marker = marker_material('Surf_'+surface_id, finish['colorHex'], finish['roughness'], detail=finish['detail'])
+        markers_by_variant = {}
+        for variant in study['settings']['variants']:
+            finish = resolve_finish(finish_document, study['settings']['variants'], info['kind'], variant)
+            markers_by_variant[variant] = marker_material(
+                f'Surf_{surface_id}_{variant}', finish['colorHex'], finish['roughness'], detail=finish['detail'])
+        marker = markers_by_variant[study['variant']]
         entry = dict(roomId=info['roomId'], kind=info['kind'], status=info['status'],
             label=info.get('label'), meshes=[])
         for mesh_ref in info['meshes']:

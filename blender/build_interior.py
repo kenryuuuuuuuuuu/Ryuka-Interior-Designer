@@ -179,14 +179,24 @@ class SurfaceBinder:
             self.status[s['id']] = dict(roomId=s['roomId'], kind=s['kind'], label=s.get('label'), state='no-surface')
             finish = resolve_finish(finish_document, study_variants, s['kind'], base_variant, overrides.get(s['id']))
             self.detail[s['id']] = finish
-            # W04 review R1: this material's own detail texture (noise/plank/
-            # tile) is applied below via apply_pattern -- material() itself is
-            # called flat here (no `texture=`) since apply_pattern already
-            # covers every registrable kind's own pattern. The override's
-            # resolved colorHex is what apply_pattern must modulate, not the
-            # un-overridden palette colour, or an override's colour is
+            # W04 review v2 R1: give this marker the SAME base texture as the
+            # whole-scene material it stands in for -- e.g. a registered
+            # floor's paletteRole is 'wood' (finish-settings.json), and the
+            # whole-scene floor reuses mats['wood'] (texture='wood') rather
+            # than being flat, so the marker must match or a floor loses its
+            # wood grain the moment it becomes a registered surface, even
+            # with no override at all. Only 'wood'/'fabric' get noise here,
+            # matching the mats={...texture=...} construction above.
+            texture = 'wood' if finish['paletteRole'] == 'wood' else 'fabric' if finish['paletteRole'] == 'fabric' else None
+            mat = material(marker_material_name(s['kind'], s['id']), finish['colorHex'], roughness=finish['roughness'], texture=texture)
+            # Pattern (reference variant's tile/board detail) takes priority
+            # over the plain texture above -- apply_pattern() overwrites the
+            # Base Color link Blender-side, same precedence as the
+            # whole-scene materials (built flat/textured first, then
+            # apply_pattern() layered on afterward where a pattern exists).
+            # The override's resolved colorHex is what it must modulate, not
+            # the un-overridden palette colour, or an override's colour is
             # silently cancelled back out by the pattern step.
-            mat = material(marker_material_name(s['kind'], s['id']), finish['colorHex'], roughness=finish['roughness'])
             if finish['pattern']:
                 apply_pattern(mat, finish['colorHex'], finish, rgb)
             self.materials[s['id']] = mat
