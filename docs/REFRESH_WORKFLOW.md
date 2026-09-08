@@ -37,6 +37,7 @@ python scripts/refresh-visual-study.py --previous build/ue-context-v3 --output b
 
 - `index.html`：更新結果と成果物へのリンク
 - `refresh.json`：工程、入力ハッシュ、変更ファイル、引き継ぎの検証結果
+- `source-changes.json`・`changes.html`：前回モデルからの家具・部屋の変更一覧と参照切れの確認結果
 - `retained/`：コピーした前回の保存条件・周辺設定
 - `blender/`：検証済みモデル・GLB・Blender画像
 - `ue/`：新しいUnrealプロジェクト
@@ -69,3 +70,16 @@ python scripts/refresh-visual-study.py --previous build/W02-refresh-v5/ue --scen
 `refresh.json`には選択した案（id/name、案パッケージのSHA-256、原本情報）が`selectedScenario`として記録されます。既存の`sourceHashes`（今回の入力）・`changedSourceFiles`（previousモデルとの比較）の意味は変わりません。
 
 実敷地・真北、キッチンと冷蔵庫の正面方向、採用品番、夜間照明、専用の歩行UIは別の作業です。日時・角度・周辺条件を含む成果物はローカルで保管します。
+
+## 前回モデルからの変更・参照切れの事前確認（W03-B、2026-09-08追加）
+
+`refresh-visual-study.py`はBlender起動前に、`--previous`のSourcePackageに保存された入力（rooms/家具/家具カタログ）と現在の正本を比較し、あわせて現在の正本内の参照（家具→部屋・型、装飾設定→家具・開口など）を確認します。現在の参照切れ（削除した家具に装飾設定が残っている等）があれば、重い生成の前に停止し`changes.html`の場所を案内します。Blender/UEには一切書き込みません。
+
+```powershell
+# Blender/UEを起動せず、変更一覧と参照確認だけを単独で行う場合
+python scripts/check-study-changes.py --previous build/W02-refresh-v5/ue --output build/W03-B-check-v1
+```
+
+`source-changes.json`（schemaVersion 1.0.0）は`baselineStatus`（`available`/`unavailable`）・比較したファイルのハッシュ・rooms/furniture/catalogそれぞれのadded/removed/modified・`issues`（参照切れ・重複ID、修正必須）・`warnings`（比較範囲の限定を含む）を記録します。前回パッケージの原本コピーが無い/ハッシュが一致しない場合は`unavailable`となり、「詳細比較できません」と案内します。この場合も現在の全件を追加扱いにはせず、参照確認自体は実施します。終了コードは、現在の参照切れ・重複があれば1、なければ0です（比較元が古いだけなら警告のみで0）。
+
+通常の`refresh-visual-study.py`実行では、この確認結果が`refresh.json`の`sourceChanges`、完了後の`index.html`の「前回モデルからの変更」欄、`changes.html`（詳細）に反映されます。対象はrooms/furniture/furniture-catalogの追加・削除・変更（IDごと、配列の並び替えは変更扱いにしません）と、限定した参照先の有無だけです。屋根・階段・設備・開口全体の変更検出は含みません。

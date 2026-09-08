@@ -87,5 +87,47 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(result['steps'][0]['status'],'failed')
         self.assertFalse((output/'index.html').exists())
 
+    def test_current_reference_issue_stops_before_blender_or_unreal(self):
+        # W03-B: a dangling reference in the current source must fail before
+        # any subprocess (Blender/Unreal) is ever launched.
+        root=self.previous/'repo'
+        data=root/'data'; visual=data/'visual'; visual.mkdir(parents=True)
+        (visual/'unreal-finishes.json').write_text((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8'),encoding='utf-8')
+        def write(relative,value): (root/relative).write_text(json.dumps(value),encoding='utf-8')
+        write('data/house.json',dict(rooms=[dict(id='room-a',level='1F',label='A',polygon=[[0,0]],status='estimated',note='')]))
+        write('data/furniture.json',dict(items=[dict(id='fur-1',type='chair',room='room-a',label='Chair',level='1F',
+            x=0,z=0,rotation=0,elevation=0,status='estimated',note='')]))
+        write('data/furniture-catalog.json',dict(categories=[],types=[dict(type='chair',label='Chair',category='seating',
+            shape='box',rotationConvention='n',width=0.5,depth=0.5,height=0.5,clearance=0,note='')]))
+        write('data/visual/guest-ldk-study.json',dict(roomId='room-a'))
+        write('data/visual/asset-bindings.json',dict(bindings=[]))
+        write('data/visual/guest-decor.json',dict(roomId='room-a',items=[dict(id='decor-1',kind='rug',
+            furnitureId='fur-MISSING',width=1,depth=1,status='estimated',note='')]))
+        write('data/openings.json',dict(items=[]))
+        engine=root/'engine'; (engine/'Engine/Binaries/Win64').mkdir(parents=True)
+        (engine/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe').touch()
+        blender=root/'blender.exe'; blender.touch()
+        (self.previous/'SourcePackage').mkdir()
+        self.write('SourcePackage/manifest.json',dict(sourceHashes={}))
+        output=root/'build/result'
+        argv=['refresh','--previous',str(self.previous),'--output',str(output),'--engine',str(engine),
+              '--blender',str(blender),'--cache',str(self.previous/'cache')]
+        with mock.patch.object(m,'ROOT',root),mock.patch.object(m.source_changes,'ROOT',root),\
+             mock.patch.object(m.sys,'argv',argv),\
+             mock.patch.object(m,'retained_inputs',return_value={'state':self.previous/'study-state.json'}),\
+             mock.patch.object(m.shutil,'which',return_value='node'),\
+             mock.patch.object(m,'sources',return_value={'input':'a'}),\
+             mock.patch.object(m.subprocess,'run',return_value=SimpleNamespace(returncode=0)) as run:
+            with self.assertRaisesRegex(RuntimeError,'reference issues'): m.main()
+            # 01-source-check (node --check) is a real subprocess step that must
+            # still run; the point is that Blender/Unreal (02-blender onward)
+            # never get a chance to launch. That first call is 'node ... --check'.
+            self.assertEqual(run.call_count,1)
+            self.assertIn('build-web-data.mjs',str(run.call_args))
+        result=m.read(output/'refresh.json')
+        self.assertEqual(result['status'],'failed')
+        self.assertTrue(any('fur-MISSING' in i['message'] for i in m.read(output/'source-changes.json')['issues']))
+        self.assertFalse((output/'index.html').exists())
+
 
 if __name__=='__main__': unittest.main()

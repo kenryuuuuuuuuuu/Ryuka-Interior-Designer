@@ -14,6 +14,7 @@ sys.path.insert(0,str(ROOT/'unreal'))
 sys.path.insert(0,str(ROOT/'scripts'))
 from finish_settings import validate_finishes
 from refresh_inputs import read, sha, retained_inputs, scenario_inputs
+import source_changes
 
 
 def sources():
@@ -42,12 +43,27 @@ def summary(report):
         note_html=('<br>メモ：'+esc(selected['note'])) if selected.get('note') else ''
         scenario_html=('<p>選択した案「'+esc(selected['name'])+'」の比較条件を、'
             '現在の建物にこの案の比較条件を適用しました。'+note_html+'</p>')
+    src=report.get('sourceChanges')
+    source_changes_html=''
+    if src:
+        if src['baselineStatus']=='available':
+            s=src['summary']
+            parts=[]
+            for label,key in (('部屋','rooms'),('家具','furniture'),('家具カタログ','catalog')):
+                c=s.get(key)
+                if c: parts.append(f'{esc(label)}：追加{c["added"]}・削除{c["removed"]}・変更{c["modified"]}')
+            source_changes_html=('<h2>前回モデルからの変更</h2><p>'+'、'.join(parts)+
+                '。<a href="'+esc(src['htmlPath'])+'">詳細</a></p>')
+        else:
+            source_changes_html=('<h2>前回モデルからの変更</h2><p>前回との詳細比較はできませんでした（'
+                +esc(src.get('baselineReason',''))+'）。<a href="'+esc(src['htmlPath'])+'">詳細</a></p>')
     return ('<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         '<title>内装シミュレーション更新結果</title><style>body{font:16px/1.8 system-ui;max-width:960px;margin:40px auto;padding:0 20px;background:#f5f3ef;color:#292722}a{color:#365d70}</style>'
         '<h1>内装シミュレーションの更新が完了しました</h1><p>'+esc(report['note'])+'</p>'+scenario_html+
         '<p>保存済みの仕上げ・視点・太陽条件を引き継ぎ、現在の正本から建物を再生成しました。'
         '実敷地への適用と室内照度の校正は別途確認が必要です。</p><ul>'+links+'</ul>'
         '<p>Unrealの「ツール → 内装比較」で条件を変更できます。変更を次回へ残すには「比較条件とレベルを保存」を使ってください。</p>'
+        +source_changes_html+
         '<h2>前回パッケージから変わった入力ファイル</h2><ul>'+changes+'</ul>'
         '<p><a href="refresh.json">工程・入力・引き継ぎの検証記録</a></p></html>')
 
@@ -120,6 +136,22 @@ def main():
     try:
         # Verify browser-derived data first; never silently rewrite tracked outputs.
         run('01-source-check',['node',ROOT/'scripts/build-web-data.mjs','--check'])
+        # Compare --previous's frozen inputs against the current source, and
+        # check the current source's cross-file references, before Blender
+        # starts. --previous is always the comparison basis, even with
+        # --scenario (a scenario's origin is a separate, already-recorded
+        # thing -- see W03-A -- not what "changed since" means here).
+        step=dict(name='01b-source-changes',status='running'); report['steps'].append(step); save(output,report)
+        changes=source_changes.compare(previous,ROOT)
+        (output/'source-changes.json').write_text(json.dumps(changes,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+        (output/'changes.html').write_text(source_changes.render_html(changes),encoding='utf-8')
+        report['sourceChanges']=dict(baselineStatus=changes['baselineStatus'],baselineReason=changes.get('baselineReason'),
+            summary=source_changes.summarize(changes),jsonPath='source-changes.json',htmlPath='changes.html')
+        save(output,report)
+        if changes['issues']:
+            step['status']='failed'; save(output,report)
+            raise RuntimeError('Current source has unresolved reference issues; inspect '+str(output/'changes.html'))
+        step['status']='complete'; save(output,report)
         run('02-blender',[sys.executable,ROOT/'scripts/build-visual-twin.py','--blender',args.blender,
             '--interior','--output',output/'blender','--variant',read(saved/'study-state.json')['variant']])
         command=[sys.executable,ROOT/'scripts/build-unreal-study.py','--engine',args.engine,
