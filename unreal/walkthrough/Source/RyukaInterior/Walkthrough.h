@@ -25,9 +25,11 @@ private:
  TSharedPtr<class FJsonObject> State;
  TArray<FVector2D> Room;
  float Floor=0;
- void SetFinish(const FString& Name);
+ FVector LastSafeLocation=FVector::ZeroVector;
+ void SetFinish(const FString& Name,const FString& Label);
  void SetSun(float Elevation);
  bool ApplyConditions();
+ bool InsideRoom(const FVector& Position) const;
  bool Safe(const FVector& Position) const;
  bool Restore(const TSharedPtr<FJsonObject>& Candidate);
 };

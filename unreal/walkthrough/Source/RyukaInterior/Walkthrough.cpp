@@ -55,8 +55,11 @@ AWalkthroughCharacter::AWalkthroughCharacter() {
  GetCharacterMovement()->bCanWalkOffLedges=false;
  bUseControllerRotationYaw=true;
 }
-bool AWalkthroughCharacter::Safe(const FVector& P) const {
+bool AWalkthroughCharacter::InsideRoom(const FVector& P) const {
  // Interior and 25cm clearance from the room boundary; handles concave outlines.
+ // This is the invisible boundary (openings/doorways have no physical wall),
+ // kept separate from furniture/wall collision so Tick() can enforce it after
+ // the normal CharacterMovement sweep instead of blocking movement input.
  bool Inside=false; FVector2D Q(P.X,P.Y);
  for(int32 I=0,J=Room.Num()-1;I<Room.Num();J=I++) {
   const FVector2D A=Room[I],B=Room[J];
@@ -65,14 +68,17 @@ bool AWalkthroughCharacter::Safe(const FVector& P) const {
   const float T=FMath::Clamp(FVector2D::DotProduct(Q-A,D)/FMath::Max(D.SizeSquared(),.001),0.,1.);
   if((Q-(A+T*D)).Size()<26) return false;
  }
- if(!Inside) return false;
+ return Inside;
+}
+bool AWalkthroughCharacter::Safe(const FVector& P) const {
+ if(!InsideRoom(P)) return false;
  FCollisionQueryParams Params(SCENE_QUERY_STAT(WalkthroughSpawn),false,this);
  return !GetWorld()->OverlapBlockingTestByChannel(P,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(25,87),Params);
 }
 void AWalkthroughCharacter::BeginPlay() {
  Super::BeginPlay();
  auto Config=ReadJSON(TEXT("walkthrough.json"));
- if(!Config.IsValid()) {Message=TEXT("Missing walkthrough configuration"); GetCharacterMovement()->DisableMovement(); return;}
+ if(!Config.IsValid()) {Message=TEXT("内覧の設定が見つかりません"); GetCharacterMovement()->DisableMovement(); return;}
  Floor=Config->GetNumberField(TEXT("floorCm"));
  for(auto Value:Config->GetArrayField(TEXT("polygonCm"))) {
   auto P=Value->AsArray(); Room.Add(FVector2D(P[0]->AsNumber(),P[1]->AsNumber()));
@@ -81,8 +87,11 @@ void AWalkthroughCharacter::BeginPlay() {
 }
 bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
  if(!Candidate.IsValid()||Candidate->GetStringField(TEXT("roomId"))!=ReadJSON(TEXT("walkthrough.json"))->GetStringField(TEXT("roomId"))) return false;
- const TSharedPtr<FJsonObject>* Camera; FVector P,R;
+ const TSharedPtr<FJsonObject>* Camera; FVector P,R; double LensMm;
  if(!Candidate->TryGetObjectField(TEXT("camera"),Camera)||!VectorField(*Camera,TEXT("locationCm"),P)||!VectorField(*Camera,TEXT("rotationDeg"),R)) return false;
+ // Inverse of the 36mm-sensor convention used by SaveView()/study_state.py:
+ // lensMm=18/tan(FOV/2) -> FOV=2*atan(18/lensMm). Range matches study_state.py.
+ if(!(*Camera)->TryGetNumberField(TEXT("lensMm"),LensMm)||!FMath::IsFinite(LensMm)||LensMm<12.||LensMm>120.) return false;
  P.Z=Floor+88.5;
  bool Adjusted=false;
  if(!Safe(P)) {
@@ -92,7 +101,7 @@ bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
    double Distance=FVector::DistSquared2D(P,Test);
    if(Distance<Best&&Safe(Test)) {Best=Distance; Found=Test;}
   }
-  if(Best==TNumericLimits<double>::Max()) {Message=TEXT("No safe start position. Review furniture layout.");return false;}
+  if(Best==TNumericLimits<double>::Max()) {Message=TEXT("安全な開始位置がありません。家具配置を確認してください。");return false;}
   P=Found; Adjusted=true;
  }
  auto Previous=State; State=Candidate;
@@ -100,13 +109,15 @@ bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
  SetActorLocation(P,false,nullptr,ETeleportType::TeleportPhysics);
  GetCharacterMovement()->StopMovementImmediately(); GetCharacterMovement()->SetMovementMode(MOVE_Walking);
  Controller->SetControlRotation(FRotator(FMath::Clamp(R.X,-80.,80.),R.Y,0));
- bReady=true; Message=Adjusted?TEXT("Moved to nearest clear position"):TEXT("View restored"); return true;
+ Eye->FieldOfView=FMath::RadiansToDegrees(2.*atan(18./LensMm));
+ LastSafeLocation=P;
+ bReady=true; Message=Adjusted?TEXT("空いている最も近い位置へ移動しました"):TEXT("視点を復元しました"); return true;
 }
 void AWalkthroughCharacter::RestoreView() {
  const FString Saved=FPaths::ProjectDir()/SavedViewName(), Base=FPaths::ProjectDir()/TEXT("study-state.json");
  const bool Newer=IFileManager::Get().GetTimeStamp(*Saved)>IFileManager::Get().GetTimeStamp(*Base);
  if(!(Newer&&Restore(ReadJSON(SavedViewName())))&&!Restore(ReadJSON(TEXT("study-state.json")))) {
-  bReady=false; GetCharacterMovement()->DisableMovement(); Message=TEXT("Cannot restore a valid view");
+  bReady=false; GetCharacterMovement()->DisableMovement(); Message=TEXT("有効な視点を復元できません");
  }
 }
 bool AWalkthroughCharacter::ApplyConditions() {
@@ -136,15 +147,17 @@ bool AWalkthroughCharacter::ApplyConditions() {
  Post->Settings.AutoExposureMinBrightness=EV; Post->Settings.AutoExposureMaxBrightness=EV;
  return true;
 }
-void AWalkthroughCharacter::SetFinish(const FString& Name) {
+void AWalkthroughCharacter::SetFinish(const FString& Name,const FString& Label) {
  if(!bReady) return; FString Old=State->GetStringField(TEXT("variant")); State->SetStringField(TEXT("variant"),Name);
- if(!ApplyConditions()) {State->SetStringField(TEXT("variant"),Old);Message=TEXT("Finish unavailable");} else Message=Name;
+ if(!ApplyConditions()) {State->SetStringField(TEXT("variant"),Old);Message=TEXT("この仕上げは利用できません");} else Message=Label;
 }
 void AWalkthroughCharacter::SetSun(float Elevation) {
- if(!bReady) return; State->SetNumberField(TEXT("elevationDeg"),Elevation); State->RemoveField(TEXT("solar")); ApplyConditions(); Message=TEXT("Manual sun angle (not calibrated)");
+ if(!bReady) return; State->SetNumberField(TEXT("elevationDeg"),Elevation); State->RemoveField(TEXT("solar")); ApplyConditions(); Message=TEXT("手動太陽角度（未校正）");
 }
-void AWalkthroughCharacter::Finish1(){SetFinish(TEXT("natural"));} void AWalkthroughCharacter::Finish2(){SetFinish(TEXT("warm"));}
-void AWalkthroughCharacter::Finish3(){SetFinish(TEXT("reference"));} void AWalkthroughCharacter::SunLow(){SetSun(30);} void AWalkthroughCharacter::SunHigh(){SetSun(60);}
+// Labels match study_controls.py's register_menu() so the walkthrough and the
+// editor menu describe the same variants identically.
+void AWalkthroughCharacter::Finish1(){SetFinish(TEXT("natural"),TEXT("白壁・ナチュラルオーク"));} void AWalkthroughCharacter::Finish2(){SetFinish(TEXT("warm"),TEXT("グレージュ・ウォルナット"));}
+void AWalkthroughCharacter::Finish3(){SetFinish(TEXT("reference"),TEXT("石調の床・木板天井"));} void AWalkthroughCharacter::SunLow(){SetSun(30);} void AWalkthroughCharacter::SunHigh(){SetSun(60);}
 void AWalkthroughCharacter::SaveView() {
  if(!bReady) return;
  auto Camera=MakeShared<FJsonObject>(); Camera->SetArrayField(TEXT("locationCm"),Numbers(Eye->GetComponentLocation()));
@@ -153,8 +166,8 @@ void AWalkthroughCharacter::SaveView() {
  State->SetObjectField(TEXT("camera"),Camera);
  FString Text; FJsonSerializer::Serialize(State.ToSharedRef(),TJsonWriterFactory<>::Create(&Text));
  FString Path=FPaths::ProjectDir()/SavedViewName(),Tmp=Path+TEXT(".tmp");
- if(FFileHelper::SaveStringToFile(Text,*Tmp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)&&IFileManager::Get().Move(*Path,*Tmp,true,true)==COPY_OK) Message=TEXT("View and conditions saved");
- else Message=TEXT("Save failed");
+ if(FFileHelper::SaveStringToFile(Text,*Tmp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)&&IFileManager::Get().Move(*Path,*Tmp,true,true)==COPY_OK) Message=TEXT("視点と条件を保存しました");
+ else Message=TEXT("保存に失敗しました");
 }
 void AWalkthroughCharacter::ToggleMouse() {auto PC=Cast<APlayerController>(Controller); PC->bShowMouseCursor=!PC->bShowMouseCursor; if(PC->bShowMouseCursor) PC->SetInputMode(FInputModeGameAndUI()); else PC->SetInputMode(FInputModeGameOnly());}
 void AWalkthroughCharacter::SetupPlayerInputComponent(UInputComponent* I) {
@@ -165,7 +178,53 @@ void AWalkthroughCharacter::SetupPlayerInputComponent(UInputComponent* I) {
 }
 void AWalkthroughCharacter::Tick(float Delta) {
  Super::Tick(Delta); auto PC=Cast<APlayerController>(Controller);
- if(PC&&!bInitialized) {bInitialized=true; RestoreView(); PC->bShowMouseCursor=false; PC->SetInputMode(FInputModeGameOnly());}
+ if(PC&&!bInitialized) {
+  bInitialized=true;
+  // Clamping ControlRotation.Pitch by hand after AddControllerPitchInput does
+  // not work here: that input is only applied to ControlRotation by the
+  // PlayerController's own update, which runs after this Tick, so a manual
+  // clamp always reads last frame's value. PlayerCameraManager's view pitch
+  // range is the standard place this limit belongs; it is enforced as part
+  // of that same update, so it actually catches every frame's input.
+  if(PC->PlayerCameraManager) {PC->PlayerCameraManager->ViewPitchMin=-80.; PC->PlayerCameraManager->ViewPitchMax=80.;}
+  RestoreView(); PC->bShowMouseCursor=false; PC->SetInputMode(FInputModeGameOnly());
+ }
+ // Furniture/wall collision is left to CharacterMovement's own sweep/slide
+ // (below, AddMovementInput is always called for a non-zero direction) so
+ // diagonal movement along a wall does not stall. The room polygon boundary
+ // has no physical wall at openings, so it is enforced here instead: if the
+ // sweep result left the actor outside it, roll back to the last position
+ // that was inside. This runs after Super::Tick() so it sees this frame's
+ // movement, i.e. last frame's AddMovementInput.
+ if(bReady) {
+  const FVector Current=GetActorLocation();
+  if(!InsideRoom(Current)) {
+   // A hard rollback to LastSafeLocation (or a single interpolated point
+   // between it and Current) fights CharacterMovement's own push-out when
+   // sliding along furniture right next to the boundary, and also undoes any
+   // in-bounds axis together with the out-of-bounds one -- e.g. hugging the
+   // north wall while sliding east: only Y left the room, but a single blend
+   // point cancels the X progress too, every frame, reproducing exactly the
+   // "stuck" state CharacterMovement itself warns about. All room edges here
+   // are axis-aligned, so try keeping each axis independently first.
+   FVector Candidate;
+   const FVector KeepX(Current.X,LastSafeLocation.Y,Current.Z);
+   const FVector KeepY(LastSafeLocation.X,Current.Y,Current.Z);
+   if(InsideRoom(KeepX)) Candidate=KeepX;
+   else if(InsideRoom(KeepY)) Candidate=KeepY;
+   else {
+    FVector SafePoint=LastSafeLocation,UnsafePoint=Current;
+    for(int32 I=0;I<12;I++) {
+     FVector Mid=FMath::Lerp(SafePoint,UnsafePoint,0.5f);
+     if(InsideRoom(Mid)) SafePoint=Mid; else UnsafePoint=Mid;
+    }
+    Candidate=SafePoint;
+   }
+   SetActorLocation(Candidate,false,nullptr,ETeleportType::TeleportPhysics);
+   GetCharacterMovement()->Velocity=FVector::ZeroVector;
+   LastSafeLocation=Candidate;
+  } else LastSafeLocation=Current;
+ }
  if(FParse::Param(FCommandLine::Get(),TEXT("RyukaSmoke"))&&GetWorld()->GetTimeSeconds()>3&&!bSmokeDone) {
   bSmokeDone=true; bool Passed=bReady;
   if(bReady) {
@@ -184,11 +243,10 @@ void AWalkthroughCharacter::Tick(float Delta) {
  float MX,MY; PC->GetInputMouseDelta(MX,MY); AddControllerYawInput(MX*.5); AddControllerPitchInput(-MY*.5);
  auto Rotation=FRotator(0,PC->GetControlRotation().Yaw,0); auto Forward=Rotation.Vector(); auto Right=FRotationMatrix(Rotation).GetUnitAxis(EAxis::Y);
  FVector Direction=Forward*((PC->IsInputKeyDown(EKeys::W)?1:0)-(PC->IsInputKeyDown(EKeys::S)?1:0))+Right*((PC->IsInputKeyDown(EKeys::D)?1:0)-(PC->IsInputKeyDown(EKeys::A)?1:0));
- FVector Next=GetActorLocation()+Direction.GetSafeNormal()*120*FMath::Min(Delta,.1f);
- if(!Direction.IsNearlyZero()&&Safe(Next)) AddMovementInput(Direction.GetSafeNormal());
+ if(!Direction.IsNearlyZero()) AddMovementInput(Direction.GetSafeNormal());
 }
 AWalkthroughGameMode::AWalkthroughGameMode(){DefaultPawnClass=AWalkthroughCharacter::StaticClass();HUDClass=AWalkthroughHUD::StaticClass();}
-void AWalkthroughHUD::DrawHUD(){Super::DrawHUD();DrawRect(FLinearColor(0,0,0,.65),12,12,760,76);DrawText(TEXT("WASD: walk | Mouse: look | Tab: release cursor | F5: save | F9: restore"),FLinearColor::White,24,22);DrawText(TEXT("1/2/3: finishes | 4/5: sun 30/60 degrees | Eye height 1.60m | provisional daylight"),FLinearColor::White,24,44);if(auto P=Cast<AWalkthroughCharacter>(GetOwningPawn()))DrawText(P->Message,FLinearColor::Yellow,24,66);}
+void AWalkthroughHUD::DrawHUD(){Super::DrawHUD();DrawRect(FLinearColor(0,0,0,.65),12,12,820,76);DrawText(TEXT("WASD：歩行　｜　マウス：視点　｜　Tab：カーソル解放　｜　F5：保存　｜　F9：復元"),FLinearColor::White,24,22);DrawText(TEXT("1/2/3：仕上げ切替　｜　4/5：太陽高度30/60度　｜　目線高さ1.60m　｜　採光は仮条件です"),FLinearColor::White,24,44);if(auto P=Cast<AWalkthroughCharacter>(GetOwningPawn()))DrawText(P->Message,FLinearColor::Yellow,24,66);}
 int32 UWalkthroughLibrary::Prepare(UWorld* World) {
  int32 Count=0;
  for(TActorIterator<AActor> It(World);It;++It) {
