@@ -46,6 +46,25 @@ static bool VectorField(const TSharedPtr<FJsonObject>& O,const FString& Key,FVec
  if(!(*A)[0]->TryGetNumber(X)||!(*A)[1]->TryGetNumber(Y)||!(*A)[2]->TryGetNumber(Z)) return false;
  V=FVector(X,Y,Z); return !V.ContainsNaN();
 }
+static void SavedViewPaths(FString& Path,FString& Backup) {
+ Path=FPaths::ProjectDir()/SavedViewName(); Backup=Path+TEXT(".bak");
+}
+// The one persistent, disk-visible signature of an incomplete SaveView(): the
+// previous save was renamed aside to Backup and never made it back to Path
+// (the final replace failed, and restoring Backup back to Path also failed).
+// This is read purely from what is actually on disk, not cached in-memory
+// state, so the same check recognizes it identically whether it is the same
+// run, a later F5, or a fresh process after a restart. Returns true when
+// there is nothing to recover, or recovery itself just succeeded; only when
+// recovery fails does it return false, leaving Backup untouched and OutMessage
+// explaining that a human needs to look at it.
+static bool RecoverSaveIfNeeded(FString& OutMessage) {
+ FString Path,Backup; SavedViewPaths(Path,Backup);
+ if(IFileManager::Get().FileExists(*Path)||!IFileManager::Get().FileExists(*Backup)) return true;
+ if(IFileManager::Get().Move(*Path,*Backup,true,true)) return true; // auto-recovered
+ OutMessage=TEXT("前回の保存の復旧が必要です。バックアップ「")+Backup+TEXT("」を確認してください。復旧するまで保存できません。");
+ return false;
+}
 AWalkthroughCharacter::AWalkthroughCharacter() {
  PrimaryActorTick.bCanEverTick=true;
  GetCapsuleComponent()->InitCapsuleSize(25,88);
@@ -126,6 +145,13 @@ bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
  bReady=true; Message=Adjusted?TEXT("空いている最も近い位置へ移動しました"):TEXT("視点を復元しました"); return true;
 }
 void AWalkthroughCharacter::RestoreView() {
+ FString RecoveryMessage;
+ if(!RecoverSaveIfNeeded(RecoveryMessage)) {
+  // An unrecovered Backup means the last save's fate is unknown -- silently
+  // falling back to study-state.json here would look like a normal restore
+  // and could lead to it being overwritten later. Stop instead of guessing.
+  Message=RecoveryMessage; bReady=false; GetCharacterMovement()->DisableMovement(); return;
+ }
  const FString Saved=FPaths::ProjectDir()/SavedViewName(), Base=FPaths::ProjectDir()/TEXT("study-state.json");
  const bool Newer=IFileManager::Get().GetTimeStamp(*Saved)>IFileManager::Get().GetTimeStamp(*Base);
  if(Newer) {
@@ -202,12 +228,22 @@ FString AWalkthroughCharacter::CurrentVariantLabel() const {
 }
 void AWalkthroughCharacter::SaveView() {
  if(!bReady) return;
+ FString RecoveryMessage;
+ if(!RecoverSaveIfNeeded(RecoveryMessage)) {
+  // Backup already holds an unrecovered previous save (final replace failed
+  // last time, and so did restoring it back). Refuse to save until that is
+  // resolved: treating Path-missing as "first save" here would skip the
+  // rename-aside step entirely, and a later legitimate rename-aside could
+  // then silently overwrite this same Backup, destroying the last known-good
+  // data with no path back to it.
+  Message=RecoveryMessage; return;
+ }
  auto Camera=MakeShared<FJsonObject>(); Camera->SetArrayField(TEXT("locationCm"),Numbers(Eye->GetComponentLocation()));
  auto R=Controller->GetControlRotation(); Camera->SetArrayField(TEXT("rotationDeg"),Numbers(FVector(R.Pitch,R.Yaw,0)));
  Camera->SetNumberField(TEXT("lensMm"),18./tan(FMath::DegreesToRadians(Eye->FieldOfView/2)));
  State->SetObjectField(TEXT("camera"),Camera);
  FString Text; FJsonSerializer::Serialize(State.ToSharedRef(),TJsonWriterFactory<>::Create(&Text));
- const FString Path=FPaths::ProjectDir()/SavedViewName(),Tmp=Path+TEXT(".tmp"),Backup=Path+TEXT(".bak");
+ FString Path,Backup; SavedViewPaths(Path,Backup); const FString Tmp=Path+TEXT(".tmp");
  // IFileManager::Move() returns bool (true on success), not ECopyResult; a
  // previous `==COPY_OK` (0) compared a bool against an unscoped enum, which
  // usual arithmetic conversions evaluate as (int)bool==(int)enum, inverting
@@ -230,15 +266,36 @@ void AWalkthroughCharacter::SaveView() {
   if(!IFileManager::Get().FileExists(*Path)) {
    bSuccess=IFileManager::Get().Move(*Path,*Tmp,true,true); // first save, nothing to protect
   } else if(IFileManager::Get().Move(*Backup,*Path,true,true)) { // rename old save aside
+#if !UE_BUILD_SHIPPING
+   // Test-only, inert unless -RyukaFaultSave is on the command line (never
+   // passed on a real launch): deterministically reproduces "final replace
+   // fails AND restoring Backup back also fails" by making a real directory
+   // occupy the just-freed target name, so both real Move() calls below fail
+   // via genuine Windows rename semantics -- not a simulated return value.
+   // This is the fixed, reproducible fault-injection point exercised by
+   // -RyukaFaultSave in Tick(), replacing an earlier FileSystemWatcher race
+   // that was real but not guaranteed to land on this exact step every run.
+   if(FParse::Param(FCommandLine::Get(),TEXT("RyukaFaultSave"))) IFileManager::Get().MakeDirectory(*Path,false);
+#endif
    if(IFileManager::Get().Move(*Path,*Tmp,true,true)) {
     bSuccess=true;
     IFileManager::Get().Delete(*Backup,false,true,true);
-   } else {
-    IFileManager::Get().Move(*Path,*Backup,true,true); // restore the previous save
+   } else if(!IFileManager::Get().Move(*Path,*Backup,true,true)) {
+    // Restoring the previous save from Backup failed too: Path is still
+    // missing and Backup still holds it. Do not fall through to the generic
+    // failure message below -- leave Backup exactly as it is (the guard at
+    // the top of this function keeps every later save from touching it
+    // until this is resolved) and say so explicitly instead of silently
+    // reporting a plain "failed to save".
+    Message=TEXT("保存に失敗し、旧データの復元にも失敗しました。バックアップ「")+Backup+TEXT("」が残っています。復旧するまで保存できません。");
+    return;
    }
+   // If the rename-to-Backup step itself failed, Path was never touched and
+   // the previous save is intact; bSuccess stays false either way here. If
+   // the restore-from-Backup above succeeded, the previous save is back at
+   // Path and Backup is gone; bSuccess also stays false here, correctly
+   // reporting that this save attempt itself did not go through.
   }
-  // If the rename-to-Backup step itself failed, Path was never touched and
-  // the previous save is intact; bSuccess stays false either way here.
  }
  Message=bSuccess?TEXT("視点と条件を保存しました"):TEXT("保存に失敗しました");
 }
@@ -323,11 +380,170 @@ void AWalkthroughCharacter::Tick(float Delta) {
     Landed=GetActorLocation();
    }
    // Only ever record a Safe() landing spot. If both sweeps still leave the
-   // actor unsafe, LastSafeLocation keeps its last known-Safe value and the
-   // actor stays wherever the second sweep stopped (a sweep endpoint, never
-   // a location reached by ignoring collision) for the next Tick to retry.
+   // actor unsafe, there is no correction left to retry on the next Tick --
+   // continuing to allow AddMovementInput/SaveView from here would let the
+   // player keep moving and saving from a position no longer guaranteed
+   // reachable back to safety. Stop instead: only F9's Restore() (which
+   // requires and re-confirms a Safe start point, and explicitly restores
+   // MOVE_Walking) may resume play. This is deliberately not a silent
+   // teleport to LastSafeLocation -- that would ignore collision on the way
+   // there, exactly what the sweeps above exist to avoid.
    if(Safe(Landed)) LastSafeLocation=Landed;
+   else {
+    GetCharacterMovement()->StopMovementImmediately();
+    GetCharacterMovement()->DisableMovement();
+    bReady=false;
+    Message=TEXT("安全な位置へ戻れません。F9で復元してください");
+   }
   } else LastSafeLocation=Current;
+ }
+ // -RyukaFaultSave: deterministic, native, single-process regression for the
+ // "final replace fails AND restoring Backup also fails" path (required fix
+ // A). The actual fault is injected inside SaveView() itself (see the
+ // MakeDirectory call there); everything here just drives real SaveView()/
+ // RestoreView() calls and inspects real files on disk -- no part of the
+ // save/restore logic under test is mocked or bypassed. The obstruction is
+ // deliberately left on disk when this finishes so a separate plain relaunch
+ // (no switches -- see -RyukaVerifyRecovery below) can independently confirm
+ // it is recognized after a real process restart, and a relaunch after the
+ // obstruction is removed can independently confirm auto-recovery -- both
+ // outside this process, since neither claim can be proven by an in-process
+ // test alone. Inert unless -RyukaFaultSave is on the command line.
+ if(FParse::Param(FCommandLine::Get(),TEXT("RyukaFaultSave"))) {
+  static bool Done=false;
+  if(!Done&&GetWorld()->GetTimeSeconds()>1) {
+   Done=true;
+   auto ReadAbs=[](const FString& AbsPath)->FString{FString S;FFileHelper::LoadFileToString(S,*AbsPath);return S;};
+   FString Path,Backup; SavedViewPaths(Path,Backup);
+   IFileManager::Get().Delete(*Path,false,true,true);
+   IFileManager::Get().DeleteDirectory(*Path,false,true);
+   IFileManager::Get().Delete(*Backup,false,true,true);
+   IFileManager::Get().DeleteDirectory(*Backup,false,true);
+   SaveView(); // Path did not exist: plain first save, no injection runs yet
+   const FString Original=ReadAbs(Path);
+   const bool CreatedInitialSave=!Original.IsEmpty();
+   SaveView(); // Path exists now: triggers the injected double failure
+   const FString AfterFault=ReadAbs(Backup); const FString MessageAfterFault=Message;
+   const bool PreservedAfterFault=AfterFault==Original&&!Original.IsEmpty();
+   SaveView(); // repeat F5 while still faulted: must not touch Backup
+   const FString AfterRepeat=ReadAbs(Backup); const FString MessageAfterRepeat=Message;
+   const bool PreservedAfterRepeat=AfterRepeat==Original;
+   RestoreView(); // simulate F9 while still faulted
+   const bool BlockedOnF9=!bReady; const FString MessageAfterF9=Message;
+   const bool Passed=CreatedInitialSave&&PreservedAfterFault&&MessageAfterFault.Contains(TEXT("復旧"))
+    &&PreservedAfterRepeat&&MessageAfterRepeat.Contains(TEXT("復旧"))&&BlockedOnF9&&MessageAfterF9.Contains(TEXT("復旧"));
+   auto Result=MakeShared<FJsonObject>();
+   Result->SetBoolField(TEXT("createdInitialSave"),CreatedInitialSave);
+   Result->SetBoolField(TEXT("backupPreservedAfterFault"),PreservedAfterFault);
+   Result->SetStringField(TEXT("messageAfterFault"),MessageAfterFault);
+   Result->SetBoolField(TEXT("backupPreservedAfterRepeatSave"),PreservedAfterRepeat);
+   Result->SetStringField(TEXT("messageAfterRepeatSave"),MessageAfterRepeat);
+   Result->SetBoolField(TEXT("blockedOnF9WhileFaulted"),BlockedOnF9);
+   Result->SetStringField(TEXT("messageAfterF9"),MessageAfterF9);
+   Result->SetBoolField(TEXT("passed"),Passed);
+   Result->SetStringField(TEXT("note"),TEXT("Obstruction left on disk on purpose -- relaunch with no switches (or -RyukaVerifyRecovery) to check restart recognition, then delete the directory at ")+Path+TEXT(" and relaunch again to check auto-recovery."));
+   FString Out; FJsonSerializer::Serialize(Result,TJsonWriterFactory<>::Create(&Out));
+   FFileHelper::SaveStringToFile(Out,*(FPaths::ProjectSavedDir()/TEXT("walkthrough-fault-save.json")));
+   FFileHelper::SaveStringToFile(Passed?TEXT("PASS"):TEXT("FAIL"),*(FPaths::ProjectSavedDir()/TEXT("walkthrough-fault-save.txt")));
+  }
+  if(Done) {FPlatformMisc::RequestExit(false); return;}
+ }
+ // -RyukaVerifyRecovery: read-only observer of whatever the normal startup
+ // sequence already decided (Tick's !bInitialized block above calls
+ // RestoreView() unconditionally on every launch, faulted or not); this
+ // switch changes no decision, it only reports bReady/Message and exits, so
+ // a launch with it is behaviorally identical to a real user's plain launch.
+ // Used to independently confirm, via separate real process launches, that a
+ // save-recovery state left by -RyukaFaultSave is (a) recognized after a
+ // restart and (b) auto-recovered once the obstruction is removed.
+ if(FParse::Param(FCommandLine::Get(),TEXT("RyukaVerifyRecovery"))) {
+  static bool Done=false;
+  if(!Done&&GetWorld()->GetTimeSeconds()>1) {
+   Done=true;
+   FString Path,Backup; SavedViewPaths(Path,Backup);
+   auto Result=MakeShared<FJsonObject>();
+   Result->SetBoolField(TEXT("ready"),bReady);
+   Result->SetStringField(TEXT("message"),Message);
+   Result->SetBoolField(TEXT("pathIsFile"),IFileManager::Get().FileExists(*Path));
+   Result->SetBoolField(TEXT("backupExists"),IFileManager::Get().FileExists(*Backup));
+   FString Out; FJsonSerializer::Serialize(Result,TJsonWriterFactory<>::Create(&Out));
+   FFileHelper::SaveStringToFile(Out,*(FPaths::ProjectSavedDir()/TEXT("walkthrough-recovery-check.json")));
+  }
+  if(Done) {FPlatformMisc::RequestExit(false); return;}
+ }
+ // -RyukaBoundaryFaultTest: deterministic, native regression for required fix
+ // B (stop, don't keep playing, when both boundary-correction sweeps still
+ // land unsafe) plus its F9 recovery. Uses real spawned blocking geometry (so
+ // Safe()/Tick()'s own correction logic run completely unmodified and for
+ // real) instead of relying on incidental room layout, so the outcome does
+ // not depend on which generated project this runs against. Inert unless
+ // -RyukaBoundaryFaultTest is on the command line.
+ if(FParse::Param(FCommandLine::Get(),TEXT("RyukaBoundaryFaultTest"))) {
+  static int32 Phase=0; static FVector L0,L1; static TArray<AStaticMeshActor*> Blockers;
+  static bool P1Ready=false; static FString Msg1,Msg2,Msg3;
+  auto Spawn=[this](const FVector& Center,const FVector& SizeCm)->AStaticMeshActor* {
+   auto Mesh=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")); if(!Mesh) return nullptr;
+   FActorSpawnParameters Params; Params.SpawnCollisionHandlingOverride=ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+   auto Actor=GetWorld()->SpawnActor<AStaticMeshActor>(Center,FRotator::ZeroRotator,Params); if(!Actor) return nullptr;
+   auto Comp=Actor->GetStaticMeshComponent(); Comp->SetMobility(EComponentMobility::Movable);
+   Comp->SetStaticMesh(Mesh); Actor->SetActorScale3D(SizeCm/100.);
+   Comp->SetCollisionProfileName(TEXT("BlockAll")); Comp->RecreatePhysicsState();
+   return Actor;
+  };
+  const double T=GetWorld()->GetTimeSeconds();
+  if(Phase==0&&T>1) {
+   Phase=1;
+   if(!bReady) {Msg1=TEXT("初期状態が準備できていません"); Phase=9;}
+   else {
+    L0=LastSafeLocation;
+    // March outward in a fixed direction from the known-Safe L0 until Safe()
+    // first turns false: whatever boundary/furniture triggers that is a real,
+    // marginal (a few cm) excursion -- not a deep artificial penetration from
+    // teleporting onto a spawned blocker, which starts the actor already
+    // embedded in solid geometry and makes the following sweep unreliable --
+    // so the existing two-attempt correction (already reviewed and accepted)
+    // gets a realistic case to recover within. This is a regression check
+    // that the new stop logic below does not fire on an ordinary recoverable
+    // excursion.
+    FVector Probe=L0;
+    for(int32 I=0;I<200&&Safe(Probe);I++) Probe+=FVector(5,0,0);
+    SetActorLocation(Probe,false,nullptr,ETeleportType::TeleportPhysics);
+   }
+  } else if(Phase==1&&T>1.5) {
+   P1Ready=bReady; Msg1=Message; L1=bReady?LastSafeLocation:L0;
+   for(auto* B:Blockers) if(B) B->Destroy(); Blockers.Empty();
+   Phase=2;
+   if(P1Ready) {
+    // One large blocker generously covering both the new Current test point
+    // and L1 (the last known-safe point) plus margin: every candidate the
+    // correction algorithm could reach -- KeepX, KeepY, the binary-search
+    // segment between them, and L1 itself -- sits inside it, so both the
+    // candidate sweep and the LastSafeLocation fallback sweep are guaranteed
+    // to still land unsafe.
+    Blockers.Add(Spawn(FMath::Lerp(L1,L1+FVector(300,300,0),0.5f),FVector(900,900,300)));
+    SetActorLocation(L1+FVector(60,60,0),false,nullptr,ETeleportType::TeleportPhysics);
+   }
+  } else if(Phase==2&&T>2.2) {
+   const bool Stopped=!bReady&&GetCharacterMovement()->MovementMode==MOVE_None&&GetCharacterMovement()->Velocity.IsNearlyZero();
+   Msg2=Message;
+   for(auto* B:Blockers) if(B) B->Destroy(); Blockers.Empty();
+   RestoreView(); // simulate F9
+   const bool Restored=bReady&&Safe(GetActorLocation()); Msg3=Message;
+   const bool Passed=P1Ready&&Stopped&&Restored;
+   auto Result=MakeShared<FJsonObject>();
+   Result->SetBoolField(TEXT("recoveredWithinTwoAttempts"),P1Ready);
+   Result->SetStringField(TEXT("messageAfterRecoverableExcursion"),Msg1);
+   Result->SetBoolField(TEXT("stoppedAfterBothAttemptsFailed"),Stopped);
+   Result->SetStringField(TEXT("messageAfterStop"),Msg2);
+   Result->SetBoolField(TEXT("resumedAfterF9"),Restored);
+   Result->SetStringField(TEXT("messageAfterF9"),Msg3);
+   Result->SetBoolField(TEXT("passed"),Passed);
+   FString Out; FJsonSerializer::Serialize(Result,TJsonWriterFactory<>::Create(&Out));
+   FFileHelper::SaveStringToFile(Out,*(FPaths::ProjectSavedDir()/TEXT("walkthrough-boundary-fault.json")));
+   FFileHelper::SaveStringToFile(Passed?TEXT("PASS"):TEXT("FAIL"),*(FPaths::ProjectSavedDir()/TEXT("walkthrough-boundary-fault.txt")));
+   Phase=9;
+  }
+  if(Phase==9) {FPlatformMisc::RequestExit(false); return;}
  }
  if(FParse::Param(FCommandLine::Get(),TEXT("RyukaSmoke"))&&GetWorld()->GetTimeSeconds()>3&&!bSmokeDone) {
   bSmokeDone=true; bool Passed=bReady;
