@@ -32,7 +32,7 @@
 
 `unreal/walkthrough/Source/RyukaInterior/Walkthrough.cpp`のみ（`SavedViewName()`・`-RyukaFaultSave`ブロックの削除処理・3テストブロックの`#if`範囲）。`Walkthrough.h`の変更なし。
 
-証拠は`build/W02-diag/v5-final-*`（生ログ）と`v5-final-*-decoded.json`（UTF-16→UTF-8変換、変換元は同名の`.log`実行で生成された`Saved/walkthrough-*.json`）にあります。`build/W02-refresh-v5/`が最新の一括生成先です。
+証拠は`build/W02-diag/`配下です。`v5-final-*-raw.json`/`.txt`はUE実行中に生成された`Saved/walkthrough-fault-save.*`・`walkthrough-recovery-check.json`・`walkthrough-boundary-fault.*`をそのままコピーしたネイティブ出力（UTF-16、BOM付き）です。同名の`v5-final-*-decoded.json`は、それぞれの`-raw.json`を`python -c "json.load(...,encoding='utf-16')"`でUTF-8へ変換しただけの表示用コピーで、内容は`-raw.json`と同一です。`v5-final-*.log`はその起動時のUEプロセス標準出力です。`build/W02-refresh-v5/`が最新の一括生成先です。
 
 ## 残ること
 
