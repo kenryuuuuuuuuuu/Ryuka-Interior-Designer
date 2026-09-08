@@ -1,5 +1,7 @@
 # 進捗・未解決事項
 
+2026-09-08更新（W03-A）：比較条件（仕上げ・視点・太陽条件）を名前付きの案として保存し、一覧表示し、現在の正本から再生成した家へ適用できるようになりました。`scripts/save-study-scenario.py`・`scripts/list-study-scenarios.py`・`scripts/refresh-visual-study.py --scenario`を追加しています。家具配置の複数管理・壁面単位の仕上げ・UE内の新しい選択UIは対象外です。詳細は[REFRESH_WORKFLOW.md](REFRESH_WORKFLOW.md)、[W03-A報告](tasks/W03-A-report.md)を参照してください。
+
 最新レビュー：W02を完了として受け入れました（対象5c41a25）。[最終レビュー](tasks/W02-review-v5.md)。ゲストLDKの操作・保存復帰・再生成とテスト保存の分離を確認済みです。狭所の滑らかさは非阻害の残件。次は[実装計画](IMPLEMENTATION_ROADMAP.md)のW03の詳細設計です。
 
 2026-09-08更新（W02）：ゲストLDK内覧を実際のキーボード・マウス入力で操作確認しました。壁際の斜め歩行固まり・視点の上下角度制限なし・保存画角の未反映という3件の不具合を修正し、保存/復帰・異常系（JSON破損、部屋不一致、保存位置の重なり等）もクラッシュなく安全に処理することを確認しています。HUDは日本語表示です。詳細は[UNREAL_WALKTHROUGH.md](UNREAL_WALKTHROUGH.md)、[W02報告](tasks/W02-report.md)を参照してください。家具と部屋境界が極端に近接する一部箇所での斜め歩行の残る制限は次段階の課題です。

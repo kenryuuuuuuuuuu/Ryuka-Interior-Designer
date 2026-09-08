@@ -47,4 +47,25 @@ python scripts/refresh-visual-study.py --previous build/ue-context-v3 --output b
 
 `changedSourceFiles`は前回のBlenderパッケージの入力ハッシュとの比較です。以前は記録対象でなかったUEコードなども表示されます。建物の変更だけを示す一覧ではありません。
 
+## 名前付きの検討案を保存・一覧・再適用する（W03-A、2026-09-08追加）
+
+内覧・編集画面で決めた比較条件（仕上げ・視点・太陽条件）を、名前を付けて`build/scenarios/`配下に保存し、後から選んで別の再生成に適用できます。家の形状・家具配置は常に現在の正本から生成するため、案作成時とソースが異なれば見た目は変わり得ます。家具配置案そのものの複数管理、壁面単位の仕上げは対象外です。
+
+```powershell
+# 保存：projectは既存UEプロジェクト、outputは未作成ディレクトリ。Blender/UEは起動しません。
+python scripts/save-study-scenario.py --project build/W02-refresh-v5/ue --name 'ゲストLDK・木部案A' --note '午前の検討' --output build/scenarios/guest-a-v1
+
+# 一覧
+python scripts/list-study-scenarios.py --root build/scenarios
+
+# 再適用：--scenarioを指定すると、状態・日時・周辺は案パッケージだけから読み、
+# previous側の最新保存や周辺は混ぜません。--previousは前回projectのimport済み確認・
+# 内覧モジュール有無・変更ファイル比較に引き続き使います。
+python scripts/refresh-visual-study.py --previous build/W02-refresh-v5/ue --scenario build/scenarios/guest-a-v1 --output build/W03-A-refresh-v1 --cache '../../ddc'
+```
+
+保存時、編集画面(`study-state.json`)と内覧の保存(`Saved/walkthrough-state.json`)のうち新しい方（テスト/smoke保存は対象外）を使います。選ばれた状態が無効な場合や、内覧の保存が復旧待ち（バックアップのみ残り本体がない状態）の場合は、案を保存せず中止します。案は追記方式で、既存出力先を上書きしません。
+
+`refresh.json`には選択した案（id/name、案パッケージのSHA-256、原本情報）が`selectedScenario`として記録されます。既存の`sourceHashes`（今回の入力）・`changedSourceFiles`（previousモデルとの比較）の意味は変わりません。
+
 実敷地・真北、キッチンと冷蔵庫の正面方向、採用品番、夜間照明、専用の歩行UIは別の作業です。日時・角度・周辺条件を含む成果物はローカルで保管します。

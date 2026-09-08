@@ -11,14 +11,9 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'unreal'))
-from study_state import validate_state
-from solar_position import validate_cases
-from site_context import validate_context
+sys.path.insert(0,str(ROOT/'scripts'))
 from finish_settings import validate_finishes
-
-
-def read(path): return json.loads(path.read_text(encoding='utf-8-sig'))
-def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+from refresh_inputs import read, sha, retained_inputs, scenario_inputs
 
 
 def sources():
@@ -28,36 +23,6 @@ def sources():
             if path.is_file() and path.suffix in ('.json','.py','.mjs','.js','.hlsl','.ini','.uproject','.cpp','.h','.cs'):
                 result[path.relative_to(ROOT).as_posix()]=hashlib.sha256(path.read_bytes().replace(b'\r\n',b'\n')).hexdigest()
     return result
-
-
-def retained_inputs(previous, gallery=False):
-    report=read(previous/'import-verification.json')
-    if not report.get('unrealImportVerified'): raise ValueError('Previous study must have a successful import report')
-    settings=read(ROOT/'data/visual/guest-ldk-study.json')
-    state_path=previous/'study-state.json'
-    runtime=previous/'Saved/walkthrough-state.json'
-    if runtime.exists() and runtime.stat().st_mtime>state_path.stat().st_mtime: state_path=runtime
-    state=validate_state(read(state_path),dict(roomId=settings['roomId'],settings=settings))
-    paths={'state':state_path}
-    if (previous/'sun-cases.json').exists():
-        cases=validate_cases(read(previous/'sun-cases.json'))['cases']
-        paths['sunCases']=previous/'sun-cases.json'
-        if gallery and (not any(c['usable'] for c in cases) or sum(c['usable'] for c in cases)*2>24):
-            raise ValueError('Gallery requires 1–12 usable solar cases')
-    elif gallery:
-        raise ValueError('The previous study has no solar cases for a comparison gallery')
-    context=previous/'site-context.json'
-    expected=state.get('siteContextSHA256')
-    imported=report.get('siteContext')
-    if context.exists():
-        validate_context(read(context))
-        if not expected: raise ValueError('Save comparison conditions with the current study controls before retaining site context')
-        if expected and expected!=sha(context): raise ValueError('Context changed after saving the study; rebuild explicitly with --context first')
-        if imported and imported['sha256']!=sha(context): raise ValueError('Context differs from the imported study')
-        paths['context']=context
-    elif expected or imported:
-        raise ValueError('Previous study is missing required site-context.json')
-    return paths
 
 
 def save(output,report):
@@ -71,9 +36,15 @@ def summary(report):
     changes=''.join('<li>'+esc(name)+'</li>' for name in report['changedSourceFiles'])
     links='<li><a href="blender/interior.blend">Blenderモデル</a></li><li><a href="ue/RyukaInterior.uproject">Unrealプロジェクト</a></li>'
     if report['gallery']: links+='<li><a href="comparison/index.html">日時・仕上げの比較一覧</a></li>'
+    scenario_html=''
+    selected=report.get('selectedScenario')
+    if selected:
+        note_html=('<br>メモ：'+esc(selected['note'])) if selected.get('note') else ''
+        scenario_html=('<p>選択した案「'+esc(selected['name'])+'」の比較条件を、'
+            '現在の建物にこの案の比較条件を適用しました。'+note_html+'</p>')
     return ('<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         '<title>内装シミュレーション更新結果</title><style>body{font:16px/1.8 system-ui;max-width:960px;margin:40px auto;padding:0 20px;background:#f5f3ef;color:#292722}a{color:#365d70}</style>'
-        '<h1>内装シミュレーションの更新が完了しました</h1><p>'+esc(report['note'])+'</p>'
+        '<h1>内装シミュレーションの更新が完了しました</h1><p>'+esc(report['note'])+'</p>'+scenario_html+
         '<p>保存済みの仕上げ・視点・太陽条件を引き継ぎ、現在の正本から建物を再生成しました。'
         '実敷地への適用と室内照度の校正は別途確認が必要です。</p><ul>'+links+'</ul>'
         '<p>Unrealの「ツール → 内装比較」で条件を変更できます。変更を次回へ残すには「比較条件とレベルを保存」を使ってください。</p>'
@@ -90,6 +61,8 @@ def main():
     parser.add_argument('--cache',type=Path,required=True)
     parser.add_argument('--gallery',action='store_true',help='Also capture all usable solar cases with both finishes')
     parser.add_argument('--note',default='実敷地の位置・真北・採用品番は確認待ちです。')
+    parser.add_argument('--scenario',type=Path,help='Saved named scenario directory (see save-study-scenario.py); '
+        'overrides retained study state/sun-cases/site-context from --previous')
     args=parser.parse_args()
     output=args.output.resolve(); previous=args.previous.resolve()
     if not output.is_relative_to(ROOT/'build'): parser.error('Output must be within this worktree build/.')
@@ -99,15 +72,31 @@ def main():
     if len(str(args.cache.resolve()))>119: parser.error('Cache path must be at most 119 characters.')
     if shutil.which('node') is None: parser.error('Node is required.')
     validate_finishes(read(ROOT/'data/visual/unreal-finishes.json'))
-    retained=retained_inputs(previous,args.gallery)
+    prev_report=read(previous/'import-verification.json')
+    if not prev_report.get('unrealImportVerified'): parser.error('Previous project must have a successful import report')
+    scenario=None; scenario_dir=None
+    if args.scenario:
+        # --scenario reads state/sun-cases/site-context only from the saved
+        # package, never from --previous's own saved state: an unrelated
+        # broken or mid-recovery runtime save sitting in --previous must not
+        # be able to block reapplying a valid, independently-verified scenario.
+        scenario_dir=args.scenario.resolve()
+        if not scenario_dir.is_dir(): parser.error('Scenario directory not found: '+str(scenario_dir))
+        retained,scenario=scenario_inputs(scenario_dir,args.gallery)
+    else:
+        retained=retained_inputs(previous,args.gallery)
     before=sources(); retained_hashes={k:sha(v) for k,v in retained.items()}
     old=read(previous/'SourcePackage/manifest.json')['sourceHashes']
     changed=sorted(k for k in set(old)|set(before) if old.get(k)!=before.get(k))
     report=dict(schemaVersion='1.0.0',status='running',startedAt=datetime.now().astimezone().isoformat(),
         note=args.note,gallery=args.gallery,siteDaylightCalibrated=False,sourceHashes=before,
         changedSourceFiles=changed,retainedHashes=retained_hashes,steps=[])
+    if scenario:
+        report['selectedScenario']=dict(id=scenario['id'],name=scenario['name'],note=scenario.get('note',''),
+            scenarioSHA256=sha(scenario_dir/'scenario.json'),origin=scenario['origin'])
     output.mkdir(parents=True); saved=output/'retained'; saved.mkdir()
     for key,path in retained.items(): shutil.copy2(path,saved/('study-state.json' if key=='state' else path.name))
+    if scenario: shutil.copy2(scenario_dir/'scenario.json',saved/'scenario.json')
     save(output,report)
     def unchanged():
         if sources()!=before: raise RuntimeError('Source files changed during regeneration; use a new output after edits finish')
