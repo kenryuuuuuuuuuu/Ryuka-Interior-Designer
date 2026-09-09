@@ -42,5 +42,44 @@ class StateTests(unittest.TestCase):
         with self.assertRaises(ValueError): validate_state(dict(state,elevationDeg=60),self.study)
         with self.assertRaises(ValueError): validate_state(dict(state,solar={}),self.study)
 
+    # --- W06: lighting (1.2.0 required/strict, older schemas normalized) ---
+
+    def test_pre_1_2_0_state_normalized_to_day_off(self):
+        # default_state() already round-trips through validate_state() once
+        # (stamping day/no-fixtures onto this 1.0.0 state); a state that
+        # instead ARRIVES already carrying a night/on `lighting` (e.g. hand-
+        # edited, or forwarded from a genuinely different schema) must still
+        # be normalized to day + no fixture overrides once its own
+        # schemaVersion is older than 1.2.0 -- older schemas never trust an
+        # incoming `lighting` field, they always get the safe default.
+        raw=dict(self.state,lighting=dict(mode='night',fixtures={'elec-008':{'on':True}}))
+        result=validate_state(raw,self.study)
+        self.assertEqual(result['lighting'],dict(mode='day',fixtures={}))
+        result_1_1_0=validate_state(dict(raw,schemaVersion='1.1.0'),self.study)
+        self.assertEqual(result_1_1_0['lighting'],dict(mode='day',fixtures={}))
+
+    def test_1_2_0_requires_well_formed_lighting(self):
+        # Unlike 1.0.0/1.1.0, a 1.2.0 state that omits/malforms `lighting`
+        # is a hard error -- never silently treated as a pre-1.2.0 state.
+        without_lighting={k:v for k,v in self.state.items() if k!='lighting'}
+        state=dict(without_lighting,schemaVersion='1.2.0')
+        with self.assertRaises(ValueError): validate_state(dict(state),self.study)  # no lighting field at all
+        with self.assertRaises(ValueError): validate_state(dict(state,lighting=dict(mode='dusk',fixtures={})),self.study)
+        with self.assertRaises(ValueError): validate_state(dict(state,lighting=dict(mode='night',fixtures='bad')),self.study)
+        good=validate_state(dict(state,lighting=dict(mode='night',fixtures={})),self.study)
+        self.assertEqual(good['lighting'],dict(mode='night',fixtures={}))
+
+    def test_lighting_fixture_override_validation(self):
+        state=dict(self.state,schemaVersion='1.2.0')
+        def with_fixtures(fixtures):
+            return validate_state(dict(state,lighting=dict(mode='night',fixtures=fixtures)),self.study)
+        # Valid: sparse, any subset of on/dimming/temperatureK.
+        with_fixtures({'elec-008':{'on':True,'dimming':0.7,'temperatureK':2700}})
+        with_fixtures({'elec-008':{}})
+        for bad in [{'elec-008':{'on':'yes'}}, {'elec-008':{'dimming':1.5}}, {'elec-008':{'dimming':-0.1}},
+                    {'elec-008':{'temperatureK':1000}}, {'elec-008':{'temperatureK':20000}},
+                    {'elec-008':{'unknownField':1}}, {123:{'on':True}}, 'not-a-dict']:
+            with self.subTest(bad=bad), self.assertRaises(ValueError): with_fixtures(bad)
+
 
 if __name__=='__main__': unittest.main()

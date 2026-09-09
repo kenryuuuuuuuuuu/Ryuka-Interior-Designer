@@ -128,6 +128,7 @@ void AWalkthroughCharacter::BeginPlay() {
  // which case ApplyConditions() below just finds nothing to apply per-surface.
  SurfaceBindings=ReadJSON(TEXT("surface-bindings.json"));
  FinishDocument=ReadJSON(TEXT("finish-settings.json"));
+ LightingBindings=ReadJSON(TEXT("lighting-bindings.json"));
  if(auto Study=ReadJSON(TEXT("SourcePackage/study.json"))) {
   const TSharedPtr<FJsonObject>* SettingsObj;
   if(Study->TryGetObjectField(TEXT("settings"),SettingsObj)) {
@@ -139,9 +140,10 @@ void AWalkthroughCharacter::BeginPlay() {
 }
 bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
  FString Schema;
- // 1.1.0 (W04) adds surfaceOverrides; a 1.0.0 save simply has none -- both
- // are otherwise the same shape, matching study_state.py's SUPPORTED_SCHEMA_VERSIONS.
- if(!Candidate.IsValid()||!Candidate->TryGetStringField(TEXT("schemaVersion"),Schema)||(Schema!=TEXT("1.0.0")&&Schema!=TEXT("1.1.0"))) {
+ // 1.1.0 (W04) adds surfaceOverrides; 1.2.0 (W06) adds lighting; a 1.0.0 save
+ // simply has neither -- all three are otherwise the same shape, matching
+ // study_state.py's SUPPORTED_SCHEMA_VERSIONS.
+ if(!Candidate.IsValid()||!Candidate->TryGetStringField(TEXT("schemaVersion"),Schema)||(Schema!=TEXT("1.0.0")&&Schema!=TEXT("1.1.0")&&Schema!=TEXT("1.2.0"))) {
   Message=TEXT("保存データの形式（バージョン）が無効です"); return false;
  }
  FString RoomId,ExpectedRoomId; auto WalkConfig=ReadJSON(TEXT("walkthrough.json"));
@@ -213,6 +215,7 @@ bool AWalkthroughCharacter::ApplyConditions() {
  if(!State->TryGetStringField(TEXT("variant"),Variant)||!State->TryGetNumberField(TEXT("azimuthDeg"),Az)||
  !State->TryGetNumberField(TEXT("elevationDeg"),El)||!State->TryGetNumberField(TEXT("sunLux"),Lux)||!State->TryGetNumberField(TEXT("exposureEV100"),EV)) return false;
  if(!FMath::IsFinite(Az)||!FMath::IsFinite(El)||!FMath::IsFinite(Lux)||!FMath::IsFinite(EV)||Az<0||Az>360||El<1||El>89||Lux<1||Lux>150000||EV< -5||EV>20) return false;
+ FString SchemaVersion; State->TryGetStringField(TEXT("schemaVersion"),SchemaVersion);
  TMap<FString,AActor*> Actors;
  for(TActorIterator<AActor> It(GetWorld());It;++It) for(auto Tag:It->Tags) if(Tag.ToString().StartsWith(TEXT("Ryuka:"))) Actors.Add(Tag.ToString().Mid(6),*It);
  struct Assignment {UStaticMeshComponent* Component; int32 Slot; UMaterialInterface* Material;}; TArray<Assignment> Plan;
@@ -227,6 +230,54 @@ bool AWalkthroughCharacter::ApplyConditions() {
  }
  auto Sun=Cast<ADirectionalLight>(Actors.FindRef(TEXT("Sun_manual_angle")));
  auto Post=Cast<APostProcessVolume>(Actors.FindRef(TEXT("Fixed_exposure"))); if(!Sun||!Post) return false;
+ // W06: night lighting. A 1.0.0/1.1.0 state predates `lighting` entirely and
+ // is normalized to day + no fixture overrides here (matching
+ // study_state.py's validate_state() exactly); a 1.2.0 state REQUIRES a
+ // well-formed `lighting` field -- missing/malformed there is a hard abort,
+ // never silently treated as legacy. Resolved fully here (no mutation yet),
+ // same discipline as the surfaceOverrides block below.
+ FString LightingMode=TEXT("day");
+ TMap<FString,TSharedPtr<FJsonObject>> FixtureOverrides;
+ if(SchemaVersion==TEXT("1.2.0")) {
+  const TSharedPtr<FJsonObject>* LightingObj;
+  if(!State->TryGetObjectField(TEXT("lighting"),LightingObj)) return false;
+  if(!(*LightingObj)->TryGetStringField(TEXT("mode"),LightingMode)||(LightingMode!=TEXT("day")&&LightingMode!=TEXT("night"))) return false;
+  const TSharedPtr<FJsonObject>* FixturesObj;
+  if(!(*LightingObj)->TryGetObjectField(TEXT("fixtures"),FixturesObj)) return false;
+  for(auto& Entry:(*FixturesObj)->Values) {
+   auto Override=Entry.Value->AsObject(); if(!Override.IsValid()) return false;
+   for(auto& Field:Override->Values)
+    if(Field.Key!=TEXT("on")&&Field.Key!=TEXT("dimming")&&Field.Key!=TEXT("temperatureK")) return false;
+   if(Override->HasField(TEXT("on"))) {bool V; if(!Override->TryGetBoolField(TEXT("on"),V)) return false;}
+   if(Override->HasField(TEXT("dimming"))) {double V; if(!Override->TryGetNumberField(TEXT("dimming"),V)||!FMath::IsFinite(V)||V<0.||V>1.) return false;}
+   if(Override->HasField(TEXT("temperatureK"))) {double V; if(!Override->TryGetNumberField(TEXT("temperatureK"),V)||!FMath::IsFinite(V)||V<1800.||V>10000.) return false;}
+   FixtureOverrides.Add(FString(*Entry.Key),Override);
+  }
+ }
+ struct FLightPlan {ALight* Actor; double Intensity; double Temperature;}; TArray<FLightPlan> LightingPlan;
+ if(LightingBindings.IsValid()) {
+  const TArray<TSharedPtr<FJsonValue>>* FixtureList;
+  if(!LightingBindings->TryGetArrayField(TEXT("fixtures"),FixtureList)) return false;
+  TSet<FString> KnownFixtureIds;
+  for(auto& FixtureValue:*FixtureList) {
+   auto Fixture=FixtureValue->AsObject(); FString Id; double FixtureLumens,FixtureTemperatureK;
+   if(!Fixture->TryGetStringField(TEXT("id"),Id)||!Fixture->TryGetNumberField(TEXT("lumens"),FixtureLumens)
+    ||!Fixture->TryGetNumberField(TEXT("temperatureK"),FixtureTemperatureK)) return false;
+   KnownFixtureIds.Add(Id);
+   auto LightActor=Cast<ALight>(Actors.FindRef(TEXT("Light_")+Id)); if(!LightActor) return false;
+   bool bOn=false; double Dimming=1.; double EffectiveTemperature=FixtureTemperatureK;
+   if(auto Found=FixtureOverrides.Find(Id)) {
+    (*Found)->TryGetBoolField(TEXT("on"),bOn);
+    if(!(*Found)->TryGetNumberField(TEXT("dimming"),Dimming)) Dimming=1.;
+    (*Found)->TryGetNumberField(TEXT("temperatureK"),EffectiveTemperature);
+   }
+   LightingPlan.Add({LightActor,bOn?FixtureLumens*Dimming:0.,EffectiveTemperature});
+  }
+  // Same "unconsumed key names something that does not exist" abort as
+  // surfaceOverrides below -- a lighting.fixtures id not among this
+  // project's actual fixtures is a stop condition, not a silent no-op.
+  for(auto& Pair:FixtureOverrides) if(!KnownFixtureIds.Contains(Pair.Key)) return false;
+ } else if(FixtureOverrides.Num()>0) return false; // fixtures named, but this project has none at all
  // W04: per-surface overrides, resolved and validated fully here (still no
  // scene mutation yet) so a bad override aborts before ANY change, same as
  // every check above. Mirrors unreal/surface_finish_overrides.py's
@@ -252,7 +303,6 @@ bool AWalkthroughCharacter::ApplyConditions() {
   // validate_state() -- only a 1.0.0 state (which predates the field) may
   // omit it. HasField()==false alone does not distinguish "1.0.0, fine" from
   // "1.1.0, missing -- reject", so schemaVersion decides which is which.
-  FString SchemaVersion; State->TryGetStringField(TEXT("schemaVersion"),SchemaVersion);
   const TSharedPtr<FJsonObject>* OverridesObj=nullptr;
   const bool bHasOverridesField=State->HasField(TEXT("surfaceOverrides"));
   if(bHasOverridesField) {
@@ -373,7 +423,19 @@ bool AWalkthroughCharacter::ApplyConditions() {
  }
  Az=FMath::DegreesToRadians(Az); El=FMath::DegreesToRadians(El);
  Sun->SetActorRotation(FVector(-sin(Az)*cos(El),cos(Az)*cos(El),-sin(El)).Rotation());
- Sun->GetLightComponent()->SetIntensity(Lux);
+ // W06: night disables the sun's direct light and the daytime sky
+ // (SkyAtmosphere/SkyLight) entirely -- fixture lights are the only source,
+ // a common fixed (no-moonlight) environment, same contract as
+ // study_controls.apply_state(). Day restores both to this state's own Lux,
+ // never a re-derived value.
+ const bool bNight=LightingMode==TEXT("night");
+ Sun->GetLightComponent()->SetIntensity(bNight?0.:Lux);
+ for(auto SkyLabel:{TEXT("Sky"),TEXT("SkyLight")})
+  if(auto SkyActor=Actors.FindRef(SkyLabel)) SkyActor->SetActorHiddenInGame(bNight);
+ for(auto& Item:LightingPlan) {
+  Item.Actor->GetLightComponent()->SetIntensity(Item.Intensity);
+  Item.Actor->GetLightComponent()->SetTemperature(Item.Temperature);
+ }
  Post->Settings.AutoExposureMinBrightness=EV; Post->Settings.AutoExposureMaxBrightness=EV;
  return true;
 }
@@ -418,6 +480,17 @@ FString AWalkthroughCharacter::CurrentSolarLabel() const {
  (*Solar)->TryGetStringField(TEXT("northStatus"),NorthStatus);
  const bool bEstimated=LocationStatus!=TEXT("verified")||NorthStatus!=TEXT("verified");
  return Stamp+(bEstimated?TEXT("（日時・位置概算）"):TEXT("（日時・入力確認済み）"));
+}
+// W06: night/day + a standing reminder that brightness/colour here are still
+// unmeasured estimated profiles, not calibrated site lighting (spec:
+// 'HUDに夜間モードと明るさが仮仕様であることを表示します'). State->lighting
+// is the same generic passthrough FJsonObject already round-tripped through
+// F5/F9 with no extra C++ needed for persistence itself.
+FString AWalkthroughCharacter::CurrentLightingLabel() const {
+ if(!bReady||!State.IsValid()) return FString();
+ const TSharedPtr<FJsonObject>* Lighting; FString Mode=TEXT("day");
+ if(State->TryGetObjectField(TEXT("lighting"),Lighting)) (*Lighting)->TryGetStringField(TEXT("mode"),Mode);
+ return Mode==TEXT("night")?TEXT("夜間（仮仕様）"):TEXT("昼間");
 }
 void AWalkthroughCharacter::SaveView() {
  if(!bReady) return;
@@ -777,7 +850,7 @@ void AWalkthroughCharacter::Tick(float Delta) {
 AWalkthroughGameMode::AWalkthroughGameMode(){DefaultPawnClass=AWalkthroughCharacter::StaticClass();HUDClass=AWalkthroughHUD::StaticClass();}
 void AWalkthroughHUD::DrawHUD(){
  Super::DrawHUD();
- DrawRect(FLinearColor(0,0,0,.65),12,12,820,120);
+ DrawRect(FLinearColor(0,0,0,.65),12,12,820,142);
  DrawText(TEXT("WASD：歩行　｜　マウス：視点　｜　Tab：カーソル解放　｜　F5：保存　｜　F9：復元"),FLinearColor::White,24,22);
  DrawText(TEXT("1/2/3：仕上げ切替　｜　4/5：太陽高度30/60度　｜　目線高さ1.60m　｜　採光は仮条件です"),FLinearColor::White,24,44);
  if(auto P=Cast<AWalkthroughCharacter>(GetOwningPawn())) {
@@ -785,7 +858,9 @@ void AWalkthroughHUD::DrawHUD(){
   DrawText(Variant.IsEmpty()?FString(TEXT("現在の仕上げ：－")):(TEXT("現在の仕上げ：")+Variant),FLinearColor::White,24,66);
   // W05:日時由来か手動角度かをHUDで区別する。
   DrawText(TEXT("太陽条件：")+P->CurrentSolarLabel(),FLinearColor::White,24,88);
-  DrawText(P->Message,FLinearColor::Yellow,24,110);
+  // W06: 昼夜モードと、明るさ・色温度が仮仕様であることを常設表示する。
+  DrawText(TEXT("照明：")+P->CurrentLightingLabel(),FLinearColor::White,24,110);
+  DrawText(P->Message,FLinearColor::Yellow,24,132);
  }
 }
 int32 UWalkthroughLibrary::Prepare(UWorld* World) {

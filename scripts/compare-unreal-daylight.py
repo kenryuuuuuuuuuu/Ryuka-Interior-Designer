@@ -29,7 +29,8 @@ def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 def fingerprint(project):
     paths=list((project/'Content/Generated').rglob('*.uasset'))+list((project/'Content/Generated').rglob('*.umap'))
     paths += [project/name for name in ('study-state.json','import-verification.json','finish-settings.json',
-               'sun-cases.json','site-context.json','site.local.json') if (project/name).exists()]
+               'sun-cases.json','site-context.json','site.local.json','lighting-settings.json','lighting-bindings.json')
+               if (project/name).exists()]
     return {p.relative_to(project).as_posix():digest(p) for p in sorted(paths)}
 
 

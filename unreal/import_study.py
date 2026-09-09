@@ -7,6 +7,7 @@ import unreal
 from finish_settings import details_for_variant
 from material_builder import material, marker_material
 from surface_finish_overrides import resolve_finish
+from lighting import validate_lighting_bindings
 
 
 def write_json(path, value):
@@ -119,6 +120,42 @@ def main():
         context_report=dict(sha256=hashlib.sha256((project/'site-context.json').read_bytes()).hexdigest(),
             boxes=create_context(json.loads((project/'site-context.json').read_text(encoding='utf-8-sig')),
                                  material('Context_estimated','9c9c9c',.85)))
+    # W06: fixtures/lights resolved ONCE by Blender (build_electrical_lighting())
+    # into lighting-bindings.json; UE only spawns actors at those already-
+    # resolved positions/directions, it never re-derives mount geometry
+    # itself. A pre-W06 package simply has no such file -- nothing to spawn,
+    # study_controls.py's own lighting menu/apply_state() likewise treat an
+    # absent lighting-bindings.json as "no fixtures in this project".
+    lighting_report=None
+    lighting_path=package/'lighting-bindings.json'
+    if lighting_path.exists():
+        lighting_bindings=validate_lighting_bindings(json.loads(lighting_path.read_text(encoding='utf-8')))
+        write_json(project/'lighting-bindings.json',lighting_bindings)
+        fixture_mesh=unreal.load_asset('/Engine/BasicShapes/Cylinder.Cylinder')
+        placeholder_material=material('Light_fixture_placeholder','d8d3c4',.4)
+        for fixture in lighting_bindings['fixtures']:
+            x,y,z=fixture['positionM']
+            location=unreal.Vector(x*100,z*100,y*100)
+            holder=spawn(unreal.StaticMeshActor,'LightFixture_'+fixture['id'],location)
+            holder.static_mesh_component.set_static_mesh(fixture_mesh)
+            holder.static_mesh_component.set_material(0,placeholder_material)
+            holder.set_actor_scale3d(unreal.Vector(.12,.12,.02))
+            holder.static_mesh_component.set_cast_shadow(False)
+            dx,dy,dz=fixture['directionVector']
+            direction=unreal.Vector(dx,dz,dy)
+            light_class=unreal.SpotLight if fixture['source']=='spot' else unreal.PointLight
+            light_actor=spawn(light_class,'Light_'+fixture['id'],location,
+                unreal.MathLibrary.find_look_at_rotation(unreal.Vector(),direction))
+            light_actor.light_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+            light_actor.light_component.set_editor_property('intensity_units',unreal.LightUnits.LUMENS)
+            light_actor.light_component.set_intensity(0)  # study_controls.apply_state() sets the real initial value below
+            light_actor.light_component.set_editor_property('use_temperature',True)
+            light_actor.light_component.set_editor_property('temperature',fixture['temperatureK'])
+            if fixture['source']=='spot':
+                light_actor.light_component.set_editor_property('inner_cone_angle',fixture['spotAngleDeg']/2)
+                light_actor.light_component.set_editor_property('outer_cone_angle',fixture['spotAngleDeg']/2)
+        lighting_report=dict(sha256=hashlib.sha256(lighting_path.read_bytes()).hexdigest(),
+            fixtureIds=[f['id'] for f in lighting_bindings['fixtures']])
     lighting = study['lighting']
     az = math.radians(lighting['azimuthDeg'])
     el = math.radians(lighting['elevationDeg'])
@@ -166,6 +203,7 @@ def main():
                 maxBoundsErrorCm=max(errors),unrealImportVerified=True,siteDaylightCalibrated=False,
                 sourceManifestSHA256=hashlib.sha256((package/'manifest.json').read_bytes()).hexdigest(),
                 siteContext=context_report,
+                lighting=lighting_report,
                 surfaceShaderSHA256=hashlib.sha256((project/'surface_finish.hlsl').read_bytes()).hexdigest(),
                 floorShaderSHA256=hashlib.sha256((project/'floor_finish.hlsl').read_bytes()).hexdigest(),
                 coordinates='UE centimetres: X=source x, Y=source z, Z=source y',

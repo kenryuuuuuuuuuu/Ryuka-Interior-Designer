@@ -1,6 +1,10 @@
 # 進捗・未解決事項
 
-最新レビュー：W05-v2（fcc99c2）をACCEPTEDとして受け入れました。[最終レビュー](tasks/W05-review-v2.md)。仮条件での機能完成であり、実敷地の位置・真北・周辺寸法は未確認です。次は[W06詳細仕様](tasks/W06-electrical-lighting.md)に従い一括実装します（READY、製品実装は未着手）。以下の再レビュー待ち記述は過去経過です。
+次の実装：[W06 電気設備と夜間照明比較](tasks/W06-electrical-lighting.md)をClaude Codeが一括実装し、[報告](tasks/W06-report.md)とレビュー用差分一式（`build/reviews/W06-v1`）を提出済みです。元BASE（`d4fabb2`）から維持しています。GPTレビュー待ちで、この時点では未受け入れです。光束・色温度は全てestimated（実測配光・IES・実採用品番未確認）、初版の夜間環境は月光なしの共通固定条件です。W07へは進みません。以下の過去の状態よりこの記述を優先します。
+
+2026-09-09更新（W06、電気設備と夜間照明比較）：ゲストLDKの照明配置（`data/electrical.json`、downlight/ceiling/pendant）をBlender/UEへ反映し、夜間の点灯・調光・色温度を比較・保存・再生成できるようになりました。取付け位置は勾配天井の実際の高さ（`interior_geometry.ceiling_y()`、平坦近似ではない）で解決し、Blenderが一度だけ計算した結果（`lighting-bindings.json`）を器具メッシュ・UE光源の両方が使います。UEエディタに「照明」（昼夜切替、器具/グループ選択、ON/OFF・調光率・色温度）と「照明比較」（名前付き2案のlightingだけを切り替えるA/B、両案night必須）メニューを追加し、内覧HUDにも昼夜表示（仮仕様の明示付き）を追加しました。既存の仕上げA/B・日時A/Bはlightingを固定し、夜間から日時比較を始めようとした場合は昼間へ戻す案内をして停止します。`study-state.json`をschemaVersion 1.2.0へ拡張し（必須`lighting`、旧1.0.0/1.1.0は自動的に昼間・全器具offへ正規化）、名前付き案・完全refreshにもそのまま乗ります。詳細は[ARCHITECTURE.md「電気設備の再生成反映・夜間照明比較」](ARCHITECTURE.md#電気設備の再生成反映夜間照明比較lighting-bindingsjsonw062026-09-09追加)、[W06報告](tasks/W06-report.md)を参照してください。
+
+最新レビュー：W05-v2（fcc99c2）をACCEPTEDとして受け入れました。[最終レビュー](tasks/W05-review-v2.md)。仮条件での機能完成であり、実敷地の位置・真北・周辺寸法は未確認です。以下の再レビュー待ち記述は過去経過です。
 
 最新レビュー：W05-v1（a27b62a）はCHANGES_REQUESTEDでした。[レビュー](tasks/W05-review.md)のR1（敷地/太陽状態整合性）・R2（案読込での敷地/日時ケースの一括採用）を修正し、[更新報告](tasks/W05-report.md)とレビュー用差分一式（`build/reviews/W05-v2`）を提出済みです。元BASE（`b478a9f`）から維持しています。GPT再レビュー待ちで、この時点では未受け入れです。実敷地は引き続き未確認、W06未着手です。
 

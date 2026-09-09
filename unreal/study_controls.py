@@ -12,11 +12,14 @@ from solar_position import (apply_case, matches, validate_cases, validate_site,
     cases_match_site, case_matches_site, make_case, season_reference_timestamps, site_sha256)
 from material_builder import rgb
 from surface_finish_overrides import resolve_finish, resolve_overrides
+from lighting import validate_lighting_bindings, resolve_fixture_overrides, effective_fixture
 
 _state=None
 _selected_surface=None  # surfaceId currently targeted by the 面編集 menu
 _compare=None  # W04 finish A/B in progress: dict(fixed=..,before=..,a=..,b=..,current=..,names=..)
 _daylight_compare=None  # W05 datetime A/B in progress: dict(fixed=..,before=..,a=..,b=..,current=..,names=..)
+_lighting_compare=None  # W06 night lighting A/B in progress: same shape as _compare
+_selected_lighting=None  # fixture id OR group id currently targeted by the 照明 menu
 
 
 def project(): return Path(unreal.Paths.project_dir()).resolve()
@@ -51,6 +54,15 @@ def scene():
 def surface_bindings():
     path=project()/'surface-bindings.json'
     return read('surface-bindings.json') if path.exists() else dict(schemaVersion='1.0.0',surfaces={})
+
+
+def lighting_bindings():
+    """The current model's resolved lighting fixtures (see
+    blender/electrical_assets.py, W06), or None for a pre-W06 project /
+    a project with no supported lighting fixtures at all -- callers treat
+    that the same as "nothing to apply/offer", not an error."""
+    path=project()/'lighting-bindings.json'
+    return validate_lighting_bindings(read('lighting-bindings.json')) if path.exists() else None
 
 
 def apply_state(state):
@@ -95,6 +107,14 @@ def apply_state(state):
     surfaces=surface_bindings()['surfaces']
     usable,issues=resolve_overrides(state['surfaceOverrides'],dict(surfaces=surfaces),room_id=state['roomId'])
     if issues: raise RuntimeError('surfaceOverrides: '+'; '.join(i['reason'] for i in issues))
+    # W06: same pre-mutation contract as surfaceOverrides above -- a
+    # lighting.fixtures key naming a fixture that does not exist in the
+    # CURRENT model (removed from data/electrical.json, wrong room, or a
+    # pre-W06 project with no lighting-bindings.json at all) stops the whole
+    # apply before anything is touched, rather than being silently dropped.
+    bindings=lighting_bindings()
+    _,lighting_issues=resolve_fixture_overrides(state['lighting']['fixtures'],bindings or dict(fixtures=[]))
+    if lighting_issues: raise RuntimeError('lighting: '+'; '.join(i['reason'] for i in lighting_issues))
     finish_document=read('finish-settings.json')
     surface_planned=[]
     for surface_id,info in surfaces.items():
@@ -130,7 +150,6 @@ def apply_state(state):
         direction=unreal.Vector(-math.sin(az)*math.cos(el),math.cos(az)*math.cos(el),-math.sin(el))
         sun.modify(); sun.light_component.modify()
         sun.set_actor_rotation(unreal.MathLibrary.find_look_at_rotation(unreal.Vector(),direction),False)
-        sun.light_component.set_intensity(state['sunLux'])
         post.modify(); pp=post.get_editor_property('settings')
         for key in ('auto_exposure_min_brightness','auto_exposure_max_brightness'):
             pp.set_editor_property('override_'+key,True); pp.set_editor_property(key,state['exposureEV100'])
@@ -141,6 +160,29 @@ def apply_state(state):
             pitch,yaw,roll=c['rotationDeg']
             camera.set_actor_rotation(unreal.Rotator(pitch=pitch,yaw=yaw,roll=roll),False)
             camera.get_cine_camera_component().set_editor_property('current_focal_length',c['lensMm'])
+        # W06: night disables the sun's direct light and the daytime sky
+        # (SkyAtmosphere/SkyLight) entirely -- the initial night condition is
+        # a common fixed (no-moonlight) environment, fixture lights are the
+        # only source -- and day restores both to this state's own sunLux
+        # (never a re-derived/guessed value). Fixture lights themselves are
+        # independent of mode (a fixture can be on in daytime too); only
+        # their own on/dimming/temperatureK decide whether each one lights.
+        is_night=state['lighting']['mode']=='night'
+        sun.light_component.set_intensity(0 if is_night else state['sunLux'])
+        for label in ('Sky','SkyLight'):
+            sky_actor=actors.get(label)
+            if sky_actor is None: continue
+            sky_actor.modify()
+            sky_actor.set_actor_hidden_in_game(is_night)
+            sky_actor.set_is_temporarily_hidden_in_editor(is_night)
+        if bindings:
+            for fixture in bindings['fixtures']:
+                light_actor=actors.get('Light_'+fixture['id'])
+                if light_actor is None: raise RuntimeError('Missing generated actor: Light_'+fixture['id'])
+                effective=effective_fixture(fixture,state['lighting']['fixtures'].get(fixture['id']))
+                light_actor.modify(); light_actor.light_component.modify()
+                light_actor.light_component.set_intensity(effective['effectiveLumens'])
+                light_actor.light_component.set_editor_property('temperature',effective['temperatureK'])
     _state=state
     mode=state['solar']['localTimestamp'] if state.get('solar') else '手動角度'
     unreal.log(f"内装比較: {state['variant']} / 太陽高度 {state['elevationDeg']}° / EV100 {state['exposureEV100']}（{mode}・照度未校正）")
@@ -253,7 +295,34 @@ def scene_state(base):
     direction=actors['Sun_manual_angle'].get_actor_forward_vector()
     state['azimuthDeg']=math.degrees(math.atan2(-direction.x,direction.y))%360
     state['elevationDeg']=round(math.degrees(math.asin(max(-1,min(1,-direction.z)))),8)
-    state['sunLux']=actors['Sun_manual_angle'].light_component.get_editor_property('intensity')
+    # W06: same "trust the dict for content, verify the live scene actually
+    # matches it" pattern as surfaceOverrides above -- state['lighting'] is
+    # managed exclusively through apply_state() (menu actions, A/B, scenario
+    # load), so it is trusted here, not reconstructed from scratch. night
+    # mode intentionally zeroes the sun's LIVE intensity (see apply_state()),
+    # so sunLux must NOT be read back from that live value while in night
+    # mode -- that would silently lose the day sunLux this state is meant to
+    # restore on returning to day (W06 spec: 'dayへ戻せば保存された太陽・空の
+    # 条件を復元します'). A valid sunLux is always >=1 (validate_state()), so
+    # "sun intensity < 1" is an unambiguous night-mode signal.
+    sun_intensity=actors['Sun_manual_angle'].light_component.get_editor_property('intensity')
+    state['lighting']=copy.deepcopy(base.get('lighting',dict(mode='day',fixtures={})))
+    is_night=state['lighting']['mode']=='night'
+    state['sunLux']=base['sunLux'] if is_night else sun_intensity
+    if is_night and sun_intensity>=1 or not is_night and sun_intensity<1:
+        raise RuntimeError('太陽光源の点灯状態が保存内容と一致しません（Undo等の影響が考えられます）。'
+            '比較条件を再適用してから保存してください。')
+    lighting_binding_doc=lighting_bindings()
+    if lighting_binding_doc:
+        for fixture in lighting_binding_doc['fixtures']:
+            light_actor=actors.get('Light_'+fixture['id'])
+            if light_actor is None: continue
+            expected=effective_fixture(fixture,state['lighting']['fixtures'].get(fixture['id']))
+            live_intensity=light_actor.light_component.get_editor_property('intensity')
+            live_temperature=light_actor.light_component.get_editor_property('temperature')
+            if abs(live_intensity-expected['effectiveLumens'])>1e-3 or abs(live_temperature-expected['temperatureK'])>1e-3:
+                raise RuntimeError(f"照明{fixture['id']}が保存内容と一致しません（Undo等の影響が考えられます）。"
+                    '比較条件を再適用してから保存してください。')
     pp=actors['Fixed_exposure'].get_editor_property('settings')
     low=pp.get_editor_property('auto_exposure_min_brightness'); high=pp.get_editor_property('auto_exposure_max_brightness')
     if abs(low-high)>1e-6: raise RuntimeError('Use a fixed exposure before saving comparison conditions.')
@@ -262,7 +331,7 @@ def scene_state(base):
     state['camera']=dict(locationCm=list(camera.get_actor_location().to_tuple()),rotationDeg=[rotation.pitch,rotation.yaw,rotation.roll],
         lensMm=camera.get_cine_camera_component().get_editor_property('current_focal_length'))
     if state.get('solar') and not matches(state['solar'],state): state.pop('solar')
-    state['schemaVersion']='1.1.0'  # W04: this shape always carries surfaceOverrides now, even when empty
+    state['schemaVersion']='1.2.0'  # W06: this shape always carries lighting now, even when day/empty
     validate_state(state,read('SourcePackage/study.json'))
     return state
 
@@ -504,6 +573,13 @@ def _validate_applicable(state, label):
     _,issues=resolve_overrides(state.get('surfaceOverrides') or {},dict(surfaces=surfaces),room_id=state.get('roomId'))
     if issues:
         raise RuntimeError(f'{label}の面別仕上げが現在のモデルと一致しません: '+'; '.join(i['reason'] for i in issues))
+    # W06: same idea for lighting.fixtures -- a state saved before a fixture
+    # was removed/renamed must not silently apply against the wrong (or no)
+    # fixture.
+    lighting=state.get('lighting') or dict(fixtures={})
+    _,lighting_issues=resolve_fixture_overrides(lighting.get('fixtures',{}),lighting_bindings() or dict(fixtures=[]))
+    if lighting_issues:
+        raise RuntimeError(f'{label}の照明が現在のモデルと一致しません: '+'; '.join(i['reason'] for i in lighting_issues))
 
 
 def load_scenario(index):
@@ -550,8 +626,10 @@ def start_compare(index_a, index_b):
     for name,state in ((dirs[index_a].name,state_a),(dirs[index_b].name,state_b)):
         _validate_applicable(state,f'案「{name}」')
     base=current_state()
+    # W06 spec: the existing finish A/B fixes lighting too -- only variant/
+    # surfaceOverrides switch between A and B.
     fixed=dict(azimuthDeg=base['azimuthDeg'],elevationDeg=base['elevationDeg'],
-        sunLux=base['sunLux'],exposureEV100=base['exposureEV100'],camera=base['camera'])
+        sunLux=base['sunLux'],exposureEV100=base['exposureEV100'],camera=base['camera'],lighting=base['lighting'])
     global _compare
     _compare=dict(fixed=fixed,before=base,a=state_a,b=state_b,
         names=(dirs[index_a].name,dirs[index_b].name),current=None)
@@ -754,6 +832,11 @@ def start_daylight_compare(index_a, index_b):
         if not case['usable']: raise RuntimeError('適用できない日時です: '+case['reason'])
         _verify_case_site(case,f"日時「{case['localTimestamp']}」")
     base=current_state()
+    # W06 spec: date/time comparison only makes sense in day mode (it varies
+    # the SUN); starting it from night must stop with guidance, never
+    # silently switch the mode back to day on the caller's behalf.
+    if base['lighting']['mode']=='night':
+        raise RuntimeError('日時比較は昼間モードでのみ開始できます。「照明」メニューから昼間へ戻してください。')
     def with_case(case):
         state=copy.deepcopy(base)
         state['azimuthDeg']=case['azimuthDeg']; state['elevationDeg']=case['elevationDeg']; state['solar']=dict(case)
@@ -765,8 +848,12 @@ def start_daylight_compare(index_a, index_b):
     for name,state in ((case_a['localTimestamp'],state_a),(case_b['localTimestamp'],state_b)):
         _validate_applicable(state,f'日時「{name}」')
     global _daylight_compare
+    # lighting is fixed too (day mode, required above; each candidate's full
+    # deepcopy of `base` already carries it through show_daylight_compare()'s
+    # direct apply_state(_daylight_compare[which]) -- listed here only for
+    # the status label/documentation, not re-applied separately).
     _daylight_compare=dict(fixed=dict(variant=base['variant'],camera=base['camera'],
-            exposureEV100=base['exposureEV100'],sunLux=base['sunLux']),
+            exposureEV100=base['exposureEV100'],sunLux=base['sunLux'],lighting=base['lighting']),
         before=base,a=state_a,b=state_b,names=(case_a['localTimestamp'],case_b['localTimestamp']),current=None)
     show_daylight_compare('a')
 
@@ -818,6 +905,188 @@ def _daylight_compare_status_text():
 
 
 def show_daylight_compare_status(): unreal.log(_daylight_compare_status_text())
+
+
+# --- W06: night lighting (day/night, fixture/group on-off-dimming-colour, night A/B) ---
+# Same interaction model as W04/W05 above: menu clicks plus a couple of
+# numeric prompts (dimming, colour temperature) via the same _prompt().
+
+def _lighting_status_text():
+    # register_menu() (and therefore this label) can run before the level is
+    # even open (init_unreal.py at editor startup) -- current_state() calls
+    # scene_state(), which requires the live scene and raises otherwise. Use
+    # the last-applied in-memory state, or the plain on-disk/default state,
+    # neither of which touch the scene (same reasoning as the other W04/W05
+    # status labels in this menu, none of which call current_state()).
+    lighting=(_state if _state is not None else initial_state())['lighting']
+    mode_label='夜間（仮仕様）' if lighting['mode']=='night' else '昼間'
+    bindings=lighting_bindings()
+    if not bindings:
+        return f'照明：{mode_label}（このプロジェクトに対応照明なし）'
+    lit=sum(1 for f in bindings['fixtures'] if effective_fixture(f,lighting['fixtures'].get(f['id']))['on'])
+    return f'照明：{mode_label}　点灯{lit}/{len(bindings["fixtures"])}灯'
+
+
+def show_lighting_status(): unreal.log(_lighting_status_text())
+
+
+def _set_lighting_mode(mode):
+    state=current_state(); state['lighting']=dict(state['lighting'],mode=mode)
+    apply_state(state)
+    unreal.log('昼間へ切り替えました（保存された太陽・空の条件を復元）。' if mode=='day'
+        else '夜間へ切り替えました（初版は月光なしの固定環境・仮仕様です）。')
+    register_menu()
+
+
+def set_lighting_day(): _set_lighting_mode('day')
+def set_lighting_night(): _set_lighting_mode('night')
+
+
+def _target_fixture_ids(target_id):
+    """target_id: a single fixture id, or a lighting-settings.json group id
+    (an operating shortcut over fixture ids, not an electrical circuit --
+    W06 spec section 1). Raises if it names neither."""
+    bindings=lighting_bindings()
+    known={f['id'] for f in bindings['fixtures']} if bindings else set()
+    if target_id in known: return [target_id]
+    settings=read('lighting-settings.json')
+    group=next((g for g in settings['groups'] if g['id']==target_id),None)
+    if group is None: raise RuntimeError('この照明/グループは現在のモデルにありません: '+target_id)
+    return [fid for fid in group['fixtureIds'] if fid in known]
+
+
+def select_lighting(target_id):
+    global _selected_lighting
+    _target_fixture_ids(target_id)  # raises if unknown; nothing selected on failure
+    _selected_lighting=target_id
+    unreal.log('選択中の照明: '+target_id)
+    register_menu()
+
+
+def _selected_lighting_status_text():
+    return '選択中の照明：なし' if _selected_lighting is None else '選択中の照明：'+_selected_lighting
+
+
+def show_selected_lighting(): unreal.log(_selected_lighting_status_text())
+
+
+def _apply_fixture_update(update):
+    if _selected_lighting is None: raise RuntimeError('先に照明またはグループを選択してください（照明の一覧から）。')
+    ids=_target_fixture_ids(_selected_lighting)
+    state=current_state()
+    fixtures=dict(state['lighting']['fixtures'])
+    for fixture_id in ids:
+        merged=dict(fixtures.get(fixture_id,{})); merged.update(update)
+        fixtures[fixture_id]=merged
+    state['lighting']=dict(state['lighting'],fixtures=fixtures)
+    apply_state(state)
+    register_menu()
+
+
+def turn_on_selected_lighting(): _apply_fixture_update(dict(on=True))
+def turn_off_selected_lighting(): _apply_fixture_update(dict(on=False))
+
+
+def set_dimming_selected_lighting():
+    text=_prompt('調光率','0（消灯相当）〜1（全光束）の数値','1').strip()
+    if not text: return
+    _apply_fixture_update(dict(dimming=float(text)))
+
+
+def set_temperature_selected_lighting():
+    text=_prompt('色温度','1800〜10000Kの数値（例：2700＝電球色、6500＝昼白色）','2700').strip()
+    if not text: return
+    _apply_fixture_update(dict(temperatureK=float(text)))
+
+
+def reset_selected_lighting():
+    if _selected_lighting is None: raise RuntimeError('先に照明またはグループを選択してください（照明の一覧から）。')
+    ids=_target_fixture_ids(_selected_lighting)
+    state=current_state(); fixtures=dict(state['lighting']['fixtures'])
+    for fixture_id in ids: fixtures.pop(fixture_id,None)
+    state['lighting']=dict(state['lighting'],fixtures=fixtures)
+    apply_state(state)
+    register_menu()
+
+
+def reset_all_lighting():
+    state=current_state(); state['lighting']=dict(state['lighting'],fixtures={})
+    apply_state(state)
+    register_menu()
+
+
+def start_lighting_compare(index_a, index_b):
+    dirs=_scenario_dirs()
+    if not (0<=index_a<len(dirs) and 0<=index_b<len(dirs)): raise RuntimeError('案が見つかりません。')
+    refresh_inputs=_refresh_inputs()
+    # Both scenarios validated (and both required to be night) BEFORE
+    # anything is touched -- same discipline as W04's finish A/B and W05's
+    # datetime A/B.
+    state_a=_load_scenario_state(refresh_inputs,index_a,dirs)
+    state_b=_load_scenario_state(refresh_inputs,index_b,dirs)
+    for name,state in ((dirs[index_a].name,state_a),(dirs[index_b].name,state_b)):
+        _validate_applicable(state,f'案「{name}」')
+        if state['lighting']['mode']!='night':
+            raise RuntimeError(f'案「{name}」は夜間モードではありません。照明A/Bは両案とも夜間の案が必要です。')
+    base=current_state()
+    # W06 spec: fix current viewpoint/exposure/finish/surroundings/fixture
+    # specs -- only each candidate's own `lighting` switches between A/B.
+    fixed=dict(variant=base['variant'],surfaceOverrides=base['surfaceOverrides'],
+        azimuthDeg=base['azimuthDeg'],elevationDeg=base['elevationDeg'],
+        sunLux=base['sunLux'],exposureEV100=base['exposureEV100'],camera=base['camera'])
+    global _lighting_compare
+    _lighting_compare=dict(fixed=fixed,before=base,a=state_a,b=state_b,
+        names=(dirs[index_a].name,dirs[index_b].name),current=None)
+    show_lighting_compare('a')
+
+
+def show_lighting_compare(which):
+    if _lighting_compare is None: raise RuntimeError('照明A/Bを先に開始してください（比較開始）。')
+    state=dict(_lighting_compare[which]); state.update(_lighting_compare['fixed']); state.pop('solar',None)
+    apply_state(state)
+    _lighting_compare['current']=which
+    unreal.log(f"照明比較中：{_lighting_compare['names'][0 if which=='a' else 1]}"
+        '（仕上げ・視点・露出・周辺条件・器具仕様は比較開始時点で固定）')
+    register_menu()
+
+
+def show_lighting_compare_a(): show_lighting_compare('a')
+def show_lighting_compare_b(): show_lighting_compare('b')
+
+
+def end_lighting_compare():
+    global _lighting_compare
+    if _lighting_compare is None: return
+    apply_state(_lighting_compare['before'])
+    _lighting_compare=None
+    unreal.log('照明A/Bを終了し、比較開始前の状態に戻しました。')
+    register_menu()
+
+
+_lighting_compare_pick_a=None
+
+
+def pick_lighting_compare_a(index):
+    global _lighting_compare_pick_a
+    _lighting_compare_pick_a=index
+    unreal.log('照明比較A：'+_scenario_dirs()[index].name+'。続けて比較Bを選んでください。')
+    register_menu()
+
+
+def pick_lighting_compare_b(index):
+    if _lighting_compare_pick_a is None: raise RuntimeError('先に照明比較Aを選んでください。')
+    start_lighting_compare(_lighting_compare_pick_a,index)
+
+
+def _lighting_compare_status_text():
+    if _lighting_compare is None: return '照明比較：なし'
+    which=_lighting_compare.get('current')
+    shown={'a':'A','b':'B'}.get(which,'未表示')
+    return (f"照明比較中（表示中：{shown}）　A＝{_lighting_compare['names'][0]}　B＝{_lighting_compare['names'][1]}　"
+        '固定条件＝仕上げ・視点・露出・周辺条件・器具仕様')
+
+
+def show_lighting_compare_status(): unreal.log(_lighting_compare_status_text())
 
 
 def _selected_surface_status_text():
@@ -975,6 +1244,44 @@ def register_menu():
     add(daylight_compare_menu,'Show','DaylightShowA','比較Aを表示','show_daylight_compare_a()')
     add(daylight_compare_menu,'Show','DaylightShowB','比較Bを表示','show_daylight_compare_b()')
     add(daylight_compare_menu,'Show','DaylightEnd','比較を終了（元の状態へ）','end_daylight_compare()')
+
+    # W06: night lighting -- day/night, per-fixture/group selection and
+    # on/off/dimming/colour temperature, and a night-only A/B over two named
+    # scenarios (mirrors W04's 案の保存・比較 A/B but fixes finish/view/
+    # exposure/surroundings/fixture specs and switches only `lighting`).
+    lighting_bindings_doc=lighting_bindings()
+    if lighting_bindings_doc:
+        lighting_menu=parent.add_sub_menu('RyukaLighting','RyukaLighting','RyukaLighting','照明','昼夜切替・点灯・調光・色温度')
+        add(lighting_menu,'Status','LightingStatus',_lighting_status_text(),'show_lighting_status()')
+        add(lighting_menu,'Mode','LightingDay','昼間へ切替','set_lighting_day()')
+        add(lighting_menu,'Mode','LightingNight','夜間へ切替（仮仕様）','set_lighting_night()')
+        add(lighting_menu,'Select','LightingSelectedStatus',_selected_lighting_status_text(),'show_selected_lighting()')
+        settings=read('lighting-settings.json')
+        known_ids={f['id'] for f in lighting_bindings_doc['fixtures']}
+        for group in settings['groups']:
+            if any(fid in known_ids for fid in group['fixtureIds']):
+                add(lighting_menu,'Select','LightingSelectGroup'+group['id'],'選択：[グループ] '+group['label'],f'select_lighting("{group["id"]}")')
+        for fixture in lighting_bindings_doc['fixtures']:
+            add(lighting_menu,'Select','LightingSelectFixture'+fixture['id'],
+                f"選択：[{fixture['type']}] {fixture.get('label') or fixture['id']}",f'select_lighting("{fixture["id"]}")')
+        for name,label,command in [('On','選択をON',"turn_on_selected_lighting()"),
+                ('Off','選択をOFF',"turn_off_selected_lighting()"),
+                ('Dimming','選択の調光率を指定','set_dimming_selected_lighting()'),
+                ('Temperature','選択の色温度を指定','set_temperature_selected_lighting()'),
+                ('ResetOne','選択を既定に戻す','reset_selected_lighting()'),
+                ('ResetAll','すべての照明を既定に戻す','reset_all_lighting()')]:
+            add(lighting_menu,'Actions','Lighting'+name,label,command)
+
+        lighting_compare_menu=parent.add_sub_menu('RyukaLightingCompare','RyukaLightingCompare',
+            'RyukaLightingCompare','照明比較','夜間の名前付き案どうしのA/B比較')
+        add(lighting_compare_menu,'Status','LightingCompareStatus',_lighting_compare_status_text(),'show_lighting_compare_status()')
+        for i,d in enumerate(dirs[:20]):
+            add(lighting_compare_menu,'PickA',f'LightingPickA{i}','比較A：'+d.name,f'pick_lighting_compare_a({i})')
+        for i,d in enumerate(dirs[:20]):
+            add(lighting_compare_menu,'PickB',f'LightingPickB{i}','比較B：'+d.name,f'pick_lighting_compare_b({i})')
+        add(lighting_compare_menu,'Show','LightingShowA','比較Aを表示','show_lighting_compare_a()')
+        add(lighting_compare_menu,'Show','LightingShowB','比較Bを表示','show_lighting_compare_b()')
+        add(lighting_compare_menu,'Show','LightingEnd','比較を終了（元の状態へ）','end_lighting_compare()')
 
     menus.refresh_all_widgets()
     return menu

@@ -38,8 +38,10 @@ def inputs():
               'blender/build_house.py', 'blender/wall_geometry.py', 'blender/interior_geometry.py',
               'blender/build_interior.py', 'blender/furniture_assets.py', 'blender/surface_finishes.py',
               'blender/surface_bindings.py', 'blender/guest_decor.py', 'blender/textile_assets.py',
+              'blender/electrical_assets.py',
               'unreal/finish_settings.py', 'unreal/study_state.py', 'unreal/solar_position.py',
-              'unreal/surface_finish_overrides.py', 'scripts/surface_registry.py', 'scripts/build-visual-twin.py')]
+              'unreal/surface_finish_overrides.py', 'unreal/lighting.py',
+              'scripts/surface_registry.py', 'scripts/build-visual-twin.py')]
     return {str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(
             p.read_bytes().replace(b'\r\n', b'\n')).hexdigest() for p in paths}
 
@@ -136,7 +138,8 @@ def main():
                     'generated/interior-walls.json', 'generated/exterior-walls.json']
         if args.interior:
             rendered += ['data/furniture.json', 'data/furniture-catalog.json',
-                         'data/visual/guest-ldk-study.json', 'data/visual/asset-bindings.json', 'data/visual/guest-decor.json', 'generated/visual-envelope.json']
+                         'data/visual/guest-ldk-study.json', 'data/visual/asset-bindings.json', 'data/visual/guest-decor.json', 'generated/visual-envelope.json',
+                         'data/electrical.json', 'data/electrical-catalog.json', 'data/visual/lighting-settings.json']
         manifest = dict(schemaVersion='0.1.0', stage='geometry-transfer-prototype',
                         daylightReady=False, unrealImportVerified=False,
                         sourceCommit=run(['git', 'rev-parse', 'HEAD'], verbose=False).strip(),
@@ -156,7 +159,7 @@ def main():
                                      'Generated wall sequence IDs are not stable finish bindings'],
                         artifacts={name: dict(bytes=(staging / name).stat().st_size,
                                    sha256=hashlib.sha256((staging / name).read_bytes()).hexdigest())
-                                   for name in (('interior.blend','interior.glb','interior.png','study.json','surface-bindings.json')
+                                   for name in (('interior.blend','interior.glb','interior.png','study.json','surface-bindings.json','lighting-bindings.json')
                                                 if args.interior else ('house.blend', 'house.glb'))})
         if args.interior:
             manifest['stage'] = 'guest-ldk-visual-study'

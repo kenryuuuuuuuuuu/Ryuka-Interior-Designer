@@ -18,6 +18,7 @@ public:
  void SaveView(); void RestoreView(); void ToggleMouse();
  FString CurrentVariantLabel() const;
  FString CurrentSolarLabel() const;
+ FString CurrentLightingLabel() const;
  FString Message;
  bool bReady=false;
  bool bInitialized=false;
@@ -34,6 +35,10 @@ private:
  TSharedPtr<class FJsonObject> SurfaceBindings;
  TSharedPtr<class FJsonObject> FinishDocument;
  TSharedPtr<class FJsonObject> StudyVariants;
+ // W06: loaded once in BeginPlay(); invalid/empty for a pre-W06 generated
+ // project (no lighting-bindings.json there), in which case ApplyConditions()
+ // below just finds no fixtures to apply -- not an error.
+ TSharedPtr<class FJsonObject> LightingBindings;
  FVector LastSafeLocation=FVector::ZeroVector;
  void SetFinish(const FString& Name,const FString& Label);
  void SetSun(float Elevation);

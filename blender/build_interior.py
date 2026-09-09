@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_house as house_builder
 from surface_finishes import assign_surface_uv, apply_pattern
 from surface_bindings import split_wall_range, wall_cap_for_room, decompose_rectilinear, subtract_rects, intersect_rect
+from electrical_assets import build_lighting_bindings, merged_item, create_fixture_mesh
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
 from finish_settings import details_for_variant
 from furniture_assets import validate_bindings, asset_parts
@@ -27,6 +28,7 @@ from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
 from study_state import validate_state
 from surface_finish_overrides import resolve_finish, marker_material_name
+from lighting import validate_lighting_settings, effective_fixture, kelvin_to_rgb
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from surface_registry import resolve_from as resolve_surface_registry
 
@@ -557,6 +559,47 @@ def build_furniture(data,settings,mats):
     return items
 
 
+def build_electrical_lighting(data, settings, lighting_state, mats):
+    """W06: resolve room-1f-06's lighting fixtures into lighting-bindings.json
+    (the same artifact UE's import_study.py reads to spawn its own
+    actors/lights -- resolved ONCE, here, and reused by both -- W06 spec
+    section 1), build a simple placeholder mesh per fixture, and add a real
+    Blender lamp per fixture reflecting `lighting_state` (day/night + any
+    per-fixture on/dimming/temperatureK override) so a --state render
+    actually shows the requested night condition, not just UE's."""
+    electrical = read(ROOT/'data/electrical.json')
+    catalog = read(ROOT/'data/electrical-catalog.json')
+    lighting_settings = validate_lighting_settings(read(ROOT/'data/visual/lighting-settings.json'))
+    bindings = build_lighting_bindings(data, electrical, catalog, lighting_settings, settings['roomId'])
+    catalog_by_type = {t['type']: t for t in catalog['types']}
+    items_by_id = {i['id']: i for i in electrical['items']}
+    fixture_overrides = lighting_state['fixtures']
+    for binding in bindings['fixtures']:
+        item = items_by_id[binding['id']]
+        merged = merged_item(item, catalog_by_type)
+        create_fixture_mesh(binding, merged, mats, block, item)
+        effective = effective_fixture(binding, fixture_overrides.get(binding['id']))
+        light_type = 'SPOT' if binding['source'] == 'spot' else 'POINT'
+        x, y, z = binding['positionM']
+        bpy.ops.object.light_add(type=light_type, location=(x, -z, y))
+        lamp = bpy.context.object
+        lamp.name = f"Light.{binding['id']}"
+        # W06: documented approximation, not a photometric match -- Blender's
+        # POINT/SPOT light `energy` is radiant watts, not lumens. Using the
+        # commonly-cited 683 lm/W peak luminous-efficacy constant to convert
+        # is a simplification (assumes a monochromatic 555nm source); this
+        # project does not require Blender/UE pixel-for-pixel agreement (W05/
+        # W06 precedent), only a documented, consistent conversion.
+        lamp.data.energy = effective['effectiveLumens'] / 683
+        lamp.data.color = kelvin_to_rgb(effective['temperatureK'])
+        if light_type == 'SPOT':
+            lamp.data.spot_size = math.radians(binding['spotAngleDeg'])
+        dx, dy, dz = binding['directionVector']
+        direction = Vector((dx, -dz, dy))
+        lamp.rotation_euler = (-direction).to_track_quat('-Z', 'Y').to_euler()
+    return bindings
+
+
 def setup_lighting(settings, args, state=None):
     light=dict(settings['lighting'])
     # W05: state.azimuthDeg/elevationDeg (already plan-relative, same
@@ -653,6 +696,9 @@ def main():
     for obj in bpy.context.scene.objects:
         if obj.type=='MESH' and obj.name.startswith(('slab.','ceiling.')): assign_surface_uv(obj)
     light=setup_lighting(settings,args,state)
+    lighting_state=state['lighting'] if state else dict(mode='day',fixtures={})
+    lighting_bindings=build_electrical_lighting(data,settings,lighting_state,mats)
+    (args.output/'lighting-bindings.json').write_text(json.dumps(lighting_bindings,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     room=next(r for r in data['rooms'] if r['id']==settings['roomId']); floor=data['levels'][f"fl{room['level']}"]
     x,z,y=settings['camera']['position']; bpy.ops.object.camera_add(location=(x,-z,y+floor))
     camera=bpy.context.object; camera.name='Camera.guest-ldk.fixed'
@@ -675,13 +721,15 @@ def main():
     scene['study_status']='estimated-manual-sun-angle'; scene['site_daylight_calibrated']=False
     report=dict(status='estimated',variant=variant,surfaceOverrides=overrides,roomId=settings['roomId'],settings=settings,lighting=light,
                 decorations=decorations,furnitureIds=[i['id'] for i in items],siteDaylightCalibrated=False,unrealImportVerified=False,
+                electricalLighting=dict(mode=lighting_state['mode'],fixtureIds=[f['id'] for f in lighting_bindings['fixtures']]),
                 limitations=['Furniture is procedural, with approximate details; source placement retained',
                              'Window frames and per-surface shadow transmittance .9 (pane approx .81) are estimated',
                              'All actual door leaves closed; no operation animation',
                              'No neighbouring buildings or measured site orientation',
                              'Stair opening and guard walls present; stair treads still absent',
                              'Roof/gable details incomplete; source ceiling heights remain estimated',
-                             'Procedural materials and glass shadow shader require UE counterparts'],
+                             'Procedural materials and glass shadow shader require UE counterparts',
+                             'Electrical fixture geometry is a simple placeholder; lumens/colour temperature are estimated profiles, not measured photometry (see data/visual/lighting-settings.json)'],
                 render=dict(engine='Cycles',samples=args.samples,width=args.width,colorManagement='AgX',device=scene.cycles.device))
     (args.output/'study.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     bpy.ops.wm.save_as_mainfile(filepath=str(args.output/'interior.blend'))

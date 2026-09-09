@@ -2,7 +2,42 @@
 import math
 from solar_position import validate_case, matches
 
-SUPPORTED_SCHEMA_VERSIONS = ('1.0.0', '1.1.0')
+SUPPORTED_SCHEMA_VERSIONS = ('1.0.0', '1.1.0', '1.2.0')
+
+
+def validate_lighting(lighting):
+    """Structural/type validation only -- same split as
+    validate_surface_overrides()/surface_finish_overrides.resolve_overrides():
+    whether a fixture id actually exists in the CURRENT model is a separate,
+    model-dependent check (see lighting.resolve_fixture_overrides()), kept out
+    of this function so a state carrying a now-removed fixture still parses
+    and can be listed/explained rather than rejected outright here."""
+    if not isinstance(lighting, dict):
+        raise ValueError('lighting must be an object')
+    if lighting.get('mode') not in ('day', 'night'):
+        raise ValueError('Invalid lighting mode')
+    fixtures = lighting.get('fixtures')
+    if not isinstance(fixtures, dict):
+        raise ValueError('lighting.fixtures must be an object')
+    for fixture_id, override in fixtures.items():
+        if not isinstance(fixture_id, str) or not fixture_id:
+            raise ValueError('Invalid lighting.fixtures key')
+        if not isinstance(override, dict):
+            raise ValueError(f'lighting.fixtures[{fixture_id}] must be an object')
+        unknown = set(override) - {'on', 'dimming', 'temperatureK'}
+        if unknown:
+            raise ValueError(f'lighting.fixtures[{fixture_id}] has unknown fields: {sorted(unknown)}')
+        if 'on' in override and isinstance(override['on'], bool) is False:
+            raise ValueError(f'lighting.fixtures[{fixture_id}].on must be a boolean')
+        if 'dimming' in override:
+            value = override['dimming']
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
+                raise ValueError(f'lighting.fixtures[{fixture_id}].dimming must be a finite number in [0, 1]')
+        if 'temperatureK' in override:
+            value = override['temperatureK']
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 1800 <= value <= 10000:
+                raise ValueError(f'lighting.fixtures[{fixture_id}].temperatureK must be a finite number in [1800, 10000]')
+    return lighting
 
 
 def validate_surface_overrides(overrides, study):
@@ -53,6 +88,16 @@ def validate_state(state, study):
     if state.get('schemaVersion') == '1.0.0' and raw_overrides is None:
         raw_overrides = {}
     state['surfaceOverrides'] = validate_surface_overrides(raw_overrides, study)
+    # W06: lighting is REQUIRED and strictly validated from 1.2.0 onward -- a
+    # 1.2.0 state with lighting missing/malformed is a hard error, never
+    # silently treated as a pre-1.2.0 state. Anything OLDER than 1.2.0
+    # predates lighting entirely and is normalized to day + all fixtures off,
+    # preserving that state's historical (daytime, unlit) appearance rather
+    # than inventing a lit night scene for it.
+    if state.get('schemaVersion') == '1.2.0':
+        state['lighting'] = validate_lighting(state.get('lighting'))
+    else:
+        state['lighting'] = dict(mode='day', fixtures={})
     if state.get('roomId') != study['roomId']:
         raise ValueError('Comparison state belongs to another room')
     if state.get('variant') not in study['settings']['variants']:

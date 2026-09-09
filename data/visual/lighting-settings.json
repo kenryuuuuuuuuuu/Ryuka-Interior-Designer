@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0.0",
+  "note": "W06: data/electrical-catalog.jsonの照明type（category:lighting）ごとの光学プロファイル（推定値）と、比較用グループ。実測配光・光束・IES・実採用品番の確認前のため、全プロファイルstatus:estimated。位置・寸法はdata/electrical.json側の正本のまま複製しない。directionLocalは器具のローカル+Z軸を基準にした発光方向（天井付けは常に鉛直下向き[0,0,-1]固定＝勾配天井の傾きでは変えない。壁付けは器具の正面＝取付け面から外向き[0,0,1]、blender/electrical_assets.pyのresolve_mount()が実際の設置方位へ回転させたうえで解決済みベクトルをlighting-bindings.jsonへ書き出す）。",
+  "profiles": {
+    "light-downlight": {
+      "source": "spot",
+      "lumens": 650,
+      "temperatureK": 2700,
+      "spotAngleDeg": 90,
+      "directionLocal": [0, 0, -1],
+      "status": "estimated",
+      "note": "一般的なLEDダウンライト(6W相当)の概算光束。実採用品番未確認。"
+    },
+    "light-ceiling": {
+      "source": "point",
+      "lumens": 3800,
+      "temperatureK": 3000,
+      "spotAngleDeg": null,
+      "directionLocal": [0, 0, -1],
+      "status": "estimated",
+      "note": "6-8畳向けLEDシーリングライトの概算光束（調光器一体型を想定）。実採用品番未確認。"
+    },
+    "light-bracket": {
+      "source": "point",
+      "lumens": 400,
+      "temperatureK": 2700,
+      "spotAngleDeg": null,
+      "directionLocal": [0, 0, 1],
+      "status": "estimated",
+      "note": "廊下・階段等の補助照明を想定した概算光束。現時点でdata/electrical.jsonに配置インスタンスなし（型・検証経路のみ用意）。"
+    },
+    "light-pendant": {
+      "source": "point",
+      "lumens": 800,
+      "temperatureK": 2700,
+      "spotAngleDeg": null,
+      "directionLocal": [0, 0, -1],
+      "status": "estimated",
+      "note": "ダイニングテーブル上等を想定したペンダント1灯あたりの概算光束。実採用品番未確認。"
+    }
+  },
+  "unsupportedTypes": {
+    "light-indirect": "折り上げ天井等への造作を伴うため、W06では取付け位置・発光方向の解決に対応しない（対象外・仕様どおり）。",
+    "light-exterior": "屋外設置・外構の採光比較はW06の対象外（仕様どおり）。"
+  },
+  "groups": [
+    {
+      "id": "guest-ldk-main",
+      "label": "ゲストLDK：主照明（シーリング＋ダウンライト）",
+      "fixtureIds": ["elec-008", "elec-200"]
+    },
+    {
+      "id": "guest-ldk-dining",
+      "label": "ゲストLDK：ダイニング（ペンダント）",
+      "fixtureIds": ["elec-201"]
+    }
+  ]
+}

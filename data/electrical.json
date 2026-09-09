@@ -84,6 +84,29 @@
       "status": "estimated"
     },
     {
+      "id": "elec-200",
+      "type": "light-downlight",
+      "level": 1,
+      "x": 3.3,
+      "z": 4.6,
+      "room": "room-1f-06",
+      "label": "ダウンライト（ソファ上）",
+      "status": "estimated",
+      "note": "W06追加：夜間比較検証用の仮配置。ソファ上の読書灯を想定。"
+    },
+    {
+      "id": "elec-201",
+      "type": "light-pendant",
+      "level": 1,
+      "x": 5.45,
+      "z": 5.02,
+      "room": "room-1f-06",
+      "mountHeightOverride": 1.9,
+      "label": "ペンダントライト（ダイニング）",
+      "status": "estimated",
+      "note": "W06追加：夜間比較検証用の仮配置。丸テーブル(fur-008)上を想定し、天井高が高い(勾配天井)ためmountHeightOverrideでテーブル上らしい下がり寸法へ調整。"
+    },
+    {
       "id": "elec-010",
       "type": "light-downlight",
       "level": 1,

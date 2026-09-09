@@ -77,7 +77,7 @@ def main():
     # execution, so import_study.py (run once, from the project root, via the
     # commandlet) can import these too without a separate root-level copy.
     for name in ('study_controls.py','study_state.py','solar_position.py','site_context.py',
-                 'finish_settings.py','material_builder.py','surface_finish_overrides.py'):
+                 'finish_settings.py','material_builder.py','surface_finish_overrides.py','lighting.py'):
         shutil.copy2(ROOT/'unreal'/name,scripts/name)
     (scripts/'init_unreal.py').write_text('import study_controls\nstudy_controls.register_menu()\n',encoding='utf-8')
     # W04: lets study_controls.py's menu (named-scenario save/list/A-B) shell
@@ -85,6 +85,7 @@ def main():
     # has no other reference to (it is a standalone copy).
     (output/'repo-root.json').write_text(json.dumps(dict(root=str(ROOT)))+'\n',encoding='utf-8')
     shutil.copy2(ROOT/'data/visual/unreal-finishes.json',output/'finish-settings.json')
+    shutil.copy2(ROOT/'data/visual/lighting-settings.json',output/'lighting-settings.json')
     if args.state: shutil.copy2(args.state,output/'study-state.json')
     if args.sun_cases: shutil.copy2(args.sun_cases,output/'sun-cases.json')
     if args.site: shutil.copy2(args.site,output/'site.local.json')
