@@ -21,7 +21,7 @@ ROOT=Path(__file__).resolve().parents[1]
 SCENARIO_ROOT=ROOT
 sys.path.insert(0,str(ROOT/'unreal'))
 from study_state import validate_state
-from solar_position import validate_cases, validate_site, cases_match_site
+from solar_position import validate_cases, validate_site, cases_match_site, case_matches_site
 from site_context import validate_context
 
 # W05: site.local.json (the local lat/long/plan-north input, see
@@ -68,6 +68,15 @@ def retained_inputs(previous, gallery=False):
         site=validate_site(read(previous/'site.local.json'))
         if cases is not None and not cases_match_site(cases,site):
             raise ValueError('Local site does not match the retained solar cases; recompute the cases for the current site first')
+        # W05-v1 review R1: cases_match_site() above only checks the retained
+        # sun-cases LIST; the retained STATE's own solar (state['solar'], the
+        # angle actually shown/saved in the editor) must independently match
+        # too -- a site change followed by recompute_sun_cases() updates
+        # sun-cases.json but never touches the currently-applied state, so
+        # "cases match, state.solar does not" is a normal, not exotic, way
+        # for this to happen and must not be retained silently.
+        if state.get('solar') is not None and not case_matches_site(state['solar'],site):
+            raise ValueError("Local site does not match the retained state's solar case; reapply a current-site datetime case before saving")
         paths['site']=previous/'site.local.json'
     context=previous/'site-context.json'
     expected=state.get('siteContextSHA256')
@@ -116,6 +125,11 @@ def scenario_inputs(scenario_dir, gallery=False):
         site=validate_site(read(resolved['site.local.json']))
         if cases is not None and not cases_match_site(cases,site):
             raise ValueError('Scenario site does not match its bundled solar cases')
+        # W05-v1 review R1: same additional check as retained_inputs() -- the
+        # bundled state's own solar must independently match the bundled
+        # site too, not just the bundled sun-cases list.
+        if state.get('solar') is not None and not case_matches_site(state['solar'],site):
+            raise ValueError("Scenario site does not match its saved study state's solar case")
         paths['site']=resolved['site.local.json']
     context_expected=state.get('siteContextSHA256')
     if 'site-context.json' in resolved:

@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
 from solar_position import (position, make_case, validate_case, apply_case, matches,
-    site_sha256, cases_match_site, season_reference_timestamps)
+    site_sha256, cases_match_site, case_matches_site, season_reference_timestamps)
 
 SITE=dict(schemaVersion='1.0.0',latitudeDeg=35,longitudeDeg=135,
           planNorthAzimuthDeg=0,locationStatus='estimated',northStatus='estimated',
@@ -60,6 +60,18 @@ class SolarTests(unittest.TestCase):
         other=dict(SITE,latitudeDeg=36)
         self.assertFalse(cases_match_site(cases,other))
         self.assertTrue(cases_match_site([],other))  # vacuously true; nothing to contradict
+
+    def test_case_matches_site_detects_tampered_angle(self):
+        # W05-v1 review R1: cases_match_site() previously checked only the
+        # recorded siteSHA256 -- a case whose angle was altered by hand (or
+        # drifted from a bug) after that hash was written still read back as
+        # a match. case_matches_site() must also recompute the case's own
+        # angle from make_case() and compare it.
+        case=make_case(SITE,'2026-06-21T12:00:00+09:00')
+        self.assertTrue(case_matches_site(case,SITE))
+        tampered=dict(case,elevationDeg=case['elevationDeg']+10)  # siteSHA256 unchanged
+        self.assertFalse(case_matches_site(tampered,SITE))
+        self.assertFalse(cases_match_site([case,tampered],SITE))
 
     def test_season_reference_timestamps(self):
         stamps=season_reference_timestamps(2026)

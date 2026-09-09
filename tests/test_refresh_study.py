@@ -74,6 +74,29 @@ class RefreshTests(unittest.TestCase):
         self.write('site.local.json',dict(site,latitudeDeg=36))
         with self.assertRaises(ValueError): m.retained_inputs(self.previous)
 
+    def test_state_solar_must_match_retained_site(self):
+        # W05-v1 review R1: cases_match_site() only checks the retained
+        # sun-cases LIST; the retained STATE's own solar must independently
+        # match the retained site too. This reproduces the review's own
+        # repro exactly: sun-cases match the site, but the retained state's
+        # solar is stale (computed under a different site) -- a normal
+        # sequence (site changed, cases recomputed, state not yet
+        # reapplied), not a contrived one, and must be rejected.
+        site=dict(schemaVersion='1.0.0',latitudeDeg=35,longitudeDeg=135,planNorthAzimuthDeg=0,
+            locationStatus='estimated',northStatus='estimated',note='Synthetic test site.')
+        other_site=dict(site,latitudeDeg=36)
+        case=make_case(site,'2026-06-21T12:00:00+09:00')
+        stale_solar=make_case(other_site,'2026-06-21T12:00:00+09:00')
+        self.write('site.local.json',site)
+        self.write('sun-cases.json',dict(schemaVersion='1.0.0',siteDaylightCalibrated=False,cases=[case]))
+        self.write('study-state.json',dict(self.state,azimuthDeg=stale_solar['azimuthDeg'],
+            elevationDeg=stale_solar['elevationDeg'],solar=stale_solar))
+        with self.assertRaises(ValueError): m.retained_inputs(self.previous)
+        # Reapplying the current-site case (state.solar now matches) succeeds.
+        self.write('study-state.json',dict(self.state,azimuthDeg=case['azimuthDeg'],
+            elevationDeg=case['elevationDeg'],solar=case))
+        self.assertIn('site',m.retained_inputs(self.previous))
+
     def test_summary_escapes_note_and_links_only_requested_gallery(self):
         report=dict(note='<script>bad</script>',gallery=False,changedSourceFiles=['data/house.json'])
         page=m.summary(report)

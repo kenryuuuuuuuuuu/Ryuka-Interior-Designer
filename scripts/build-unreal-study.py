@@ -11,7 +11,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'unreal'))
 from study_state import default_state, validate_state
-from solar_position import validate_cases, validate_site, cases_match_site
+from solar_position import validate_cases, validate_site, cases_match_site, case_matches_site
 from site_context import validate_context
 from finish_settings import validate_finishes
 
@@ -31,6 +31,7 @@ def main():
     args=parser.parse_args()
     validate_finishes(json.loads((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8')))
     sun_cases=None
+    site=None
     if args.sun_cases: sun_cases=validate_cases(json.loads(args.sun_cases.read_text(encoding='utf-8')))
     if args.site:
         site=validate_site(json.loads(args.site.read_text(encoding='utf-8-sig')))
@@ -59,6 +60,11 @@ def main():
         saved=validate_state(json.loads(args.state.read_text(encoding='utf-8')),study)
         if saved.get('siteContextSHA256') and not args.context:
             parser.error('This saved state used site context. Supply --context to preserve surrounding shade geometry.')
+        # W05-v1 review R1: same contract as the editor/refresh paths -- a
+        # --state whose own solar case does not match --site must not be
+        # silently accepted (e.g. a state saved before the site was changed).
+        if site is not None and saved.get('solar') is not None and not case_matches_site(saved['solar'],site):
+            parser.error("--state's solar case does not match --site; reapply a current-site datetime case before saving that state")
     else:
         default_state(study,dict(sunLux=args.sun_lux,exposureEV100=args.exposure_ev100))
     shutil.copytree(ROOT/'unreal/template',output)

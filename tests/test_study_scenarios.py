@@ -179,6 +179,37 @@ class ScenarioTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             refresh_inputs.scenario_inputs(output)
 
+    def test_scenario_rejects_state_solar_mismatched_with_bundled_site(self):
+        # W05-v1 review R1: scenario_inputs()'s site/sun-cases consistency
+        # check must also cover the bundled STATE's own solar, not just the
+        # bundled sun-cases list -- mirrors
+        # test_refresh_study.test_state_solar_must_match_retained_site() for
+        # the scenario-package path.
+        from solar_position import make_case
+        site=dict(schemaVersion='1.0.0',latitudeDeg=35,longitudeDeg=135,planNorthAzimuthDeg=0,
+            locationStatus='estimated',northStatus='estimated',note='Synthetic test site.')
+        case=make_case(site,'2026-06-21T12:00:00+09:00')
+        self.write('site.local.json',site)
+        self.write('sun-cases.json',dict(schemaVersion='1.0.0',siteDaylightCalibrated=False,cases=[case]))
+        self.write('study-state.json',dict(self.state,azimuthDeg=case['azimuthDeg'],
+            elevationDeg=case['elevationDeg'],solar=case))
+        output=self.run_save('敷地・日時ケース・状態が揃った案')
+        self.assertTrue((output/'site.local.json').is_file())
+        # Hand-tamper the SAVED package's state.solar to a different site's
+        # angle (simulating a hand-edited/stale package) and re-sign
+        # scenario.json so only the site/state mismatch is under test, not
+        # the file-hash check.
+        other_site=dict(site,latitudeDeg=36)
+        stale_solar=make_case(other_site,'2026-06-21T12:00:00+09:00')
+        state=json.loads((output/'study-state.json').read_text(encoding='utf-8'))
+        state['azimuthDeg']=stale_solar['azimuthDeg']; state['elevationDeg']=stale_solar['elevationDeg']; state['solar']=stale_solar
+        (output/'study-state.json').write_text(json.dumps(state),encoding='utf-8')
+        scenario=json.loads((output/'scenario.json').read_text(encoding='utf-8'))
+        scenario['files']['study-state.json']=dict(sha256=refresh_inputs.sha(output/'study-state.json'))
+        (output/'scenario.json').write_text(json.dumps(scenario),encoding='utf-8')
+        with self.assertRaises(ValueError):
+            refresh_inputs.scenario_inputs(output)
+
     def test_scenario_inputs_rejects_hash_mismatch(self):
         output=self.run_save('改ざん検知対象の案')
         (output/'study-state.json').write_text(json.dumps(dict(self.state,variant='reference')),encoding='utf-8')

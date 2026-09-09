@@ -77,15 +77,28 @@ def site_sha256(site):
     return hashlib.sha256(json.dumps(site,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
 
 
+def case_matches_site(case, site):
+    """True if `case` was computed from exactly this site input AND its
+    stored angle is still what make_case() would compute fresh for the same
+    localTimestamp under this site (W05-v1 review R1). Checking siteSHA256
+    alone cannot catch a case whose angle was altered by hand, or drifted
+    from a bug, after that hash was recorded -- the same hash would still
+    read back as a match. Reuses make_case(); no second algorithm."""
+    if case.get('siteSHA256') != site_sha256(site):
+        return False
+    fresh = make_case(site, case['localTimestamp'])
+    return (abs((fresh['azimuthDeg']-case['azimuthDeg']+180)%360-180) < 1e-6
+            and abs(fresh['elevationDeg']-case['elevationDeg']) < 1e-6)
+
+
 def cases_match_site(cases, site):
     """True if every case in `cases` (an iterable of solar cases, e.g.
-    document['cases']) was computed from exactly this site input. Used
+    document['cases']) matches `site` -- see case_matches_site(). Used
     whenever a site.local.json and a sun-cases.json are both present, to
     catch a sun-cases.json left over from before the site changed --
     recomputing is always an explicit, separate action (see
     study_controls.recompute_sun_cases()), never automatic here."""
-    expected = site_sha256(site)
-    return all(case.get('siteSHA256') == expected for case in cases)
+    return all(case_matches_site(case, site) for case in cases)
 
 
 SEASON_REFERENCE_DATES = ((3, 21), (6, 21), (9, 21), (12, 21))

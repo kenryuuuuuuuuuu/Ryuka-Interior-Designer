@@ -1,11 +1,29 @@
 # W05 実装報告
 
-状態：READY_FOR_REVIEW
-開始BASE（完全SHA）：`b478a9f4bf85cd309ea1e446a9d9cbae6b91cb39`
+状態：READY_FOR_REVIEW（v2、W05-v1レビューのR1/R2対応）
+開始BASE（完全SHA）：`b478a9f4bf85cd309ea1e446a9d9cbae6b91cb39`（維持）
 使用モデル：Claude Sonnet 5（`claude-sonnet-5`）
 環境：Windows 11 Pro 10.0.26200 / UE 5.8.2 / Blender 5.2.0 LTS。変更した設定なし。
 
-## 結果
+## 結果（v2時点）
+
+**[W05-v1レビュー](W05-review.md)（対象`a27b62a`、CHANGES_REQUESTED）のR1・R2をすべて同じW05内で修正しました**（この報告のv2）。各項目の対応は以下の通りです。
+
+| 項目 | v1までの状態 | v2での対応 |
+|---|---|---|
+| R1（現在の敷地と実際の太陽状態の一致を確認する） | `cases_match_site()`は日時ケースの`siteSHA256`と敷地ハッシュの一致だけを見ており、①敷地を切り替えても古い日時ケースの適用（`set_sun_case()`）・日時比較（`start_daylight_compare()`）が止まらない、②敷地変更後に`recompute_sun_cases()`で一覧を再計算しても、現在シーンの`solar`（適用中の日時来歴）が古いまま`save()`が成功する、③同じ`siteSHA256`のまま角度だけ改変されたケースを検出できない、という3点が抜けていた。 | `solar_position.py`に`case_matches_site(case, site)`を追加（`siteSHA256`の一致に加え、`make_case()`で同じ`localTimestamp`を敷地から再計算した角度との一致も確認）し、`cases_match_site()`はこれを内部で使うよう変更（シグネチャ・呼び出し側は不変）。`study_controls.py`に共通ヘルパー`_verify_case_site()`を追加し、`set_sun_case()`・`start_daylight_compare()`の両方が適用前にこれで現在の敷地との一致を確認（敷地原本の無い旧ケースは従来通り素通り）。`save()`は、現在の`solar`が現在の敷地と一致しない場合に保存そのものを拒否するよう変更（`scene_state()`/`current_state()`自体は変更せず、単に現在状態を読むだけの経路は壊さない）。`scripts/refresh_inputs.py`の`retained_inputs()`/`scenario_inputs()`、`scripts/build-unreal-study.py`の`--state`/`--site`も同じ`case_matches_site()`で状態の`solar`を敷地と照合するよう追加。「採光」「日時比較」メニューの一覧も、敷地と不一致なケースを適用不可として示す／一覧から除外するよう更新。 |
+| R2（名前付き案の読込でsiteと日時一覧も一緒に採用する） | `load_scenario()`は`scenario_inputs()`が返す入力一式のうち`state`しか採用しておらず、別の敷地で保存した案を読み込んでも現在プロジェクトの`site.local.json`/`sun-cases.json`がそのまま残り、その後の日時変更・再保存で案とは無関係な敷地/一覧が混ざり得た。 | `load_scenario()`を、`_validate_applicable()`の検証が全て通った**後**（検証失敗時は何も書き換えない）、案が`site`/`sunCases`を持てばそれぞれ`site.local.json`/`sun-cases.json`へ書き込み、持たなければ現在のプロジェクトのそれらを削除する（「原本なし」へ戻す）よう変更。W04の仕上げA/B（`start_compare()`、`_load_scenario_state()`を引き続き使用）は対象外のまま：視点・太陽・露出を固定し仕上げだけを切り替えるモードのため、レビュー自身が「モード間の意味を維持」と明記した通り、敷地/日時ケースを切り替える必要がない。 |
+
+| 条件ID | 判定 | 証拠・コマンド・終了コード |
+|---|---|---|
+| R1代表検証（site A→Bへ変更し、旧ケースの適用/比較が止まること。Bで再計算した後もAのstateを保存できないこと、Bの日時を適用すれば保存/refresh可能なことを1つの流れで確認。角度不一致は純Python） | PASS | 実UEエディタ実行（`build/W05-ue-v1/w05-v2-verification.json`）：site A基準で日時を適用・保存後、site Bへ切替 → 旧A基準ケースの`set_sun_case()`（`stale_case_apply_raises: true`）・`start_daylight_compare()`（`stale_compare_raises: true`、`no_compare_started_after_stale_rejection: true`）がいずれも拒否されることを確認。`recompute_sun_cases()`でケース一覧をBへ更新した直後（シーンの`solar`はまだA）に`save()`を試みると拒否（`stale_state_save_after_recompute_raises: true`）、B基準ケースを`set_sun_case()`で適用してからの`save()`は成功（`post_fix_save_succeeded: true`、`post_fix_saved_solar_b`が新しい日時と一致）。角度不一致の純Python例は`tests/test_solar_position.py::test_case_matches_site_detects_tampered_angle`（`siteSHA256`はそのまま、`elevationDeg`だけ改変したケースを`case_matches_site()`/`cases_match_site()`が偽と判定）。終了コード0。 |
+| R2代表検証（異なるsiteと日時一覧を持つ2案を同じcontext条件で用意し、Bの読込後はUIの敷地・ケース・solarがBで揃い、保存し直した案にもBが入ること） | PASS | 同実行内：同一context（`site-context.json`）のまま、site A案（`w05-v2-r2-site-x`）とsite B案（`w05-v2-r2-site-y`）を保存し、Y読込後に`current_site()`（`after_load_y_site`）・`_sun_cases_status_text()`（`after_load_y_cases_status`＝「現在の敷地と一致」）・`current_state().solar`（`after_load_y_solar`）のすべてがBで揃うことを確認。Yの状態のまま再保存した`w05-v2-r2-site-y-resaved`の`site.local.json`もBと一致（`resaved_scenario_has_site_y: true`）。 |
+| 修正後の完全refresh 1回（R2で読込・再保存した案から） | PASS | `build/scenarios/w05-v2-r2-site-y-resaved`（site B・B基準の`sun-cases.json`・状態・周辺条件を同梱）を`refresh-visual-study.py --previous build/W05-ue-v1 --scenario ... --output build/W05-v2-refresh-v1`で完全refresh。`refresh.json`は7工程すべて`complete`、`stateVerification`が`statePreserved: true`/`geometryVerified: true`/`cameraRotationPreserved: true`。`unrealVerification.comparisonState.solar.siteSHA256`と`ue/site.local.json`がいずれもsite Bと一致することを確認。終了コード0。 |
+| 関連テスト・回帰 | PASS | `python -m pytest tests/`：125 passed, 35 subtests passed（v1の122+3件から、R1のタンパリング検知1件・retained_inputs/scenario_inputsのstate.solar不一致拒否2件を追加）。`node scripts/build-web-data.mjs --check`成功。`python tests/validate_house.py`：33室・35壁（変更なし）。 |
+
+v1で提出したAC1〜AC4（section 6の代表検証）はコード変更が直接及ぶ範囲ではなく（R1/R2はいずれも敷地/日時ケースの整合性確認の追加で、日時比較そのものの撮影・保存経路は変更していない）、上記R1/R2代表検証と完全refreshの再実行で該当パスの健全性を再確認しています。個別の再検証はレビューの指示通り実施していません（「多数の季節画像やW04の再検証一式は不要です」）。v1報告のAC1〜AC4の内容は変更ありません（下記に維持）。
+
+## 結果（v1、変更なし）
 
 ゲストLDK（room-1f-06）で、UEエディタからローカル敷地情報（緯度経度・真北・確度、`site.local.json`）を読み込み・新規作成し、既存の太陽計算（`noaa-meeus-geometric-v1`）で日時ケースを追加・季節代表日を一括生成できるようにしました。仕上げ・視点・露出・光源強度・周辺条件を固定したまま日時だけを切り替える新しい「日時比較」A/Bを追加し、比較開始前に両案の面参照・周辺条件の適合を検証してから初めてシーンへ適用する仕組み（既存の`_context_compatible`と面上書き参照確認を統合した共通関数）にしました。この共通適用前検証は、W04-v1レビューで指摘された「A/B両案の面参照事前確認」の不足も合わせて解消しています。
 
@@ -24,7 +42,13 @@
 ## 変更と判断
 
 - 目的：既存の太陽計算・周辺遮蔽・保存/refresh基盤を再利用し、ローカル敷地情報の入力・根拠確認、日時選択による日差し変更、固定条件下での日時A/B比較、比較条件の保存・内覧・再生成への引き継ぎを追加すること。
-- 主な変更：
+- v2で追加した変更（R1/R2対応）：
+  - `unreal/solar_position.py`：`case_matches_site(case, site)`を追加（`siteSHA256`一致＋`make_case()`による角度再計算一致の両方を確認）。`cases_match_site()`は内部でこれを使うよう変更（シグネチャ不変）。
+  - `unreal/study_controls.py`：`_verify_case_site(case, label)`を追加し`set_sun_case()`/`start_daylight_compare()`から呼び出し。`save()`に、現在の`solar`が現在の敷地と一致しない場合の保存拒否チェックを追加。`load_scenario()`を、`scenario_inputs()`の`site`/`sunCases`パスも含めて一組として採用する実装へ変更（検証成功後にのみファイルを書き換え、案に無ければ現在のものを削除）。「採光」「日時比較」メニューの一覧表示に敷地不一致の案内・除外を追加。
+  - `scripts/refresh_inputs.py`：`retained_inputs()`/`scenario_inputs()`に、`site`が存在する場合の`state['solar']`と`case_matches_site()`による照合を追加（既存の`cases_match_site()`によるsun-cases側の照合とは別に、状態自体の`solar`も確認）。
+  - `scripts/build-unreal-study.py`：`--state`の`solar`と`--site`の`case_matches_site()`照合を追加。
+  - `tests/test_solar_position.py`・`tests/test_refresh_study.py`・`tests/test_study_scenarios.py`：R1のタンパリング検知・state.solar不一致拒否の代表テストを追加（計3件）。
+- 主な変更（v1）：
   - `unreal/solar_position.py`：`site_sha256()`（`make_case()`から抽出、敷地の意味上のハッシュを一元化）、`cases_match_site()`、`SEASON_REFERENCE_DATES`/`SEASON_REFERENCE_HOURS`/`season_reference_timestamps()`（3/21・6/21・9/21・12/21の9/12/15時、暦上の代表日と明記）を追加。
   - `unreal/study_controls.py`：敷地の読込・新規作成・状態表示（`load_site`/`create_site_input`/`_site_status_text`ほか）、日時ケースの追加・季節一括追加・再計算・状態表示（`add_datetime_case`/`add_season_cases`/`recompute_sun_cases`/`_sun_cases_status_text`ほか）、新しい日時比較A/B（`start_daylight_compare`/`show_daylight_compare_*`/`end_daylight_compare`/`pick_daylight_compare_*`）を追加。W04の面参照検証と周辺条件検証を統合した共通の適用前検証`_validate_applicable()`を新設し、`load_scenario()`/`start_compare()`（W04の仕上げA/B）も同じ関数で検証するよう変更（W04-v1レビューの非阻害残件に対応）。UEメニューに「採光」「日時比較」の2サブメニューを追加。
   - `blender/build_interior.py`：`setup_lighting()`が`--state`の`azimuthDeg`/`elevationDeg`を全く読んでいなかった不具合を修正（`state`引数を追加し、指定があれば`--elevation`より優先して反映）。
@@ -44,6 +68,9 @@
   - `build/W05-daylight-gallery-v1`：`compare-unreal-daylight.py`による日時固定比較の実撮影（AC1証拠）
   - `build/scenarios/w05-final-refresh-test-v2`：完全refresh確認用の名前付き案
   - `build/W05-refresh-v2`：修正後コードでの完全refresh代表1回（AC3証拠）
+  - `build/W05-ue-v1/verify_w05_v2.py`・`w05-v2-verification.json`：R1/R2代表検証の実UEエディタ実行結果
+  - `build/scenarios/w05-v2-r2-site-x`／`-y`／`-y-resaved`：R2検証用の異なる敷地を持つ名前付き案（同一context）
+  - `build/W05-v2-refresh-v1`：R2で読込・再保存した案からの完全refresh代表1回
 
 ## 残ること
 
@@ -55,6 +82,8 @@
 - 定量照度（lux実測値との対応）・実天候の校正は対象外のまま（仕様どおり、W06以降）。
 - 窓・庇・屋根・ガラスの棚卸し：ゲストLDKの主要開口・庇はshape/正本ありで生成対応済み。屋根全体の形状作り直しや新しいガラス透過モデルは今回不要と判断（日影を妨げる明白な欠落は見つからず）。ガラスの影・透過は既存の簡易近似のまま（現実の透過率は保証しない、仕様どおり明記）。
 - `verify_w05.py`実行中に一度だけ`end_daylight_compare()`直後の角度が厳密一致でないケースがあったが（浮動小数点差、太陽アクターの3D回転往復に起因）、同じ入力でのクリーンな再実行ではビット単位で一致することを確認済み。`end_daylight_compare()`自体はW04の`end_compare()`と同じ復元パターンを使っており、コード変更は行っていない。
+- R1の修正は「敷地が現在設定されている場合」の照合であり、敷地原本を持たない旧来のsun-cases/状態はこれまで通り検証対象外です（仕様上の要件どおり）。
+- W04の仕上げA/B（`start_compare()`）はR2の対象外のままです（意図的。レビュー自身が確認済み）。
 - 共有壁の両室登録・全館状態・別階への展開は計画通りW07・W08の範囲。
 - W06（夜間照明）には着手していません。
 
@@ -83,6 +112,20 @@ python scripts/save-study-scenario.py --project build/W05-ue-v1 --name '<名前>
 python scripts/refresh-visual-study.py --previous build/W05-ue-v1 --scenario build/scenarios/<新規案> --output build/<新規ディレクトリ> --cache '../../ddc'
 
 # テスト・回帰
+python -m pytest tests/ -q
+node scripts/build-web-data.mjs --check
+python tests/validate_house.py
+```
+
+```powershell
+# v2（R1/R2）代表検証：site A→B切替での旧ケース拒否・再計算後の保存拒否・修正後の保存成功、
+# および名前付き案の敷地/日時ケース一括採用（実UEエディタ、対話プロンプトはモックで代入）
+# build/W05-ue-v1/verify_w05_v2.py をUEエディタのPythonコンソール/起動引数で実行し、w05-v2-verification.json を確認
+
+# R2で読込・再保存した案からの完全refresh
+python scripts/refresh-visual-study.py --previous build/W05-ue-v1 --scenario build/scenarios/w05-v2-r2-site-y-resaved --output build/<新規ディレクトリ> --cache '../../ddc'
+
+# テスト・回帰（v2）
 python -m pytest tests/ -q
 node scripts/build-web-data.mjs --check
 python tests/validate_house.py

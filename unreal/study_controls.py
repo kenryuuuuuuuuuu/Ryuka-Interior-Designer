@@ -9,7 +9,7 @@ import sys
 import unreal
 from study_state import default_state, validate_state
 from solar_position import (apply_case, matches, validate_cases, validate_site,
-    cases_match_site, make_case, season_reference_timestamps, site_sha256)
+    cases_match_site, case_matches_site, make_case, season_reference_timestamps, site_sha256)
 from material_builder import rgb
 from surface_finish_overrides import resolve_finish, resolve_overrides
 
@@ -154,11 +154,27 @@ def set_elevation(degrees):
     state=current_state(); state.pop('solar',None); state['elevationDeg']=degrees; apply_state(state)
 
 
+def _verify_case_site(case, label):
+    """W05-v1 review R1: cases_match_site()/_sun_cases_status_text() only
+    warn in the status label; every path that actually APPLIES a case (UI
+    apply, datetime A/B, capture, direct build) must refuse to do so once
+    the current site no longer matches it -- otherwise a site change or a
+    recompute that the operator hasn't re-applied yet keeps silently taking
+    effect. Skipped when no site is currently loaded: legacy sun-cases with
+    no retained site snapshot remain usable, per spec."""
+    site=current_site()
+    if site is None: return
+    if not case_matches_site(case,site):
+        raise RuntimeError(f'{label}は現在の敷地と一致しません（敷地変更後の再計算・再適用が必要です）。')
+
+
 def set_sun_case(index):
     cases=validate_cases(read('sun-cases.json'))['cases']
     if isinstance(index,bool) or not isinstance(index,int) or not 0<=index<len(cases):
         raise ValueError('Invalid solar case index')
-    apply_state(apply_case(current_state(),cases[index]))
+    case=cases[index]
+    _verify_case_site(case,f"日時ケース「{case['localTimestamp']}」")
+    apply_state(apply_case(current_state(),case))
 
 
 def fixed_view():
@@ -253,6 +269,18 @@ def scene_state(base):
 
 def save():
     state=scene_state(current_state())
+    # W05-v1 review R1: a site change or an explicit recompute_sun_cases()
+    # touches site.local.json/sun-cases.json but never the currently-applied
+    # scene state -- so "sun-cases now match the new site, but the scene's
+    # own solar (still showing an old case) does not" is a normal, reachable
+    # state, not an edge case. Block the save itself here (not scene_state(),
+    # which current_state()/start_daylight_compare() etc. also call just to
+    # read the current condition -- those must keep working on stale-but-
+    # readable state so the operator can see and fix it).
+    site=current_site()
+    if state.get('solar') is not None and site is not None and not case_matches_site(state['solar'],site):
+        raise RuntimeError('現在の太陽状態（日時由来）が現在の敷地と一致しません。'
+            '日時ケースを現在の敷地で再計算し、再適用してから保存してください。')
     if not unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level(): raise RuntimeError('Level save failed')
     write('study-state.json',state)
     global _state
@@ -429,6 +457,11 @@ def _load_scenario_state(refresh_inputs, index, dirs):
     # study-state.json out of the package directly. A stale/corrupted/
     # tampered scenario package is refused here, before apply_state() ever
     # runs, and stays listed (not removed) so the operator can still see it.
+    # W05-v1 review R2: this helper is still used ONLY by start_compare()
+    # (W04's finish A/B), which deliberately fixes sun/camera/exposure and
+    # never adopts a scenario's site/sun-cases -- "仕上げだけのA/Bでは敷地を
+    # 切り替える必要はなく、モード間の意味を維持します". load_scenario() below
+    # (single-案 load) has its own function that also adopts site/sun-cases.
     try:
         paths,_=refresh_inputs.scenario_inputs(dirs[index])
     except ValueError as error:
@@ -476,8 +509,31 @@ def _validate_applicable(state, label):
 def load_scenario(index):
     dirs=_scenario_dirs()
     if not 0<=index<len(dirs): raise RuntimeError('案が見つかりません。')
-    state=_load_scenario_state(_refresh_inputs(),index,dirs)
+    # W05-v1 review R2: scenario_inputs() validates state/site/sun-cases as
+    # ONE consistent input set (including, since R1, that state['solar']
+    # itself matches the bundled site); take the whole set from `paths`
+    # instead of only its state -- previously load_scenario() applied only
+    # the state and left whatever site.local.json/sun-cases.json the CURRENT
+    # project already had, letting a state/solar loaded from scenario B
+    # silently keep pairing with an unrelated site A still on disk.
+    try:
+        paths,_=_refresh_inputs().scenario_inputs(dirs[index])
+    except ValueError as error:
+        raise RuntimeError(f'案「{dirs[index].name}」は現在の状態と整合しません: {error}')
+    state=json.loads(paths['state'].read_text(encoding='utf-8'))
     _validate_applicable(state,f'案「{dirs[index].name}」')
+    # Everything above is read-only (scenario_inputs()/_validate_applicable()
+    # touch nothing); only past this point do we start writing, so a failure
+    # anywhere above leaves the current site/sun-cases/state exactly as they
+    # were -- "検証に失敗した場合は現在の正常な入力/状態を維持してください".
+    if 'site' in paths:
+        write('site.local.json',json.loads(paths['site'].read_text(encoding='utf-8-sig')))
+    elif _site_path().exists():
+        _site_path().unlink()  # scenario has no site of its own: revert to "no site", never keep an unrelated one
+    if 'sunCases' in paths:
+        write('sun-cases.json',json.loads(paths['sunCases'].read_text(encoding='utf-8-sig')))
+    elif _sun_cases_path().exists():
+        _sun_cases_path().unlink()
     apply_state(state)
     unreal.log('案を読み込みました: '+dirs[index].name)
     register_menu()
@@ -696,6 +752,7 @@ def start_daylight_compare(index_a, index_b):
     case_a,case_b=cases[index_a],cases[index_b]
     for case in (case_a,case_b):
         if not case['usable']: raise RuntimeError('適用できない日時です: '+case['reason'])
+        _verify_case_site(case,f"日時「{case['localTimestamp']}」")
     base=current_state()
     def with_case(case):
         state=copy.deepcopy(base)
@@ -875,6 +932,7 @@ def register_menu():
     add(daylight_menu,'Cases','CaseAddSeason','季節代表日を追加（3/21・6/21・9/21・12/21の9/12/15時）','add_season_cases()')
     add(daylight_menu,'Cases','CaseRecompute','日時ケースを現在の敷地で再計算','recompute_sun_cases()')
     if (project()/'sun-cases.json').exists():
+        site_for_labels=current_site()
         for index,case in enumerate(validate_cases(read('sun-cases.json'))['cases']):
             provenance='概算' if 'estimated' in (case['locationStatus'],case['northStatus']) else '入力確認済み'
             label=case['localTimestamp']+'（'+provenance+'）'
@@ -884,6 +942,13 @@ def register_menu():
             # (solar_position.apply_case()) rather than silently rounding
             # into the daylight range.
             if not case['usable']: label += '［適用不可：'+case['reason']+'］'
+            # W05-v1 review R1: same treatment for a case whose recorded
+            # angle no longer matches the CURRENT site (a site changed since
+            # this case was computed, and not yet recomputed) -- shown, with
+            # the reason, but set_sun_case() below (_verify_case_site) still
+            # refuses to apply it.
+            elif site_for_labels is not None and not case_matches_site(case,site_for_labels):
+                label += '［適用不可：現在の敷地と不一致］'
             add(daylight_menu,'Apply',f'CaseApply{index}',label,f'set_sun_case({index})')
 
     # W05: datetime A/B, mirroring W04's finish A/B above but inverted --
@@ -894,11 +959,18 @@ def register_menu():
     add(daylight_compare_menu,'Status','DaylightCompareStatus',_daylight_compare_status_text(),'show_daylight_compare_status()')
     if (project()/'sun-cases.json').exists():
         cases=validate_cases(read('sun-cases.json'))['cases']
+        site_for_compare=current_site()
+        def _pickable(case):
+            # W05-v1 review R1: keep an unusable OR site-mismatched case out
+            # of the pick lists entirely, the same way an unusable one always
+            # was -- both would only raise once picked (start_daylight_compare
+            # -> _verify_case_site), so there is no reason to offer them.
+            return case['usable'] and (site_for_compare is None or case_matches_site(case,site_for_compare))
         for index,case in enumerate(cases):
-            if not case['usable']: continue
+            if not _pickable(case): continue
             add(daylight_compare_menu,'PickA',f'DaylightPickA{index}','比較A：'+case['localTimestamp'],f'pick_daylight_compare_a({index})')
         for index,case in enumerate(cases):
-            if not case['usable']: continue
+            if not _pickable(case): continue
             add(daylight_compare_menu,'PickB',f'DaylightPickB{index}','比較B：'+case['localTimestamp'],f'pick_daylight_compare_b({index})')
     add(daylight_compare_menu,'Show','DaylightShowA','比較Aを表示','show_daylight_compare_a()')
     add(daylight_compare_menu,'Show','DaylightShowB','比較Bを表示','show_daylight_compare_b()')
