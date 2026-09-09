@@ -257,6 +257,11 @@ class RefreshTests(unittest.TestCase):
         merged=m.read(output/'merged-study-state.json')
         self.assertEqual(merged['scopeId'],'guest-ldk')
         self.assertEqual(merged['roomStates']['room-a']['variant'],'warm')
+        # W07-G1-v2 review (進行を止めない改善事項 #1): a full-coverage
+        # scenario needs no base state at all -- baseState must record that
+        # explicitly (null), not silently omit the key or point at the
+        # corrupted --previous save that was correctly never read.
+        self.assertIsNone(result['baseState'])
 
     def test_partial_coverage_scenario_uses_newer_walkthrough_save_for_uncovered_room(self):
         # W07-G1 review R3: for a room the --scenario does NOT cover, the
@@ -318,6 +323,16 @@ class RefreshTests(unittest.TestCase):
         merged=m.read(output/'merged-study-state.json')
         self.assertEqual(merged['roomStates']['room-a']['variant'],'reference')  # replaced by the scenario
         self.assertEqual(merged['roomStates']['room-b']['variant'],'warm')  # kept from the NEWER walkthrough save
+        # W07-G1-v2 review (進行を止めない改善事項 #1): the merge base for
+        # room-b (the newer Saved/walkthrough-state.json, not the older
+        # study-state.json) must itself be recorded -- source path + hash --
+        # and snapshotted under `saved/`, so a later change to it during a
+        # long generation can be detected instead of silently going unnoticed.
+        result=m.read(output/'refresh.json')
+        base_source=self.previous/'Saved/walkthrough-state.json'
+        self.assertEqual(result['baseState']['source'],str(base_source))
+        self.assertEqual(result['baseState']['sha256'],m.sha(base_source))
+        self.assertEqual(m.sha(output/'retained/base-study-state.json'),m.sha(base_source))
 
     def test_unresolved_surface_registry_stops_before_blender_or_unreal(self):
         # W03-C: an unresolved registered surface must also fail before any

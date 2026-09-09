@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0.0",
+  "note": "W07-G2: 歩行候補の組（どの部屋を実際に歩けるか）を、編集scope（data/visual/study-scopes.json）とは別に定義する。roomId/建具IDの正本は複製しない。",
+  "profiles": [
+    {
+      "profileId": "guest-circulation",
+      "label": "ゲスト回遊（玄関〜ホール〜LDK/洋室〜水回り）",
+      "scopeId": "guest-pilot",
+      "roomIds": ["room-1f-02", "room-1f-24", "room-1f-06", "room-1f-05", "room-1f-01", "room-1f-03", "room-1f-04", "room-1f-23"],
+      "entryRoomId": "room-1f-02",
+      "note": "対象8区画。door-002/004はhouse.json/interior-doors.jsonの座標で解決するとホール境界にあり、labelの「玄関」表記とは一致しない（分割前の名残）。door-001も同様にトイレ⟷ホールが実際の境界。",
+      "doorNotes": [
+        {"doorId": "door-001", "note": "labelは「トイレ⟷玄関」だが実座標（wallAt=0.91,center=2.33）はホール境界。ラベルではなく座標を採用。", "confidence": "high"},
+        {"doorId": "door-002", "note": "labelは「玄関⟷洗面脱衣室」だが実座標（wallAt=2.73,center=2.26）はホール⟷LDK（張り出し部）境界。ラベルではなく座標を採用。", "confidence": "high"},
+        {"doorId": "door-004", "note": "labelは「玄関⟷LDK張り出し」だが実座標（wallAt=2.73,center=1.38）はホール⟷洗面脱衣境界。ラベルではなく座標を採用。", "confidence": "high"},
+        {"doorId": "door-005", "note": "labelの「玄関」はホールの旧称の名残。実座標（wallAt=2.73,center=2.27）はホール⟷洋室境界で、部屋名以外は妥当。", "confidence": "high"}
+      ]
+    },
+    {
+      "profileId": "guest-ldk-solo",
+      "label": "ゲストLDK（単室、旧W02〜W07-G1互換）",
+      "scopeId": "guest-ldk",
+      "roomIds": ["room-1f-06"],
+      "entryRoomId": "room-1f-06",
+      "note": "W07-G2より前の単室内覧と同じ挙動（接続室・建具なし）。"
+    }
+  ]
+}

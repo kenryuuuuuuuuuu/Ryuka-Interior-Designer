@@ -11,14 +11,21 @@ args=parser.parse_args()
 source=json.loads(args.state.read_text(encoding='utf-8'))
 actual=json.loads((args.project/'study-state.json').read_text(encoding='utf-8'))
 report=json.loads((args.project/'import-verification.json').read_text(encoding='utf-8'))
-# W07-G1: --state is always the MERGED, full-scope 2.0.0 state
+# W07-G1/G2: --state is always the MERGED, full-scope state
 # (refresh-visual-study.py's own merged-study-state.json) -- unlike the
 # pre-G1 single-room shape, schemaVersion is not expected to "upgrade" here
-# (the merge itself already produced 2.0.0); an actual mismatch is a real
-# regeneration bug, not a legitimate legacy-schema pass-through.
-assert actual['schemaVersion']=='2.0.0'==source['schemaVersion'],'schemaVersion'
+# (the merge itself already produced the current schema, 2.1.0 since W07-G2);
+# an actual mismatch is a real regeneration bug, not a legitimate
+# legacy-schema pass-through.
+assert actual['schemaVersion']=='2.1.0'==source['schemaVersion'],'schemaVersion'
 for key in ('scopeId','activeRoomId','roomStates'):
     assert actual[key]==source[key],key
+# W07-G2: doorStates/walkthrough are whole-house fields too (like
+# azimuthDeg/roomStates above) -- a saved door-open state or a recorded
+# walkthrough position must transfer through a full regeneration exactly,
+# never reset to closed/null along the way.
+assert actual.get('doorStates')==source.get('doorStates'),'doorStates lost during regeneration'
+assert actual.get('walkthrough')==source.get('walkthrough'),'walkthrough position lost during regeneration'
 for key in ('azimuthDeg','elevationDeg','sunLux','exposureEV100'):
     assert abs(actual[key]-source[key])<1e-6,key
 for key in ('locationCm','rotationDeg'):

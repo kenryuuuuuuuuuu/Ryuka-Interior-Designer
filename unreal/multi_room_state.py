@@ -17,8 +17,15 @@ domain's own module and is called once per room by the caller.
 import math
 from study_state import validate_state as _validate_legacy_state, validate_surface_overrides
 
-SCHEMA_VERSION = '2.0.0'
+SCHEMA_VERSION = '2.1.0'
 LEGACY_SCHEMA_VERSIONS = ('1.0.0', '1.1.0', '1.2.0')
+# W07-G2: 2.0.0 predates doorStates/walkthrough (the guest circulation
+# profile's per-door open/closed state and the native walkthrough's own
+# last-known room/level) but is otherwise the exact same roomStates-keyed
+# shape as 2.1.0 -- handled as an intra-shape upgrade inside
+# validate_state_v2() itself (doorStates defaults to {}, walkthrough to
+# None), not through migrate_legacy_state()'s single-room reshape.
+V2_SCHEMA_VERSIONS = ('2.0.0', SCHEMA_VERSION)
 SCOPES_SCHEMA = '1.0.0'
 ROOM_RENDER_SCHEMA = '1.0.0'
 # Baseline finish for geometry that belongs to no in-scope room (exterior
@@ -173,6 +180,53 @@ def validate_fixture_overrides(fixtures):
     return fixtures
 
 
+def validate_door_states(door_states):
+    """Structural/type validation of the whole-house `doorStates` dict --
+    {doorId: {open: bool}} -- W07-G2 spec section 4. A door with no entry
+    here reads as closed (same "absence means default" contract as
+    surfaceOverrides/fixtures). Whether a doorId actually names a real,
+    openable door in the CURRENT profile is a separate, model-dependent
+    check (resolve_door_overrides(), mirroring resolve_overrides()/
+    resolve_fixture_overrides()), kept out of this function so a state
+    naming a since-removed/renamed door still parses and can be explained."""
+    if not isinstance(door_states, dict):
+        raise ValueError('doorStates must be an object')
+    for door_id, override in door_states.items():
+        if not isinstance(door_id, str) or not door_id:
+            raise ValueError('Invalid doorStates key')
+        if not isinstance(override, dict):
+            raise ValueError(f'doorStates[{door_id}] must be an object')
+        unknown = set(override) - {'open'}
+        if unknown:
+            raise ValueError(f'doorStates[{door_id}] has unknown fields: {sorted(unknown)}')
+        if 'open' not in override or not isinstance(override['open'], bool):
+            raise ValueError(f'doorStates[{door_id}].open must be a boolean')
+    return door_states
+
+
+def validate_walkthrough_position(value):
+    """Structural validation of the optional whole-house `walkthrough` field
+    -- {profileId, roomId, level}, the native walkthrough's own attribution
+    of its last-known position (W07-G2 spec section 4: "walkthroughは内覧由来
+    位置の帰属情報"). None (never launched, or explicitly cleared after an
+    editor viewpoint change) is valid. Whether profileId/roomId are real is a
+    separate, model-dependent check by the caller."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError('walkthrough must be an object or null')
+    unknown = set(value) - {'profileId', 'roomId', 'level'}
+    if unknown:
+        raise ValueError(f'walkthrough has unknown fields: {sorted(unknown)}')
+    if not isinstance(value.get('profileId'), str) or not value['profileId']:
+        raise ValueError('Invalid walkthrough.profileId')
+    if not isinstance(value.get('roomId'), str) or not value['roomId']:
+        raise ValueError('Invalid walkthrough.roomId')
+    if not isinstance(value.get('level'), int) or isinstance(value.get('level'), bool):
+        raise ValueError('Invalid walkthrough.level')
+    return value
+
+
 def validate_room_state(room_state, room_id, variants):
     """One roomStates[room_id] entry: {variant, surfaceOverrides, fixtures}.
     `variants` is the shared palette dict (guest-ldk-study.json's own
@@ -209,7 +263,8 @@ def validate_state_v2(state, room_ids, variants):
     operation at hand)."""
     if not isinstance(state, dict):
         raise ValueError('Invalid comparison state')
-    if state.get('schemaVersion') != SCHEMA_VERSION:
+    schema = state.get('schemaVersion')
+    if schema not in V2_SCHEMA_VERSIONS:
         raise ValueError('Unsupported comparison state schema')
     if not isinstance(state.get('scopeId'), str) or not state['scopeId']:
         raise ValueError('Invalid scopeId')
@@ -255,6 +310,17 @@ def validate_state_v2(state, room_ids, variants):
         case = validate_case(state['solar'])
         if not case['usable'] or not matches(case, state):
             raise ValueError('Solar provenance does not match scene angles')
+    # W07-G2: doorStates/walkthrough are new in 2.1.0; a 2.0.0 state predates
+    # them entirely (never any door overrides recorded, no walkthrough
+    # position yet) -- tolerated as absent, same "predates this field"
+    # exemption 1.0.0 gets from surfaceOverrides. Always normalized to the
+    # CURRENT schema on the way out, same as migrate_legacy_state().
+    raw_door_states = state.get('doorStates')
+    if schema == '2.0.0' and raw_door_states is None:
+        raw_door_states = {}
+    state['doorStates'] = validate_door_states(raw_door_states)
+    state['walkthrough'] = validate_walkthrough_position(state.get('walkthrough'))
+    state['schemaVersion'] = SCHEMA_VERSION
     return state
 
 
@@ -270,7 +336,8 @@ def default_state_v2(scope, room_render_settings, legacy_study, shared_lighting,
         room_states[room_id] = dict(variant=settings['defaultVariant'], surfaceOverrides={}, fixtures={})
     state = dict(schemaVersion=SCHEMA_VERSION, scopeId=scope['scopeId'], activeRoomId=scope['defaultRoomId'],
         activeLevel=1, camera=None, azimuthDeg=shared_lighting['azimuthDeg'], elevationDeg=shared_lighting['elevationDeg'],
-        sunLux=job['sunLux'], exposureEV100=job['exposureEV100'], lighting=dict(mode='day'), roomStates=room_states)
+        sunLux=job['sunLux'], exposureEV100=job['exposureEV100'], lighting=dict(mode='day'), roomStates=room_states,
+        doorStates={})  # W07-G2: every profile door starts closed until the walkthrough itself records a state
     return state
 
 
@@ -293,7 +360,12 @@ def migrate_legacy_state(state, room_id, scopes_document, variants):
     migrated = dict(schemaVersion=SCHEMA_VERSION, scopeId=scope['scopeId'], activeRoomId=room_id,
         activeLevel=1, camera=state.get('camera'), azimuthDeg=state['azimuthDeg'], elevationDeg=state['elevationDeg'],
         sunLux=state['sunLux'], exposureEV100=state['exposureEV100'],
-        lighting=dict(mode=state['lighting']['mode']), roomStates={room_id: room_state})
+        lighting=dict(mode=state['lighting']['mode']), roomStates={room_id: room_state},
+        # W07-G2: doorStates/walkthrough postdate 1.0.0-1.2.0 entirely -- a
+        # migrated legacy state has no door history and was never a
+        # walkthrough position, matching validate_state_v2()'s own 2.0.0
+        # exemption ("扉指定なしは閉状態、walkthroughなしとして読みます").
+        doorStates={})
     if state.get('solar') is not None:
         migrated['solar'] = state['solar']
     if state.get('siteContextSHA256') is not None:
@@ -315,7 +387,7 @@ def validate_state_own_scope(state, scopes_document, legacy_study, variants):
     if not isinstance(state, dict):
         raise ValueError('Invalid comparison state')
     schema = state.get('schemaVersion')
-    if schema == SCHEMA_VERSION:
+    if schema in V2_SCHEMA_VERSIONS:
         scope = resolve_scope(scopes_document, state.get('scopeId'))
         return validate_state_v2(state, scope['roomIds'], variants)
     if schema in LEGACY_SCHEMA_VERSIONS:
@@ -335,7 +407,7 @@ def validate_state(state, room_ids, variants, scopes_document, legacy_study):
     if not isinstance(state, dict):
         raise ValueError('Invalid comparison state')
     schema = state.get('schemaVersion')
-    if schema == SCHEMA_VERSION:
+    if schema in V2_SCHEMA_VERSIONS:
         return validate_state_v2(state, room_ids, variants)
     if schema in LEGACY_SCHEMA_VERSIONS:
         room_id = state.get('roomId')

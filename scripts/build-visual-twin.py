@@ -41,6 +41,7 @@ def inputs():
               'blender/electrical_assets.py',
               'unreal/finish_settings.py', 'unreal/study_state.py', 'unreal/solar_position.py',
               'unreal/surface_finish_overrides.py', 'unreal/lighting.py', 'unreal/multi_room_state.py',
+              'unreal/circulation.py',
               'scripts/surface_registry.py', 'scripts/build-visual-twin.py')]
     return {str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(
             p.read_bytes().replace(b'\r\n', b'\n')).hexdigest() for p in paths}
@@ -207,7 +208,7 @@ def main():
                                      'Generated wall sequence IDs are not stable finish bindings'],
                         artifacts={name: dict(bytes=(staging / name).stat().st_size,
                                    sha256=hashlib.sha256((staging / name).read_bytes()).hexdigest())
-                                   for name in (('interior.blend','interior.glb','interior.png','study.json','surface-bindings.json','lighting-bindings.json','role-bindings.json')
+                                   for name in (('interior.blend','interior.glb','interior.png','study.json','surface-bindings.json','lighting-bindings.json','role-bindings.json','door-bindings.json')
                                                 if args.interior else ('house.blend', 'house.glb'))})
         if args.interior:
             manifest['stage'] = 'guest-ldk-visual-study'

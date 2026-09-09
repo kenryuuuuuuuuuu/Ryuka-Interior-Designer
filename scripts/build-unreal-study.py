@@ -96,7 +96,7 @@ def main():
     # commandlet) can import these too without a separate root-level copy.
     for name in ('study_controls.py','study_state.py','solar_position.py','site_context.py',
                  'finish_settings.py','material_builder.py','surface_finish_overrides.py','lighting.py',
-                 'multi_room_state.py'):
+                 'multi_room_state.py','circulation.py'):
         shutil.copy2(ROOT/'unreal'/name,scripts/name)
     (scripts/'init_unreal.py').write_text('import study_controls\nstudy_controls.register_menu()\n',encoding='utf-8')
     # W04: lets study_controls.py's menu (named-scenario save/list/A-B) shell

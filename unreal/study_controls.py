@@ -13,6 +13,7 @@ from material_builder import rgb
 from surface_finish_overrides import resolve_finish, resolve_overrides
 from lighting import validate_lighting_bindings, resolve_fixture_overrides, effective_fixture
 import multi_room_state as mrs
+import circulation
 
 _state=None
 _selected_surface=None  # surfaceId currently targeted by the 面編集 menu
@@ -108,6 +109,19 @@ def lighting_bindings():
     return validate_lighting_bindings(read('lighting-bindings.json')) if path.exists() else None
 
 
+def door_bindings():
+    """This project's own resolved door connections + leaf actors (see
+    unreal/circulation.py's resolve_connections(), run once at generation
+    time -- by both blender/build_interior.py and scripts/enable-unreal-
+    walkthrough.py -- against this SAME house.json/interior-doors.json
+    snapshot), sanitized to this project's actual actor labels by
+    import_study.py. None for a pre-W07-G2 project / a walkthrough profile
+    with no openable doors at all -- callers treat that the same as "nothing
+    to validate/apply", not an error (mirrors lighting_bindings() above)."""
+    path=project()/'door-bindings.json'
+    return circulation.validate_door_bindings(read('door-bindings.json')) if path.exists() else None
+
+
 def _house():
     return read('SourcePackage/inputs/data/house.json')
 
@@ -193,6 +207,18 @@ def apply_state(state):
         room_usable,room_issues=resolve_fixture_overrides(room_states[room_id]['fixtures'],lighting_doc or dict(fixtures=[]),room_id=room_id)
         usable_fixtures.update(room_usable); fixture_issues+=room_issues
     if fixture_issues: raise RuntimeError('lighting: '+'; '.join(i['reason'] for i in fixture_issues))
+    # W07-G2: doorStates is a WHOLE-HOUSE field (unlike surfaceOverrides/
+    # fixtures, which are per-room) -- same pre-mutation, same-rigour check:
+    # an unknown door id, or one naming a real but non-openable connection
+    # (e.g. a plain 'open' archway with no leaf), stops the whole apply
+    # before anything is touched, rather than being silently dropped. This
+    # project's editor scene never moves a door leaf itself (only the native
+    # walkthrough's InteractDoor() does -- E key, facing+proximity) -- doors
+    # are validated and carried through here so F5/F9, named-scenario load,
+    # and every comparison round-trip doorStates faithfully without drift.
+    door_bindings_doc=door_bindings()
+    _,door_issues=circulation.resolve_door_overrides(state['doorStates'],door_bindings_doc or dict(doors={}))
+    if door_issues: raise RuntimeError('doorStates: '+'; '.join(i['reason'] for i in door_issues))
     finish_document=read('finish-settings.json')
     surface_planned=[]
     for surface_id,info in surfaces.items():
@@ -771,6 +797,17 @@ def _validate_applicable(state, label):
     once the operator actually switches to it."""
     if not _context_compatible(state):
         raise RuntimeError(f'{label}は現在のプロジェクトの周辺条件（site-context.json）と一致しません。')
+    # W07-G2 spec section 4: 名前付き案の読込は敷地/日時・シーンへ触れる前に
+    # 扉の適用可否を検証する -- doorStates is whole-house, so this is checked
+    # once for the whole state (not per-room like surfaceOverrides/fixtures
+    # below). load_scenario() adopts an incoming scenario's doorStates
+    # wholesale (mrs.partial_apply() treats it as a whole-house field, same
+    # as azimuthDeg/elevationDeg); a stale/unknown door id must be caught
+    # here, before anything is written, not only once apply_state() itself
+    # runs after site/date files have already been swapped in.
+    _,door_issues=circulation.resolve_door_overrides(state['doorStates'],door_bindings() or dict(doors={}))
+    if door_issues:
+        raise RuntimeError(f'{label}の扉状態が現在のモデルと一致しません: '+'; '.join(i['reason'] for i in door_issues))
     surfaces=surface_bindings()['surfaces']
     lighting_doc=lighting_bindings() or dict(fixtures=[])
     for room_id,room_state in state['roomStates'].items():

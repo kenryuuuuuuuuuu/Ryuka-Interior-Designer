@@ -9,6 +9,7 @@ from material_builder import material, marker_material
 from surface_finish_overrides import resolve_finish
 from lighting import validate_lighting_bindings
 import multi_room_state as mrs
+import circulation
 
 
 def write_json(path, value):
@@ -144,6 +145,31 @@ def main():
         surface_bindings[surface_id] = entry
     write_json(project/'surface-bindings.json', dict(schemaVersion='1.0.0', surfaces=surface_bindings))
 
+    # W07-G2: door-bindings.json's leaf actor names are Blender's own RAW
+    # (dotted) object names -- same convention as role-bindings.json above --
+    # sanitized here, once, into the project's own copy (unlike
+    # role-bindings.json, nothing else needs to re-derive room ownership
+    # from these at runtime, so there is no reason to keep the raw form
+    # around for a second consumer to re-sanitize). Every openable leaf actor
+    # is also switched to Movable mobility here so the native walkthrough's
+    # own SetActorRotation()/SetActorLocation() calls actually move it (and
+    # its collision, which Prepare() gives every non-decoration/non-ground
+    # static mesh actor regardless of mobility) at runtime.
+    door_bindings_raw = json.loads((package/'door-bindings.json').read_text(encoding='utf-8'))
+    circulation.validate_door_bindings(door_bindings_raw)
+    door_bindings = {}
+    for door_id, info in door_bindings_raw['doors'].items():
+        leaves = []
+        for leaf in info['leaves']:
+            actor_label = leaf['actor'].replace('.', '_')
+            actor = actor_by_label.get(actor_label)
+            if actor is None:
+                continue  # should not happen: the earlier bounds check already asserted no meshes were lost on import
+            actor.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+            leaves.append(dict(leaf, actor=actor_label))
+        door_bindings[door_id] = dict(info, leaves=leaves)
+    write_json(project/'door-bindings.json', dict(schemaVersion=circulation.DOOR_BINDINGS_SCHEMA, doors=door_bindings))
+
     def spawn(cls, label, location=unreal.Vector(), rotation=unreal.Rotator()):
         actor = actors.spawn_actor_from_class(cls, location, rotation)
         actor.set_actor_label(label)
@@ -260,7 +286,11 @@ def main():
                 comparisonState=state,finishSettingsSHA256=hashlib.sha256((project/'finish-settings.json').read_bytes()).hexdigest(),
                 limitations=['Procedural world-space finishes are estimated, not measured product textures',
                              'Glass shadow disabled; transmission and illuminance not calibrated',
-                             'Editor study; no runtime interface or collision walkthrough yet'])
+                             # W07-G2: this import step itself only builds the editor comparison
+                             # study -- the native walkthrough/collision module (multi-room guest
+                             # circulation with real door open/close since W07-G2) is a separate,
+                             # optional step (scripts/enable-unreal-walkthrough.py), not run here.
+                             'Editor study; run enable-unreal-walkthrough.py separately for the native walkthrough/collision module'])
     write_json(project/'import-verification.json',result)
     unreal.log('VISUAL_TWIN_IMPORT_OK '+json.dumps(result))
 

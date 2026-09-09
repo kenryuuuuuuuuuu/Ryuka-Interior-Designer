@@ -28,6 +28,7 @@ from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
 from study_state import validate_state as validate_legacy_state
 import multi_room_state as mrs
+import circulation
 from surface_finish_overrides import resolve_finish, marker_material_name
 from lighting import validate_lighting_settings, effective_fixture, kelvin_to_rgb
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
@@ -434,7 +435,41 @@ def build_envelope(data, mats, binder=None):
     return ops
 
 
-def build_openings(ops, settings, mats):
+def _hinge_blender_xy(orientation, wall_at, hinge_source_xz, thickness):
+    """The Blender-space (X, Y) a swing leaf's OWN object origin must sit at
+    for a hinge at source (x, z) `hinge_source_xz` to be correct -- same
+    (u, at, thickness) -> (X, Y) convention panel() itself uses for this
+    wall orientation, so a leaf recentred here rotates exactly where the
+    door frame built by the SAME rect()/panel() call actually is."""
+    hinge_x, hinge_z = hinge_source_xz
+    if orientation == 'H':
+        return (hinge_x, -wall_at + thickness / 2)
+    return (wall_at - thickness / 2, -hinge_z)
+
+
+def _recenter_object(obj, pivot_xy):
+    """Shift every vertex by -pivot (world space unchanged) and move the
+    object's own origin to pivot -- so a later SetActorRotation() in UE
+    (which always rotates about the actor's own origin) swings the leaf
+    around `pivot_xy`, not around the world origin every other object in
+    this pipeline is built directly in (see build_furniture()/panel()'s own
+    'vertices already in world space, object origin at (0,0,0)' convention;
+    a movable, rotatable leaf is the one kind of object here that needs its
+    own real pivot)."""
+    px, py = pivot_xy
+    for v in obj.data.vertices:
+        v.co.x -= px; v.co.y -= py
+    obj.location.x += px; obj.location.y += py
+
+
+def build_openings(ops, settings, mats, door_connections_by_id=None):
+    # W07-G2: `door_connections_by_id` (circulation.resolve_connections()'s
+    # output, keyed by door id) names exactly the doors the ACTIVE walkthrough
+    # profile actually walks through -- every other opening (windows, and any
+    # door outside today's profile) keeps the pre-G2 flat, non-movable
+    # closed-leaf placeholder unchanged.
+    door_connections_by_id = door_connections_by_id or {}
+    door_bindings = {}
     cfg = settings['window']; fw=cfg['frameWidth']
     glass=material('Glass.provisional','ffffff',.015)
     shader=glass.node_tree.nodes.get('Principled BSDF')
@@ -450,23 +485,92 @@ def build_openings(ops, settings, mats):
     links.new(transparent.outputs[0],mix.inputs[2]); links.new(mix.outputs[0],nodes.get('Material Output').inputs['Surface'])
     for o in ops:
         if o['operation'] in ('open','open-arch'):
+            # W07-G2: a frameless 'open' door in the active profile is still
+            # a real connection (always passable, no leaf) -- recorded so
+            # resolve_door_overrides() can name it precisely ("no leaf")
+            # rather than "unknown id" if a state ever names it in
+            # doorStates. 'open-arch' (a window-like arched opening) never
+            # matches a circulation.py connection (unsupported operation),
+            # so it never reaches here regardless.
+            connection=door_connections_by_id.get(o['id'])
+            if connection is not None:
+                door_bindings[o['id']]=dict(level=connection['level'],roomIds=connection['roomIds'],
+                    operation=connection['operation'],openable=False,leaves=[])
             continue
         w=dict(orientation=o['orientation'], x0=o['at'], z0=o['at'], thickness=cfg['frameDepth'])
         a,b,low,high=o['start'],o['end'],o['bottom'],o['top']
         def rect(suffix,x0,x1,y0,y1,mat,thickness=None):
             return panel(f"opening.{o['id']}.{suffix}",dict(w,thickness=thickness or w['thickness']),
                          [(x0,y0),(x1,y0),(x1,y1),(x0,y1)],mat,o)
-        for suffix,x0,x1,y0,y1 in [('left',a,a+fw,low,high),('right',b-fw,b,low,high),
-                                  ('head',a+fw,b-fw,high-fw,high),('sill',a+fw,b-fw,low,low+fw)]:
+        frame_parts=[('left',a,a+fw,low,high),('right',b-fw,b,low,high),('head',a+fw,b-fw,high-fw,high)]
+        # W07-G2: openings()'s own interiorDoors branch sets bottom=base (the
+        # LEVEL's own absolute floor height, e.g. 0.707m for level 1 here) --
+        # not base+sill like the exterior-openings branch -- so every
+        # interior door's own sill catalog value is never actually applied to
+        # its geometry; `low` is exactly floor level for EVERY interior door,
+        # unconditionally (an absolute-vs-relative mismatch first found by
+        # comparing catalog sill=0 against the actual `low` value here, which
+        # is NOT near 0 in world space -- checking o['exterior'] instead of a
+        # numeric threshold on `low` is what actually distinguishes this).
+        # A floor-level 'sill' trim piece is therefore a full-width,
+        # frameWidth-tall (4.5cm) solid strip sitting right across the
+        # doorway's own walkable centre, for every interior door. That never
+        # mattered while the native walkthrough was single-room (G1: nobody
+        # ever needed to actually cross a door's own threshold) -- G2's real
+        # room-to-room walking discovered it as real blocking collision,
+        # exceeding AWalkthroughCharacter's MaxStepHeight (2cm unchanged
+        # since G1), regardless of open/closed leaf state (this frame piece
+        # is not part of the movable leaf at all). An exterior opening's own
+        # sill IS applied (base+o['sill']) and stays elevated above where
+        # anyone walks for every window in this house (sill>0); its trim
+        # piece is unaffected.
+        if o['exterior']:
+            frame_parts.append(('sill',a+fw,b-fw,low,low+fw))
+        for suffix,x0,x1,y0,y1 in frame_parts:
             rect(suffix,x0,x1,y0,y1,mats['frame'])
         if o['category']=='window':
             rect('glass',a+fw,b-fw,low+fw,high-fw,glass,cfg['glassThickness'])
             if o['operation']=='openable':
                 mid=(a+b)/2
                 rect('mullion',mid-fw/2,mid+fw/2,low+fw,high-fw,mats['frame'])
-        else:
-            # All actual leaves closed for the comparison; never turn an open arch into a marker.
+            continue
+        connection = door_connections_by_id.get(o['id'])
+        if connection is None:
+            # Unchanged pre-G2 behaviour: a single flat, non-movable panel
+            # standing in for a closed leaf -- correct for a door outside
+            # today's walkthrough profile, which nobody walks up to.
             rect('closed-leaf',a+fw,b-fw,low+.005,high-fw,mats['cabinet'],.035)
+            continue
+        # W07-G2: this door IS part of the active walkthrough profile -- build
+        # a real, independently-movable leaf (or two, for double-swing) with
+        # a proper hinge pivot for swing, and record door-bindings.json so UE
+        # knows which actor(s) to move and by how much when the door toggles.
+        leaves=[]
+        if connection['operation']=='double-swing':
+            mid=(a+b)/2
+            spans=dict(left=(a,mid),right=(mid,b))
+            for hinge_xz,delta_deg,kind in circulation.double_swing_hinges_and_deltas(connection):
+                lo_u,hi_u=spans[kind]
+                x0=lo_u+(fw if kind=='left' else 0); x1=hi_u-(fw if kind=='right' else 0)
+                obj=rect(f'leaf-{kind}',x0,x1,low+.005,high-fw,mats['cabinet'],.035)
+                _recenter_object(obj,_hinge_blender_xy(o['orientation'],o['at'],hinge_xz,w['thickness']))
+                leaves.append(dict(actor=obj.name,kind=kind,openYawDeltaDeg=delta_deg))
+        elif connection['operation']=='swing':
+            hinge_xz,delta_deg=circulation.swing_hinge_and_delta(connection,None)
+            obj=rect('leaf',a+fw,b-fw,low+.005,high-fw,mats['cabinet'],.035)
+            _recenter_object(obj,_hinge_blender_xy(o['orientation'],o['at'],hinge_xz,w['thickness']))
+            leaves.append(dict(actor=obj.name,kind='single',openYawDeltaDeg=delta_deg))
+        elif connection['operation']=='slide':
+            obj=rect('leaf',a+fw,b-fw,low+.005,high-fw,mats['cabinet'],.035)
+            # A pure translation needs no pivot change -- the object's
+            # existing world-space origin is fine either way.
+            dx,dz=circulation.slide_open_offset(connection)
+            leaves.append(dict(actor=obj.name,kind='single',openOffsetCm=[dx*100,dz*100,0]))
+        else:
+            raise ValueError(f"Unsupported openable door operation: {connection['operation']!r} ({o['id']})")
+        door_bindings[o['id']]=dict(level=connection['level'],roomIds=connection['roomIds'],
+            operation=connection['operation'],openable=True,leaves=leaves)
+    return door_bindings
 
 
 def build_furniture(data,room_ids,mats_by_room):
@@ -820,7 +924,22 @@ def main():
     unknown=[surface_id for surface_id in overrides if surface_id not in binder.materials]
     if unknown:
         raise RuntimeError('surfaceOverrides references unknown surface id(s): '+', '.join(unknown))
-    ops=build_envelope(data,mats,binder); build_openings(ops,legacy_study,mats)
+    # W07-G2: the walkthrough profile for THIS scope decides which doors get
+    # real, independently-movable leaves (spec section 1: profiles live in
+    # their own file, separate from the edit scope). rooms outside the
+    # profile (and every door touching them) keep the pre-G2 flat closed-leaf
+    # placeholder -- correct, since generation for a narrower scope must
+    # never require a wider one's rooms to already be modelled.
+    walkthrough_profiles=circulation.validate_profiles(read(ROOT/'data/visual/walkthrough-profiles.json'))
+    walk_profile=circulation.resolve_profile_for_scope(walkthrough_profiles,scope_id)
+    rooms_by_id={r['id']:r for r in data['rooms']}
+    door_catalog_by_type={t['type']:t for t in read(ROOT/'data/door-catalog.json')['types']}
+    connections=circulation.resolve_connections(rooms_by_id,data['interiorDoors'],door_catalog_by_type,walk_profile['roomIds'])
+    door_connections_by_id={c['id']:c for c in connections}
+    ops=build_envelope(data,mats,binder); door_bindings=build_openings(ops,legacy_study,mats,door_connections_by_id)
+    circulation.validate_door_bindings(dict(schemaVersion=circulation.DOOR_BINDINGS_SCHEMA,doors=door_bindings))
+    (args.output/'door-bindings.json').write_text(
+        json.dumps(dict(schemaVersion=circulation.DOOR_BINDINGS_SCHEMA,doors=door_bindings),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     no_surface=[surface_id for surface_id in overrides if binder.status[surface_id]['state']!='bound']
     if no_surface:
         raise RuntimeError('surfaceOverrides references no-surface id(s) (no matching geometry found): '+', '.join(no_surface))
@@ -866,8 +985,13 @@ def main():
     scene.view_settings.view_transform='AgX'; scene.view_settings.exposure=light['exposure']; scene.view_settings.gamma=1
     scene.render.image_settings.file_format='PNG'; scene.render.filepath='//interior.png'
     scene['study_status']='estimated-manual-sun-angle'; scene['site_daylight_calibrated']=False
+    # W07-G2: walkableRoomId (a single fixed room id) predates multi-room
+    # circulation and is no longer read anywhere (scripts/enable-unreal-
+    # walkthrough.py resolves the walkthrough profile from scopeId via
+    # circulation.resolve_profile_for_scope() instead) -- dropped rather than
+    # left behind naming a stale single room.
     report=dict(status='estimated',schemaVersion='2.0.0',scopeId=scope['scopeId'],roomIds=room_ids,
-                activeRoomId=active_room_id,walkableRoomId=scope['defaultRoomId'],roomStates=room_states,
+                activeRoomId=active_room_id,roomStates=room_states,
                 settings=dict(variants=legacy_study['variants'],lighting=legacy_study['lighting'],window=legacy_study['window'],
                               note=legacy_study['note']),
                 lighting=light,decorations=decorations,furnitureIds=[i['id'] for i in items],
@@ -881,7 +1005,7 @@ def main():
                              'Roof/gable details incomplete; source ceiling heights remain estimated',
                              'Procedural materials and glass shadow shader require UE counterparts',
                              'Electrical fixture geometry is a simple placeholder; lumens/colour temperature are estimated profiles, not measured photometry (see data/visual/lighting-settings.json)',
-                             'Only room-1f-06 (LDK) is walkable this round; other in-scope rooms are geometry/materials/lighting only (W07-G1; room-to-room walking is W07-G2)'],
+                             'Guest circulation (W07-G2) supports swing/double-swing/slide/open doors across the walkthrough profile\'s rooms; the fold operation and the remaining non-guest rooms are out of scope this round'],
                 render=dict(engine='Cycles',samples=args.samples,width=args.width,colorManagement='AgX',device=scene.cycles.device))
     (args.output/'study.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     bpy.ops.wm.save_as_mainfile(filepath=str(args.output/'interior.blend'))

@@ -160,8 +160,21 @@ def main():
     # --previous save. Only fetch (and require) a base when some in-scope
     # room actually needs one.
     covers_all_rooms=set(room_ids)<=set(incoming['roomStates'])
+    # W07-G1-v2 review (進行を止めない改善事項 #1): the base state read below
+    # for a PARTIAL selection was never itself snapshotted or hash-tracked --
+    # unchanged() could confirm the RETAINED selection and the MERGED result
+    # stayed put during the (potentially long) Blender/UE run, but a change to
+    # this base file mid-generation went undetected, and nothing recorded
+    # which file it even came from. Snapshot it the same way retained_inputs()
+    # snapshots its own selections (byte-for-byte copy under `saved/`, source
+    # path + hash recorded in the report), and have unchanged() re-check both
+    # the live source and the snapshot on every step, same discipline as
+    # retainedHashes below. A full-scope selection needs no base at all
+    # (covers_all_rooms above) -- baseState stays null, not a stand-in path.
+    base_state_path=None
     if covers_all_rooms:
         previous_full=dict(roomStates={})
+        report['baseState']=None
     else:
         try:
             # W07-G1 review R3: the same newest-save selection (editor vs.
@@ -170,10 +183,14 @@ def main():
             # -- previously this always read the editor's own
             # `study-state.json` even when a NEWER `Saved/walkthrough-
             # state.json` existed for a room the scenario does not cover.
+            base_state_path=latest_state_path(previous)
             previous_full=mrs.validate_state_own_scope(
-                read(latest_state_path(previous)),scopes_document,legacy_study,variants)
+                read(base_state_path),scopes_document,legacy_study,variants)
         except ValueError as error:
             parser.error(f'Cannot resolve a base state for room(s) not covered by this scenario: {error}')
+        shutil.copy2(base_state_path,saved/'base-study-state.json')
+        report['baseState']=dict(source=str(base_state_path.relative_to(ROOT)) if base_state_path.is_relative_to(ROOT)
+            else str(base_state_path),sha256=sha(base_state_path))
     if args.allow_new_rooms:
         # W07-G1 spec section 2: "新規モデルを作る明示操作に限り、不足室の
         # 初期状態を使えます" -- only reached with --allow-new-rooms; a room
@@ -200,6 +217,19 @@ def main():
             raise RuntimeError('Previous saved conditions changed during regeneration')
         if any(sha(saved/('study-state.json' if k=='state' else retained[k].name))!=h for k,h in retained_hashes.items()):
             raise RuntimeError('Retained condition snapshot changed during regeneration')
+        # W07-G1-v2 review (進行を止めない改善事項 #1): the partial-selection
+        # merge BASE (previous_full, read from base_state_path above) was
+        # never itself hash-tracked -- a change to it mid-generation (a stray
+        # F5/editor save landing on the SAME --previous project while this
+        # runs) went undetected, unlike every other input this function
+        # already guards. Checked both at the live source (a change there)
+        # and at the snapshot copy under `saved/` (a change to the recorded
+        # evidence itself), same two-point check as retainedHashes above.
+        if base_state_path is not None:
+            if sha(base_state_path)!=report['baseState']['sha256']:
+                raise RuntimeError('Base study state (for room(s) outside this scenario) changed during regeneration')
+            if sha(saved/'base-study-state.json')!=report['baseState']['sha256']:
+                raise RuntimeError('Base study state snapshot changed during regeneration')
         if sha(merged_path)!=merged_hash:
             raise RuntimeError('Merged study state changed during regeneration')
     def run(name,command):
