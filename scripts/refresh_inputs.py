@@ -20,11 +20,14 @@ ROOT=Path(__file__).resolve().parents[1]
 # faked out from under them).
 SCENARIO_ROOT=ROOT
 sys.path.insert(0,str(ROOT/'unreal'))
-from study_state import validate_state
 from solar_position import validate_cases, validate_site, cases_match_site, case_matches_site
 from site_context import validate_context
+import multi_room_state as mrs
 sys.path.insert(0,str(ROOT/'blender'))
 from electrical_assets import build_lighting_bindings as _build_lighting_bindings
+
+_scopes_document=lambda: mrs.validate_scopes(read(ROOT/'data/visual/study-scopes.json'))
+_legacy_study=lambda: read(ROOT/'data/visual/guest-ldk-study.json')
 
 # W05: site.local.json (the local lat/long/plan-north input, see
 # solar_position.validate_site()) added alongside the existing three.
@@ -35,27 +38,29 @@ def read(path): return json.loads(path.read_text(encoding='utf-8-sig'))
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _current_lighting_fixture_ids():
-    """The CURRENT source's resolvable lighting fixture ids (for the guest
-    LDK study room), used to catch a retained/bundled state's
-    lighting.fixtures referencing a fixture that no longer exists (or is now
-    unsupported/unresolvable) in the CURRENT model -- same "confirm before
-    the heavy step" contract already applied to sun-cases/site above
-    (W06-v1 review R4)."""
-    settings=read(ROOT/'data/visual/guest-ldk-study.json')
+def _current_lighting_fixture_ids(room_ids):
+    """The CURRENT source's resolvable lighting fixture ids for `room_ids`,
+    used to catch a retained/bundled state's fixtures referencing a fixture
+    that no longer exists (or is now unsupported/unresolvable) in the
+    CURRENT model -- same "confirm before the heavy step" contract already
+    applied to sun-cases/site above (W06-v1 review R4)."""
     house_data=read(ROOT/'data/house.json')
     house_data['envelope']=read(ROOT/'generated/visual-envelope.json')
     electrical=read(ROOT/'data/electrical.json')
     catalog=read(ROOT/'data/electrical-catalog.json')
     lighting_settings=read(ROOT/'data/visual/lighting-settings.json')
-    bindings=_build_lighting_bindings(house_data,electrical,catalog,lighting_settings,settings['roomId'])
+    bindings=_build_lighting_bindings(house_data,electrical,catalog,lighting_settings,room_ids)
     return {f['id'] for f in bindings['fixtures']}
 
 
 def _check_lighting_fixtures(state,label):
-    fixtures=(state.get('lighting') or {}).get('fixtures') or {}
+    """W07-G1: state is already migrated to 2.0.0 (roomStates keyed by
+    roomId) -- checks each room's own fixtures dict against fixtures
+    resolvable for exactly that state's own rooms."""
+    fixtures={fid for room_state in state['roomStates'].values() for fid in room_state.get('fixtures',{})}
     if not fixtures: return
-    unknown=sorted(set(fixtures)-_current_lighting_fixture_ids())
+    known=_current_lighting_fixture_ids(list(state['roomStates']))
+    unknown=sorted(fixtures-known)
     if unknown:
         raise ValueError(f'{label} references unknown lighting fixture id(s): '+', '.join(unknown))
 
@@ -63,7 +68,6 @@ def _check_lighting_fixtures(state,label):
 def retained_inputs(previous, gallery=False):
     report=read(previous/'import-verification.json')
     if not report.get('unrealImportVerified'): raise ValueError('Previous study must have a successful import report')
-    settings=read(ROOT/'data/visual/guest-ldk-study.json')
     state_path=previous/'study-state.json'
     runtime=previous/'Saved/walkthrough-state.json'
     # A runtime save mid-recovery (SaveView()'s final replace and its own
@@ -76,7 +80,8 @@ def retained_inputs(previous, gallery=False):
     if not runtime.exists() and (previous/'Saved/walkthrough-state.json.bak').exists():
         raise ValueError('Runtime save is mid-recovery (backup present, no current save); resolve it in Unreal (F9) first')
     if runtime.exists() and runtime.stat().st_mtime>state_path.stat().st_mtime: state_path=runtime
-    state=validate_state(read(state_path),dict(roomId=settings['roomId'],settings=settings))
+    legacy_study=_legacy_study()
+    state=mrs.validate_state_own_scope(read(state_path),_scopes_document(),legacy_study,legacy_study['variants'])
     _check_lighting_fixtures(state,'Retained state')
     paths={'state':state_path}
     cases=None
@@ -127,7 +132,11 @@ def scenario_inputs(scenario_dir, gallery=False):
     save there can never block reapplying a valid scenario. Returns
     (paths, scenario) where paths matches retained_inputs()'s shape."""
     scenario=read(scenario_dir/'scenario.json')
-    if scenario.get('schemaVersion')!='1.0.0': raise ValueError('Unsupported scenario schema')
+    # W07-G1: 1.1.0 only changed the roomId->scopeId/roomIds METADATA field
+    # (never read by this function -- see save_scenario_package()); the
+    # files/hashes structure this function actually validates is identical
+    # between 1.0.0 and 1.1.0, so both remain loadable.
+    if scenario.get('schemaVersion') not in ('1.0.0','1.1.0'): raise ValueError('Unsupported scenario schema')
     files=scenario.get('files')
     if not isinstance(files,dict) or 'study-state.json' not in files: raise ValueError('Scenario is missing study-state.json')
     if not set(files)<=set(ALLOWED_SCENARIO_FILES): raise ValueError('Scenario references unexpected files')
@@ -137,8 +146,8 @@ def scenario_inputs(scenario_dir, gallery=False):
         if not path.is_file(): raise ValueError(f'Scenario is missing {name}')
         if sha(path)!=info.get('sha256'): raise ValueError(f'Scenario file {name} does not match its recorded hash')
         resolved[name]=path
-    settings=read(ROOT/'data/visual/guest-ldk-study.json')
-    state=validate_state(read(resolved['study-state.json']),dict(roomId=settings['roomId'],settings=settings))
+    legacy_study=_legacy_study()
+    state=mrs.validate_state_own_scope(read(resolved['study-state.json']),_scopes_document(),legacy_study,legacy_study['variants'])
     _check_lighting_fixtures(state,'Scenario state')
     paths={'state':resolved['study-state.json']}
     cases=None
@@ -171,7 +180,7 @@ def scenario_inputs(scenario_dir, gallery=False):
     return paths, scenario
 
 
-SCENARIO_SCHEMA = '1.0.0'
+SCENARIO_SCHEMA = '1.1.0'  # W07-G1: scenario.json metadata records scopeId/roomIds, not a single roomId
 
 
 def save_scenario_package(project, name, note, output):
@@ -198,13 +207,18 @@ def save_scenario_package(project, name, note, output):
     # specific reason on any of those; this function does not catch it, so
     # the message reaches the caller directly and nothing partial is written.
     retained = retained_inputs(project)
-    state = read(retained['state'])
+    # Re-validated (not just re-read) so scenario.json's own scopeId/roomIds
+    # metadata reflects the MIGRATED shape even when the saved file itself
+    # is still a legacy (pre-2.0.0) schema -- the file on disk is copied
+    # byte-for-byte below (never rewritten), only this metadata is derived.
+    legacy_study = _legacy_study()
+    state = mrs.validate_state_own_scope(read(retained['state']), _scopes_document(), legacy_study, legacy_study['variants'])
 
     manifest_path = project/'SourcePackage/manifest.json'
     manifest = read(manifest_path) if manifest_path.is_file() else {}
 
     scenario = dict(schemaVersion=SCENARIO_SCHEMA, id=str(uuid.uuid4()), name=name, note=note,
-        createdAt=datetime.now().astimezone().isoformat(), roomId=state['roomId'],
+        createdAt=datetime.now().astimezone().isoformat(), scopeId=state['scopeId'], roomIds=sorted(state['roomStates']),
         origin=dict(sourceCommit=manifest.get('sourceCommit'), sourceHashes=manifest.get('sourceHashes', {}),
             stateSource='runtime' if retained['state'].parent.name == 'Saved' else 'editor'),
         files={})

@@ -40,6 +40,12 @@ private:
  // below just finds no fixtures to apply -- not an error.
  TSharedPtr<class FJsonObject> LightingBindings;
  FVector LastSafeLocation=FVector::ZeroVector;
+ // W07-G1: the ONE room this walkthrough actually walks (walkthrough.json's
+ // own roomId -- LDK, unchanged this round; room-to-room walking is W07-G2).
+ // Loaded once in BeginPlay(); ApplyConditions()/SetFinish()/
+ // CurrentVariantLabel() all key off this room's own roomStates entry for
+ // anything the walkthrough itself controls (variant switch keys, HUD).
+ FString WalkableRoomId;
  void SetFinish(const FString& Name,const FString& Label);
  void SetSun(float Elevation);
  bool ApplyConditions();

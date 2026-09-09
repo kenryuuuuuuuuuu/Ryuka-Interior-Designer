@@ -2,7 +2,7 @@
 import argparse,json,subprocess,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'unreal'))
-from study_state import validate_state
+import multi_room_state as mrs
 p=argparse.ArgumentParser();p.add_argument('--project',type=Path,required=True);p.add_argument('--engine',type=Path,required=True);p.add_argument('--cache',type=Path,required=True);p.add_argument('--rhi',choices=('d3d12','d3d11'),default='d3d12');p.add_argument('--smoke',action='store_true');p.add_argument('--logic-only',action='store_true');a=p.parse_args()
 project=a.project.resolve();report=project/'walkthrough-verification.json'
 if not json.loads(report.read_text(encoding='utf-8')).get('configured'):p.error('Enable walkthrough first')
@@ -21,6 +21,13 @@ if r.returncode:raise RuntimeError('Unreal runtime failed; inspect walkthrough l
 if a.smoke:
  assert (project/'Saved/walkthrough-smoke.txt').read_text(encoding='utf-8-sig')=='PASS'
  if not a.logic_only: assert (project/'Saved/walkthrough-smoke.png').is_file()
- saved=validate_state(json.loads(state.read_text(encoding='utf-8')),json.loads((project/'SourcePackage/study.json').read_text(encoding='utf-8')))
+ # W07-G1: the round-tripped state is now always 2.0.0/multi-room-shaped
+ # (AC5: 洋室's roomState must survive an F5/F9 cycle even though only LDK
+ # is walked) -- validated against its OWN declared scope, the same way
+ # refresh_inputs.py confirms a saved state is internally consistent.
+ study=json.loads((project/'SourcePackage/study.json').read_text(encoding='utf-8'))
+ scopes_document=json.loads((project/'SourcePackage/inputs/data/visual/study-scopes.json').read_text(encoding='utf-8'))
+ legacy_study=json.loads((project/'SourcePackage/inputs/data/visual/guest-ldk-study.json').read_text(encoding='utf-8'))
+ saved=mrs.validate_state_own_scope(json.loads(state.read_text(encoding='utf-8')),scopes_document,legacy_study,study['settings']['variants'])
  result=json.loads(report.read_text(encoding='utf-8'));result.update(runtimeVerified=True,renderVerified=not a.logic_only,renderRHI=a.rhi if not a.logic_only else None,checks=['safe spawn','blocking capsule sweep','finish and sun switch','state save and restore'],savedState=saved)
  report.write_text(json.dumps(result,indent=2),encoding='utf-8');print(json.dumps(result,indent=2))

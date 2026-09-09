@@ -73,14 +73,19 @@ def validate_lighting_settings(document):
 
 
 def validate_lighting_bindings(document):
-    """The generated, per-room, per-generation artifact (positions/directions
-    already resolved -- see blender/electrical_assets.py). Never hand-edited;
-    validated on read the same as any other generated contract this project
-    passes between Blender and UE (cf. surface-bindings.json)."""
-    if not isinstance(document, dict) or document.get('schemaVersion') != '1.0.0':
+    """The generated, per-scope, per-generation artifact (positions/
+    directions already resolved -- see blender/electrical_assets.py). Never
+    hand-edited; validated on read the same as any other generated contract
+    this project passes between Blender and UE (cf. surface-bindings.json).
+    W07-G1: roomIds (a list, one shared resolution per scope) replaces the
+    single pre-G1 roomId; each fixture now also carries its own roomId/level
+    so a room-scoped consumer (apply_state(), a room's own fixture list) can
+    tell which room a fixture belongs to without a second lookup."""
+    if not isinstance(document, dict) or document.get('schemaVersion') != '1.1.0':
         raise ValueError('Unsupported lighting-bindings schema')
-    if not isinstance(document.get('roomId'), str) or not document['roomId']:
-        raise ValueError('lighting-bindings.json requires a roomId')
+    room_ids = document.get('roomIds')
+    if not isinstance(room_ids, list) or not room_ids or not all(isinstance(r, str) and r for r in room_ids):
+        raise ValueError('lighting-bindings.json requires a non-empty roomIds list')
     fixtures = document.get('fixtures')
     if not isinstance(fixtures, list) or not fixtures:
         raise ValueError('lighting-bindings.json requires at least one fixture')
@@ -90,6 +95,10 @@ def validate_lighting_bindings(document):
         if not isinstance(fid, str) or not fid or fid in seen:
             raise ValueError('Invalid or duplicate fixture id in lighting-bindings.json')
         seen.add(fid)
+        if fixture.get('roomId') not in room_ids:
+            raise ValueError(f'{fid}: roomId must be one of {room_ids}')
+        if not isinstance(fixture.get('level'), int) or isinstance(fixture.get('level'), bool):
+            raise ValueError(f'{fid}: invalid level')
         for key in ('positionM', 'emitPositionM'):
             position = fixture.get(key)
             if not isinstance(position, list) or len(position) != 3 or not all(_number(v, -1000, 1000) for v in position):
@@ -108,21 +117,27 @@ def validate_lighting_bindings(document):
     return document
 
 
-def resolve_fixture_overrides(fixtures, bindings):
-    """state['lighting']['fixtures'] (already structurally validated by
-    study_state.validate_lighting()) resolved against the CURRENT model's
-    lighting-bindings.json. Returns (usable, issues) -- same shape/contract
-    as surface_finish_overrides.resolve_overrides(): usable is the subset
-    whose id actually names a fixture in the current room, issues explains
+def resolve_fixture_overrides(fixtures, bindings, room_id=None):
+    """One roomStates[room_id].fixtures dict (already structurally validated
+    by multi_room_state.validate_fixture_overrides()) resolved against the
+    CURRENT model's lighting-bindings.json. Returns (usable, issues) -- same
+    shape/contract as surface_finish_overrides.resolve_overrides(): usable is
+    the subset whose id actually names a fixture in the current model (and,
+    when `room_id` is given, belongs to THAT room -- W07-G1: a room's own
+    fixtures dict naming another in-scope room's fixture is the same class of
+    mistake as an unknown id, not silently applied there), issues explains
     every excluded one. Never raises; a stale/orphaned fixture override must
     still be listable, not rejected outright by this function alone -- a
     caller about to *apply* a state treats a non-empty issues list as a stop
     condition, same as the surfaceOverrides precedent."""
-    known = {f['id'] for f in bindings.get('fixtures', [])} if bindings else set()
+    by_id = {f['id']: f for f in bindings.get('fixtures', [])} if bindings else {}
     usable, issues = {}, []
     for fixture_id, override in fixtures.items():
-        if fixture_id not in known:
+        fixture = by_id.get(fixture_id)
+        if fixture is None:
             issues.append(dict(id=fixture_id, reason=f'照明{fixture_id}は現在のモデルに存在しません。'))
+        elif room_id is not None and fixture.get('roomId') != room_id:
+            issues.append(dict(id=fixture_id, reason=f'照明{fixture_id}は別の部屋（{fixture.get("roomId")}）の器具です。'))
         else:
             usable[fixture_id] = override
     return usable, issues

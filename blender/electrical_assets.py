@@ -117,9 +117,13 @@ def _rotate_direction(local, rot_y_deg):
     return [lx*math.cos(theta) + lz*math.sin(theta), ly, -lx*math.sin(theta) + lz*math.cos(theta)]
 
 
-def build_lighting_bindings(data, electrical, catalog, settings, room_id):
-    """Resolve every lighting-category fixture belonging to `room_id` into
-    lighting-bindings.json's fixtures list. Raises ValueError (naming the
+def build_lighting_bindings(data, electrical, catalog, settings, room_ids):
+    """Resolve every lighting-category fixture belonging to any of
+    `room_ids` (a list -- W07-G1: one shared resolution per scope, not one
+    per room, so groups/comparisons can reference fixtures across rooms and
+    switching the active room never has to re-resolve or drop another
+    room's light -- spec section 3) into lighting-bindings.json's fixtures
+    list, each carrying its own roomId/level. Raises ValueError (naming the
     fixture id) on anything unresolvable -- unknown type, an unsupported
     lighting type (light-exterior/light-indirect), a missing profile, or an
     unsupported/unresolvable mount -- so the build stops before Blender does
@@ -129,7 +133,7 @@ def build_lighting_bindings(data, electrical, catalog, settings, room_id):
     unsupported = settings.get('unsupportedTypes', {})
     fixtures = []
     for item in electrical['items']:
-        if item.get('room') != room_id:
+        if item.get('room') not in room_ids:
             continue
         profile_type = catalog_by_type.get(item['type'])
         if profile_type is None:
@@ -147,27 +151,32 @@ def build_lighting_bindings(data, electrical, catalog, settings, room_id):
         mount = resolve_mount(data, merged)
         direction = _rotate_direction(profile['directionLocal'], mount['rotYDeg'])
         fixtures.append(dict(id=item['id'], type=item['type'], label=item.get('label', profile_type['label']),
-            status=item.get('status', 'estimated'),
+            status=item.get('status', 'estimated'), roomId=item['room'], level=item['level'],
             positionM=mount['positionM'], emitPositionM=mount['emitPositionM'], directionVector=direction,
             source=profile['source'], lumens=profile['lumens'], temperatureK=profile['temperatureK'],
             spotAngleDeg=profile.get('spotAngleDeg'),
             profileStatus=profile.get('status', 'estimated'), profileNote=profile.get('note')))
     if not fixtures:
-        raise ValueError(f'No supported lighting fixtures found for room {room_id}')
-    # W06-v2 review 必須修正A: lighting-settings.json's groups are a common
-    # operating shortcut (Blender's own build never uses them itself), but a
-    # group referencing a fixture id that this resolution does not produce
-    # (removed from data/electrical.json, wrong room, unsupported type) must
-    # stop HERE too -- the same "before Blender does more work" contract as
-    # every other unresolvable id above, not left to be discovered later as
-    # a silently-partial group in the UE editor.
-    known_ids = {f['id'] for f in fixtures}
+        raise ValueError(f'No supported lighting fixtures found for room(s) {", ".join(room_ids)}')
+    # W06-v2 review 必須修正A (relaxed for W07-G1's multi-scope reality): a
+    # group referencing a fixture id that does not exist ANYWHERE in the
+    # current source at all is still a hard stop here, before Blender does
+    # any more work. A group referencing a REAL fixture that this scope
+    # simply did not resolve (it belongs to a room outside `room_ids`) is
+    # NOT an error -- W07-G1 spec section 3: "対象外室だけの正常なグループ
+    # を理由に生成全体を止めないでください". Distinguishing the two needs
+    # the full electrical.json (every fixture id that exists at all, not
+    # just this scope's), which only Blender-side callers have; whether a
+    # given group is actually USABLE under the CURRENT scope (all-in-scope
+    # vs mixed vs all-out-of-scope) is a separate, operational concern left
+    # to study_controls.py's own_target_fixture_ids().
+    all_ids = {item['id'] for item in electrical['items']}
     for group in settings.get('groups', []):
-        unknown = [fid for fid in group.get('fixtureIds', []) if fid not in known_ids]
+        unknown = [fid for fid in group.get('fixtureIds', []) if fid not in all_ids]
         if unknown:
             raise ValueError(f"lighting-settings.json group '{group.get('id')}' references fixture id(s) "
-                f"not resolvable for room {room_id}: " + ', '.join(unknown))
-    return dict(schemaVersion='1.0.0', roomId=room_id, fixtures=fixtures)
+                'that do not exist in the current source at all: ' + ', '.join(unknown))
+    return dict(schemaVersion='1.1.0', roomIds=list(room_ids), fixtures=fixtures)
 
 
 def create_fixture_mesh(binding, merged, mats, block, item, ceiling_height=None):

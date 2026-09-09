@@ -10,7 +10,10 @@ if not project.is_relative_to(ROOT/'build'):raise ValueError('Only generated wor
 shutil.copytree(ROOT/'unreal/walkthrough/Source',project/'Source',dirs_exist_ok=True)
 u=project/'RyukaInterior.uproject';doc=json.loads(u.read_text(encoding='utf-8-sig'));doc['Modules']=[dict(Name='RyukaInterior',Type='Runtime',LoadingPhase='Default')];u.write_text(json.dumps(doc,indent=2),encoding='utf-8')
 study=json.loads((project/'SourcePackage/study.json').read_text(encoding='utf-8'));house=json.loads((project/'SourcePackage/inputs/data/house.json').read_text(encoding='utf-8'))
-room=next(r for r in house['rooms'] if r['id']==study['roomId'])
+# W07-G1: the walkthrough stays LDK-only this round (room-to-room walking is
+# W07-G2) -- walkableRoomId is the scope's designated walkable room, not
+# necessarily whichever room the study happens to be centred on.
+room=next(r for r in house['rooms'] if r['id']==study['walkableRoomId'])
 config=dict(schemaVersion='1.0.0',roomId=room['id'],cachePath=a.cache.resolve().as_posix(),floorCm=house['levels'][f"fl{room['level']}"]*100,polygonCm=[[x*100,z*100] for x,z in room['polygon']])
 (project/'walkthrough.json').write_text(json.dumps(config),encoding='utf-8')
 # Native toolchain response files require a short ASCII path on this Windows setup.

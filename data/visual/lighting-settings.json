@@ -53,6 +53,11 @@
       "id": "guest-ldk-dining",
       "label": "ゲストLDK：ダイニング（ペンダント）",
       "fixtureIds": ["elec-201"]
+    },
+    {
+      "id": "guest-western-main",
+      "label": "洋室：主照明（シーリング）",
+      "fixtureIds": ["elec-006"]
     }
   ]
 }

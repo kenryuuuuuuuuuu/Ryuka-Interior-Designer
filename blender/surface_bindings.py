@@ -32,6 +32,32 @@ def split_wall_range(polygon, lo, hi):
     return before, within, after
 
 
+def split_wall_at(polygon, breakpoints):
+    """polygon: (u,y) points in a wall's own profile space. Splits it at
+    EVERY u in `breakpoints` (each an independent half-plane cut, the same
+    clip() split_wall_range() uses for a single lo/hi pair), returning the
+    resulting sub-polygons in left-to-right u order. A breakpoint outside the
+    polygon's own u-range is a no-op for that cut, and duplicate breakpoints
+    collapse (a set).
+
+    W07-G1: unlike split_wall_range()'s single lo/hi pair (which assumes only
+    ONE room ever registers a marker on a given wall piece), a SHARED wall
+    can have two different rooms independently registering their own
+    (possibly different) sub-ranges on the SAME wall entity -- one per cap.
+    Splitting at the UNION of every registration's boundaries first, then
+    classifying each resulting piece, lets both sides' markers land on the
+    same piece without one registration's range consuming the other's."""
+    pieces = [polygon]
+    for bp in sorted(set(breakpoints)):
+        next_pieces = []
+        for piece in pieces:
+            before = clip(piece, lambda p, bp=bp: bp - p[0])
+            after = clip(piece, lambda p, bp=bp: p[0] - bp)
+            next_pieces += [p for p in (before, after) if p]
+        pieces = next_pieces
+    return pieces
+
+
 def wall_cap_for_room(at, mid_u, horizontal, room_polygon, epsilon=0.03):
     """at: the wall's fixed coordinate (z for horizontal, x for vertical).
     mid_u: a point along the wall's span known to be covered by the room's

@@ -18,7 +18,7 @@ from mathutils import Vector
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_house as house_builder
 from surface_finishes import assign_surface_uv, apply_pattern
-from surface_bindings import split_wall_range, wall_cap_for_room, decompose_rectilinear, subtract_rects, intersect_rect
+from surface_bindings import split_wall_at, wall_cap_for_room, decompose_rectilinear, subtract_rects, intersect_rect
 from electrical_assets import build_lighting_bindings, merged_item, create_fixture_mesh, ceiling_height_at
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
 from finish_settings import details_for_variant
@@ -26,7 +26,8 @@ from furniture_assets import validate_bindings, asset_parts
 from guest_decor import build as build_decor
 from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
-from study_state import validate_state
+from study_state import validate_state as validate_legacy_state
+import multi_room_state as mrs
 from surface_finish_overrides import resolve_finish, marker_material_name
 from lighting import validate_lighting_settings, effective_fixture, kelvin_to_rgb
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
@@ -124,11 +125,14 @@ def block(name, x0, x1, z0, z1, y0, y1, mat, bevel=0, source=None, face_material
 
 
 def panel(name, wall, polygon, mat, source=None, marker=None):
-    # marker (W04): (cap_index, material) -- cap_index 0 is the face at the
-    # ORIGINAL polygon position (prism()'s "cap A": the smaller-at side, i.e.
-    # north for a horizontal wall / west for a vertical one); 1 is the
-    # extruded "cap B" (south/east). See surface_bindings.wall_cap_for_room(),
-    # which this module calls to decide which one a given room is on.
+    # marker (W04, dict form since W07-G1): {cap_index: material} -- cap
+    # index 0 is the face at the ORIGINAL polygon position (prism()'s "cap
+    # A": the smaller-at side, i.e. north for a horizontal wall / west for a
+    # vertical one); 1 is the extruded "cap B" (south/east). See
+    # surface_bindings.wall_cap_for_room(), which this module calls to
+    # decide which one a given room is on. A SHARED wall can mark BOTH caps
+    # on the same object (one registered surface per side, W07-G1); a
+    # single-sided wall marks just the one cap its registration matched.
     t = wall['thickness']
     if wall['orientation'] == 'H':
         at = wall['z0']
@@ -136,8 +140,7 @@ def panel(name, wall, polygon, mat, source=None, marker=None):
     else:
         at = wall['x0']
         vertices = [(at-t/2, -u, y) for u, y in polygon]; vector = (t,0,0)
-    face_materials = {marker[0]: marker[1]} if marker else None
-    return prism(name, vertices, vector, mat, source or wall, 'wall', face_materials)
+    return prism(name, vertices, vector, mat, source or wall, 'wall', marker)
 
 
 def openings(data):
@@ -167,7 +170,17 @@ class SurfaceBinder:
     preflight (and refresh-visual-study.py's own step) already stop before
     Blender runs if anything is unresolved, so there is nothing to recover
     from here."""
-    def __init__(self, data, resolved_surfaces, overrides, finish_document, study_variants, base_variant):
+    def __init__(self, data, resolved_surfaces, overrides, finish_document, study_variants, variant_by_room):
+        # W07-G1: variant_by_room replaces the pre-G1 single base_variant --
+        # each registered surface resolves its finish using ITS OWN room's
+        # active variant, so switching one room's variant never touches
+        # another in-scope room's (or an out-of-scope room's) surfaces
+        # (spec section 3: "LDKをwarmにしても洋室の壁/床/天井...までwarmへ
+        # 変わらない"). A room with no entry (should not happen for anything
+        # actually registered under the current scope) falls back to
+        # multi_room_state.BASE_VARIANT rather than raising, matching the
+        # "対象外室/外皮は既存の基準材質を維持" contract for anything not
+        # actively room-state-controlled.
         self.rooms_by_id = {r['id']: r for r in data['rooms']}
         self.by_room_kind = {}
         self.materials = {}
@@ -179,6 +192,7 @@ class SurfaceBinder:
                 continue
             self.by_room_kind.setdefault((s['roomId'], s['kind']), []).append(s)
             self.status[s['id']] = dict(roomId=s['roomId'], kind=s['kind'], label=s.get('label'), state='no-surface')
+            base_variant = variant_by_room.get(s['roomId'], mrs.BASE_VARIANT)
             finish = resolve_finish(finish_document, study_variants, s['kind'], base_variant, overrides.get(s['id']))
             self.detail[s['id']] = finish
             # W04 review v2 R1: give this marker the SAME base texture as the
@@ -262,6 +276,9 @@ def build_envelope(data, mats, binder=None):
         # There can be up to two (a wall shared by two registered rooms); a
         # merged wall's span can also be longer than a single room's edge.
         wall_start,wall_end = (w['x0'],w['x1']) if horizontal else (w['z0'],w['z1'])
+        # matches: (lo,hi,cap,s) -- cap resolved ONCE per registration here
+        # (from its own overlap midpoint), not re-derived per output piece,
+        # since a registration's entire range is always on the same cap.
         matches=[]
         for s in wall_registrations:
             (ex0,ez0),(ex1,ez1) = s['edge']
@@ -271,37 +288,49 @@ def build_envelope(data, mats, binder=None):
             if abs(s_at-at) > 1e-6: continue
             lo,hi = sorted((ex0,ex1) if horizontal else (ez0,ez1))
             lo,hi = max(lo,wall_start),min(hi,wall_end)
-            if hi-lo > 1e-6: matches.append((lo,hi,s))
+            if hi-lo <= 1e-6: continue
+            cap=wall_cap_for_room(at,(lo+hi)/2,horizontal,binder.room_polygon(s['roomId']))
+            if cap is None:
+                # Edge/room mismatch (should not happen once surface_registry
+                # has resolved the edge against this same room polygon) --
+                # fail safe to the plain default material rather than guessing.
+                continue
+            matches.append((lo,hi,cap,s))
         for i, poly in enumerate(wall_polygons(data,w,cuts)):
             if not matches:
                 panel(f"wall.{w['id']}.{i}",w,poly,mats['wall'],dict(wall=w,openings=cuts))
                 continue
-            # Carve each matching registered range out of this piece with the
-            # same half-plane clip wall_polygons() already uses for openings;
-            # whatever is left (outside every registered range) keeps the
-            # plain default wall material, unsplit.
-            remaining=[poly]
-            for lo,hi,s in matches:
-                next_remaining=[]
-                for piece in remaining:
-                    before,within,after = split_wall_range(piece,lo,hi)
-                    next_remaining += [p for p in (before,after) if p]
-                    if within:
-                        mid=(lo+hi)/2
-                        cap=wall_cap_for_room(at,mid,horizontal,binder.room_polygon(s['roomId']))
-                        if cap is None:
-                            # Edge/room mismatch (should not happen once
-                            # surface_registry has resolved the edge against
-                            # this same room polygon) -- fail safe to the
-                            # plain default material rather than guessing.
-                            next_remaining.append(within)
-                        else:
-                            obj=panel(f"wall.{w['id']}.{i}.{s['id']}",w,within,mats['wall'],
-                                dict(wall=w,openings=cuts),marker=(cap,binder.materials[s['id']]))
-                            binder.mark_bound(s['id'],obj.name,1)
-                remaining=next_remaining
-            for j,piece in enumerate(remaining):
-                panel(f"wall.{w['id']}.{i}.rest.{j}",w,piece,mats['wall'],dict(wall=w,openings=cuts))
+            # W07-G1: split at the UNION of every registration's boundaries
+            # FIRST, then classify each resulting piece by cap -- a SHARED
+            # wall (e.g. LDK's south face and the western room's north face,
+            # both registered on the SAME wall entity) must give each cap its
+            # own marker on the SAME piece, never let whichever registration
+            # is processed first consume the other side's range entirely
+            # (the previous sequential-consume approach did exactly that).
+            breakpoints={b for lo,hi,cap,s in matches for b in (lo,hi)}
+            for j,piece in enumerate(split_wall_at(poly,breakpoints)):
+                mid_u=sum(p[0] for p in piece)/len(piece)
+                face_materials={}
+                bound=[]
+                for lo,hi,cap,s in matches:
+                    if lo-1e-6<=mid_u<=hi+1e-6 and cap not in face_materials:
+                        face_materials[cap]=binder.materials[s['id']]
+                        bound.append(s['id'])
+                if face_materials:
+                    obj=panel(f"wall.{w['id']}.{i}.{j}",w,piece,mats['wall'],dict(wall=w,openings=cuts),marker=face_materials)
+                    # W07-G1 fix: a SHARED wall piece (both caps registered)
+                    # gets TWO distinct extra materials, and mesh()'s own
+                    # slot_for assigns them slots 1, 2, ... in the order
+                    # face_materials was populated -- the same order `bound`
+                    # was appended in above. A single-cap piece still lands at
+                    # slot 1. Hardcoding slot 1 for every entry here (the
+                    # pre-fix bug) silently pointed BOTH sides' surface-
+                    # bindings.json entries at slot 1, so one side's expected
+                    # marker material never matched what was actually there.
+                    for slot,surface_id in enumerate(bound,start=1):
+                        binder.mark_bound(surface_id,obj.name,slot)
+                else:
+                    panel(f"wall.{w['id']}.{i}.{j}",w,piece,mats['wall'],dict(wall=w,openings=cuts))
     floor_registrations = binder.floor_surfaces() if binder else []
     for i,r in enumerate(data['envelope']['slabs']):
         y = data['levels'][f"fl{r['level']}"]
@@ -440,13 +469,27 @@ def build_openings(ops, settings, mats):
             rect('closed-leaf',a+fw,b-fw,low+.005,high-fw,mats['cabinet'],.035)
 
 
-def build_furniture(data,settings,mats):
+def build_furniture(data,room_ids,mats):
+    # W07-G1: only items belonging to an IN-SCOPE room are generated at all
+    # (spec section 3: "家具は対象roomIdsに属する既存配置を生成します") --
+    # room reference (item['room']) and actual coordinates must agree; a
+    # mismatch is named and stopped rather than silently trusting the
+    # coordinates to move the item into a different (possibly out-of-scope)
+    # room, or generating it twice.
     catalog={t['type']:t for t in read(ROOT/'data/furniture-catalog.json')['types']}
     bindings=validate_bindings(read(ROOT/'data/visual/asset-bindings.json'),
         read(ROOT/'data/furniture.json')['items'],read(ROOT/'data/furniture-catalog.json'))
-    room=next(r for r in data['rooms'] if r['id']==settings['roomId'])
-    items=[i for i in read(ROOT/'data/furniture.json')['items'] if i['level']==room['level'] and
-           point_in_room(i['x'],i['z'],room['polygon'])]
+    rooms_by_id={r['id']:r for r in data['rooms']}
+    items=[]
+    for i in read(ROOT/'data/furniture.json')['items']:
+        if i['room'] not in room_ids:
+            continue
+        room=rooms_by_id.get(i['room'])
+        if room is None or i['level']!=room['level'] or not point_in_room(i['x'],i['z'],room['polygon']):
+            raise ValueError(f"furniture.json: {i['id']} claims room {i['room']!r} but its coordinates "
+                "do not actually fall inside that room's current polygon/level.")
+        items.append(i)
+    role_bindings={}
     for item in items:
         profile=catalog[item['type']]
         w,d,h=[item.get(k+'Override',profile[k]) for k in ('width','depth','height')]
@@ -556,24 +599,32 @@ def build_furniture(data,settings,mats):
             for vertex in obj.data.vertices:
                 x,y,z=vertex.co
                 vertex.co=(c*x-s*y+item['x'],s*x+c*y-item['z'],z+data['levels'][f"fl{item['level']}"]+item.get('elevation',0))
-    return items
+            # W07-G1: this object's whole-scene role-slot material (see
+            # role_bindings_json() below) must follow ITS OWN room's active
+            # variant, never a single global one -- Blender doesn't need this
+            # tag itself (it already only ever builds ONE variant's palette
+            # per generation), but UE's apply_state() does, once per room.
+            role_bindings[obj.name]=item['room']
+    return items,role_bindings
 
 
-def build_electrical_lighting(data, settings, lighting_state, mats):
-    """W06: resolve room-1f-06's lighting fixtures into lighting-bindings.json
-    (the same artifact UE's import_study.py reads to spawn its own
-    actors/lights -- resolved ONCE, here, and reused by both -- W06 spec
-    section 1), build a simple placeholder mesh per fixture, and add a real
-    Blender lamp per fixture reflecting `lighting_state` (day/night + any
-    per-fixture on/dimming/temperatureK override) so a --state render
-    actually shows the requested night condition, not just UE's."""
+def build_electrical_lighting(data, room_ids, room_states, mats):
+    """W06/W07-G1: resolve every fixture in `room_ids` into
+    lighting-bindings.json (the same artifact UE's import_study.py reads to
+    spawn its own actors/lights -- resolved ONCE, here, for the whole scope,
+    and reused by both -- W06 spec section 1; W07-G1 spec section 3: one
+    shared resolution per scope, not one per room), build a simple
+    placeholder mesh per fixture, and add a real Blender lamp per fixture
+    reflecting its OWN room's fixtures overrides (room_states[fixture
+    roomId].fixtures; on/off is independent of day/night mode, unchanged
+    from W06) so a --state render actually shows the requested condition,
+    not just UE's."""
     electrical = read(ROOT/'data/electrical.json')
     catalog = read(ROOT/'data/electrical-catalog.json')
     lighting_settings = validate_lighting_settings(read(ROOT/'data/visual/lighting-settings.json'))
-    bindings = build_lighting_bindings(data, electrical, catalog, lighting_settings, settings['roomId'])
+    bindings = build_lighting_bindings(data, electrical, catalog, lighting_settings, room_ids)
     catalog_by_type = {t['type']: t for t in catalog['types']}
     items_by_id = {i['id']: i for i in electrical['items']}
-    fixture_overrides = lighting_state['fixtures']
     for binding in bindings['fixtures']:
         item = items_by_id[binding['id']]
         merged = merged_item(item, catalog_by_type)
@@ -583,6 +634,7 @@ def build_electrical_lighting(data, settings, lighting_state, mats):
         ceiling_height = (ceiling_height_at(data, merged['x'], merged['z'], merged['room'])
             if merged['mount'] == 'ceiling' else None)
         create_fixture_mesh(binding, merged, mats, block, item, ceiling_height)
+        fixture_overrides = room_states.get(binding['roomId'], {}).get('fixtures', {})
         effective = effective_fixture(binding, fixture_overrides.get(binding['id']))
         light_type = 'SPOT' if binding['source'] == 'spot' else 'POINT'
         # W06-v1 review R2: the light itself sits at emitPositionM (the
@@ -654,9 +706,13 @@ def setup_lighting(settings, args, state=None):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',required=True,type=Path)
-    parser.add_argument('--variant',default='natural')
-    parser.add_argument('--state',type=Path,help='Validated study-state.json/scenario state; '
-        'overrides --variant with state.variant, carries surfaceOverrides, and sets the sun to '
+    parser.add_argument('--scope',help='data/visual/study-scopes.json scopeId. Defaults to --state\'s own '
+        'scopeId, or "guest-ldk" (single-room, pre-W07 compatible) if neither is given.')
+    parser.add_argument('--variant',default='natural',help='Uniform initial variant for every room in scope '
+        'when --state is omitted; overridden per-room by --state.roomStates[*].variant.')
+    parser.add_argument('--state',type=Path,help='Validated study-state.json/scenario state (schemaVersion '
+        '1.0.0-2.0.0; anything older than 2.0.0 is migrated in-memory to a single-room 2.0.0 state -- see '
+        'unreal/multi_room_state.py). Carries per-room surfaceOverrides/fixtures and sets the sun to '
         "state's azimuthDeg/elevationDeg (overriding --elevation). Omit for the plain default (no overrides).")
     parser.add_argument('--render',action='store_true')
     parser.add_argument('--samples',type=int,default=128)
@@ -672,13 +728,33 @@ def main():
     args.output.mkdir(parents=True)
     # Drivers may fall back to cwd when their user-profile cache is unavailable.
     os.chdir(args.output)
-    settings=read(ROOT/'data/visual/guest-ldk-study.json')
-    state=None
-    if args.state:
-        state=validate_state(json.loads(args.state.read_text(encoding='utf-8')),dict(roomId=settings['roomId'],settings=settings))
-    variant=state['variant'] if state else args.variant
-    overrides=state['surfaceOverrides'] if state else {}
-    palette=settings['variants'][variant]
+    legacy_study=read(ROOT/'data/visual/guest-ldk-study.json')
+    scopes_document=mrs.validate_scopes(read(ROOT/'data/visual/study-scopes.json'))
+    room_render_settings=mrs.validate_room_render_settings(read(ROOT/'data/visual/room-render-settings.json'))
+    variants=legacy_study['variants']
+    raw_state=json.loads(args.state.read_text(encoding='utf-8')) if args.state else None
+    scope_id=args.scope or (raw_state or {}).get('scopeId') or 'guest-ldk'
+    scope=mrs.resolve_scope(scopes_document,scope_id)
+    room_ids=scope['roomIds']
+    state=mrs.validate_state(raw_state,room_ids,variants,scopes_document,legacy_study) if raw_state is not None else None
+    if state is not None:
+        # build_interior.py's OWN contract is "a --state must already cover
+        # the FULL resolved scope, or none at all" -- merging a state that
+        # only covers a SUBSET of the scope with a previous generation's
+        # state (W07-G1 spec section 2: "不足室の基準状態が必要...不足室を
+        # 明示して停止") is the ORCHESTRATION layer's job (refresh_inputs.py/
+        # refresh-visual-study.py/study_controls.py's mrs.partial_apply()),
+        # not this low-level generator's -- a state reaching here incomplete
+        # is a caller error, reported plainly rather than crashing on a
+        # missing roomStates key below.
+        missing=[room_id for room_id in room_ids if room_id not in state['roomStates']]
+        if missing:
+            raise RuntimeError('--state is missing roomStates for room(s) in scope '+scope_id+': '+', '.join(missing))
+    room_states=(state['roomStates'] if state else
+        {room_id:dict(variant=args.variant,surfaceOverrides={},fixtures={}) for room_id in room_ids})
+    variant_by_room={room_id:room_states[room_id]['variant'] for room_id in room_ids}
+    overrides={surface_id:override for room_id in room_ids for surface_id,override in room_states[room_id]['surfaceOverrides'].items()}
+    active_room_id=state['activeRoomId'] if state else scope['defaultRoomId']
     data=house_builder.load_data(ROOT/'data/house.json')
     data['envelope']=read(ROOT/'generated/visual-envelope.json')
     profiles={t['type']:t for filename in ('door-catalog.json','window-catalog.json') for t in read(ROOT/'data'/filename)['types']}
@@ -686,12 +762,20 @@ def main():
         for key in ('operation','category','archRise'):
             if key in profiles[o['type']]: o[key]=profiles[o['type']][key]
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    # W07-G1: this scene's OWN base materials (mats['wall'] etc.) use the
+    # fixed baseline variant, never a per-room one -- every in-scope room's
+    # OWN registered wall/floor/ceiling pieces get their own marker material
+    # (SurfaceBinder, per-room) regardless, so this only shows through on
+    # genuinely un-owned geometry (exterior walls/roof, thin unmarked wall
+    # side faces, out-of-scope rooms) -- spec section 3: "対象外室/外皮は
+    # 既存の基準材質を維持".
+    palette=variants[mrs.BASE_VARIANT]
     mats={key:material(key,value,texture='wood' if key=='wood' else 'fabric' if key=='fabric' else None)
           for key,value in palette.items() if key!='label'}
     mats.update(frame=material('Frame','38332d',.38),stone=material('Counter','e4e0d5',.32),
                 metal=material('Metal','b8b8b2',.3,.7),black=material('Glass.black','15191b',.12))
     finish_document=read(ROOT/'data/visual/unreal-finishes.json')
-    surface_details=details_for_variant(finish_document,variant)
+    surface_details=details_for_variant(finish_document,mrs.BASE_VARIANT)
     for role,detail in surface_details.items():
         if detail.get('pattern'): apply_pattern(mats[role],palette[detail['paletteRole']],detail,rgb)
     # W04: registered surface IDs -> real wall/floor/ceiling geometry. Every
@@ -702,30 +786,38 @@ def main():
     # id here is resolved against the current house.json -- an override
     # naming something outside that resolved set at all is a plain unknown id.
     resolved=resolve_surface_registry(ROOT)
-    binder=SurfaceBinder(data,resolved['surfaces'],overrides,finish_document,settings['variants'],variant)
+    binder=SurfaceBinder(data,resolved['surfaces'],overrides,finish_document,variants,variant_by_room)
     unknown=[surface_id for surface_id in overrides if surface_id not in binder.materials]
     if unknown:
         raise RuntimeError('surfaceOverrides references unknown surface id(s): '+', '.join(unknown))
-    ops=build_envelope(data,mats,binder); build_openings(ops,settings,mats)
+    ops=build_envelope(data,mats,binder); build_openings(ops,legacy_study,mats)
     no_surface=[surface_id for surface_id in overrides if binder.status[surface_id]['state']!='bound']
     if no_surface:
         raise RuntimeError('surfaceOverrides references no-surface id(s) (no matching geometry found): '+', '.join(no_surface))
     (args.output/'surface-bindings.json').write_text(json.dumps(binder.bindings_json(),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    items=build_furniture(data,settings,mats)
+    items,role_bindings=build_furniture(data,room_ids,mats)
     decorations=build_decor(read(ROOT/'data/visual/guest-decor.json'),data,items,ops,mats,block,mesh,read(ROOT/'data/furniture-catalog.json'))
+    # guest-decor.json is fixed to room-1f-06 (LDK) by its own roomId field
+    # (unchanged by W07-G1: "新しい小物・画像相当の装飾は不要" for the
+    # western room) -- every decoration object it just created belongs there.
+    for obj in bpy.context.scene.objects:
+        if obj.name.startswith('decoration.'): role_bindings[obj.name]='room-1f-06'
     block('Ground.context-provisional',-60,70,-60,60,-.1,0,material('Ground','888276'))
     for obj in bpy.context.scene.objects:
         if obj.type=='MESH' and obj.name.startswith(('slab.','ceiling.')): assign_surface_uv(obj)
-    light=setup_lighting(settings,args,state)
-    lighting_state=state['lighting'] if state else dict(mode='day',fixtures={})
-    lighting_bindings=build_electrical_lighting(data,settings,lighting_state,mats)
+    lighting_mode=state['lighting']['mode'] if state else 'day'
+    light=setup_lighting(legacy_study,args,state)
+    lighting_bindings=build_electrical_lighting(data,room_ids,room_states,mats)
     (args.output/'lighting-bindings.json').write_text(json.dumps(lighting_bindings,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    room=next(r for r in data['rooms'] if r['id']==settings['roomId']); floor=data['levels'][f"fl{room['level']}"]
-    x,z,y=settings['camera']['position']; bpy.ops.object.camera_add(location=(x,-z,y+floor))
+    (args.output/'role-bindings.json').write_text(json.dumps(
+        dict(schemaVersion='1.0.0',actors=role_bindings),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    active_render=mrs.room_render(room_render_settings,active_room_id,legacy_study)
+    room=next(r for r in data['rooms'] if r['id']==active_room_id); floor=data['levels'][f"fl{room['level']}"]
+    x,z,y=active_render['camera']['position']; bpy.ops.object.camera_add(location=(x,-z,y+floor))
     camera=bpy.context.object; camera.name='Camera.guest-ldk.fixed'
-    tx,tz,ty=settings['camera']['target']
+    tx,tz,ty=active_render['camera']['target']
     camera.rotation_euler=(Vector((tx,-tz,ty+floor))-camera.location).to_track_quat('-Z','Y').to_euler()
-    camera.data.lens=settings['camera']['lensMm']; camera.data.clip_start=.03
+    camera.data.lens=active_render['camera']['lensMm']; camera.data.clip_start=.03
     scene=bpy.context.scene; scene.camera=camera; scene.unit_settings.system='METRIC'; scene.unit_settings.scale_length=1
     scene.render.engine='CYCLES'; scene.cycles.samples=args.samples; scene.cycles.use_denoising=True
     scene.cycles.max_bounces=12; scene.cycles.transmission_bounces=8; scene.cycles.transparent_max_bounces=16
@@ -740,9 +832,13 @@ def main():
     scene.view_settings.view_transform='AgX'; scene.view_settings.exposure=light['exposure']; scene.view_settings.gamma=1
     scene.render.image_settings.file_format='PNG'; scene.render.filepath='//interior.png'
     scene['study_status']='estimated-manual-sun-angle'; scene['site_daylight_calibrated']=False
-    report=dict(status='estimated',variant=variant,surfaceOverrides=overrides,roomId=settings['roomId'],settings=settings,lighting=light,
-                decorations=decorations,furnitureIds=[i['id'] for i in items],siteDaylightCalibrated=False,unrealImportVerified=False,
-                electricalLighting=dict(mode=lighting_state['mode'],fixtureIds=[f['id'] for f in lighting_bindings['fixtures']]),
+    report=dict(status='estimated',schemaVersion='2.0.0',scopeId=scope['scopeId'],roomIds=room_ids,
+                activeRoomId=active_room_id,walkableRoomId=scope['defaultRoomId'],roomStates=room_states,
+                settings=dict(variants=legacy_study['variants'],lighting=legacy_study['lighting'],window=legacy_study['window'],
+                              note=legacy_study['note']),
+                lighting=light,decorations=decorations,furnitureIds=[i['id'] for i in items],
+                siteDaylightCalibrated=False,unrealImportVerified=False,
+                electricalLighting=dict(mode=lighting_mode,fixtureIds=[f['id'] for f in lighting_bindings['fixtures']]),
                 limitations=['Furniture is procedural, with approximate details; source placement retained',
                              'Window frames and per-surface shadow transmittance .9 (pane approx .81) are estimated',
                              'All actual door leaves closed; no operation animation',
@@ -750,7 +846,8 @@ def main():
                              'Stair opening and guard walls present; stair treads still absent',
                              'Roof/gable details incomplete; source ceiling heights remain estimated',
                              'Procedural materials and glass shadow shader require UE counterparts',
-                             'Electrical fixture geometry is a simple placeholder; lumens/colour temperature are estimated profiles, not measured photometry (see data/visual/lighting-settings.json)'],
+                             'Electrical fixture geometry is a simple placeholder; lumens/colour temperature are estimated profiles, not measured photometry (see data/visual/lighting-settings.json)',
+                             'Only room-1f-06 (LDK) is walkable this round; other in-scope rooms are geometry/materials/lighting only (W07-G1; room-to-room walking is W07-G2)'],
                 render=dict(engine='Cycles',samples=args.samples,width=args.width,colorManagement='AgX',device=scene.cycles.device))
     (args.output/'study.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     bpy.ops.wm.save_as_mainfile(filepath=str(args.output/'interior.blend'))

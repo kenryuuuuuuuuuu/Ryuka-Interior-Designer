@@ -62,6 +62,68 @@
       "kind": "ceiling",
       "label": "天井（片流れ勾配、roof-a1直下）",
       "note": "house.jsonのroom-1f-06部屋全体。ceiling:\"sloped\"（本棟上屋根roof-a1、docs/ARCHITECTURE.md「勾配天井」参照）。部屋status=verifiedを引き継ぐ。"
+    },
+    {
+      "id": "surf-western-wall-001",
+      "roomId": "room-1f-05",
+      "kind": "wall",
+      "label": "北側の壁",
+      "note": "W07-G1。house.jsonのroom-1f-05 polygon辺0（頂点[2.73,0.91]-[7.28,0.91]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [[2.73, 0.91], [7.28, 0.91]]
+    },
+    {
+      "id": "surf-western-wall-002",
+      "roomId": "room-1f-05",
+      "kind": "wall",
+      "label": "東側の壁（上部）",
+      "note": "W07-G1。house.jsonのroom-1f-05 polygon辺1（頂点[7.28,0.91]-[7.28,2.326]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [[7.28, 0.91], [7.28, 2.326]]
+    },
+    {
+      "id": "surf-western-wall-003",
+      "roomId": "room-1f-05",
+      "kind": "wall",
+      "label": "クローク境界（水平）",
+      "note": "W07-G1。house.jsonのroom-1f-05 polygon辺2（頂点[7.28,2.326]-[6.37,2.326]）。room-1f-23（クローク）との境界。部屋status=estimatedを引き継ぐ。",
+      "edge": [[7.28, 2.326], [6.37, 2.326]]
+    },
+    {
+      "id": "surf-western-wall-004",
+      "roomId": "room-1f-05",
+      "kind": "wall",
+      "label": "クローク境界（垂直）",
+      "note": "W07-G1。house.jsonのroom-1f-05 polygon辺3（頂点[6.37,2.326]-[6.37,3.691]）。room-1f-23（クローク）との境界。部屋status=estimatedを引き継ぐ。",
+      "edge": [[6.37, 2.326], [6.37, 3.691]]
+    },
+    {
+      "id": "surf-western-wall-005",
+      "roomId": "room-1f-05",
+      "kind": "wall",
+      "label": "南側の壁（LDKとの共有壁）",
+      "note": "W07-G1。house.jsonのroom-1f-05 polygon辺4（頂点[6.37,3.691]-[2.73,3.691]）。room-1f-06（LDK）のsurf-guest-wall-003と同じ壁実体（generated/interior-walls.jsonのwall-1f-auto-012、x:2.73-7.28）の一部を共有する。共有壁の両面はそれぞれ独立に登録・仕上げ変更できる（docs/tasks/W07-G1-multi-room-foundation.md 3章）。部屋status=estimatedを引き継ぐ。",
+      "edge": [[6.37, 3.691], [2.73, 3.691]]
+    },
+    {
+      "id": "surf-western-wall-006",
+      "roomId": "room-1f-05",
+      "kind": "wall",
+      "label": "西側の壁",
+      "note": "W07-G1。house.jsonのroom-1f-05 polygon辺5（頂点[2.73,3.691]-[2.73,0.91]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [[2.73, 3.691], [2.73, 0.91]]
+    },
+    {
+      "id": "surf-western-floor-001",
+      "roomId": "room-1f-05",
+      "kind": "floor",
+      "label": "床",
+      "note": "W07-G1。house.jsonのroom-1f-05部屋全体。部屋status=estimatedを引き継ぐ。"
+    },
+    {
+      "id": "surf-western-ceiling-001",
+      "roomId": "room-1f-05",
+      "kind": "ceiling",
+      "label": "天井（平天井）",
+      "note": "W07-G1。house.jsonのroom-1f-05部屋全体。room-1f-06と異なりceiling指定なし（平天井、既定高さ）。部屋status=estimatedを引き継ぐ。"
     }
   ]
 }

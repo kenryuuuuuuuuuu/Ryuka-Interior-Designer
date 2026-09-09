@@ -36,7 +36,7 @@ def fingerprint(project):
 
 def check_capture(report, case, baseline):
     # No --variant is ever passed to capture-unreal-study.py here, so the
-    # captured comparisonState.variant/surfaceOverrides are whatever the
+    # captured comparisonState.roomStates/surfaceOverrides are whatever the
     # project's OWN saved comparison state already had -- this only checks
     # they stayed IDENTICAL across every shot in the batch, not that they
     # equal some externally-named target.
@@ -45,7 +45,10 @@ def check_capture(report, case, baseline):
         raise ValueError('Capture does not match the requested datetime')
     if state.get('solar')!=case: raise ValueError('Solar provenance missing or changed')
     if baseline:
-        for key in ('variant','surfaceOverrides','camera','sunLux','exposureEV100','roomId','siteContextSHA256'):
+        # W07-G1: roomStates (all rooms' variant/surfaceOverrides/fixtures)
+        # and scopeId/activeRoomId replace the pre-G1 single variant/
+        # surfaceOverrides/roomId fields.
+        for key in ('roomStates','scopeId','activeRoomId','camera','sunLux','exposureEV100','siteContextSHA256'):
             if state.get(key)!=baseline['comparisonState'].get(key):
                 raise ValueError('Comparison changed fixed condition: '+key)
         for key in ('finishSettingsSHA256','floorShaderSHA256','siteContext','width','height','hardwareRayTracingEnabled'):

@@ -14,6 +14,7 @@ sys.path.insert(0,str(ROOT/'unreal'))
 sys.path.insert(0,str(ROOT/'scripts'))
 from finish_settings import validate_finishes
 from refresh_inputs import read, sha, retained_inputs, scenario_inputs
+import multi_room_state as mrs
 import source_changes
 import surface_registry
 
@@ -83,6 +84,10 @@ def main():
     parser.add_argument('--note',default='実敷地の位置・真北・採用品番は確認待ちです。')
     parser.add_argument('--scenario',type=Path,help='Saved named scenario directory (see save-study-scenario.py); '
         'overrides retained study state/sun-cases/site-context from --previous')
+    parser.add_argument('--scope',help='data/visual/study-scopes.json scopeId. Defaults to --previous\'s own scope '
+        '(from its import-verification.json), or "guest-ldk" for a pre-W07 previous project.')
+    parser.add_argument('--allow-new-rooms',action='store_true',help='Explicit-only (W07-G1 spec section 2): when '
+        '--scope adds a room --previous never covered, use that room\'s default state instead of stopping.')
     args=parser.parse_args()
     output=args.output.resolve(); previous=args.previous.resolve()
     if not output.is_relative_to(ROOT/'build'): parser.error('Output must be within this worktree build/.')
@@ -94,6 +99,19 @@ def main():
     validate_finishes(read(ROOT/'data/visual/unreal-finishes.json'))
     prev_report=read(previous/'import-verification.json')
     if not prev_report.get('unrealImportVerified'): parser.error('Previous project must have a successful import report')
+    scopes_document=mrs.validate_scopes(read(ROOT/'data/visual/study-scopes.json'))
+    legacy_study=read(ROOT/'data/visual/guest-ldk-study.json')
+    variants=legacy_study['variants']
+    # W07-G1 spec section 1: explicit --scope wins; otherwise the PREVIOUS
+    # project's own scope (recorded in its import-verification.json since
+    # W07-G1); a pre-W07 previous project (neither field present) falls back
+    # to "guest-ldk" (single-room, backward compatible).
+    scope_id=args.scope or prev_report.get('scopeId') or 'guest-ldk'
+    try:
+        scope=mrs.resolve_scope(scopes_document,scope_id)
+    except ValueError as error:
+        parser.error(str(error))
+    room_ids=scope['roomIds']
     scenario=None; scenario_dir=None
     if args.scenario:
         # --scenario reads state/sun-cases/site-context only from the saved
@@ -110,13 +128,50 @@ def main():
     changed=sorted(k for k in set(old)|set(before) if old.get(k)!=before.get(k))
     report=dict(schemaVersion='1.0.0',status='running',startedAt=datetime.now().astimezone().isoformat(),
         note=args.note,gallery=args.gallery,siteDaylightCalibrated=False,sourceHashes=before,
-        changedSourceFiles=changed,retainedHashes=retained_hashes,steps=[])
+        changedSourceFiles=changed,retainedHashes=retained_hashes,scopeId=scope_id,roomIds=room_ids,steps=[])
     if scenario:
         report['selectedScenario']=dict(id=scenario['id'],name=scenario['name'],note=scenario.get('note',''),
             scenarioSHA256=sha(scenario_dir/'scenario.json'),origin=scenario['origin'])
     output.mkdir(parents=True); saved=output/'retained'; saved.mkdir()
+    # `saved/study-state.json` stays a byte-for-byte copy of whichever RAW
+    # file retained_inputs()/scenario_inputs() selected -- unchanged()'s own
+    # tamper check below depends on this hash never moving. The state
+    # actually passed to Blender/UE is a SEPARATE, derived file (below).
     for key,path in retained.items(): shutil.copy2(path,saved/('study-state.json' if key=='state' else path.name))
     if scenario: shutil.copy2(scenario_dir/'scenario.json',saved/'scenario.json')
+    # W07-G1 spec section 2: "完全refreshの場合も、前回状態を基準に案の対象
+    # 室だけを重ねます" -- migrate whatever schema the selected input actually
+    # is, then partial_apply() it onto the PREVIOUS project's own (also
+    # migrated) full state so any in-scope room the selection does not cover
+    # (a legacy single-room --scenario, or a --previous whose own scope
+    # narrowed) keeps its LAST KNOWN state instead of being silently reset.
+    # "--previousの壊れた保存を読まない" is unaffected: this reads
+    # `previous/study-state.json` directly (the SourcePackage's own file,
+    # written by build_interior.py at generation time), never
+    # `previous/Saved/walkthrough-state.json` (the runtime save
+    # retained_inputs()/scenario_inputs() already refused above if it was
+    # mid-recovery) -- so a broken runtime save still cannot block this.
+    incoming=mrs.validate_state_own_scope(read(saved/'study-state.json'),scopes_document,legacy_study,variants)
+    previous_full=mrs.validate_state_own_scope(read(previous/'study-state.json'),scopes_document,legacy_study,variants)
+    if args.allow_new_rooms:
+        # W07-G1 spec section 2: "新規モデルを作る明示操作に限り、不足室の
+        # 初期状態を使えます" -- only reached with --allow-new-rooms; a room
+        # --previous never had is filled with ITS OWN default (room-render-
+        # settings.json's defaultVariant, no overrides/fixtures), never a
+        # copy of some OTHER room's state.
+        room_render_settings=mrs.validate_room_render_settings(read(ROOT/'data/visual/room-render-settings.json'))
+        previous_full=dict(previous_full,roomStates=dict(previous_full['roomStates']))
+        for room_id in room_ids:
+            if room_id not in previous_full['roomStates']:
+                default_variant=mrs.room_render(room_render_settings,room_id,legacy_study)['defaultVariant']
+                previous_full['roomStates'][room_id]=dict(variant=default_variant,surfaceOverrides={},fixtures={})
+    try:
+        merged=mrs.partial_apply(previous_full,incoming,room_ids)
+    except ValueError as error:
+        parser.error(str(error))
+    merged_path=output/'merged-study-state.json'
+    merged_path.write_text(json.dumps(merged,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    merged_hash=sha(merged_path)
     save(output,report)
     def unchanged():
         if sources()!=before: raise RuntimeError('Source files changed during regeneration; use a new output after edits finish')
@@ -124,6 +179,8 @@ def main():
             raise RuntimeError('Previous saved conditions changed during regeneration')
         if any(sha(saved/('study-state.json' if k=='state' else retained[k].name))!=h for k,h in retained_hashes.items()):
             raise RuntimeError('Retained condition snapshot changed during regeneration')
+        if sha(merged_path)!=merged_hash:
+            raise RuntimeError('Merged study state changed during regeneration')
     def run(name,command):
         step=dict(name=name,status='running'); report['steps'].append(step); save(output,report)
         print(name,flush=True)
@@ -169,22 +226,23 @@ def main():
             step['status']='failed'; save(output,report)
             raise RuntimeError('Current surface registry has unresolved entries; inspect '+str(output/'surface-resolution.json'))
         step['status']='complete'; save(output,report)
-        # --state (not just --variant) so Blender also reflects surfaceOverrides
-        # (W04); build_interior.py uses state.variant over --variant when both
-        # are given, so --variant here is only a readable fallback/log value.
+        # --state (the MERGED, full-scope state -- not the raw retained copy)
+        # so Blender also reflects per-room surfaceOverrides (W04); --variant
+        # here is only a readable fallback/log value, unused whenever --state
+        # is given.
         run('02-blender',[sys.executable,ROOT/'scripts/build-visual-twin.py','--blender',args.blender,
-            '--interior','--output',output/'blender','--variant',read(saved/'study-state.json')['variant'],
-            '--state',saved/'study-state.json'])
+            '--interior','--output',output/'blender','--scope',scope_id,'--variant',merged['roomStates'][merged['activeRoomId']]['variant'],
+            '--state',merged_path])
         command=[sys.executable,ROOT/'scripts/build-unreal-study.py','--engine',args.engine,
             '--package',output/'blender','--output',output/'ue','--cache',args.cache,
-            '--state',saved/'study-state.json']
+            '--state',merged_path]
         for key,flag in [('sunCases','--sun-cases'),('context','--context'),('site','--site')]:
             if key in retained: command += [flag,saved/retained[key].name]
         run('03-unreal',command)
         if (previous/'walkthrough.json').exists():
             run('04-walkthrough',[sys.executable,ROOT/'scripts/enable-unreal-walkthrough.py','--engine',args.engine,'--project',output/'ue','--cache',args.cache])
         run('04-state-check',[sys.executable,ROOT/'tests/validate_study_transfer.py',
-            '--state',saved/'study-state.json','--project',output/'ue'])
+            '--state',merged_path,'--project',output/'ue'])
         if args.gallery:
             run('05-comparison',[sys.executable,ROOT/'scripts/compare-unreal-studies.py',
                 '--engine',args.engine,'--project',output/'ue','--cache',args.cache,

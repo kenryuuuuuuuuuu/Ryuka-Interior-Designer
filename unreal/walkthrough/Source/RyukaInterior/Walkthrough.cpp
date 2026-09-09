@@ -121,6 +121,7 @@ void AWalkthroughCharacter::BeginPlay() {
  auto Config=ReadJSON(TEXT("walkthrough.json"));
  if(!Config.IsValid()) {Message=TEXT("内覧の設定が見つかりません"); GetCharacterMovement()->DisableMovement(); return;}
  Floor=Config->GetNumberField(TEXT("floorCm"));
+ WalkableRoomId=Config->GetStringField(TEXT("roomId"));
  for(auto Value:Config->GetArrayField(TEXT("polygonCm"))) {
   auto P=Value->AsArray(); Room.Add(FVector2D(P[0]->AsNumber(),P[1]->AsNumber()));
  }
@@ -140,15 +141,16 @@ void AWalkthroughCharacter::BeginPlay() {
 }
 bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
  FString Schema;
- // 1.1.0 (W04) adds surfaceOverrides; 1.2.0 (W06) adds lighting; a 1.0.0 save
- // simply has neither -- all three are otherwise the same shape, matching
- // study_state.py's SUPPORTED_SCHEMA_VERSIONS.
- if(!Candidate.IsValid()||!Candidate->TryGetStringField(TEXT("schemaVersion"),Schema)||(Schema!=TEXT("1.0.0")&&Schema!=TEXT("1.1.0")&&Schema!=TEXT("1.2.0"))) {
+ // W07-G1: only schemaVersion 2.0.0 is ever handed to Restore() now --
+ // study_controls.py/every CLI path (build-unreal-study.py, refresh-visual-
+ // study.py) always migrates a legacy save in-memory before it reaches a UE
+ // project's study-state.json at all (see unreal/multi_room_state.py), so a
+ // RUNTIME save (F5/SaveView()) is always 2.0.0-shaped too.
+ if(!Candidate.IsValid()||!Candidate->TryGetStringField(TEXT("schemaVersion"),Schema)||Schema!=TEXT("2.0.0")) {
   Message=TEXT("保存データの形式（バージョン）が無効です"); return false;
  }
- FString RoomId,ExpectedRoomId; auto WalkConfig=ReadJSON(TEXT("walkthrough.json"));
- if(!Candidate->TryGetStringField(TEXT("roomId"),RoomId)||!WalkConfig.IsValid()||
- !WalkConfig->TryGetStringField(TEXT("roomId"),ExpectedRoomId)||RoomId!=ExpectedRoomId) {
+ const TSharedPtr<FJsonObject>* CandidateRoomStates;
+ if(!Candidate->TryGetObjectField(TEXT("roomStates"),CandidateRoomStates)||!(*CandidateRoomStates)->HasField(WalkableRoomId)) {
   Message=TEXT("別の部屋の保存データです"); return false;
  }
  const TSharedPtr<FJsonObject>* Camera; FVector P,R; double LensMm;
@@ -210,48 +212,77 @@ void AWalkthroughCharacter::RestoreView() {
  bReady=false; GetCharacterMovement()->DisableMovement();
 }
 bool AWalkthroughCharacter::ApplyConditions() {
+ static const FString BaseVariant=TEXT("natural");  // matches unreal/multi_room_state.py's BASE_VARIANT
  auto Bindings=ReadJSON(TEXT("study-bindings.json")); if(!Bindings.IsValid()||!State.IsValid()) return false;
- FString Variant; double Az,El,Lux,EV;
- if(!State->TryGetStringField(TEXT("variant"),Variant)||!State->TryGetNumberField(TEXT("azimuthDeg"),Az)||
+ double Az,El,Lux,EV;
+ if(!State->TryGetNumberField(TEXT("azimuthDeg"),Az)||
  !State->TryGetNumberField(TEXT("elevationDeg"),El)||!State->TryGetNumberField(TEXT("sunLux"),Lux)||!State->TryGetNumberField(TEXT("exposureEV100"),EV)) return false;
  if(!FMath::IsFinite(Az)||!FMath::IsFinite(El)||!FMath::IsFinite(Lux)||!FMath::IsFinite(EV)||Az<0||Az>360||El<1||El>89||Lux<1||Lux>150000||EV< -5||EV>20) return false;
- FString SchemaVersion; State->TryGetStringField(TEXT("schemaVersion"),SchemaVersion);
+ // W07-G1: only 2.0.0 states ever reach here (see Restore()) -- roomStates
+ // (per-room variant/surfaceOverrides/fixtures) replaces the pre-G1 single
+ // top-level variant/surfaceOverrides/lighting.fixtures.
+ FString SchemaVersion; if(!State->TryGetStringField(TEXT("schemaVersion"),SchemaVersion)||SchemaVersion!=TEXT("2.0.0")) return false;
+ const TSharedPtr<FJsonObject>* RoomStatesObj;
+ if(!State->TryGetObjectField(TEXT("roomStates"),RoomStatesObj)) return false;
+ auto GetRoomState=[RoomStatesObj](const FString& RoomId)->const TSharedPtr<FJsonObject>* {
+  const TSharedPtr<FJsonObject>* Found;
+  return (*RoomStatesObj)->TryGetObjectField(RoomId,Found) ? Found : nullptr;
+ };
+ auto WalkableRoomState=GetRoomState(WalkableRoomId); if(!WalkableRoomState) return false;
+ FString Variant; if(!(*WalkableRoomState)->TryGetStringField(TEXT("variant"),Variant)) return false;
  TMap<FString,AActor*> Actors;
  for(TActorIterator<AActor> It(GetWorld());It;++It) for(auto Tag:It->Tags) if(Tag.ToString().StartsWith(TEXT("Ryuka:"))) Actors.Add(Tag.ToString().Mid(6),*It);
+ // W07-G1: study-bindings.json's whole-scene role-slot entries now each
+ // carry their OWNING room (or none, for exterior/un-owned geometry) --
+ // that room's OWN variant picks the material, never one single global
+ // value (spec section 3: "グローバルなroleマテリアル一括置換を室所有へ").
  struct Assignment {UStaticMeshComponent* Component; int32 Slot; UMaterialInterface* Material;}; TArray<Assignment> Plan;
  for(auto& Entry:Bindings->Values) {
   auto Actor=Cast<AStaticMeshActor>(Actors.FindRef(FString(*Entry.Key))); if(!Actor) return false;
-  for(auto& Slot:Entry.Value->AsObject()->Values) {
-   auto Material=LoadObject<UMaterialInterface>(nullptr,*(TEXT("/Game/Generated/Finishes/M_")+Variant+TEXT("_")+Slot.Value->AsString()));
-   int32 Index=FCString::Atoi(*Slot.Key); auto Component=Actor->GetStaticMeshComponent();
+  auto EntryObj=Entry.Value->AsObject(); if(!EntryObj.IsValid()) return false;
+  FString EntryRoomId; EntryObj->TryGetStringField(TEXT("roomId"),EntryRoomId);  // absent/empty = un-owned
+  FString RoleVariant=BaseVariant;
+  if(!EntryRoomId.IsEmpty()) {
+   auto EntryRoomState=GetRoomState(EntryRoomId); if(!EntryRoomState) return false;
+   if(!(*EntryRoomState)->TryGetStringField(TEXT("variant"),RoleVariant)) return false;
+  }
+  const TSharedPtr<FJsonObject>* SlotsObj;
+  if(!EntryObj->TryGetObjectField(TEXT("slots"),SlotsObj)) return false;
+  auto Component=Actor->GetStaticMeshComponent();
+  for(auto& Slot:(*SlotsObj)->Values) {
+   auto Material=LoadObject<UMaterialInterface>(nullptr,*(TEXT("/Game/Generated/Finishes/M_")+RoleVariant+TEXT("_")+Slot.Value->AsString()));
+   int32 Index=FCString::Atoi(*Slot.Key);
    if(!Material||Index<0||Index>=Component->GetNumMaterials()) return false;
    Plan.Add({Component,Index,Material});
   }
  }
  auto Sun=Cast<ADirectionalLight>(Actors.FindRef(TEXT("Sun_manual_angle")));
  auto Post=Cast<APostProcessVolume>(Actors.FindRef(TEXT("Fixed_exposure"))); if(!Sun||!Post) return false;
- // W06: night lighting. A 1.0.0/1.1.0 state predates `lighting` entirely and
- // is normalized to day + no fixture overrides here (matching
- // study_state.py's validate_state() exactly); a 1.2.0 state REQUIRES a
- // well-formed `lighting` field -- missing/malformed there is a hard abort,
- // never silently treated as legacy. Resolved fully here (no mutation yet),
- // same discipline as the surfaceOverrides block below.
+ // W06/W07-G1: night lighting -- `lighting` stays whole-house (mode only,
+ // per-fixture state moved to each room's OWN fixtures dict). Resolved
+ // fully here (no mutation yet), same discipline as the surfaceOverrides
+ // block below. FixtureOverrides is aggregated across EVERY in-scope room
+ // (fixture ids are unique across rooms) so the existing per-fixture
+ // lookup/"unconsumed key" logic below is otherwise unchanged.
  FString LightingMode=TEXT("day");
  TMap<FString,TSharedPtr<FJsonObject>> FixtureOverrides;
- if(SchemaVersion==TEXT("1.2.0")) {
+ {
   const TSharedPtr<FJsonObject>* LightingObj;
   if(!State->TryGetObjectField(TEXT("lighting"),LightingObj)) return false;
   if(!(*LightingObj)->TryGetStringField(TEXT("mode"),LightingMode)||(LightingMode!=TEXT("day")&&LightingMode!=TEXT("night"))) return false;
-  const TSharedPtr<FJsonObject>* FixturesObj;
-  if(!(*LightingObj)->TryGetObjectField(TEXT("fixtures"),FixturesObj)) return false;
-  for(auto& Entry:(*FixturesObj)->Values) {
-   auto Override=Entry.Value->AsObject(); if(!Override.IsValid()) return false;
-   for(auto& Field:Override->Values)
-    if(Field.Key!=TEXT("on")&&Field.Key!=TEXT("dimming")&&Field.Key!=TEXT("temperatureK")) return false;
-   if(Override->HasField(TEXT("on"))) {bool V; if(!Override->TryGetBoolField(TEXT("on"),V)) return false;}
-   if(Override->HasField(TEXT("dimming"))) {double V; if(!Override->TryGetNumberField(TEXT("dimming"),V)||!FMath::IsFinite(V)||V<0.||V>1.) return false;}
-   if(Override->HasField(TEXT("temperatureK"))) {double V; if(!Override->TryGetNumberField(TEXT("temperatureK"),V)||!FMath::IsFinite(V)||V<1800.||V>10000.) return false;}
-   FixtureOverrides.Add(FString(*Entry.Key),Override);
+  for(auto& RoomEntry:(*RoomStatesObj)->Values) {
+   auto RoomObj=RoomEntry.Value->AsObject(); if(!RoomObj.IsValid()) return false;
+   const TSharedPtr<FJsonObject>* FixturesObj;
+   if(!RoomObj->TryGetObjectField(TEXT("fixtures"),FixturesObj)) return false;
+   for(auto& Entry:(*FixturesObj)->Values) {
+    auto Override=Entry.Value->AsObject(); if(!Override.IsValid()) return false;
+    for(auto& Field:Override->Values)
+     if(Field.Key!=TEXT("on")&&Field.Key!=TEXT("dimming")&&Field.Key!=TEXT("temperatureK")) return false;
+    if(Override->HasField(TEXT("on"))) {bool V; if(!Override->TryGetBoolField(TEXT("on"),V)) return false;}
+    if(Override->HasField(TEXT("dimming"))) {double V; if(!Override->TryGetNumberField(TEXT("dimming"),V)||!FMath::IsFinite(V)||V<0.||V>1.) return false;}
+    if(Override->HasField(TEXT("temperatureK"))) {double V; if(!Override->TryGetNumberField(TEXT("temperatureK"),V)||!FMath::IsFinite(V)||V<1800.||V>10000.) return false;}
+    FixtureOverrides.Add(FString(*Entry.Key),Override);
+   }
   }
  }
  struct FLightPlan {ALight* Actor; double Intensity; double Temperature;}; TArray<FLightPlan> LightingPlan;
@@ -291,26 +322,16 @@ bool AWalkthroughCharacter::ApplyConditions() {
  if(SurfaceBindings.IsValid()&&FinishDocument.IsValid()&&StudyVariants.IsValid()) {
   const TSharedPtr<FJsonObject>* SurfacesObj;
   if(!SurfaceBindings->TryGetObjectField(TEXT("surfaces"),SurfacesObj)) return false;
-  // W04 review R4: surfaceOverrides must be validated with the same rigour
-  // as unreal/study_state.py's validate_surface_overrides() -- a state
-  // predating this field (1.0.0) is fine without it, but a PRESENT value of
-  // the wrong type, an override naming an id that is not an actual bound
+  // W04/W07-G1: surfaceOverrides must be validated with the same rigour as
+  // unreal/study_state.py's validate_surface_overrides() -- a PRESENT value
+  // of the wrong type, an override naming an id that is not an actual bound
   // surface (unknown id, no-surface, or a different room), or an override
   // object with an unknown field/out-of-range value must all abort the
   // whole apply, not be silently skipped or ignored one field at a time.
-  // W04 review v2 R4: a 1.1.0 state (the only kind that can carry real
-  // overrides) must have this field even when empty, exactly like Python's
-  // validate_state() -- only a 1.0.0 state (which predates the field) may
-  // omit it. HasField()==false alone does not distinguish "1.0.0, fine" from
-  // "1.1.0, missing -- reject", so schemaVersion decides which is which.
-  const TSharedPtr<FJsonObject>* OverridesObj=nullptr;
-  const bool bHasOverridesField=State->HasField(TEXT("surfaceOverrides"));
-  if(bHasOverridesField) {
-   if(!State->TryGetObjectField(TEXT("surfaceOverrides"),OverridesObj)) return false;
-  } else if(SchemaVersion!=TEXT("1.0.0")) {
-   return false;
-  }
-  FString RoomId; if(!State->TryGetStringField(TEXT("roomId"),RoomId)) return false;
+  // W07-G1: each room's OWN surfaceOverrides dict (roomStates[*].
+  // surfaceOverrides) is always required and always an object (2.0.0 has no
+  // "predates this field" schema any more), unlike the pre-G1 single
+  // top-level field's 1.0.0 exemption.
   auto IsHex6=[](const FString& S){
    if(S.Len()!=6) return false;
    for(TCHAR C:S) {
@@ -319,7 +340,7 @@ bool AWalkthroughCharacter::ApplyConditions() {
    }
    return true;
   };
-  TSet<FString> ConsumedOverrideKeys;
+  TMap<FString,TSet<FString>> ConsumedOverrideKeysByRoom;
   const TSharedPtr<FJsonObject>* RolesObj;
   if(!FinishDocument->TryGetObjectField(TEXT("roles"),RolesObj)) return false;
   const TSharedPtr<FJsonObject>* VariantOverridesObj=nullptr;
@@ -329,16 +350,17 @@ bool AWalkthroughCharacter::ApplyConditions() {
    if(!Info->TryGetStringField(TEXT("status"),Status)||Status!=TEXT("bound")) continue;
    if(!Info->TryGetStringField(TEXT("kind"),Kind)) return false;
    if(!Info->TryGetStringField(TEXT("roomId"),SurfaceRoomId)) return false;
+   auto SurfaceRoomState=GetRoomState(SurfaceRoomId); if(!SurfaceRoomState) return false;
+   FString RoomVariant; if(!(*SurfaceRoomState)->TryGetStringField(TEXT("variant"),RoomVariant)) return false;
+   const TSharedPtr<FJsonObject>* OverridesObj;
+   if(!(*SurfaceRoomState)->TryGetObjectField(TEXT("surfaceOverrides"),OverridesObj)) return false;
    // .Key is UE::FSharedString here (FJsonObject::Values), not FString --
    // FString(*Entry.Key) is the existing conversion idiom already used above
    // for the Bindings->Values loop.
    const FString SurfaceId=FString(*SurfaceEntry.Key);
    const TSharedPtr<FJsonObject>* Override=nullptr;
-   if(OverridesObj&&(*OverridesObj)->TryGetObjectField(SurfaceEntry.Key,Override)) {
-    ConsumedOverrideKeys.Add(SurfaceId);
-    // A bound surface belonging to a different room being targeted is the
-    // same class of mistake as an unknown/no-surface id -- fail, not skip.
-    if(SurfaceRoomId!=RoomId) return false;
+   if((*OverridesObj)->TryGetObjectField(SurfaceEntry.Key,Override)) {
+    ConsumedOverrideKeysByRoom.FindOrAdd(SurfaceRoomId).Add(SurfaceId);
     for(auto& Field:(*Override)->Values)
      if(Field.Key!=TEXT("variant")&&Field.Key!=TEXT("colorHex")&&Field.Key!=TEXT("roughness")) return false;
     // W04 review v2 R4: a field that IS present must be fetched successfully
@@ -361,7 +383,7 @@ bool AWalkthroughCharacter::ApplyConditions() {
      if(!(*Override)->TryGetStringField(TEXT("variant"),OverrideVariantCheck)) return false;
     }
    }
-   FString EffectiveVariant=Variant;
+   FString EffectiveVariant=RoomVariant;
    if(Override) (*Override)->TryGetStringField(TEXT("variant"),EffectiveVariant);
    TSharedPtr<FJsonObject> Detail;
    const TSharedPtr<FJsonObject>* ForVariant;
@@ -407,12 +429,20 @@ bool AWalkthroughCharacter::ApplyConditions() {
    }
   }
   // Any surfaceOverrides key that was never consumed above names something
-  // that is not an actually-bound surface in this room at all (unknown id,
-  // or a registered id whose status is not "bound") -- same as Python's
-  // resolve_overrides() treating that as a stop condition, not something to
-  // silently drop.
-  if(OverridesObj) for(auto& OverrideEntry:(*OverridesObj)->Values)
-   if(!ConsumedOverrideKeys.Contains(FString(*OverrideEntry.Key))) return false;
+  // that is not an actually-bound surface in THAT room at all (unknown id,
+  // a registered id whose status is not "bound", or a different room) --
+  // same as Python's resolve_overrides() treating that as a stop condition,
+  // not something to silently drop. Checked once per room here (rather than
+  // inline in the surface loop above) so a surface id that never appears in
+  // SurfacesObj at all is still caught.
+  for(auto& RoomEntry:(*RoomStatesObj)->Values) {
+   auto RoomObj=RoomEntry.Value->AsObject(); if(!RoomObj.IsValid()) return false;
+   const TSharedPtr<FJsonObject>* RoomOverridesObj;
+   if(!RoomObj->TryGetObjectField(TEXT("surfaceOverrides"),RoomOverridesObj)) return false;
+   const TSet<FString>& Consumed=ConsumedOverrideKeysByRoom.FindOrAdd(FString(*RoomEntry.Key));
+   for(auto& OverrideEntry:(*RoomOverridesObj)->Values)
+    if(!Consumed.Contains(FString(*OverrideEntry.Key))) return false;
+  }
  }
  for(auto& Item:Plan) Item.Component->SetMaterial(Item.Slot,Item.Material);
  for(auto& Item:SurfacePlan) {
@@ -440,8 +470,14 @@ bool AWalkthroughCharacter::ApplyConditions() {
  return true;
 }
 void AWalkthroughCharacter::SetFinish(const FString& Name,const FString& Label) {
- if(!bReady) return; FString Old=State->GetStringField(TEXT("variant")); State->SetStringField(TEXT("variant"),Name);
- if(!ApplyConditions()) {State->SetStringField(TEXT("variant"),Old);Message=TEXT("この仕上げは利用できません");} else Message=Label;
+ // W07-G1: the walkthrough only ever controls its OWN walkable room's
+ // variant -- GetObjectField() returns a mutable reference into State's own
+ // nested object graph (not a copy), so this mutates State in place, same
+ // as the pre-G1 single top-level field did.
+ if(!bReady) return;
+ auto RoomState=State->GetObjectField(TEXT("roomStates"))->GetObjectField(WalkableRoomId);
+ FString Old=RoomState->GetStringField(TEXT("variant")); RoomState->SetStringField(TEXT("variant"),Name);
+ if(!ApplyConditions()) {RoomState->SetStringField(TEXT("variant"),Old);Message=TEXT("この仕上げは利用できません");} else Message=Label;
 }
 void AWalkthroughCharacter::SetSun(float Elevation) {
  if(!bReady) return;
@@ -460,7 +496,11 @@ void AWalkthroughCharacter::Finish1(){SetFinish(TEXT("natural"),TEXT("白壁・�
 void AWalkthroughCharacter::Finish3(){SetFinish(TEXT("reference"),TEXT("石調の床・木板天井"));} void AWalkthroughCharacter::SunLow(){SetSun(30);} void AWalkthroughCharacter::SunHigh(){SetSun(60);}
 FString AWalkthroughCharacter::CurrentVariantLabel() const {
  if(!bReady||!State.IsValid()) return FString();
- FString Variant; if(!State->TryGetStringField(TEXT("variant"),Variant)) return FString();
+ const TSharedPtr<FJsonObject>* RoomStatesObj;
+ if(!State->TryGetObjectField(TEXT("roomStates"),RoomStatesObj)) return FString();
+ const TSharedPtr<FJsonObject>* RoomState;
+ if(!(*RoomStatesObj)->TryGetObjectField(WalkableRoomId,RoomState)) return FString();
+ FString Variant; if(!(*RoomState)->TryGetStringField(TEXT("variant"),Variant)) return FString();
  if(Variant==TEXT("natural")) return TEXT("白壁・ナチュラルオーク");
  if(Variant==TEXT("warm")) return TEXT("グレージュ・ウォルナット");
  if(Variant==TEXT("reference")) return TEXT("石調の床・木板天井");
@@ -834,8 +874,9 @@ void AWalkthroughCharacter::Tick(float Delta) {
    SetActorLocation(Start+FVector(2000,0,0),true,&Hit);
    Passed &= Hit.bBlockingHit && FVector::Dist2D(Start,GetActorLocation())<1900;
    RestoreView(); Finish2(); SunHigh(); SaveView(); auto Saved=ReadJSON(SavedViewName());
-   Passed &= Saved.IsValid()&&Saved->GetStringField(TEXT("variant"))==TEXT("warm")&&Saved->GetNumberField(TEXT("elevationDeg"))==60;
-   Finish3(); RestoreView(); Passed &= bReady&&State->GetStringField(TEXT("variant"))==TEXT("warm");
+   Passed &= Saved.IsValid()&&Saved->GetObjectField(TEXT("roomStates"))->GetObjectField(WalkableRoomId)->GetStringField(TEXT("variant"))==TEXT("warm")
+    &&Saved->GetNumberField(TEXT("elevationDeg"))==60;
+   Finish3(); RestoreView(); Passed &= bReady&&State->GetObjectField(TEXT("roomStates"))->GetObjectField(WalkableRoomId)->GetStringField(TEXT("variant"))==TEXT("warm");
   }
   FFileHelper::SaveStringToFile(Passed?TEXT("PASS"):TEXT("FAIL"),*(FPaths::ProjectSavedDir()/TEXT("walkthrough-smoke.txt")));
   FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("walkthrough-smoke.png"),false,false);

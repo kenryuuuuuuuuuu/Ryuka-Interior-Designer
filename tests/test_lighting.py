@@ -12,8 +12,8 @@ from lighting import (validate_lighting_settings, validate_lighting_bindings,
 
 SETTINGS=json.loads((ROOT/'data/visual/lighting-settings.json').read_text(encoding='utf-8'))
 
-BINDINGS=dict(schemaVersion='1.0.0',roomId='room-1f-06',fixtures=[
-    dict(id='elec-008',type='light-ceiling',label='シーリングライト',status='estimated',
+BINDINGS=dict(schemaVersion='1.1.0',roomIds=['room-1f-06'],fixtures=[
+    dict(id='elec-008',type='light-ceiling',label='シーリングライト',status='estimated',roomId='room-1f-06',level=1,
          positionM=[4.65,3.93,4.55],emitPositionM=[4.65,3.81,4.55],
          directionVector=[0,-1,0],source='point',lumens=3800,temperatureK=3000)])
 
@@ -77,6 +77,15 @@ class ResolveFixtureOverridesTests(unittest.TestCase):
     def test_vacuous_true_for_no_overrides(self):
         usable,issues=resolve_fixture_overrides({},BINDINGS)
         self.assertEqual((usable,issues),({},[]))
+
+    def test_room_id_rejects_fixture_in_a_different_room(self):
+        # W07-G1: a room's own fixtures dict naming another room's fixture
+        # is the same class of mistake as an unknown id.
+        usable,issues=resolve_fixture_overrides({'elec-008':{'on':True}},BINDINGS,room_id='room-1f-05')
+        self.assertEqual(usable,{})
+        self.assertEqual(len(issues),1); self.assertEqual(issues[0]['id'],'elec-008')
+        usable,issues=resolve_fixture_overrides({'elec-008':{'on':True}},BINDINGS,room_id='room-1f-06')
+        self.assertEqual(usable,{'elec-008':{'on':True}}); self.assertEqual(issues,[])
 
 
 class EffectiveFixtureTests(unittest.TestCase):

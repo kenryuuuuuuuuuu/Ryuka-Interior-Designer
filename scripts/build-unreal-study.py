@@ -10,10 +10,10 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'unreal'))
-from study_state import default_state, validate_state
 from solar_position import validate_cases, validate_site, cases_match_site, case_matches_site
 from site_context import validate_context
 from finish_settings import validate_finishes
+import multi_room_state as mrs
 
 
 def main():
@@ -56,8 +56,11 @@ def main():
     verified=json.loads((package/'verification.json').read_text(encoding='utf-8'))
     if not verified.get('meshBoundsBlenderMetres'): parser.error('Rebuild package with current Blender verifier.')
     study=json.loads((package/'study.json').read_text(encoding='utf-8'))
+    scopes_document=mrs.validate_scopes(json.loads((ROOT/'data/visual/study-scopes.json').read_text(encoding='utf-8')))
+    legacy_study=json.loads((ROOT/'data/visual/guest-ldk-study.json').read_text(encoding='utf-8'))
+    variants=study['settings']['variants']
     if args.state:
-        saved=validate_state(json.loads(args.state.read_text(encoding='utf-8')),study)
+        saved=mrs.validate_state(json.loads(args.state.read_text(encoding='utf-8')),study['roomIds'],variants,scopes_document,legacy_study)
         if saved.get('siteContextSHA256') and not args.context:
             parser.error('This saved state used site context. Supply --context to preserve surrounding shade geometry.')
         # W05-v1 review R1: same contract as the editor/refresh paths -- a
@@ -65,8 +68,23 @@ def main():
         # silently accepted (e.g. a state saved before the site was changed).
         if site is not None and saved.get('solar') is not None and not case_matches_site(saved['solar'],site):
             parser.error("--state's solar case does not match --site; reapply a current-site datetime case before saving that state")
+        # W07-G1: a --state covering only a SUBSET of the package's own scope
+        # (a migrated legacy scenario) has no basis to fill in the missing
+        # room(s) here -- build_interior.py already generated study.json's
+        # roomStates from --state itself, so this defensive re-check just
+        # confirms every in-scope room is actually present, the same "give
+        # me a complete state or none at all" contract build_interior.py's
+        # own CLI enforces.
+        missing=[room_id for room_id in study['roomIds'] if room_id not in saved['roomStates']]
+        if missing: parser.error('--state is missing roomStates for room(s) in scope: '+', '.join(missing))
     else:
-        default_state(study,dict(sunLux=args.sun_lux,exposureEV100=args.exposure_ev100))
+        # Sanity check only (result unused): confirms study.json + these job
+        # parameters are enough to construct a valid default 2.0.0 state,
+        # before the far more expensive UE import subprocess below runs.
+        mrs.validate_state_v2(dict(schemaVersion='2.0.0',scopeId=study['scopeId'],activeRoomId=study['activeRoomId'],
+            activeLevel=1,camera=None,azimuthDeg=study['lighting']['azimuthDeg'],elevationDeg=study['lighting']['elevationDeg'],
+            sunLux=args.sun_lux,exposureEV100=args.exposure_ev100,lighting=dict(mode=study['electricalLighting']['mode']),
+            roomStates=study['roomStates']),study['roomIds'],variants)
     shutil.copytree(ROOT/'unreal/template',output)
     shutil.copytree(package,output/'SourcePackage')
     shutil.copy2(ROOT/'unreal/import_study.py',output/'import_study.py')
@@ -77,7 +95,8 @@ def main():
     # execution, so import_study.py (run once, from the project root, via the
     # commandlet) can import these too without a separate root-level copy.
     for name in ('study_controls.py','study_state.py','solar_position.py','site_context.py',
-                 'finish_settings.py','material_builder.py','surface_finish_overrides.py','lighting.py'):
+                 'finish_settings.py','material_builder.py','surface_finish_overrides.py','lighting.py',
+                 'multi_room_state.py'):
         shutil.copy2(ROOT/'unreal'/name,scripts/name)
     (scripts/'init_unreal.py').write_text('import study_controls\nstudy_controls.register_menu()\n',encoding='utf-8')
     # W04: lets study_controls.py's menu (named-scenario save/list/A-B) shell

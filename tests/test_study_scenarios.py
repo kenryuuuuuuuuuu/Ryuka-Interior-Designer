@@ -66,11 +66,16 @@ class ScenarioTests(unittest.TestCase):
         out_b=self.run_save('ゲストLDK・石調案B')
         scenario_a=json.loads((out_a/'scenario.json').read_text(encoding='utf-8'))
         scenario_b=json.loads((out_b/'scenario.json').read_text(encoding='utf-8'))
-        self.assertEqual(scenario_a['schemaVersion'],'1.0.0')
+        # W07-G1: 1.1.0 records scopeId/roomIds (derived from the state's own
+        # migration -- a legacy 1.0.0 room-1f-06 state resolves to the
+        # smallest scope containing it, "guest-ldk") instead of a single
+        # roomId field.
+        self.assertEqual(scenario_a['schemaVersion'],'1.1.0')
         self.assertNotEqual(scenario_a['id'],scenario_b['id'])
         self.assertEqual(scenario_a['name'],'ゲストLDK・木部案A')
         self.assertEqual(scenario_a['note'],'午前の検討')
-        self.assertEqual(scenario_a['roomId'],'room-1f-06')
+        self.assertEqual(scenario_a['scopeId'],'guest-ldk')
+        self.assertEqual(scenario_a['roomIds'],['room-1f-06'])
         self.assertEqual(scenario_a['origin']['sourceCommit'],'abc123')
         self.assertEqual(scenario_a['origin']['sourceHashes'],{'data/house.json':'deadbeef'})
         self.assertEqual(scenario_a['origin']['stateSource'],'editor')

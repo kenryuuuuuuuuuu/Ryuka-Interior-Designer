@@ -11,13 +11,14 @@ args=parser.parse_args()
 source=json.loads(args.state.read_text(encoding='utf-8'))
 actual=json.loads((args.project/'study-state.json').read_text(encoding='utf-8'))
 report=json.loads((args.project/'import-verification.json').read_text(encoding='utf-8'))
-for key in ('roomId','variant'):
+# W07-G1: --state is always the MERGED, full-scope 2.0.0 state
+# (refresh-visual-study.py's own merged-study-state.json) -- unlike the
+# pre-G1 single-room shape, schemaVersion is not expected to "upgrade" here
+# (the merge itself already produced 2.0.0); an actual mismatch is a real
+# regeneration bug, not a legitimate legacy-schema pass-through.
+assert actual['schemaVersion']=='2.0.0'==source['schemaVersion'],'schemaVersion'
+for key in ('scopeId','activeRoomId','roomStates'):
     assert actual[key]==source[key],key
-# schemaVersion is NOT expected to match: study_controls.scene_state() always
-# saves the CURRENT schema (1.2.0, W06) regardless of what schema the source
-# state was written in -- a --scenario/--previous saved before W06 (1.0.0/
-# 1.1.0) legitimately upgrades on regeneration, it does not regress or drift.
-assert actual['schemaVersion']=='1.2.0','schemaVersion must upgrade to the current schema on regeneration'
 for key in ('azimuthDeg','elevationDeg','sunLux','exposureEV100'):
     assert abs(actual[key]-source[key])<1e-6,key
 for key in ('locationCm','rotationDeg'):

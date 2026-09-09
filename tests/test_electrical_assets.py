@@ -107,7 +107,9 @@ class ElectricalAssetsTests(unittest.TestCase):
         with self.assertRaises(ValueError): resolve_mount(self.data,merged)
 
     def test_build_lighting_bindings_room_1f_06(self):
-        bindings=build_lighting_bindings(self.data,self.electrical,self.catalog,self.settings,'room-1f-06')
+        bindings=build_lighting_bindings(self.data,self.electrical,self.catalog,self.settings,['room-1f-06'])
+        self.assertEqual(bindings['schemaVersion'],'1.1.0')
+        self.assertEqual(bindings['roomIds'],['room-1f-06'])
         self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),['elec-008','elec-200','elec-201'])
         for fixture in bindings['fixtures']:
             # W06 spec: ceiling fixtures' light direction is always straight
@@ -117,28 +119,39 @@ class ElectricalAssetsTests(unittest.TestCase):
             # horizontal), decoupled from the (sloped) mount surface's own tilt.
             self.assertEqual(fixture['directionVector'],[0.0,-1.0,0.0])
             self.assertIn('emitPositionM',fixture)
+            # W07-G1: each fixture now carries its own room/level.
+            self.assertEqual(fixture['roomId'],'room-1f-06')
+            self.assertEqual(fixture['level'],1)
+
+    def test_build_lighting_bindings_multiple_rooms(self):
+        # W07-G1: one shared resolution across a whole scope's rooms --
+        # room-1f-05's elec-006 joins room-1f-06's 3 fixtures.
+        bindings=build_lighting_bindings(self.data,self.electrical,self.catalog,self.settings,['room-1f-06','room-1f-05'])
+        self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),['elec-006','elec-008','elec-200','elec-201'])
+        by_id={f['id']:f for f in bindings['fixtures']}
+        self.assertEqual(by_id['elec-006']['roomId'],'room-1f-05')
 
     def test_build_lighting_bindings_rejects_unsupported_lighting_type(self):
         electrical=dict(self.electrical,items=self.electrical['items']+[
             dict(id='test-exterior',type='light-exterior',level=1,room='room-1f-06',face='N',offset=0,label='x',status='estimated')])
         with self.assertRaises(ValueError):
-            build_lighting_bindings(self.data,electrical,self.catalog,self.settings,'room-1f-06')
+            build_lighting_bindings(self.data,electrical,self.catalog,self.settings,['room-1f-06'])
 
     def test_build_lighting_bindings_rejects_missing_profile(self):
         settings=json.loads(json.dumps(self.settings))
         del settings['profiles']['light-ceiling']
         with self.assertRaises(ValueError):
-            build_lighting_bindings(self.data,self.electrical,self.catalog,settings,'room-1f-06')
+            build_lighting_bindings(self.data,self.electrical,self.catalog,settings,['room-1f-06'])
 
     def test_build_lighting_bindings_rejects_unknown_type(self):
         electrical=dict(self.electrical,items=self.electrical['items']+[
             dict(id='test-unknown',type='light-does-not-exist',level=1,room='room-1f-06',x=0,z=0,label='x',status='estimated')])
         with self.assertRaises(ValueError):
-            build_lighting_bindings(self.data,electrical,self.catalog,self.settings,'room-1f-06')
+            build_lighting_bindings(self.data,electrical,self.catalog,self.settings,['room-1f-06'])
 
     def test_build_lighting_bindings_empty_room_rejected(self):
         with self.assertRaises(ValueError):
-            build_lighting_bindings(self.data,self.electrical,self.catalog,self.settings,'room-does-not-exist')
+            build_lighting_bindings(self.data,self.electrical,self.catalog,self.settings,['room-does-not-exist'])
 
     def test_build_lighting_bindings_rejects_group_with_stale_member(self):
         # W06-v2 review 必須修正A: a group referencing a fixture id this
@@ -149,7 +162,17 @@ class ElectricalAssetsTests(unittest.TestCase):
         settings['groups']=settings['groups']+[dict(id='test-stale-group',label='x',
             fixtureIds=['elec-201','elec-does-not-exist'])]
         with self.assertRaises(ValueError):
-            build_lighting_bindings(self.data,self.electrical,self.catalog,settings,'room-1f-06')
+            build_lighting_bindings(self.data,self.electrical,self.catalog,settings,['room-1f-06'])
+
+    def test_build_lighting_bindings_allows_group_referencing_out_of_scope_fixture(self):
+        # W07-G1 spec section 3: a group whose members are real but belong to
+        # a room OUTSIDE the current build's room_ids must not stop the
+        # build -- only a group with a genuinely nonexistent id does.
+        settings=json.loads(json.dumps(self.settings))
+        settings['groups']=settings['groups']+[dict(id='test-out-of-scope-group',label='x',
+            fixtureIds=['elec-006'])]  # elec-006 is real, but belongs to room-1f-05
+        bindings=build_lighting_bindings(self.data,self.electrical,self.catalog,settings,['room-1f-06'])
+        self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),['elec-008','elec-200','elec-201'])
 
 
 if __name__=='__main__': unittest.main()

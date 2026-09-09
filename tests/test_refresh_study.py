@@ -26,6 +26,26 @@ class RefreshTests(unittest.TestCase):
     def write(self,name,value):
         (self.previous/name).write_text(json.dumps(value),encoding='utf-8')
 
+    def _write_scope_files(self,root,room_id='room-1f-06'):
+        # W07-G1: refresh-visual-study.py's main() resolves a scope (data/
+        # visual/study-scopes.json + guest-ldk-study.json's shared variants
+        # palette) unconditionally, before any of the checks these
+        # early-failure tests exercise -- a minimal fake repo needs both,
+        # even when the test itself is not about multi-room scope handling.
+        # Defaults to room-1f-06 (not this test's own fake house.json room,
+        # e.g. "room-a") because setUp()'s shared self.state -- what these
+        # tests' mocked retained_inputs()/--previous actually carries -- uses
+        # that room id; the scope this helper writes must cover THAT state
+        # for partial_apply() to succeed and let the test reach its own
+        # later, intended failure point.
+        (root/'data/visual').mkdir(parents=True,exist_ok=True)
+        (root/'data/visual/study-scopes.json').write_text(json.dumps(dict(schemaVersion='1.0.0',scopes=[
+            dict(scopeId='guest-ldk',label='x',roomIds=[room_id],defaultRoomId=room_id)])),encoding='utf-8')
+        study_path=root/'data/visual/guest-ldk-study.json'
+        study=json.loads(study_path.read_text(encoding='utf-8')) if study_path.is_file() else dict(roomId=room_id)
+        study.setdefault('variants',{'warm':{},'natural':{},'reference':{}})
+        study_path.write_text(json.dumps(study),encoding='utf-8')
+
     def test_manual_study_and_gallery_requires_cases(self):
         self.assertEqual(set(m.retained_inputs(self.previous)),{'state'})
         with self.assertRaises(ValueError): m.retained_inputs(self.previous,gallery=True)
@@ -120,6 +140,7 @@ class RefreshTests(unittest.TestCase):
         root=self.previous/'repo'
         (root/'data/visual').mkdir(parents=True)
         (root/'data/visual/unreal-finishes.json').write_text((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8'),encoding='utf-8')
+        self._write_scope_files(root)
         engine=root/'engine'; (engine/'Engine/Binaries/Win64').mkdir(parents=True)
         (engine/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe').touch()
         blender=root/'blender.exe'; blender.touch()
@@ -152,6 +173,7 @@ class RefreshTests(unittest.TestCase):
         write('data/furniture-catalog.json',dict(categories=[],types=[dict(type='chair',label='Chair',category='seating',
             shape='box',rotationConvention='n',width=0.5,depth=0.5,height=0.5,clearance=0,note='')]))
         write('data/visual/guest-ldk-study.json',dict(roomId='room-a'))
+        self._write_scope_files(root)
         write('data/visual/asset-bindings.json',dict(bindings=[]))
         write('data/visual/guest-decor.json',dict(roomId='room-a',items=[dict(id='decor-1',kind='rug',
             furnitureId='fur-MISSING',width=1,depth=1,status='estimated',note='')]))
@@ -192,6 +214,7 @@ class RefreshTests(unittest.TestCase):
         write('data/furniture.json',dict(items=[]))
         write('data/furniture-catalog.json',dict(categories=[],types=[]))
         write('data/visual/guest-ldk-study.json',dict(roomId='room-a'))
+        self._write_scope_files(root)
         write('data/visual/asset-bindings.json',dict(bindings=[]))
         write('data/visual/guest-decor.json',dict(roomId='room-a',items=[]))
         write('data/openings.json',dict(items=[]))

@@ -26,12 +26,15 @@ def fingerprint(project):
 
 
 def check_capture(report, case, variant, baseline=None):
+    # W07-G1: --variant (via capture-unreal-study.py -> study_controls.
+    # set_variant()) only ever changes the ACTIVE room's own variant now.
     state=report['comparisonState']
-    if not report.get('levelFileUnchanged') or state['variant']!=variant or not matches(case,state):
+    active_variant=state['roomStates'][state['activeRoomId']]['variant']
+    if not report.get('levelFileUnchanged') or active_variant!=variant or not matches(case,state):
         raise ValueError('Capture does not match requested comparison conditions')
     if state.get('solar')!=case: raise ValueError('Solar provenance missing or changed')
     if baseline:
-        for key in ('camera','sunLux','exposureEV100','roomId','siteContextSHA256'):
+        for key in ('camera','sunLux','exposureEV100','scopeId','activeRoomId','siteContextSHA256'):
             if state.get(key)!=baseline['comparisonState'].get(key):
                 raise ValueError('Comparison changed fixed condition: '+key)
         for key in ('finishSettingsSHA256','floorShaderSHA256','siteContext','width','height','hardwareRayTracingEnabled'):
@@ -44,7 +47,8 @@ def gallery(document):
     for entry in document['captures']:
         if entry['status']!='complete': continue
         report=entry['report']; state=report['comparisonState']; solar=state['solar']
-        label={'natural':'白壁・ナチュラルオーク','warm':'グレージュ・ウォルナット','reference':'石調の床・木板天井'}[state['variant']]
+        active_variant=state['roomStates'][state['activeRoomId']]['variant']
+        label={'natural':'白壁・ナチュラルオーク','warm':'グレージュ・ウォルナット','reference':'石調の床・木板天井'}[active_variant]
         precision='概算の位置・方位' if 'estimated' in (solar['locationStatus'],solar['northStatus']) else '位置・方位の入力確認済み'
         cards.append(f'<figure><a href="{esc(entry["image"])}"><img src="{esc(entry["image"])}" alt="{esc(label)}"></a>'
             f'<figcaption><strong>{esc(label)}</strong><br>{esc(solar["localTimestamp"])}'

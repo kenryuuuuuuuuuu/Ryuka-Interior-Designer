@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0.0",
+  "note": "W07-G1: 室ごとの初期カメラ・既定variant。仕上げパレット・太陽/露出等の共通レンダー設定はdata/visual/guest-ldk-study.jsonを引き続き共有します（二重の正本を避けるため、ここでは複製しません）。カメラの座標配列は[x,z,床からの高さ]（source単位・m）で、guest-ldk-study.jsonのcamera契約と同じです。",
+  "rooms": {
+    "room-1f-06": {
+      "camera": {
+        "position": [2.13, 4.25, 1.55],
+        "target": [6.15, 5.05, 1.35],
+        "lensMm": 20,
+        "note": "data/visual/guest-ldk-study.jsonの既存cameraと同一値（W06までの単室設定を room-render-settings.json 側の正本として引き継いだもの）。"
+      },
+      "defaultVariant": "natural"
+    },
+    "room-1f-05": {
+      "camera": {
+        "position": [3.1, 3.3, 1.5],
+        "target": [6.0, 1.3, 1.2],
+        "lensMm": 22,
+        "note": "洋室南西の入口寄りから、ベッド2台とデスク側を見渡す仮設定。実運用時の見え方は未確認。"
+      },
+      "defaultVariant": "natural"
+    }
+  }
+}

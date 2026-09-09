@@ -7,12 +7,12 @@ from pathlib import Path
 import subprocess
 import sys
 import unreal
-from study_state import default_state, validate_state
 from solar_position import (apply_case, matches, validate_cases, validate_site,
     cases_match_site, case_matches_site, make_case, season_reference_timestamps, site_sha256)
 from material_builder import rgb
 from surface_finish_overrides import resolve_finish, resolve_overrides
 from lighting import validate_lighting_bindings, resolve_fixture_overrides, effective_fixture
+import multi_room_state as mrs
 
 _state=None
 _selected_surface=None  # surfaceId currently targeted by the 面編集 menu
@@ -49,9 +49,21 @@ def write(name,value):
 
 
 def initial_state():
+    # W07-G1: study.json's OWN roomStates already reflects whatever --state
+    # build_interior.py was given at generation time (or per-room defaults)
+    # -- no need to re-derive it from data/visual/room-render-settings.json
+    # here; this is a straight carry-over into schemaVersion 2.0.0's shape,
+    # not a fresh default_state_v2() call (which is for a --scenario/CLI
+    # context that has no study.json at all).
+    if (project()/'study-state.json').exists():
+        return copy.deepcopy(read('study-state.json'))
     study=read('SourcePackage/study.json')
-    initial=read('study-state.json') if (project()/'study-state.json').exists() else default_state(study,read('import-job.json'))
-    return copy.deepcopy(initial)
+    job=read('import-job.json')
+    return dict(schemaVersion='2.0.0',scopeId=study['scopeId'],activeRoomId=study['activeRoomId'],activeLevel=1,
+        camera=None,azimuthDeg=study['lighting']['azimuthDeg'],elevationDeg=study['lighting']['elevationDeg'],
+        sunLux=job['sunLux'],exposureEV100=job['exposureEV100'],
+        lighting=dict(mode=study['electricalLighting']['mode']),
+        roomStates=copy.deepcopy(study['roomStates']))
 
 
 def current_state():
@@ -82,10 +94,30 @@ def lighting_bindings():
     return validate_lighting_bindings(read('lighting-bindings.json')) if path.exists() else None
 
 
+def _house():
+    return read('SourcePackage/inputs/data/house.json')
+
+
+def _scopes_document():
+    return mrs.validate_scopes(read('SourcePackage/inputs/data/visual/study-scopes.json'))
+
+
+def _legacy_study():
+    return read('SourcePackage/inputs/data/visual/guest-ldk-study.json')
+
+
 def apply_state(state):
     global _state
     study=read('SourcePackage/study.json')
-    state=validate_state(copy.deepcopy(state),study)
+    state=mrs.validate_state(copy.deepcopy(state),study['roomIds'],study['settings']['variants'],
+        _scopes_document(),_legacy_study())
+    # W07-G1 spec section 2: "activeLevelはhouseから検証し、自己申告を信じ
+    # ません" -- derived from the active room's OWN current level, never
+    # trusted from the state as-submitted.
+    house=_house()
+    active_room=next((r for r in house['rooms'] if r['id']==state['activeRoomId']),None)
+    if active_room is None: raise RuntimeError('activeRoomIdが現在のhouse.jsonにありません: '+state['activeRoomId'])
+    state['activeLevel']=active_room['level']
     context_path=project()/'site-context.json'
     expected=state.get('siteContextSHA256')
     # W04 review R2: this state may come from anywhere -- a named scenario, a
@@ -104,39 +136,54 @@ def apply_state(state):
     elif expected:
         raise ValueError('この比較条件は周辺条件（site-context.json）を必要としますが、現在のプロジェクトにはありません。')
     actors=scene()
+    room_states=state['roomStates']
+    def room_variant(room_id): return room_states.get(room_id,{}).get('variant',mrs.BASE_VARIANT)
+    # W07-G1: study-bindings.json now carries each actor's OWNING room (null
+    # for un-owned geometry -- exterior walls/roof, an out-of-scope room,
+    # etc.) alongside its role slots, so the whole-scene role material picks
+    # THAT room's own active variant instead of one single global value
+    # (spec section 3: "グローバルなroleマテリアル一括置換を室所有へ変更").
     bindings=read('study-bindings.json')
     planned=[]
-    for label,slots in bindings.items():
+    for label,entry in bindings.items():
         if label not in actors: raise RuntimeError('Missing generated actor: '+label)
         component=actors[label].static_mesh_component
-        for slot,role in slots.items():
-            path=f"/Game/Generated/Finishes/M_{state['variant']}_{role}"
+        variant=room_variant(entry.get('roomId'))
+        for slot,role in entry['slots'].items():
+            path=f"/Game/Generated/Finishes/M_{variant}_{role}"
             material=unreal.load_asset(path)
             if material is None: raise RuntimeError('Missing finish: '+path)
             if int(slot)>=component.get_num_materials(): raise RuntimeError('Material slots changed: '+label)
             planned.append((component,int(slot),material))
-    # W04: per-surface overrides, applied ON TOP of the whole-scene role
-    # materials above (priority: base variant -> surfaceOverrides). A stale/
-    # orphaned override (unknown id, or a registered id with no real bound
-    # geometry) stops the whole apply rather than silently dropping it --
-    # the caller sees exactly why, and nothing gets half-applied since this
-    # is all still resolved before the single transaction below runs.
+    # W04/W07-G1: per-surface overrides, applied ON TOP of the whole-scene
+    # role materials above (priority: room's base variant -> surfaceOverrides),
+    # resolved ONCE PER ROOM (surface ids are unique across rooms, so merging
+    # each room's usable subset into one flat dict is safe). A stale/orphaned
+    # override (unknown id, wrong room, or a registered id with no real bound
+    # geometry) stops the whole apply rather than silently dropping it -- the
+    # caller sees exactly why, and nothing gets half-applied since this is
+    # all still resolved before the single transaction below runs.
     surfaces=surface_bindings()['surfaces']
-    usable,issues=resolve_overrides(state['surfaceOverrides'],dict(surfaces=surfaces),room_id=state['roomId'])
+    usable={}; issues=[]
+    for room_id in study['roomIds']:
+        room_usable,room_issues=resolve_overrides(room_states[room_id]['surfaceOverrides'],dict(surfaces=surfaces),room_id=room_id)
+        usable.update(room_usable); issues+=room_issues
     if issues: raise RuntimeError('surfaceOverrides: '+'; '.join(i['reason'] for i in issues))
-    # W06: same pre-mutation contract as surfaceOverrides above -- a
-    # lighting.fixtures key naming a fixture that does not exist in the
-    # CURRENT model (removed from data/electrical.json, wrong room, or a
-    # pre-W06 project with no lighting-bindings.json at all) stops the whole
-    # apply before anything is touched, rather than being silently dropped.
-    bindings=lighting_bindings()
-    _,lighting_issues=resolve_fixture_overrides(state['lighting']['fixtures'],bindings or dict(fixtures=[]))
-    if lighting_issues: raise RuntimeError('lighting: '+'; '.join(i['reason'] for i in lighting_issues))
+    # W06/W07-G1: same pre-mutation contract as surfaceOverrides above -- a
+    # room's fixtures key naming a fixture that does not exist in the CURRENT
+    # model, or belongs to a DIFFERENT room, stops the whole apply before
+    # anything is touched, rather than being silently dropped.
+    lighting_doc=lighting_bindings()
+    usable_fixtures={}; fixture_issues=[]
+    for room_id in study['roomIds']:
+        room_usable,room_issues=resolve_fixture_overrides(room_states[room_id]['fixtures'],lighting_doc or dict(fixtures=[]),room_id=room_id)
+        usable_fixtures.update(room_usable); fixture_issues+=room_issues
+    if fixture_issues: raise RuntimeError('lighting: '+'; '.join(i['reason'] for i in fixture_issues))
     finish_document=read('finish-settings.json')
     surface_planned=[]
     for surface_id,info in surfaces.items():
         if info['status']!='bound': continue
-        finish=resolve_finish(finish_document,study['settings']['variants'],info['kind'],state['variant'],usable.get(surface_id))
+        finish=resolve_finish(finish_document,study['settings']['variants'],info['kind'],room_variant(info['roomId']),usable.get(surface_id))
         # W04 review v2 R1: load the parent by (surface, EFFECTIVE variant) --
         # finish['variant'] -- instead of reusing whatever's currently in the
         # slot. Each variant's own pattern (planks/tile/plain noise) is baked
@@ -192,22 +239,33 @@ def apply_state(state):
             sky_actor.modify()
             sky_actor.set_actor_hidden_in_game(is_night)
             sky_actor.set_is_temporarily_hidden_in_editor(is_night)
-        if bindings:
-            for fixture in bindings['fixtures']:
+        if lighting_doc:
+            for fixture in lighting_doc['fixtures']:
                 light_actor=actors.get('Light_'+fixture['id'])
                 if light_actor is None: raise RuntimeError('Missing generated actor: Light_'+fixture['id'])
-                effective=effective_fixture(fixture,state['lighting']['fixtures'].get(fixture['id']))
+                # W07-G1: each fixture's own room's fixtures dict, not a
+                # single flat one -- switching which room is ACTIVE must
+                # never change any fixture's actual on/off/dimming state.
+                effective=effective_fixture(fixture,room_states.get(fixture['roomId'],{}).get('fixtures',{}).get(fixture['id']))
                 light_actor.modify(); light_actor.light_component.modify()
                 light_actor.light_component.set_intensity(effective['effectiveLumens'])
                 light_actor.light_component.set_editor_property('temperature',effective['temperatureK'])
     _state=state
     mode=state['solar']['localTimestamp'] if state.get('solar') else '手動角度'
-    unreal.log(f"内装比較: {state['variant']} / 太陽高度 {state['elevationDeg']}° / EV100 {state['exposureEV100']}（{mode}・照度未校正）")
+    active_variant=room_variant(state['activeRoomId'])
+    unreal.log(f"内装比較: 対象室 {state['activeRoomId']}（{active_variant}） / 太陽高度 {state['elevationDeg']}° / "
+        f"EV100 {state['exposureEV100']}（{mode}・照度未校正）")
 
 
 def set_variant(name):
+    # W07-G1: sets the ACTIVE room's own variant only -- other in-scope
+    # rooms' roomStates are untouched (spec section 3: "LDKをwarmにしても
+    # 洋室の...までwarmへ変わらない").
     _require_no_active_compare()  # W06-v2 review 必須修正B
-    state=current_state(); state['variant']=name; apply_state(state)
+    state=current_state()
+    state['roomStates']=dict(state['roomStates'])
+    state['roomStates'][state['activeRoomId']]=dict(state['roomStates'][state['activeRoomId']],variant=name)
+    apply_state(state)
 
 
 def set_elevation(degrees):
@@ -255,26 +313,98 @@ def remember_view():
     apply_state(state)
 
 
+def _room_render_settings():
+    return mrs.validate_room_render_settings(read('SourcePackage/inputs/data/visual/room-render-settings.json'))
+
+
+def _room_camera_cm(room_id):
+    """This room's OWN safe initial camera (data/visual/room-render-settings.json,
+    source metres/target convention) converted to a state camera dict
+    (locationCm/rotationDeg/lensMm) -- same conversion import_study.py's own
+    initial-camera setup uses."""
+    settings=mrs.room_render(_room_render_settings(),room_id,_legacy_study())
+    house=_house()
+    room=next(r for r in house['rooms'] if r['id']==room_id)
+    floor=house['levels'][f"fl{room['level']}"]
+    def point(p): return unreal.Vector(p[0]*100,p[1]*100,(p[2]+floor)*100)
+    position,target=point(settings['camera']['position']),point(settings['camera']['target'])
+    rotation=unreal.MathLibrary.find_look_at_rotation(position,target)
+    return dict(locationCm=list(position.to_tuple()),rotationDeg=[rotation.pitch,rotation.yaw,rotation.roll],
+        lensMm=settings['camera']['lensMm'])
+
+
+def select_room(room_id):
+    """W07-G1: switch which room the 対象室/面編集/照明 menus and the fixed
+    comparison viewpoint target -- moves to that room's own safe initial
+    camera, and touches NOTHING else (other rooms' variant/overrides/
+    fixtures, the whole-house day/night/太陽/露出, all carry straight
+    through -- spec section 4: "室への切替だけでmodeや太陽/露出/他室の材質・
+    光束を変えません")."""
+    global _selected_surface,_selected_lighting
+    _require_no_active_compare()  # a room switch changes the fixed viewpoint, same class of operation as the other guards
+    study=read('SourcePackage/study.json')
+    if room_id not in study['roomIds']:
+        raise RuntimeError('この部屋は現在の対象範囲にありません: '+room_id)
+    state=current_state()
+    state['activeRoomId']=room_id
+    state['camera']=_room_camera_cm(room_id)
+    apply_state(state)
+    # A stale selection from the PREVIOUS active room (面編集/照明) must not
+    # silently keep being the edit target once the operator has moved on to
+    # a different room -- spec section 4: "室別variant、面選択、器具/グループ
+    # 一覧はactiveRoomを基準に表示します".
+    _selected_surface=None; _selected_lighting=None
+    unreal.log('対象室を切り替えました: '+room_id)
+    register_menu()
+
+
+def _room_label(room_id):
+    house=_house()
+    room=next((r for r in house['rooms'] if r['id']==room_id),None)
+    return (room.get('label') if room else None) or room_id
+
+
+def _room_status_text():
+    state=current_state()
+    return '対象室: '+_room_label(state['activeRoomId'])
+
+
+def show_room_status(): unreal.log(_room_status_text())
+
+
 def scene_state(base):
     # Read actual scene properties, including manual light/camera changes and Undo.
     actors=scene(); state=copy.deepcopy(base)
-    bindings=read('study-bindings.json'); variants=read('SourcePackage/study.json')['settings']['variants']
-    matching=[]
-    for variant in variants:
-        if all(actors[label].static_mesh_component.get_material(int(slot)).get_name()==f'M_{variant}_{role}'
-               for label,slots in bindings.items() for slot,role in slots.items()): matching.append(variant)
-    if len(matching)!=1: raise RuntimeError('Mixed/custom finishes cannot be exported as a named variant.')
-    state['variant']=matching[0]
-    # W04: study-bindings.json (the whole-scene role map above) never lists
-    # surface-marker slots -- those are tracked separately in
+    study=read('SourcePackage/study.json')
+    bindings=read('study-bindings.json'); variants=study['settings']['variants']
+    # W07-G1: "exactly one variant everywhere" becomes "exactly one variant
+    # PER ROOM (or per un-owned group)" -- LDK and the western room are
+    # legitimately different variants at the same time now, so the pre-G1
+    # single global check would reject every normal multi-room state.
+    entries_by_room={}
+    for label,entry in bindings.items():
+        entries_by_room.setdefault(entry.get('roomId'),[]).append((label,entry['slots']))
+    room_variant={}
+    for room_id,entries in entries_by_room.items():
+        candidates=variants if room_id is not None else (mrs.BASE_VARIANT,)
+        matching=[v for v in candidates if all(
+            actors[label].static_mesh_component.get_material(int(slot)).get_name()==f'M_{v}_{role}'
+            for label,slots in entries for slot,role in slots.items())]
+        if len(matching)!=1:
+            where='部屋'+room_id if room_id is not None else '対象室に属さない基準材質'
+            raise RuntimeError(f'{where}の仕上げが混在しています。Undo等の影響が考えられます。')
+        room_variant[room_id]=matching[0]
+    # W04/W07-G1: study-bindings.json (the whole-scene role map above) never
+    # lists surface-marker slots -- those are tracked separately in
     # surface-bindings.json and never touched by the loop above -- so this
-    # "exactly one variant everywhere" check is unaffected by per-surface
+    # "exactly one variant per room" check is unaffected by per-surface
     # overrides existing. Rather than re-deriving overrides from scene
     # material inspection (fragile: a MID's parameters aren't a stable
     # per-material identity the way a swapped asset name is), this trusts
     # the already-managed state every apply_state() call goes through and
     # just re-validates its shape below.
-    state['surfaceOverrides']=copy.deepcopy(base.get('surfaceOverrides',{}))
+    base_room_states=base.get('roomStates',{})
+    room_overrides={room_id:copy.deepcopy(base_room_states.get(room_id,{}).get('surfaceOverrides',{})) for room_id in study['roomIds']}
     # W04 review R3: _state/base is a plain Python dict, invisible to Unreal's
     # own Undo system -- if the operator presses Ctrl+Z after a surface
     # override was applied, the SCENE's material reverts but this dict does
@@ -290,8 +420,9 @@ def scene_state(base):
     if bound_surfaces:
         finish_document=read('finish-settings.json')
         for surface_id,info in bound_surfaces.items():
-            finish=resolve_finish(finish_document,variants,info['kind'],state['variant'],
-                state['surfaceOverrides'].get(surface_id))
+            surface_room=info['roomId']
+            finish=resolve_finish(finish_document,variants,info['kind'],
+                room_variant.get(surface_room,mrs.BASE_VARIANT),room_overrides.get(surface_room,{}).get(surface_id))
             expected_color=rgb(finish['colorHex'])
             expected_parent=f"/Game/Generated/Finishes/M_Surf_{surface_id}_{finish['variant']}"
             for mesh_ref in info['meshes']:
@@ -327,18 +458,19 @@ def scene_state(base):
     # 条件を復元します'). A valid sunLux is always >=1 (validate_state()), so
     # "sun intensity < 1" is an unambiguous night-mode signal.
     sun_intensity=actors['Sun_manual_angle'].light_component.get_editor_property('intensity')
-    state['lighting']=copy.deepcopy(base.get('lighting',dict(mode='day',fixtures={})))
+    state['lighting']=copy.deepcopy(base.get('lighting',dict(mode='day')))
     is_night=state['lighting']['mode']=='night'
     state['sunLux']=base['sunLux'] if is_night else sun_intensity
     if is_night and sun_intensity>=1 or not is_night and sun_intensity<1:
         raise RuntimeError('太陽光源の点灯状態が保存内容と一致しません（Undo等の影響が考えられます）。'
             '比較条件を再適用してから保存してください。')
+    room_fixtures={room_id:copy.deepcopy(base_room_states.get(room_id,{}).get('fixtures',{})) for room_id in study['roomIds']}
     lighting_binding_doc=lighting_bindings()
     if lighting_binding_doc:
         for fixture in lighting_binding_doc['fixtures']:
             light_actor=actors.get('Light_'+fixture['id'])
             if light_actor is None: continue
-            expected=effective_fixture(fixture,state['lighting']['fixtures'].get(fixture['id']))
+            expected=effective_fixture(fixture,room_fixtures.get(fixture['roomId'],{}).get(fixture['id']))
             live_intensity=light_actor.light_component.get_editor_property('intensity')
             live_temperature=light_actor.light_component.get_editor_property('temperature')
             if abs(live_intensity-expected['effectiveLumens'])>1e-3 or abs(live_temperature-expected['temperatureK'])>1e-3:
@@ -352,8 +484,12 @@ def scene_state(base):
     state['camera']=dict(locationCm=list(camera.get_actor_location().to_tuple()),rotationDeg=[rotation.pitch,rotation.yaw,rotation.roll],
         lensMm=camera.get_cine_camera_component().get_editor_property('current_focal_length'))
     if state.get('solar') and not matches(state['solar'],state): state.pop('solar')
-    state['schemaVersion']='1.2.0'  # W06: this shape always carries lighting now, even when day/empty
-    validate_state(state,read('SourcePackage/study.json'))
+    state['roomStates']={room_id:dict(variant=room_variant.get(room_id,mrs.BASE_VARIANT),
+        surfaceOverrides=room_overrides[room_id],fixtures=room_fixtures[room_id]) for room_id in study['roomIds']}
+    active_room=next((r for r in _house()['rooms'] if r['id']==state['activeRoomId']),None)
+    if active_room is not None: state['activeLevel']=active_room['level']
+    state['schemaVersion']='2.0.0'  # W07-G1: this shape always carries roomStates now
+    mrs.validate_state_v2(state,study['roomIds'],study['settings']['variants'])
     return state
 
 
@@ -428,6 +564,9 @@ def select_surface(surface_id):
     surfaces=surface_bindings()['surfaces']
     if surface_id not in surfaces or surfaces[surface_id]['status']!='bound':
         raise RuntimeError('この面は現在の対象にできません（no-surfaceまたは未登録）: '+surface_id)
+    active_room_id=current_state()['activeRoomId']
+    if surfaces[surface_id]['roomId']!=active_room_id:
+        raise RuntimeError('この面は現在の対象室ではありません。先に対象室を切り替えてください: '+surface_id)
     _selected_surface=surface_id
     entry=surfaces[surface_id]
     live=scene()
@@ -446,7 +585,9 @@ def _apply_override(update):
     _require_no_active_compare()  # W06-v2 review 必須修正B
     if _selected_surface is None: raise RuntimeError('先に面を選択してください（面編集の一覧から）。')
     state=current_state()
-    overrides=dict(state['surfaceOverrides'])
+    active_room_id=state['activeRoomId']
+    room_state=state['roomStates'][active_room_id]
+    overrides=dict(room_state['surfaceOverrides'])
     if update is None:
         overrides.pop(_selected_surface,None)
     else:
@@ -458,7 +599,8 @@ def _apply_override(update):
         merged=dict(overrides.get(_selected_surface,{}))
         merged.update(update)
         overrides[_selected_surface]=merged
-    state['surfaceOverrides']=overrides
+    state['roomStates']=dict(state['roomStates'])
+    state['roomStates'][active_room_id]=dict(room_state,surfaceOverrides=overrides)
     apply_state(state)
     register_menu()
 
@@ -483,19 +625,22 @@ def apply_color_to_selected():
 
 def reset_all_overrides():
     _require_no_active_compare()  # W06-v2 review 必須修正B
-    state=current_state(); state['surfaceOverrides']={}
+    state=current_state(); active_room_id=state['activeRoomId']
+    state['roomStates']=dict(state['roomStates'])
+    state['roomStates'][active_room_id]=dict(state['roomStates'][active_room_id],surfaceOverrides={})
     apply_state(state)
     register_menu()
 
 
 def apply_preset_to_room(variant):
     _require_no_active_compare()  # W06-v2 review 必須修正B
-    room_id=read('SourcePackage/study.json')['roomId']
-    state=current_state(); overrides=dict(state['surfaceOverrides'])
+    state=current_state(); active_room_id=state['activeRoomId']
+    overrides=dict(state['roomStates'][active_room_id]['surfaceOverrides'])
     for surface_id,info in surface_bindings()['surfaces'].items():
-        if info['roomId']==room_id and info['status']=='bound':
+        if info['roomId']==active_room_id and info['status']=='bound':
             overrides[surface_id]=dict(variant=variant)
-    state['surfaceOverrides']=overrides
+    state['roomStates']=dict(state['roomStates'])
+    state['roomStates'][active_room_id]=dict(state['roomStates'][active_room_id],surfaceOverrides=overrides)
     apply_state(state)
     register_menu()
 
@@ -582,29 +727,49 @@ def _context_compatible(state):
     return not expected
 
 
+def _migrate_scenario_state(raw_state, label):
+    """Any raw study-state.json content (1.0.0-2.0.0) from a scenario/
+    --previous/runtime save, migrated (if needed) into schemaVersion 2.0.0 --
+    W07-G1 spec section 2: the shared migration function every read path
+    (案保存/読込/CLI/Blender/UEエディタ) uses. Raises RuntimeError naming
+    `label` on anything unusable."""
+    study=read('SourcePackage/study.json')
+    try:
+        return mrs.validate_state(raw_state,study['roomIds'],study['settings']['variants'],_scopes_document(),_legacy_study())
+    except ValueError as error:
+        raise RuntimeError(f'{label}は現在のモデルと整合しません: {error}')
+
+
 def _validate_applicable(state, label):
-    """Shared, side-effect-free pre-check (no scene mutation) for whether
-    `state` can be applied to the CURRENT project at all: site-context
-    compatibility (see _context_compatible) AND every surfaceOverrides key
-    actually resolving to a bound surface in this room (resolve_overrides()
-    -- the same check apply_state() itself does, just run here BEFORE
-    anything is touched). W05: used by every path that must validate two
-    candidate states before switching between them (W04's finish A/B, W05's
-    datetime A/B, named-scenario load) so a broken second candidate is
-    caught up front, not only once the operator actually switches to it."""
+    """Shared, side-effect-free pre-check (no scene mutation) for whether an
+    ALREADY-2.0.0 `state` (see _migrate_scenario_state()) can be applied to
+    the CURRENT project at all: site-context compatibility (see
+    _context_compatible) AND every room it actually covers having its
+    surfaceOverrides/fixtures resolve against the CURRENT model
+    (resolve_overrides()/resolve_fixture_overrides() -- the same checks
+    apply_state() itself does, just run here BEFORE anything is touched). A
+    state covering only a SUBSET of the current scope (a migrated legacy
+    scenario) is checked only for the room(s) it actually has -- whether
+    that subset is even usable for the operation at hand (a specific active
+    room, or the whole scope) is the CALLER's decision, not this function's.
+    W05: used by every path that must validate two candidate states before
+    switching between them (W04's finish A/B, W05's datetime A/B, named-
+    scenario load) so a broken second candidate is caught up front, not only
+    once the operator actually switches to it."""
     if not _context_compatible(state):
         raise RuntimeError(f'{label}は現在のプロジェクトの周辺条件（site-context.json）と一致しません。')
     surfaces=surface_bindings()['surfaces']
-    _,issues=resolve_overrides(state.get('surfaceOverrides') or {},dict(surfaces=surfaces),room_id=state.get('roomId'))
-    if issues:
-        raise RuntimeError(f'{label}の面別仕上げが現在のモデルと一致しません: '+'; '.join(i['reason'] for i in issues))
-    # W06: same idea for lighting.fixtures -- a state saved before a fixture
-    # was removed/renamed must not silently apply against the wrong (or no)
-    # fixture.
-    lighting=state.get('lighting') or dict(fixtures={})
-    _,lighting_issues=resolve_fixture_overrides(lighting.get('fixtures',{}),lighting_bindings() or dict(fixtures=[]))
-    if lighting_issues:
-        raise RuntimeError(f'{label}の照明が現在のモデルと一致しません: '+'; '.join(i['reason'] for i in lighting_issues))
+    lighting_doc=lighting_bindings() or dict(fixtures=[])
+    for room_id,room_state in state['roomStates'].items():
+        _,issues=resolve_overrides(room_state['surfaceOverrides'],dict(surfaces=surfaces),room_id=room_id)
+        if issues:
+            raise RuntimeError(f'{label}の面別仕上げが現在のモデルと一致しません: '+'; '.join(i['reason'] for i in issues))
+        # W06: same idea for lighting.fixtures -- a state saved before a
+        # fixture was removed/renamed must not silently apply against the
+        # wrong (or no) fixture.
+        _,lighting_issues=resolve_fixture_overrides(room_state['fixtures'],lighting_doc,room_id=room_id)
+        if lighting_issues:
+            raise RuntimeError(f'{label}の照明が現在のモデルと一致しません: '+'; '.join(i['reason'] for i in lighting_issues))
 
 
 def load_scenario(index):
@@ -622,8 +787,20 @@ def load_scenario(index):
         paths,_=_refresh_inputs().scenario_inputs(dirs[index])
     except ValueError as error:
         raise RuntimeError(f'案「{dirs[index].name}」は現在の状態と整合しません: {error}')
-    state=json.loads(paths['state'].read_text(encoding='utf-8'))
-    _validate_applicable(state,f'案「{dirs[index].name}」')
+    label=f'案「{dirs[index].name}」'
+    raw_state=json.loads(paths['state'].read_text(encoding='utf-8'))
+    incoming=_migrate_scenario_state(raw_state,label)
+    _validate_applicable(incoming,label)
+    # W07-G1 spec section 2: "旧LDK案を2室モデルへ通常読込する場合：全体条件
+    # とその案の敷地/日時一覧を一組で採用し、LDKのroomStateを置換、洋室の
+    # roomStateは保持します" -- a legacy (or otherwise partial) scenario only
+    # ever replaces the room(s) it actually covers; every other in-scope
+    # room keeps whatever the CURRENT state already has for it, never reset
+    # to a default. Both `incoming` and the current state are already fully
+    # validated at this point, so merging cannot itself introduce anything
+    # unusable.
+    study=read('SourcePackage/study.json')
+    merged=mrs.partial_apply(current_state(),incoming,study['roomIds'])
     # Everything above is read-only (scenario_inputs()/_validate_applicable()
     # touch nothing); only past this point do we start writing, so a failure
     # anywhere above leaves the current site/sun-cases/state exactly as they
@@ -636,7 +813,7 @@ def load_scenario(index):
         write('sun-cases.json',json.loads(paths['sunCases'].read_text(encoding='utf-8-sig')))
     elif _sun_cases_path().exists():
         _sun_cases_path().unlink()
-    apply_state(state)
+    apply_state(merged)
     unreal.log('案を読み込みました: '+dirs[index].name)
     register_menu()
 
@@ -646,34 +823,44 @@ def start_compare(index_a, index_b):
     dirs=_scenario_dirs()
     if not (0<=index_a<len(dirs) and 0<=index_b<len(dirs)): raise RuntimeError('案が見つかりません。')
     refresh_inputs=_refresh_inputs()
-    # Both scenarios validated BEFORE anything is touched -- an A/B compare
-    # must not start half-usable, and a broken B must not leave A already applied.
-    state_a=_load_scenario_state(refresh_inputs,index_a,dirs)
-    state_b=_load_scenario_state(refresh_inputs,index_b,dirs)
-    for name,state in ((dirs[index_a].name,state_a),(dirs[index_b].name,state_b)):
-        _validate_applicable(state,f'案「{name}」')
     base=current_state()
-    # W06 spec: the existing finish A/B fixes lighting too -- only variant/
-    # surfaceOverrides switch between A and B.
-    fixed=dict(azimuthDeg=base['azimuthDeg'],elevationDeg=base['elevationDeg'],
-        sunLux=base['sunLux'],exposureEV100=base['exposureEV100'],camera=base['camera'],lighting=base['lighting'])
+    active_room_id=base['activeRoomId']
+    # W07-G1 spec section 4: 仕上げA/Bが変えるのは「選択中の室」のvariant/
+    # surfaceOverridesだけ -- 他室全部・照明・太陽/敷地・視点/露出は固定。両
+    # 案とも対象室のroomStateを持たなければ、比較対象がないので拒否する
+    # (Both scenarios validated BEFORE anything is touched -- an A/B compare
+    # must not start half-usable, and a broken B must not leave A already
+    # applied.)
+    def room_state_from_scenario(index):
+        name=dirs[index].name
+        raw=_load_scenario_state(refresh_inputs,index,dirs)
+        migrated=_migrate_scenario_state(raw,f'案「{name}」')
+        _validate_applicable(migrated,f'案「{name}」')
+        room_state=migrated['roomStates'].get(active_room_id)
+        if room_state is None:
+            raise RuntimeError(f'案「{name}」は対象室（{_room_label(active_room_id)}）の仕上げ情報を含みません。')
+        return room_state
+    room_state_a=room_state_from_scenario(index_a)
+    room_state_b=room_state_from_scenario(index_b)
     global _compare
-    _compare=dict(fixed=fixed,before=base,a=state_a,b=state_b,
+    _compare=dict(before=base,a=room_state_a,b=room_state_b,active_room_id=active_room_id,
         names=(dirs[index_a].name,dirs[index_b].name),current=None)
     show_compare('a')
 
 
 def show_compare(which):
     if _compare is None: raise RuntimeError('A/B比較を先に開始してください（比較開始）。')
-    # The scenario's own camera/sun/exposure -- and any date/time provenance
-    # tied to those angles -- are deliberately NOT what gets shown here; only
-    # its variant/surfaceOverrides are, under the CURRENT fixed conditions.
+    # Only the FIXED active room's variant/surfaceOverrides switch between A
+    # and B -- every other in-scope room,照明, 太陽/露出/視点/敷地 stay at
+    # whatever `_compare['before']` (the state at compare-start time) had.
     # apply_state() itself still re-checks this project's site-context.json
-    # against whichever of A/B is about to be shown (W04 review R2).
-    state=dict(_compare[which]); state.update(_compare['fixed']); state.pop('solar',None)
+    # (W04 review R2).
+    state=copy.deepcopy(_compare['before'])
+    state['roomStates']=dict(state['roomStates'])
+    state['roomStates'][_compare['active_room_id']]=_compare[which]
     apply_state(state)
     _compare['current']=which
-    unreal.log(f"比較中：{_compare['names'][0 if which=='a' else 1]}（視点・太陽・露出は比較開始時点で固定）")
+    unreal.log(f"比較中：{_compare['names'][0 if which=='a' else 1]}（他室・照明・太陽・視点・露出は比較開始時点で固定）")
     register_menu()
 
 
@@ -878,11 +1065,12 @@ def start_daylight_compare(index_a, index_b):
     for name,state in ((case_a['localTimestamp'],state_a),(case_b['localTimestamp'],state_b)):
         _validate_applicable(state,f'日時「{name}」')
     global _daylight_compare
-    # lighting is fixed too (day mode, required above; each candidate's full
-    # deepcopy of `base` already carries it through show_daylight_compare()'s
-    # direct apply_state(_daylight_compare[which]) -- listed here only for
-    # the status label/documentation, not re-applied separately).
-    _daylight_compare=dict(fixed=dict(variant=base['variant'],camera=base['camera'],
+    # roomStates/lighting are fixed too (day mode, required above; each
+    # candidate's full deepcopy of `base` already carries them through
+    # show_daylight_compare()'s direct apply_state(_daylight_compare[which])
+    # -- listed here only for the status label/documentation, not re-applied
+    # separately).
+    _daylight_compare=dict(fixed=dict(activeVariant=base['roomStates'][base['activeRoomId']]['variant'],camera=base['camera'],
             exposureEV100=base['exposureEV100'],sunLux=base['sunLux'],lighting=base['lighting']),
         before=base,a=state_a,b=state_b,names=(case_a['localTimestamp'],case_b['localTimestamp']),current=None)
     show_daylight_compare('a')
@@ -931,7 +1119,8 @@ def _daylight_compare_status_text():
     shown={'a':'A','b':'B'}.get(which,'未表示')
     fixed=_daylight_compare['fixed']
     return (f"日時比較中（表示中：{shown}）　A＝{_daylight_compare['names'][0]}　B＝{_daylight_compare['names'][1]}　"
-        f"固定条件＝仕上げ{fixed['variant']}・露出EV{fixed['exposureEV100']:.1f}・光源強度{fixed['sunLux']:.0f}lux・視点固定")
+        f"固定条件＝対象室仕上げ{fixed['activeVariant']}（他室含む全室仕上げ・照明）・露出EV{fixed['exposureEV100']:.1f}"
+        f"・光源強度{fixed['sunLux']:.0f}lux・視点固定")
 
 
 def show_daylight_compare_status(): unreal.log(_daylight_compare_status_text())
@@ -948,13 +1137,16 @@ def _lighting_status_text():
     # the last-applied in-memory state, or the plain on-disk/default state,
     # neither of which touch the scene (same reasoning as the other W04/W05
     # status labels in this menu, none of which call current_state()).
-    lighting=(_state if _state is not None else initial_state())['lighting']
+    base=_state if _state is not None else initial_state()
+    lighting=base['lighting']
     mode_label='夜間（仮仕様）' if lighting['mode']=='night' else '昼間'
     bindings=lighting_bindings()
     if not bindings:
         return f'照明：{mode_label}（このプロジェクトに対応照明なし）'
-    lit=sum(1 for f in bindings['fixtures'] if effective_fixture(f,lighting['fixtures'].get(f['id']))['on'])
-    return f'照明：{mode_label}　点灯{lit}/{len(bindings["fixtures"])}灯'
+    room_states=base['roomStates']
+    lit=sum(1 for f in bindings['fixtures']
+        if effective_fixture(f,room_states.get(f['roomId'],{}).get('fixtures',{}).get(f['id']))['on'])
+    return f'照明：{mode_label}　点灯{lit}/{len(bindings["fixtures"])}灯（全対象室合計）'
 
 
 def show_lighting_status(): unreal.log(_lighting_status_text())
@@ -976,25 +1168,37 @@ def set_lighting_night(): _set_lighting_mode('night')
 def _target_fixture_ids(target_id):
     """target_id: a single fixture id, or a lighting-settings.json group id
     (an operating shortcut over fixture ids, not an electrical circuit --
-    W06 spec section 1). Raises if it names neither."""
+    W06 spec section 1). Raises if it names neither, or if it resolves
+    outside the CURRENT active room (W07-G1: 器具/グループ一覧はactiveRoomを
+    基準に表示・操作します -- a group whose members are not all in the active
+    room cannot be operated on here at all, never partially)."""
     bindings=lighting_bindings()
-    known={f['id'] for f in bindings['fixtures']} if bindings else set()
-    if target_id in known: return [target_id]
-    settings=read('lighting-settings.json')
-    group=next((g for g in settings['groups'] if g['id']==target_id),None)
-    if group is None: raise RuntimeError('この照明/グループは現在のモデルにありません: '+target_id)
-    stale=[fid for fid in group['fixtureIds'] if fid not in known]
-    if stale:
-        # W06-v2 review 必須修正A: a stale member must refuse the WHOLE
-        # operation (current state left untouched), not silently continue
-        # with the known subset -- v1's "warn and continue" partial-apply
-        # was explicitly rejected ("警告による部分適用への仕様変更は承認して
-        # いません"). All three callers (select_lighting/_apply_fixture_update/
-        # reset_selected_lighting) call this BEFORE reading/mutating any
-        # state, so raising here leaves the scene exactly as it was.
-        raise RuntimeError(f"グループ「{target_id}」に現在のモデルに無い照明が含まれています。"
-            f"lighting-settings.jsonのgroupsを修正してください（不明な器具ID: {', '.join(stale)}）。")
-    return list(group['fixtureIds'])
+    by_id={f['id']:f for f in bindings['fixtures']} if bindings else {}
+    known=set(by_id)
+    if target_id in known: ids=[target_id]
+    else:
+        settings=read('lighting-settings.json')
+        group=next((g for g in settings['groups'] if g['id']==target_id),None)
+        if group is None: raise RuntimeError('この照明/グループは現在のモデルにありません: '+target_id)
+        stale=[fid for fid in group['fixtureIds'] if fid not in known]
+        if stale:
+            # W06-v2 review 必須修正A: a stale member must refuse the WHOLE
+            # operation (current state left untouched), not silently continue
+            # with the known subset -- v1's "warn and continue" partial-apply
+            # was explicitly rejected ("警告による部分適用への仕様変更は承認
+            # していません"). All three callers (select_lighting/
+            # _apply_fixture_update/reset_selected_lighting) call this BEFORE
+            # reading/mutating any state, so raising here leaves the scene
+            # exactly as it was.
+            raise RuntimeError(f"グループ「{target_id}」に現在のモデルに無い照明が含まれています。"
+                f"lighting-settings.jsonのgroupsを修正してください（不明な器具ID: {', '.join(stale)}）。")
+        ids=list(group['fixtureIds'])
+    active_room_id=current_state()['activeRoomId']
+    wrong_room=[fid for fid in ids if by_id[fid]['roomId']!=active_room_id]
+    if wrong_room:
+        raise RuntimeError(f'「{target_id}」は現在の対象室（{_room_label(active_room_id)}）の照明ではありません。'
+            '先に対象室を切り替えてください。')
+    return ids
 
 
 def select_lighting(target_id):
@@ -1013,8 +1217,9 @@ def _selected_lighting_effective():
     ids=_target_fixture_ids(_selected_lighting)
     bindings=lighting_bindings()
     by_id={f['id']:f for f in bindings['fixtures']} if bindings else {}
-    lighting=(_state if _state is not None else initial_state())['lighting']
-    effectives=[effective_fixture(by_id[fid],lighting['fixtures'].get(fid)) for fid in ids if fid in by_id]
+    room_states=(_state if _state is not None else initial_state())['roomStates']
+    effectives=[effective_fixture(by_id[fid],room_states.get(by_id[fid]['roomId'],{}).get('fixtures',{}).get(fid))
+        for fid in ids if fid in by_id]
     if not effectives: return dict(on=False,dimming=1.0,temperatureK=None)
     def merged(field):
         values={e[field] for e in effectives}
@@ -1037,13 +1242,15 @@ def show_selected_lighting(): unreal.log(_selected_lighting_status_text())
 def _apply_fixture_update(update):
     _require_no_active_compare()  # W06-v1 review R5
     if _selected_lighting is None: raise RuntimeError('先に照明またはグループを選択してください（照明の一覧から）。')
-    ids=_target_fixture_ids(_selected_lighting)
+    ids=_target_fixture_ids(_selected_lighting)  # all guaranteed in the active room
     state=current_state()
-    fixtures=dict(state['lighting']['fixtures'])
+    active_room_id=state['activeRoomId']
+    fixtures=dict(state['roomStates'][active_room_id]['fixtures'])
     for fixture_id in ids:
         merged=dict(fixtures.get(fixture_id,{})); merged.update(update)
         fixtures[fixture_id]=merged
-    state['lighting']=dict(state['lighting'],fixtures=fixtures)
+    state['roomStates']=dict(state['roomStates'])
+    state['roomStates'][active_room_id]=dict(state['roomStates'][active_room_id],fixtures=fixtures)
     apply_state(state)
     register_menu()
 
@@ -1075,17 +1282,24 @@ def set_temperature_selected_lighting():
 def reset_selected_lighting():
     _require_no_active_compare()  # W06-v1 review R5
     if _selected_lighting is None: raise RuntimeError('先に照明またはグループを選択してください（照明の一覧から）。')
-    ids=_target_fixture_ids(_selected_lighting)
-    state=current_state(); fixtures=dict(state['lighting']['fixtures'])
+    ids=_target_fixture_ids(_selected_lighting)  # all guaranteed in the active room
+    state=current_state(); active_room_id=state['activeRoomId']
+    fixtures=dict(state['roomStates'][active_room_id]['fixtures'])
     for fixture_id in ids: fixtures.pop(fixture_id,None)
-    state['lighting']=dict(state['lighting'],fixtures=fixtures)
+    state['roomStates']=dict(state['roomStates'])
+    state['roomStates'][active_room_id]=dict(state['roomStates'][active_room_id],fixtures=fixtures)
     apply_state(state)
     register_menu()
 
 
 def reset_all_lighting():
+    # W07-G1: resets only the ACTIVE room's fixtures -- other in-scope
+    # rooms' lighting is untouched (spec section 4: 室への切替だけで他室の
+    # 材質・光束を変えないのと同じ理由で、明示的な室別操作もその室限定).
     _require_no_active_compare()  # W06-v1 review R5
-    state=current_state(); state['lighting']=dict(state['lighting'],fixtures={})
+    state=current_state(); active_room_id=state['activeRoomId']
+    state['roomStates']=dict(state['roomStates'])
+    state['roomStates'][active_room_id]=dict(state['roomStates'][active_room_id],fixtures={})
     apply_state(state)
     register_menu()
 
@@ -1095,41 +1309,50 @@ def start_lighting_compare(index_a, index_b):
     dirs=_scenario_dirs()
     if not (0<=index_a<len(dirs) and 0<=index_b<len(dirs)): raise RuntimeError('案が見つかりません。')
     refresh_inputs=_refresh_inputs()
-    # Both scenarios validated (and both required to be night) BEFORE
-    # anything is touched -- same discipline as W04's finish A/B and W05's
-    # datetime A/B.
-    state_a=_load_scenario_state(refresh_inputs,index_a,dirs)
-    state_b=_load_scenario_state(refresh_inputs,index_b,dirs)
-    for name,state in ((dirs[index_a].name,state_a),(dirs[index_b].name,state_b)):
-        _validate_applicable(state,f'案「{name}」')
-        if state['lighting']['mode']!='night':
-            raise RuntimeError(f'案「{name}」は夜間モードではありません。照明A/Bは両案とも夜間の案が必要です。')
     base=current_state()
-    # W06 spec: fix current viewpoint/exposure/finish/surroundings/fixture
-    # specs -- only each candidate's own `lighting` switches between A/B.
-    fixed=dict(variant=base['variant'],surfaceOverrides=base['surfaceOverrides'],
-        azimuthDeg=base['azimuthDeg'],elevationDeg=base['elevationDeg'],
-        sunLux=base['sunLux'],exposureEV100=base['exposureEV100'],camera=base['camera'])
-    if base.get('solar') is not None:
-        # W06-v1 review R5: the numeric azimuth/elevation were already fixed
-        # above, but the date/time PROVENANCE label was still being dropped
-        # unconditionally in show_lighting_compare() below -- keep it fixed
-        # too when the base state actually has one.
-        fixed['solar']=base['solar']
+    active_room_id=base['activeRoomId']
+    # W07-G1 spec section 4: 照明A/Bが変えるのは「選択中の室」のfixturesだけ
+    # -- 他室のfixtures/仕上げ・選択室の仕上げ・太陽来歴（`before`をそのまま
+    # deepcopyするので自動的に維持される）・視点/露出・周辺条件は固定。両案
+    # とも対象室のroomState（かつ夜間）を持たなければ拒否する (Both
+    # scenarios validated -- and both required to be night -- BEFORE
+    # anything is touched, same discipline as W04's finish A/B and W05's
+    # datetime A/B.)
+    def fixtures_from_scenario(index):
+        name=dirs[index].name
+        raw=_load_scenario_state(refresh_inputs,index,dirs)
+        migrated=_migrate_scenario_state(raw,f'案「{name}」')
+        _validate_applicable(migrated,f'案「{name}」')
+        if migrated['lighting']['mode']!='night':
+            raise RuntimeError(f'案「{name}」は夜間モードではありません。照明A/Bは両案とも夜間の案が必要です。')
+        room_state=migrated['roomStates'].get(active_room_id)
+        if room_state is None:
+            raise RuntimeError(f'案「{name}」は対象室（{_room_label(active_room_id)}）の照明情報を含みません。')
+        return room_state['fixtures']
+    fixtures_a=fixtures_from_scenario(index_a)
+    fixtures_b=fixtures_from_scenario(index_b)
     global _lighting_compare
-    _lighting_compare=dict(fixed=fixed,before=base,a=state_a,b=state_b,
+    _lighting_compare=dict(before=base,a=fixtures_a,b=fixtures_b,active_room_id=active_room_id,
         names=(dirs[index_a].name,dirs[index_b].name),current=None)
     show_lighting_compare('a')
 
 
 def show_lighting_compare(which):
     if _lighting_compare is None: raise RuntimeError('照明A/Bを先に開始してください（比較開始）。')
-    state=dict(_lighting_compare[which]); state.update(_lighting_compare['fixed'])
-    if 'solar' not in _lighting_compare['fixed']: state.pop('solar',None)
+    # copy.deepcopy(before) keeps every other room, the active room's OWN
+    # variant/surfaceOverrides, solar provenance, camera/exposure and
+    # surroundings exactly as they were when the compare started -- only the
+    # active room's fixtures (and, since a lighting compare is only
+    # meaningful at night, the whole-house mode) change here.
+    state=copy.deepcopy(_lighting_compare['before'])
+    state['lighting']=dict(mode='night')
+    active_room_id=_lighting_compare['active_room_id']
+    state['roomStates']=dict(state['roomStates'])
+    state['roomStates'][active_room_id]=dict(state['roomStates'][active_room_id],fixtures=_lighting_compare[which])
     apply_state(state)
     _lighting_compare['current']=which
     unreal.log(f"照明比較中：{_lighting_compare['names'][0 if which=='a' else 1]}"
-        '（仕上げ・視点・露出・周辺条件・器具仕様は比較開始時点で固定）')
+        '（他室・対象室の仕上げ・視点・露出・周辺条件・太陽来歴は比較開始時点で固定）')
     register_menu()
 
 
@@ -1231,12 +1454,21 @@ def register_menu():
         entry.set_string_command(unreal.ToolMenuStringCommandType.PYTHON,'','import study_controls; study_controls.'+command)
         target.add_menu_entry(section,entry)
 
+    # W07-G1: which room 面編集/照明 list/target -- switching rooms only
+    # touches this, never any other room's state (spec section 4).
+    study_doc=read('SourcePackage/study.json')
+    active_room_id=current_state()['activeRoomId']
+    room_menu=parent.add_sub_menu('RyukaRoom','RyukaRoom','RyukaRoom','対象室',_room_status_text())
+    add(room_menu,'Status','RoomStatus',_room_status_text(),'show_room_status()')
+    for room_id in study_doc['roomIds']:
+        add(room_menu,'Select',f'RoomSelect{room_id}','切替：'+_room_label(room_id),f'select_room("{room_id}")')
+
     # W04: per-surface editing. Listed only for surfaces that actually
     # resolved to real bound geometry this generation (see
-    # surface-bindings.json); a registered-but-no-surface id never appears
-    # here to be targeted by mistake.
+    # surface-bindings.json), AND belong to the CURRENT active room (W07-G1:
+    # 室別variant、面選択、器具/グループ一覧はactiveRoomを基準に表示します).
     surfaces=surface_bindings()['surfaces'] if (project()/'surface-bindings.json').exists() else {}
-    bound=sorted((sid,info) for sid,info in surfaces.items() if info['status']=='bound')
+    bound=sorted((sid,info) for sid,info in surfaces.items() if info['status']=='bound' and info['roomId']==active_room_id)
     if bound:
         surface_menu=parent.add_sub_menu('RyukaSurfaces','RyukaSurfaces','RyukaSurfaces','面編集','壁・床・天井ごとの仕上げ')
         add(surface_menu,'Status','SurfaceStatus',_selected_surface_status_text(),'show_selected_surface()')
@@ -1340,11 +1572,17 @@ def register_menu():
         add(lighting_menu,'Mode','LightingNight','夜間へ切替（仮仕様）','set_lighting_night()')
         add(lighting_menu,'Select','LightingSelectedStatus',_selected_lighting_status_text(),'show_selected_lighting()')
         settings=read('lighting-settings.json')
-        known_ids={f['id'] for f in lighting_bindings_doc['fixtures']}
+        # W07-G1: only the ACTIVE room's fixtures/groups are offered here --
+        # a group is listed only when ALL its members are both resolvable
+        # AND in this room (matching _target_fixture_ids()'s own "all or
+        # nothing" rule; a group crossing rooms/scope is never partially
+        # operable from this menu).
+        room_fixture_ids={f['id'] for f in lighting_bindings_doc['fixtures'] if f['roomId']==active_room_id}
         for group in settings['groups']:
-            if any(fid in known_ids for fid in group['fixtureIds']):
+            if group['fixtureIds'] and all(fid in room_fixture_ids for fid in group['fixtureIds']):
                 add(lighting_menu,'Select','LightingSelectGroup'+group['id'],'選択：[グループ] '+group['label'],f'select_lighting("{group["id"]}")')
         for fixture in lighting_bindings_doc['fixtures']:
+            if fixture['roomId']!=active_room_id: continue
             add(lighting_menu,'Select','LightingSelectFixture'+fixture['id'],
                 f"選択：[{fixture['type']}] {fixture.get('label') or fixture['id']}",f'select_lighting("{fixture["id"]}")')
         for name,label,command in [('On','選択をON',"turn_on_selected_lighting()"),

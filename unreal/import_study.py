@@ -8,6 +8,7 @@ from finish_settings import details_for_variant
 from material_builder import material, marker_material
 from surface_finish_overrides import resolve_finish
 from lighting import validate_lighting_bindings
+import multi_room_state as mrs
 
 
 def write_json(path, value):
@@ -53,19 +54,35 @@ def main():
         details=details_for_variant(finish_document,variant)
         library[variant]={role:material(variant+'_'+role,palette[detail.get('paletteRole',role)],
             roughness=detail['roughness'],detail=detail) for role,detail in details.items()}
-    materials=library[study['variant']]
+    # W07-G1: role-bindings.json (Blender's own knowledge of which room a
+    # furniture/decor object belongs to -- envelope/exterior/roof geometry
+    # is never in it, see blender/build_interior.py) decides which room's
+    # OWN active variant a given actor's whole-scene role slots use;
+    # anything not in it (exterior walls/roof, un-owned geometry) uses the
+    # fixed baseline variant (spec section 3: "対象外室/外皮は既存の基準
+    # 材質を維持"). This is only the INITIAL assignment -- every later
+    # apply_state() (including the one this same import performs below)
+    # re-derives it the same way from study-bindings.json's own roomId tag.
+    role_bindings_doc=json.loads((package/'role-bindings.json').read_text(encoding='utf-8'))
+    actor_room={name.replace('.','_'):room_id for name,room_id in role_bindings_doc['actors'].items()}
+    room_materials={room_id:library[study['roomStates'][room_id]['variant']] for room_id in study['roomIds']}
+    base_materials=library[mrs.BASE_VARIANT]
     glass=material('Glass_provisional','ffffff',.02,glass=True)
     bindings={}
     for actor in meshes:
         comp = actor.static_mesh_component
+        label=actor.get_actor_label()
+        room_id=actor_room.get(label)
+        materials=room_materials[room_id] if room_id in room_materials else base_materials
         for index, mat in enumerate(comp.get_materials()):
             if mat.get_name() in materials:
-                role='floor' if actor.get_actor_label().startswith('slab_') and mat.get_name()=='wood' else mat.get_name()
-                bindings.setdefault(actor.get_actor_label(),{})[str(index)]=role
+                role='floor' if label.startswith('slab_') and mat.get_name()=='wood' else mat.get_name()
+                entry=bindings.setdefault(label,dict(roomId=room_id,slots={}))
+                entry['slots'][str(index)]=role
                 comp.set_material(index, materials[role])
             elif mat.get_name()=='Glass_provisional':
                 comp.set_material(index,glass)
-        if actor.get_actor_label().endswith('_glass'):
+        if label.endswith('_glass'):
             comp.set_cast_shadow(False)
 
     # W04: rebuild surface-bindings.json using the ACTUAL imported actor
@@ -96,7 +113,7 @@ def main():
             finish = resolve_finish(finish_document, study['settings']['variants'], info['kind'], variant)
             markers_by_variant[variant] = marker_material(
                 f'Surf_{surface_id}_{variant}', finish['colorHex'], finish['roughness'], detail=finish['detail'])
-        marker = markers_by_variant[study['variant']]
+        marker = markers_by_variant[study['roomStates'][info['roomId']]['variant']]
         entry = dict(roomId=info['roomId'], kind=info['kind'], status=info['status'],
             label=info.get('label'), meshes=[])
         for mesh_ref in info['meshes']:
@@ -181,9 +198,17 @@ def main():
         pp.set_editor_property('override_'+key, True)
         pp.set_editor_property(key,value)
     post.set_editor_property('settings',pp)
-    camera_data = study['settings']['camera']
+    # W07-G1: the initial camera is the scope's default (walkable) room's
+    # own safe camera (data/visual/room-render-settings.json), not a single
+    # project-wide one -- study_controls.select_room() uses the exact same
+    # source/conversion for every later room switch.
     source = json.loads((package/'inputs/data/house.json').read_text(encoding='utf-8'))
-    floor = source['levels']['fl1']
+    room_render_settings=mrs.validate_room_render_settings(
+        json.loads((package/'inputs/data/visual/room-render-settings.json').read_text(encoding='utf-8')))
+    legacy_study=json.loads((package/'inputs/data/visual/guest-ldk-study.json').read_text(encoding='utf-8'))
+    camera_room=next(r for r in source['rooms'] if r['id']==study['activeRoomId'])
+    camera_data = mrs.room_render(room_render_settings,study['activeRoomId'],legacy_study)['camera']
+    floor = source['levels'][f"fl{camera_room['level']}"]
     def point(p): return unreal.Vector(p[0]*100,p[1]*100,(p[2]+floor)*100)
     position,target = point(camera_data['position']),point(camera_data['target'])
     camera = spawn(unreal.CineCameraActor, 'Camera_guest_LDK', position, unreal.MathLibrary.find_look_at_rotation(position,target))
@@ -210,7 +235,9 @@ def main():
                 surfaceShaderSHA256=hashlib.sha256((project/'surface_finish.hlsl').read_bytes()).hexdigest(),
                 floorShaderSHA256=hashlib.sha256((project/'floor_finish.hlsl').read_bytes()).hexdigest(),
                 coordinates='UE centimetres: X=source x, Y=source z, Z=source y',
-                variant=state['variant'],sunAzimuth=state['azimuthDeg'],sunElevation=state['elevationDeg'],
+                scopeId=state['scopeId'],roomIds=study['roomIds'],activeRoomId=state['activeRoomId'],
+                activeVariant=state['roomStates'][state['activeRoomId']]['variant'],
+                sunAzimuth=state['azimuthDeg'],sunElevation=state['elevationDeg'],
                 sunLux=state['sunLux'],exposureEV100=state['exposureEV100'],
                 comparisonState=state,finishSettingsSHA256=hashlib.sha256((project/'finish-settings.json').read_bytes()).hexdigest(),
                 limitations=['Procedural world-space finishes are estimated, not measured product textures',

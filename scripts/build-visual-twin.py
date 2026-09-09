@@ -40,7 +40,7 @@ def inputs():
               'blender/surface_bindings.py', 'blender/guest_decor.py', 'blender/textile_assets.py',
               'blender/electrical_assets.py',
               'unreal/finish_settings.py', 'unreal/study_state.py', 'unreal/solar_position.py',
-              'unreal/surface_finish_overrides.py', 'unreal/lighting.py',
+              'unreal/surface_finish_overrides.py', 'unreal/lighting.py', 'unreal/multi_room_state.py',
               'scripts/surface_registry.py', 'scripts/build-visual-twin.py')]
     return {str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(
             p.read_bytes().replace(b'\r\n', b'\n')).hexdigest() for p in paths}
@@ -51,9 +51,12 @@ def main():
     parser.add_argument('--blender', required=True, type=Path)
     parser.add_argument('--output', type=Path, default=Path('build/visual-twin-baseline'))
     parser.add_argument('--interior', action='store_true', help='Build and render the provisional guest LDK study')
+    parser.add_argument('--scope', help='--interior only: data/visual/study-scopes.json scopeId. Defaults to '
+        '--state\'s own scopeId, or "guest-ldk" (single-room, pre-W07 compatible) if neither is given.')
     parser.add_argument('--variant', choices=('natural','warm','reference'), default='natural')
-    parser.add_argument('--state', type=Path, help='--interior only: validated study-state.json/scenario state; '
-        'overrides --variant with state.variant and carries surfaceOverrides through to Blender')
+    parser.add_argument('--state', type=Path, help='--interior only: validated study-state.json/scenario state '
+        '(schemaVersion 1.0.0-2.0.0); overrides --variant with the scope\'s per-room variant and carries '
+        'per-room surfaceOverrides through to Blender')
     parser.add_argument('--width', type=int, default=1600)
     parser.add_argument('--samples', type=int, default=128)
     parser.add_argument('--elevation', type=float)
@@ -84,25 +87,39 @@ def main():
             reasons = '; '.join(i['reason'] for i in surfaces['issues'])
             parser.error('Surface registry has unresolved entries: ' + reasons
                 + ' Run scripts/check-study-surfaces.py for details.')
-        if args.state:
-            # W04 review R4: an override naming a surface id that is not even
-            # a currently-registered/resolved id must stop HERE, before
-            # Blender starts -- not partway through the Blender build
-            # (build_interior.py's own check catches this too, but only
-            # after bpy has already loaded; that is not "before Blender").
-            # The no-surface case (a registered id with no matching real
-            # geometry) is a separate, genuinely model-dependent check that
-            # correctly stays in build_interior.py, after Blender builds the
-            # geometry and before Unreal import.
-            try:
-                state_overrides = json.loads(args.state.read_text(encoding='utf-8')).get('surfaceOverrides')
-            except Exception:
-                state_overrides = None  # malformed/unreadable; let build_interior.py's real validate_state() report it
-            if isinstance(state_overrides, dict):
-                known_ids = {s['id'] for s in surfaces['surfaces']}
-                unknown = sorted(set(state_overrides) - known_ids)
-                if unknown:
-                    parser.error('surfaceOverrides references unknown surface id(s): ' + ', '.join(unknown))
+        try:
+            raw_state = json.loads(args.state.read_text(encoding='utf-8')) if args.state else None
+        except Exception:
+            raw_state = None  # malformed/unreadable; let build_interior.py's real validate_state() report it
+        sys.path.insert(0, str(ROOT / 'unreal'))
+        import multi_room_state as mrs
+        scopes_document = mrs.validate_scopes(json.loads((ROOT / 'data/visual/study-scopes.json').read_text(encoding='utf-8')))
+        scope_id = args.scope or (raw_state or {}).get('scopeId') or 'guest-ldk'
+        try:
+            scope = mrs.resolve_scope(scopes_document, scope_id)
+        except ValueError as error:
+            parser.error(str(error))
+        room_ids = scope['roomIds']
+        # W04 review R4: an override naming a surface id that is not even a
+        # currently-registered/resolved id must stop HERE, before Blender
+        # starts -- not partway through the Blender build (build_interior.py's
+        # own check catches this too, but only after bpy has already loaded;
+        # that is not "before Blender"). The no-surface case (a registered id
+        # with no matching real geometry) is a separate, genuinely
+        # model-dependent check that correctly stays in build_interior.py,
+        # after Blender builds the geometry and before Unreal import.
+        if isinstance(raw_state, dict):
+            # W07-G1: a 2.0.0 state's overrides live per-room
+            # (roomStates[*].surfaceOverrides); anything older is still the
+            # single top-level surfaceOverrides this check has always had.
+            if raw_state.get('schemaVersion') == '2.0.0':
+                overrides_by_room = {rid: rs.get('surfaceOverrides') for rid, rs in (raw_state.get('roomStates') or {}).items()}
+            else:
+                overrides_by_room = {raw_state.get('roomId'): raw_state.get('surfaceOverrides')}
+            known_ids = {s['id'] for s in surfaces['surfaces']}
+            unknown = sorted({sid for overrides in overrides_by_room.values() if isinstance(overrides, dict) for sid in overrides} - known_ids)
+            if unknown:
+                parser.error('surfaceOverrides references unknown surface id(s): ' + ', '.join(unknown))
         # W06-v1 review R4: build_lighting_bindings() (unknown/unsupported
         # lighting type, missing profile, unresolvable mount) previously only
         # ran INSIDE build_interior.py, after Blender had already built the
@@ -112,7 +129,6 @@ def main():
         # also caught here, before Blender launches.
         sys.path.insert(0, str(ROOT / 'blender'))
         from electrical_assets import build_lighting_bindings
-        guest_settings = json.loads((ROOT / 'data/visual/guest-ldk-study.json').read_text(encoding='utf-8'))
         house_data = json.loads((ROOT / 'data/house.json').read_text(encoding='utf-8'))
         house_data['envelope'] = json.loads((ROOT / 'generated/visual-envelope.json').read_text(encoding='utf-8'))
         electrical_doc = json.loads((ROOT / 'data/electrical.json').read_text(encoding='utf-8'))
@@ -120,19 +136,19 @@ def main():
         lighting_settings_doc = json.loads((ROOT / 'data/visual/lighting-settings.json').read_text(encoding='utf-8'))
         try:
             lighting_bindings_preflight = build_lighting_bindings(
-                house_data, electrical_doc, catalog_doc, lighting_settings_doc, guest_settings['roomId'])
+                house_data, electrical_doc, catalog_doc, lighting_settings_doc, room_ids)
         except ValueError as error:
             parser.error('Lighting fixtures could not be resolved: ' + str(error))
-        if args.state:
-            try:
-                state_lighting = json.loads(args.state.read_text(encoding='utf-8')).get('lighting')
-            except Exception:
-                state_lighting = None  # malformed/unreadable; let build_interior.py's real validate_state() report it
-            if isinstance(state_lighting, dict) and isinstance(state_lighting.get('fixtures'), dict):
-                known_fixture_ids = {f['id'] for f in lighting_bindings_preflight['fixtures']}
-                unknown_fixtures = sorted(set(state_lighting['fixtures']) - known_fixture_ids)
-                if unknown_fixtures:
-                    parser.error('lighting.fixtures references unknown fixture id(s): ' + ', '.join(unknown_fixtures))
+        if isinstance(raw_state, dict):
+            if raw_state.get('schemaVersion') == '2.0.0':
+                fixtures_by_room = {rid: rs.get('fixtures') for rid, rs in (raw_state.get('roomStates') or {}).items()}
+            else:
+                state_lighting = raw_state.get('lighting')
+                fixtures_by_room = {raw_state.get('roomId'): (state_lighting or {}).get('fixtures') if isinstance(state_lighting, dict) else None}
+            known_fixture_ids = {f['id'] for f in lighting_bindings_preflight['fixtures']}
+            unknown_fixtures = sorted({fid for fixtures in fixtures_by_room.values() if isinstance(fixtures, dict) for fid in fixtures} - known_fixture_ids)
+            if unknown_fixtures:
+                parser.error('lighting.fixtures references unknown fixture id(s): ' + ', '.join(unknown_fixtures))
     output.parent.mkdir(parents=True, exist_ok=True)
     # Stage a new package; failures cannot replace the last successful build.
     with tempfile.TemporaryDirectory(prefix='.visual-twin-', dir=output.parent) as temp:
@@ -144,7 +160,8 @@ def main():
         if args.interior:
             command = [args.blender, '--background', '--factory-startup', '--python-exit-code', '1',
                        '--python', ROOT / 'blender/build_interior.py', '--', '--output', staging,
-                       '--variant', args.variant, '--samples', args.samples, '--width', args.width, '--render']
+                       '--scope', scope_id, '--variant', args.variant,
+                       '--samples', args.samples, '--width', args.width, '--render']
             if args.elevation is not None:
                 command += ['--elevation', args.elevation]
             if args.state:
@@ -169,7 +186,8 @@ def main():
         if args.interior:
             rendered += ['data/furniture.json', 'data/furniture-catalog.json',
                          'data/visual/guest-ldk-study.json', 'data/visual/asset-bindings.json', 'data/visual/guest-decor.json', 'generated/visual-envelope.json',
-                         'data/electrical.json', 'data/electrical-catalog.json', 'data/visual/lighting-settings.json']
+                         'data/electrical.json', 'data/electrical-catalog.json', 'data/visual/lighting-settings.json',
+                         'data/visual/study-scopes.json', 'data/visual/room-render-settings.json', 'data/visual/surface-registry.json']
         manifest = dict(schemaVersion='0.1.0', stage='geometry-transfer-prototype',
                         daylightReady=False, unrealImportVerified=False,
                         sourceCommit=run(['git', 'rev-parse', 'HEAD'], verbose=False).strip(),
@@ -189,7 +207,7 @@ def main():
                                      'Generated wall sequence IDs are not stable finish bindings'],
                         artifacts={name: dict(bytes=(staging / name).stat().st_size,
                                    sha256=hashlib.sha256((staging / name).read_bytes()).hexdigest())
-                                   for name in (('interior.blend','interior.glb','interior.png','study.json','surface-bindings.json','lighting-bindings.json')
+                                   for name in (('interior.blend','interior.glb','interior.png','study.json','surface-bindings.json','lighting-bindings.json','role-bindings.json')
                                                 if args.interior else ('house.blend', 'house.glb'))})
         if args.interior:
             manifest['stage'] = 'guest-ldk-visual-study'
