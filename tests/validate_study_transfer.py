@@ -11,8 +11,13 @@ args=parser.parse_args()
 source=json.loads(args.state.read_text(encoding='utf-8'))
 actual=json.loads((args.project/'study-state.json').read_text(encoding='utf-8'))
 report=json.loads((args.project/'import-verification.json').read_text(encoding='utf-8'))
-for key in ('roomId','variant','schemaVersion'):
+for key in ('roomId','variant'):
     assert actual[key]==source[key],key
+# schemaVersion is NOT expected to match: study_controls.scene_state() always
+# saves the CURRENT schema (1.2.0, W06) regardless of what schema the source
+# state was written in -- a --scenario/--previous saved before W06 (1.0.0/
+# 1.1.0) legitimately upgrades on regeneration, it does not regress or drift.
+assert actual['schemaVersion']=='1.2.0','schemaVersion must upgrade to the current schema on regeneration'
 for key in ('azimuthDeg','elevationDeg','sunLux','exposureEV100'):
     assert abs(actual[key]-source[key])<1e-6,key
 for key in ('locationCm','rotationDeg'):
