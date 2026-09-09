@@ -2,7 +2,7 @@
 
 - **仕様書**：[W07-G1-multi-room-foundation.md](W07-G1-multi-room-foundation.md)（進行計画：[W07-staged-design.md](W07-staged-design.md)）
 - **BASE**：`5d4d3cbb06f4436a3574c12dea44ade7a20fb3f3`（着手時HEAD、`docs: accept W06 and define guest-first W07-G1 implementation`）
-- **HEAD**：本コミット（下記コミットログ参照）
+- **HEAD**：`f382edf4de0c636e6c168048ba25bb2ff7fd2e3d`（`W07-G1: multi-room foundation for guest LDK + western room`）
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G1のみ（ゲストLDK＋洋室の2室基盤）。G2（室間移動）以降は未着手。
 
