@@ -404,6 +404,21 @@ FString AWalkthroughCharacter::CurrentVariantLabel() const {
  if(Variant==TEXT("reference")) return TEXT("石調の床・木板天井");
  return Variant;
 }
+// W05: distinguishes a date/time-derived sun angle from a manual one on the
+// HUD -- State->solar is the same generic passthrough FJsonObject already
+// round-tripped through F5/F9 with no C++ changes (SetSun() clears it on a
+// manual change; study_controls.py's set_sun_case()/daylight A/B set it).
+FString AWalkthroughCharacter::CurrentSolarLabel() const {
+ if(!bReady||!State.IsValid()) return FString();
+ const TSharedPtr<FJsonObject>* Solar;
+ if(!State->TryGetObjectField(TEXT("solar"),Solar)) return TEXT("手動角度（未校正）");
+ FString Stamp,LocationStatus,NorthStatus;
+ (*Solar)->TryGetStringField(TEXT("localTimestamp"),Stamp);
+ (*Solar)->TryGetStringField(TEXT("locationStatus"),LocationStatus);
+ (*Solar)->TryGetStringField(TEXT("northStatus"),NorthStatus);
+ const bool bEstimated=LocationStatus!=TEXT("verified")||NorthStatus!=TEXT("verified");
+ return Stamp+(bEstimated?TEXT("（日時・位置概算）"):TEXT("（日時・入力確認済み）"));
+}
 void AWalkthroughCharacter::SaveView() {
  if(!bReady) return;
  FString RecoveryMessage;
@@ -762,13 +777,15 @@ void AWalkthroughCharacter::Tick(float Delta) {
 AWalkthroughGameMode::AWalkthroughGameMode(){DefaultPawnClass=AWalkthroughCharacter::StaticClass();HUDClass=AWalkthroughHUD::StaticClass();}
 void AWalkthroughHUD::DrawHUD(){
  Super::DrawHUD();
- DrawRect(FLinearColor(0,0,0,.65),12,12,820,98);
+ DrawRect(FLinearColor(0,0,0,.65),12,12,820,120);
  DrawText(TEXT("WASD：歩行　｜　マウス：視点　｜　Tab：カーソル解放　｜　F5：保存　｜　F9：復元"),FLinearColor::White,24,22);
  DrawText(TEXT("1/2/3：仕上げ切替　｜　4/5：太陽高度30/60度　｜　目線高さ1.60m　｜　採光は仮条件です"),FLinearColor::White,24,44);
  if(auto P=Cast<AWalkthroughCharacter>(GetOwningPawn())) {
   const FString Variant=P->CurrentVariantLabel();
   DrawText(Variant.IsEmpty()?FString(TEXT("現在の仕上げ：－")):(TEXT("現在の仕上げ：")+Variant),FLinearColor::White,24,66);
-  DrawText(P->Message,FLinearColor::Yellow,24,88);
+  // W05:日時由来か手動角度かをHUDで区別する。
+  DrawText(TEXT("太陽条件：")+P->CurrentSolarLabel(),FLinearColor::White,24,88);
+  DrawText(P->Message,FLinearColor::Yellow,24,110);
  }
 }
 int32 UWalkthroughLibrary::Prepare(UWorld* World) {

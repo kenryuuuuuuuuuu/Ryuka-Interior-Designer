@@ -11,7 +11,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'unreal'))
 from study_state import default_state, validate_state
-from solar_position import validate_cases
+from solar_position import validate_cases, validate_site, cases_match_site
 from site_context import validate_context
 from finish_settings import validate_finishes
 
@@ -26,10 +26,19 @@ def main():
     parser.add_argument('--exposure-ev100',type=float,default=7.5,help='Fixed UE exposure (not Blender EV)')
     parser.add_argument('--state',type=Path,help='Saved study-state.json; overrides finish, light, exposure and camera')
     parser.add_argument('--sun-cases',type=Path,help='Local solar case list from plan-sun-study.py')
+    parser.add_argument('--site',type=Path,help='Local site input (lat/long/plan-north); see solar_position.validate_site()')
     parser.add_argument('--context',type=Path,help='Local neighbouring buildings/walls; box approximations')
     args=parser.parse_args()
     validate_finishes(json.loads((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8')))
-    if args.sun_cases: validate_cases(json.loads(args.sun_cases.read_text(encoding='utf-8')))
+    sun_cases=None
+    if args.sun_cases: sun_cases=validate_cases(json.loads(args.sun_cases.read_text(encoding='utf-8')))
+    if args.site:
+        site=validate_site(json.loads(args.site.read_text(encoding='utf-8-sig')))
+        # W05: same rule as refresh_inputs.py -- a site input that doesn't
+        # match the sun-cases it is generated alongside would silently make
+        # every "date" comparison show the wrong angles for this project.
+        if sun_cases and not cases_match_site(sun_cases['cases'],site):
+            parser.error('--site does not match --sun-cases; regenerate the cases for this site first (plan-sun-study.py)')
     if args.context:
         if not args.context.resolve().is_relative_to(ROOT/'build') or not args.output.resolve().is_relative_to(ROOT/'build'):
             parser.error('Keep context inputs and generated projects within this worktree build/.')
@@ -72,6 +81,7 @@ def main():
     shutil.copy2(ROOT/'data/visual/unreal-finishes.json',output/'finish-settings.json')
     if args.state: shutil.copy2(args.state,output/'study-state.json')
     if args.sun_cases: shutil.copy2(args.sun_cases,output/'sun-cases.json')
+    if args.site: shutil.copy2(args.site,output/'site.local.json')
     if args.context: shutil.copy2(args.context,output/'site-context.json')
     (output/'import-job.json').write_text(json.dumps(dict(sunLux=args.sun_lux,
         exposureEV100=args.exposure_ev100),indent=2)+'\n',encoding='utf-8')

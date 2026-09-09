@@ -175,7 +175,7 @@ def main():
         command=[sys.executable,ROOT/'scripts/build-unreal-study.py','--engine',args.engine,
             '--package',output/'blender','--output',output/'ue','--cache',args.cache,
             '--state',saved/'study-state.json']
-        for key,flag in [('sunCases','--sun-cases'),('context','--context')]:
+        for key,flag in [('sunCases','--sun-cases'),('context','--context'),('site','--site')]:
             if key in retained: command += [flag,saved/retained[key].name]
         run('03-unreal',command)
         if (previous/'walkthrough.json').exists():

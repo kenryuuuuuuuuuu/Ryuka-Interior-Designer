@@ -5,7 +5,8 @@ import sys
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
-from solar_position import position, make_case, validate_case, apply_case, matches
+from solar_position import (position, make_case, validate_case, apply_case, matches,
+    site_sha256, cases_match_site, season_reference_timestamps)
 
 SITE=dict(schemaVersion='1.0.0',latitudeDeg=35,longitudeDeg=135,
           planNorthAzimuthDeg=0,locationStatus='estimated',northStatus='estimated',
@@ -44,6 +45,29 @@ class SolarTests(unittest.TestCase):
         self.assertFalse(case['usable']); self.assertIsNotNone(case['reason'])
         validate_case(case)
         with self.assertRaises(ValueError): apply_case({},case)
+
+    def test_site_sha256_matches_make_case(self):
+        # W05: site_sha256() must be the exact same hash make_case() has
+        # always embedded as siteSHA256 -- extracted into its own function,
+        # not reimplemented, so a caller checking "does this site match
+        # these cases" cannot silently drift from what created them.
+        case=make_case(SITE,'2026-12-22T12:00:00+09:00')
+        self.assertEqual(case['siteSHA256'],site_sha256(SITE))
+
+    def test_cases_match_site(self):
+        cases=[make_case(SITE,'2026-12-22T12:00:00+09:00'),make_case(SITE,'2026-06-21T12:00:00+09:00')]
+        self.assertTrue(cases_match_site(cases,SITE))
+        other=dict(SITE,latitudeDeg=36)
+        self.assertFalse(cases_match_site(cases,other))
+        self.assertTrue(cases_match_site([],other))  # vacuously true; nothing to contradict
+
+    def test_season_reference_timestamps(self):
+        stamps=season_reference_timestamps(2026)
+        self.assertEqual(len(stamps),12)
+        self.assertEqual(len(set(stamps)),12)
+        for stamp in stamps: make_case(SITE,stamp)  # every one must be a valid, parseable timestamp
+        self.assertIn('2026-06-21T12:00:00+09:00',stamps)
+        with self.assertRaises(ValueError): season_reference_timestamps(1800)
 
     def test_reject_ambiguous_inputs(self):
         for time in ['2026-12-22T12:00:00','2100-01-01T12:00:00Z','invalid']:

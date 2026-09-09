@@ -557,9 +557,19 @@ def build_furniture(data,settings,mats):
     return items
 
 
-def setup_lighting(settings, args):
+def setup_lighting(settings, args, state=None):
     light=dict(settings['lighting'])
-    if args.elevation is not None:
+    # W05: state.azimuthDeg/elevationDeg (already plan-relative, same
+    # convention as settings['lighting']) take priority over --elevation,
+    # matching the existing state.variant-over---variant precedence -- a
+    # date/time comparison's saved azimuth was previously dropped here
+    # entirely (only --elevation and only elevation, never azimuth, were
+    # ever applied), so a Blender render from --state showed the DEFAULT
+    # angle instead of that state's actual sun position.
+    if state is not None:
+        light['azimuthDeg']=state['azimuthDeg']
+        light['elevationDeg']=state['elevationDeg']
+    elif args.elevation is not None:
         light['elevationDeg']=args.elevation
     az,el=math.radians(light['azimuthDeg']),math.radians(light['elevationDeg'])
     direction=Vector((math.sin(az)*math.cos(el), math.cos(az)*math.cos(el), math.sin(el)))
@@ -582,7 +592,8 @@ def main():
     parser.add_argument('--output',required=True,type=Path)
     parser.add_argument('--variant',default='natural')
     parser.add_argument('--state',type=Path,help='Validated study-state.json/scenario state; '
-        'overrides --variant with state.variant and carries surfaceOverrides. Omit for the plain default (no overrides).')
+        'overrides --variant with state.variant, carries surfaceOverrides, and sets the sun to '
+        "state's azimuthDeg/elevationDeg (overriding --elevation). Omit for the plain default (no overrides).")
     parser.add_argument('--render',action='store_true')
     parser.add_argument('--samples',type=int,default=128)
     parser.add_argument('--width',type=int,default=1600)
@@ -641,7 +652,7 @@ def main():
     block('Ground.context-provisional',-60,70,-60,60,-.1,0,material('Ground','888276'))
     for obj in bpy.context.scene.objects:
         if obj.type=='MESH' and obj.name.startswith(('slab.','ceiling.')): assign_surface_uv(obj)
-    light=setup_lighting(settings,args)
+    light=setup_lighting(settings,args,state)
     room=next(r for r in data['rooms'] if r['id']==settings['roomId']); floor=data['levels'][f"fl{room['level']}"]
     x,z,y=settings['camera']['position']; bpy.ops.object.camera_add(location=(x,-z,y+floor))
     camera=bpy.context.object; camera.name='Camera.guest-ldk.fixed'

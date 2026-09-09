@@ -21,10 +21,12 @@ ROOT=Path(__file__).resolve().parents[1]
 SCENARIO_ROOT=ROOT
 sys.path.insert(0,str(ROOT/'unreal'))
 from study_state import validate_state
-from solar_position import validate_cases
+from solar_position import validate_cases, validate_site, cases_match_site
 from site_context import validate_context
 
-ALLOWED_SCENARIO_FILES=('study-state.json','sun-cases.json','site-context.json')
+# W05: site.local.json (the local lat/long/plan-north input, see
+# solar_position.validate_site()) added alongside the existing three.
+ALLOWED_SCENARIO_FILES=('study-state.json','sun-cases.json','site-context.json','site.local.json')
 
 
 def read(path): return json.loads(path.read_text(encoding='utf-8-sig'))
@@ -49,6 +51,7 @@ def retained_inputs(previous, gallery=False):
     if runtime.exists() and runtime.stat().st_mtime>state_path.stat().st_mtime: state_path=runtime
     state=validate_state(read(state_path),dict(roomId=settings['roomId'],settings=settings))
     paths={'state':state_path}
+    cases=None
     if (previous/'sun-cases.json').exists():
         cases=validate_cases(read(previous/'sun-cases.json'))['cases']
         paths['sunCases']=previous/'sun-cases.json'
@@ -56,6 +59,16 @@ def retained_inputs(previous, gallery=False):
             raise ValueError('Gallery requires 1–12 usable solar cases')
     elif gallery:
         raise ValueError('The previous study has no solar cases for a comparison gallery')
+    # W05: site.local.json is optional and its ABSENCE is never an error here
+    # (an old scenario/previous study with valid solar/sun-cases but no
+    # retained site input is still usable, per spec) -- only its PRESENCE
+    # together with an inconsistent sun-cases.json is, since applying those
+    # cases would then silently use angles computed for a different site.
+    if (previous/'site.local.json').exists():
+        site=validate_site(read(previous/'site.local.json'))
+        if cases is not None and not cases_match_site(cases,site):
+            raise ValueError('Local site does not match the retained solar cases; recompute the cases for the current site first')
+        paths['site']=previous/'site.local.json'
     context=previous/'site-context.json'
     expected=state.get('siteContextSHA256')
     imported=report.get('siteContext')
@@ -90,6 +103,7 @@ def scenario_inputs(scenario_dir, gallery=False):
     settings=read(ROOT/'data/visual/guest-ldk-study.json')
     state=validate_state(read(resolved['study-state.json']),dict(roomId=settings['roomId'],settings=settings))
     paths={'state':resolved['study-state.json']}
+    cases=None
     if 'sun-cases.json' in resolved:
         cases=validate_cases(read(resolved['sun-cases.json']))['cases']
         paths['sunCases']=resolved['sun-cases.json']
@@ -97,6 +111,12 @@ def scenario_inputs(scenario_dir, gallery=False):
             raise ValueError('Gallery requires 1–12 usable solar cases')
     elif gallery:
         raise ValueError('The scenario has no solar cases for a comparison gallery')
+    # W05: same optional-presence rule as retained_inputs() -- see there.
+    if 'site.local.json' in resolved:
+        site=validate_site(read(resolved['site.local.json']))
+        if cases is not None and not cases_match_site(cases,site):
+            raise ValueError('Scenario site does not match its bundled solar cases')
+        paths['site']=resolved['site.local.json']
     context_expected=state.get('siteContextSHA256')
     if 'site-context.json' in resolved:
         validate_context(read(resolved['site-context.json']))

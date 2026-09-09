@@ -65,12 +65,51 @@ def position(local_time, latitude, longitude, plan_north=0):
     return dict(trueAzimuthDeg=azimuth, azimuthDeg=(azimuth-plan_north)%360, elevationDeg=elevation)
 
 
+def site_sha256(site):
+    """Semantic hash of a local site input (W05): the SAME canonical
+    (sorted-key) JSON encoding make_case() has always hashed into a solar
+    case's siteSHA256 -- kept as its own function so a caller checking
+    "does this site.local.json still match these cases" hashes the PARSED
+    site dict, not the on-disk file's raw bytes (which can differ in
+    indentation/whitespace/trailing newline without the site's actual
+    content having changed). Never conflate the two."""
+    validate_site(site)
+    return hashlib.sha256(json.dumps(site,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+
+
+def cases_match_site(cases, site):
+    """True if every case in `cases` (an iterable of solar cases, e.g.
+    document['cases']) was computed from exactly this site input. Used
+    whenever a site.local.json and a sun-cases.json are both present, to
+    catch a sun-cases.json left over from before the site changed --
+    recomputing is always an explicit, separate action (see
+    study_controls.recompute_sun_cases()), never automatic here."""
+    expected = site_sha256(site)
+    return all(case.get('siteSHA256') == expected for case in cases)
+
+
+SEASON_REFERENCE_DATES = ((3, 21), (6, 21), (9, 21), (12, 21))
+SEASON_REFERENCE_HOURS = (9, 12, 15)
+
+
+def season_reference_timestamps(year, utc_offset='+09:00'):
+    """12 representative local timestamps (4 calendar dates near the
+    equinoxes/solstices x 3 times of day) for `year`, in `utc_offset`. These
+    are fixed CALENDAR dates (month/day), not the astronomically exact
+    equinox/solstice instant for that year -- callers must not describe them
+    as such (W05 spec section 2)."""
+    if not isinstance(year, int) or isinstance(year, bool) or not 1901 <= year <= 2099:
+        raise ValueError('Invalid year')
+    return [f'{year:04d}-{month:02d}-{day:02d}T{hour:02d}:00:00{utc_offset}'
+            for month, day in SEASON_REFERENCE_DATES for hour in SEASON_REFERENCE_HOURS]
+
+
 def make_case(site, local_time):
     validate_site(site)
     angles = position(local_time, site['latitudeDeg'], site['longitudeDeg'], site['planNorthAzimuthDeg'])
     usable = 1 <= angles['elevationDeg'] <= 89
     return dict(algorithm=ALGORITHM, localTimestamp=timestamp(local_time).isoformat(),
-        siteSHA256=hashlib.sha256(json.dumps(site,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),
+        siteSHA256=site_sha256(site),
         locationStatus=site['locationStatus'], northStatus=site['northStatus'],
         planNorthAzimuthDeg=site['planNorthAzimuthDeg'], **angles, usable=usable,
         reason=None if usable else 'Solar elevation outside the supported daylight interval [1, 89] degrees')

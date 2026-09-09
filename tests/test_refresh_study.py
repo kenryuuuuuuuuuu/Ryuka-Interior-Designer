@@ -10,6 +10,7 @@ from types import SimpleNamespace
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('refresh',ROOT/'scripts/refresh-visual-study.py')
 m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+from solar_position import make_case  # sys.path already has unreal/, inserted by m's own module code above
 
 
 class RefreshTests(unittest.TestCase):
@@ -56,6 +57,21 @@ class RefreshTests(unittest.TestCase):
 
     def test_old_context_without_saved_binding_rejected_early(self):
         self.write('site-context.json',dict(schemaVersion='1.0.0',boxes=[]))
+        with self.assertRaises(ValueError): m.retained_inputs(self.previous)
+
+    def test_site_retained_and_stale_cases_rejected(self):
+        # W05: site.local.json is optional and retained on its own; only
+        # checked for consistency once sun-cases.json also exists.
+        site=dict(schemaVersion='1.0.0',latitudeDeg=35,longitudeDeg=135,planNorthAzimuthDeg=0,
+            locationStatus='estimated',northStatus='estimated',note='Synthetic test site.')
+        self.write('site.local.json',site)
+        self.assertIn('site',m.retained_inputs(self.previous))
+        self.write('sun-cases.json',dict(schemaVersion='1.0.0',siteDaylightCalibrated=False,
+            cases=[make_case(site,'2026-06-21T12:00:00+09:00')]))
+        self.assertIn('site',m.retained_inputs(self.previous))
+        # Site changed after the cases were computed -- must be rejected,
+        # not silently retained as if it still matched.
+        self.write('site.local.json',dict(site,latitudeDeg=36))
         with self.assertRaises(ValueError): m.retained_inputs(self.previous)
 
     def test_summary_escapes_note_and_links_only_requested_gallery(self):

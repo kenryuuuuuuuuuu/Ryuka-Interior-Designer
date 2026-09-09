@@ -153,6 +153,32 @@ class ScenarioTests(unittest.TestCase):
         self.assertEqual(paths['state'],output/'study-state.json')
         self.assertEqual(scenario['name'],'再適用対象の案')
 
+    def test_scenario_bundles_site_and_rejects_stale_cases(self):
+        # W05: site.local.json is picked up by the same generic retained-files
+        # loop save_scenario_package() already had -- no special-casing needed
+        # there -- but scenario_inputs() must still check it against any
+        # bundled sun-cases.json.
+        from solar_position import make_case
+        site=dict(schemaVersion='1.0.0',latitudeDeg=35,longitudeDeg=135,planNorthAzimuthDeg=0,
+            locationStatus='estimated',northStatus='estimated',note='Synthetic test site.')
+        self.write('site.local.json',site)
+        output=self.run_save('敷地付きの案')
+        self.assertTrue((output/'site.local.json').is_file())
+        paths,_=refresh_inputs.scenario_inputs(output)
+        self.assertEqual(paths['site'],output/'site.local.json')
+        # Now bundle a sun-cases.json computed under a DIFFERENT site into
+        # the same package (simulating a hand-edited/stale package) and
+        # re-sign scenario.json so only the site/cases mismatch is being
+        # tested, not the file-hash check.
+        stale_cases=dict(schemaVersion='1.0.0',siteDaylightCalibrated=False,
+            cases=[make_case(dict(site,latitudeDeg=36),'2026-06-21T12:00:00+09:00')])
+        (output/'sun-cases.json').write_text(json.dumps(stale_cases),encoding='utf-8')
+        scenario=json.loads((output/'scenario.json').read_text(encoding='utf-8'))
+        scenario['files']['sun-cases.json']=dict(sha256=refresh_inputs.sha(output/'sun-cases.json'))
+        (output/'scenario.json').write_text(json.dumps(scenario),encoding='utf-8')
+        with self.assertRaises(ValueError):
+            refresh_inputs.scenario_inputs(output)
+
     def test_scenario_inputs_rejects_hash_mismatch(self):
         output=self.run_save('改ざん検知対象の案')
         (output/'study-state.json').write_text(json.dumps(dict(self.state,variant='reference')),encoding='utf-8')

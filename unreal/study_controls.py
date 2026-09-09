@@ -8,13 +8,15 @@ import subprocess
 import sys
 import unreal
 from study_state import default_state, validate_state
-from solar_position import apply_case, matches, validate_cases
+from solar_position import (apply_case, matches, validate_cases, validate_site,
+    cases_match_site, make_case, season_reference_timestamps, site_sha256)
 from material_builder import rgb
 from surface_finish_overrides import resolve_finish, resolve_overrides
 
 _state=None
 _selected_surface=None  # surfaceId currently targeted by the 面編集 menu
-_compare=None  # A/B comparison in progress: dict(fixed=..,before=..,a=..,b=..,current=..,names=..)
+_compare=None  # W04 finish A/B in progress: dict(fixed=..,before=..,a=..,b=..,current=..,names=..)
+_daylight_compare=None  # W05 datetime A/B in progress: dict(fixed=..,before=..,a=..,b=..,current=..,names=..)
 
 
 def project(): return Path(unreal.Paths.project_dir()).resolve()
@@ -453,12 +455,29 @@ def _context_compatible(state):
     return not expected
 
 
+def _validate_applicable(state, label):
+    """Shared, side-effect-free pre-check (no scene mutation) for whether
+    `state` can be applied to the CURRENT project at all: site-context
+    compatibility (see _context_compatible) AND every surfaceOverrides key
+    actually resolving to a bound surface in this room (resolve_overrides()
+    -- the same check apply_state() itself does, just run here BEFORE
+    anything is touched). W05: used by every path that must validate two
+    candidate states before switching between them (W04's finish A/B, W05's
+    datetime A/B, named-scenario load) so a broken second candidate is
+    caught up front, not only once the operator actually switches to it."""
+    if not _context_compatible(state):
+        raise RuntimeError(f'{label}は現在のプロジェクトの周辺条件（site-context.json）と一致しません。')
+    surfaces=surface_bindings()['surfaces']
+    _,issues=resolve_overrides(state.get('surfaceOverrides') or {},dict(surfaces=surfaces),room_id=state.get('roomId'))
+    if issues:
+        raise RuntimeError(f'{label}の面別仕上げが現在のモデルと一致しません: '+'; '.join(i['reason'] for i in issues))
+
+
 def load_scenario(index):
     dirs=_scenario_dirs()
     if not 0<=index<len(dirs): raise RuntimeError('案が見つかりません。')
     state=_load_scenario_state(_refresh_inputs(),index,dirs)
-    if not _context_compatible(state):
-        raise RuntimeError(f'案「{dirs[index].name}」は現在のプロジェクトの周辺条件（site-context.json）と一致しません。')
+    _validate_applicable(state,f'案「{dirs[index].name}」')
     apply_state(state)
     unreal.log('案を読み込みました: '+dirs[index].name)
     register_menu()
@@ -473,8 +492,7 @@ def start_compare(index_a, index_b):
     state_a=_load_scenario_state(refresh_inputs,index_a,dirs)
     state_b=_load_scenario_state(refresh_inputs,index_b,dirs)
     for name,state in ((dirs[index_a].name,state_a),(dirs[index_b].name,state_b)):
-        if not _context_compatible(state):
-            raise RuntimeError(f'案「{name}」は現在のプロジェクトの周辺条件（site-context.json）と一致しません。')
+        _validate_applicable(state,f'案「{name}」')
     base=current_state()
     fixed=dict(azimuthDeg=base['azimuthDeg'],elevationDeg=base['elevationDeg'],
         sunLux=base['sunLux'],exposureEV100=base['exposureEV100'],camera=base['camera'])
@@ -526,6 +544,225 @@ def pick_compare_b(index):
     start_compare(_compare_pick_a,index)
 
 
+# --- W05: local site input, datetime solar cases, datetime A/B compare ---
+# Same interaction model as the W04 block above: menu clicks plus a few free-
+# text prompts (a file path, a date/time, provenance notes) via the same
+# PowerShell InputBox _prompt() -- never raw JSON editing or a Python console.
+
+def _site_path(): return project()/'site.local.json'
+
+
+def current_site():
+    """The project's local site snapshot (see solar_position.validate_site()),
+    or None if none has been loaded/created yet. Raises if the file exists
+    but fails validation -- a corrupted snapshot must not be silently
+    treated as absent."""
+    if not _site_path().exists(): return None
+    return validate_site(read('site.local.json'))
+
+
+def _site_status_text():
+    site=current_site()
+    if site is None:
+        return '敷地：未設定（「敷地を読み込む」または「敷地を新規作成」を実行してください）'
+    precision='概算' if 'estimated' in (site['locationStatus'],site['northStatus']) else '入力確認済み'
+    # Local-only display (this editor session's Tools menu, never committed
+    # or included in any report) -- W05 spec explicitly requires the actual
+    # position/orientation be checkable through normal UI, not JSON/console.
+    return (f"敷地：緯度{site['latitudeDeg']:.5f}° 経度{site['longitudeDeg']:.5f}° "
+        f"図面北方位{site['planNorthAzimuthDeg']:.1f}°［{precision}］　根拠：{site['note']}")
+
+
+def show_site_status(): unreal.log(_site_status_text())
+
+
+def load_site():
+    path_text=_prompt('敷地を読み込む','敷地JSONファイルのパス（このworktreeのbuild/配下）','').strip()
+    if not path_text: return
+    path=Path(path_text)
+    if not path.is_absolute(): path=(_repo_root()/path_text).resolve()
+    if not path.is_file(): raise RuntimeError('ファイルが見つかりません: '+str(path))
+    site=validate_site(json.loads(path.read_text(encoding='utf-8-sig')))
+    old_site=current_site()
+    write('site.local.json',site)
+    if old_site is not None and site_sha256(old_site)!=site_sha256(site) and (project()/'sun-cases.json').exists():
+        unreal.log('敷地を変更しました。既存の日時ケースはこの敷地と一致しない可能性があります。'
+            '必要なら「日時ケースを現在の敷地で再計算」を実行してください（自動では再計算しません）。')
+    unreal.log('敷地を読み込みました: '+str(path))
+    register_menu()
+
+
+def create_site_input():
+    lat_text=_prompt('敷地の新規作成 (1/6)','緯度（度。南緯は負の値）例：35.681','').strip()
+    lon_text=_prompt('敷地の新規作成 (2/6)','経度（度。西経は負の値）例：139.767','').strip()
+    north_text=_prompt('敷地の新規作成 (3/6)','図面北の、真北からの時計回り方位（度、0〜360）例：0','').strip()
+    if not (lat_text and lon_text and north_text): return
+    location_status=(_prompt('敷地の新規作成 (4/6)','位置の根拠：確認済みなら verified、概算なら estimated',
+        'estimated').strip() or 'estimated')
+    north_status=(_prompt('敷地の新規作成 (5/6)','真北の根拠：確認済みなら verified、概算なら estimated',
+        'estimated').strip() or 'estimated')
+    note=_prompt('敷地の新規作成 (6/6)','根拠メモ（資料名・確認方法など、必須）','').strip()
+    if not note: raise RuntimeError('根拠メモは必須です。')
+    site=validate_site(dict(schemaVersion='1.0.0',latitudeDeg=float(lat_text),longitudeDeg=float(lon_text),
+        planNorthAzimuthDeg=float(north_text),locationStatus=location_status,northStatus=north_status,note=note))
+    output_text=_prompt('敷地の新規作成','保存先パス（build/配下の新しいファイル名）','build/site.local.json').strip()
+    if not output_text: return
+    output=Path(output_text)
+    if not output.is_absolute(): output=(_repo_root()/output_text).resolve()
+    if not output.is_relative_to(_repo_root()/'build'): raise RuntimeError('保存先はこのworktreeのbuild/配下にしてください。')
+    if output.exists(): raise RuntimeError('既存ファイルは上書きしません。別のファイル名を指定してください。')
+    output.parent.mkdir(parents=True,exist_ok=True)
+    output.write_text(json.dumps(site,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    write('site.local.json',site)
+    unreal.log('敷地を新規作成し、読み込みました: '+str(output))
+    register_menu()
+
+
+def _sun_cases_path(): return project()/'sun-cases.json'
+
+
+def _read_sun_cases_document():
+    if _sun_cases_path().exists(): return validate_cases(read('sun-cases.json'))
+    return dict(schemaVersion='1.0.0',siteDaylightCalibrated=False,cases=[])
+
+
+def _require_site():
+    site=current_site()
+    if site is None: raise RuntimeError('敷地が未設定です。先に「敷地を読み込む」または「敷地を新規作成」を実行してください。')
+    return site
+
+
+def add_datetime_case():
+    site=_require_site()
+    date_text=_prompt('日時を追加 (1/3)','日付（YYYY-MM-DD）','2026-12-22').strip()
+    time_text=_prompt('日時を追加 (2/3)','時刻（HH:MM）','12:00').strip()
+    offset_text=_prompt('日時を追加 (3/3)','UTCオフセット（例：+09:00＝JST）','+09:00').strip()
+    if not (date_text and time_text and offset_text): return
+    case=make_case(site,f'{date_text}T{time_text}:00{offset_text}')
+    document=_read_sun_cases_document()
+    if any(c['localTimestamp']==case['localTimestamp'] for c in document['cases']):
+        raise RuntimeError('同じ日時のケースが既にあります: '+case['localTimestamp'])
+    document['cases'].append(case)
+    write('sun-cases.json',validate_cases(document))
+    detail=f"高度{case['elevationDeg']:.1f}°・方位{case['azimuthDeg']:.1f}°" if case['usable'] else '適用不可：'+case['reason']
+    unreal.log(f"日時ケースを追加しました: {case['localTimestamp']}（{detail}）")
+    register_menu()
+
+
+def add_season_cases():
+    site=_require_site()
+    year_text=_prompt('季節代表日を追加','年（西暦。3/21・6/21・9/21・12/21の9/12/15時、JST基準を追加）','2026').strip()
+    if not year_text: return
+    document=_read_sun_cases_document()
+    existing={c['localTimestamp'] for c in document['cases']}
+    added=0
+    for iso in season_reference_timestamps(int(year_text)):
+        case=make_case(site,iso)
+        if case['localTimestamp'] in existing: continue
+        document['cases'].append(case); existing.add(case['localTimestamp']); added+=1
+    write('sun-cases.json',validate_cases(document))
+    unreal.log(f'季節代表日を{added}件追加しました（暦日固定。年ごとの厳密な春分・至日ではありません）。')
+    register_menu()
+
+
+def recompute_sun_cases():
+    site=_require_site()
+    document=_read_sun_cases_document()
+    if not document['cases']: raise RuntimeError('日時ケースがありません。')
+    document['cases']=[make_case(site,c['localTimestamp']) for c in document['cases']]
+    write('sun-cases.json',validate_cases(document))
+    unreal.log('現在の敷地で日時ケースを再計算しました。')
+    register_menu()
+
+
+def _sun_cases_status_text():
+    if not _sun_cases_path().exists(): return '日時ケース：なし'
+    document=validate_cases(read('sun-cases.json'))
+    site=current_site()
+    if site is None:
+        return f"日時ケース：{len(document['cases'])}件（敷地原本なし・新規計算には敷地入力が必要）"
+    if cases_match_site(document['cases'],site):
+        return f"日時ケース：{len(document['cases'])}件（現在の敷地と一致）"
+    return f"日時ケース：{len(document['cases'])}件（現在の敷地と不一致・再計算が必要）"
+
+
+def show_sun_cases_status(): unreal.log(_sun_cases_status_text())
+
+
+def start_daylight_compare(index_a, index_b):
+    document=_read_sun_cases_document()
+    cases=document['cases']
+    if not (0<=index_a<len(cases) and 0<=index_b<len(cases)): raise RuntimeError('日時ケースが見つかりません。')
+    case_a,case_b=cases[index_a],cases[index_b]
+    for case in (case_a,case_b):
+        if not case['usable']: raise RuntimeError('適用できない日時です: '+case['reason'])
+    base=current_state()
+    def with_case(case):
+        state=copy.deepcopy(base)
+        state['azimuthDeg']=case['azimuthDeg']; state['elevationDeg']=case['elevationDeg']; state['solar']=dict(case)
+        return state
+    state_a,state_b=with_case(case_a),with_case(case_b)
+    # Both candidates validated BEFORE anything is touched -- same shared
+    # pre-check as W04's finish A/B and named-scenario load, applied here so
+    # a half-started datetime comparison can't happen either.
+    for name,state in ((case_a['localTimestamp'],state_a),(case_b['localTimestamp'],state_b)):
+        _validate_applicable(state,f'日時「{name}」')
+    global _daylight_compare
+    _daylight_compare=dict(fixed=dict(variant=base['variant'],camera=base['camera'],
+            exposureEV100=base['exposureEV100'],sunLux=base['sunLux']),
+        before=base,a=state_a,b=state_b,names=(case_a['localTimestamp'],case_b['localTimestamp']),current=None)
+    show_daylight_compare('a')
+
+
+def show_daylight_compare(which):
+    if _daylight_compare is None: raise RuntimeError('日時比較を先に開始してください（比較開始）。')
+    apply_state(_daylight_compare[which])
+    _daylight_compare['current']=which
+    unreal.log(f"日時比較中：{_daylight_compare['names'][0 if which=='a' else 1]}"
+        '（仕上げ・視点・露出・光源強度・周辺条件は比較開始時点で固定）')
+    register_menu()
+
+
+def show_daylight_compare_a(): show_daylight_compare('a')
+def show_daylight_compare_b(): show_daylight_compare('b')
+
+
+def end_daylight_compare():
+    global _daylight_compare
+    if _daylight_compare is None: return
+    apply_state(_daylight_compare['before'])
+    _daylight_compare=None
+    unreal.log('日時比較を終了し、比較開始前の状態に戻しました。')
+    register_menu()
+
+
+_daylight_compare_pick_a=None
+
+
+def pick_daylight_compare_a(index):
+    global _daylight_compare_pick_a
+    _daylight_compare_pick_a=index
+    unreal.log('日時比較A：ケース'+str(index)+'。続けて比較Bを選んでください。')
+    register_menu()
+
+
+def pick_daylight_compare_b(index):
+    if _daylight_compare_pick_a is None: raise RuntimeError('先に日時比較Aを選んでください。')
+    start_daylight_compare(_daylight_compare_pick_a,index)
+
+
+def _daylight_compare_status_text():
+    if _daylight_compare is None: return '日時比較：なし'
+    which=_daylight_compare.get('current')
+    shown={'a':'A','b':'B'}.get(which,'未表示')
+    fixed=_daylight_compare['fixed']
+    return (f"日時比較中（表示中：{shown}）　A＝{_daylight_compare['names'][0]}　B＝{_daylight_compare['names'][1]}　"
+        f"固定条件＝仕上げ{fixed['variant']}・露出EV{fixed['exposureEV100']:.1f}・光源強度{fixed['sunLux']:.0f}lux・視点固定")
+
+
+def show_daylight_compare_status(): unreal.log(_daylight_compare_status_text())
+
+
 def _selected_surface_status_text():
     # W04 review R3: this is shown as a menu LABEL (register_menu() rebuilds
     # it after every mutating action below), not just logged -- selection
@@ -569,11 +806,8 @@ def register_menu():
     if (project()/'walkthrough.json').exists():
         entries += [('Walk','内覧を別ウィンドウで開始','start_walkthrough()'),
                     ('WalkLoad','内覧で保存した視点・条件を反映','load_walkthrough()')]
-    if (project()/'sun-cases.json').exists():
-        for index,case in enumerate(validate_cases(read('sun-cases.json'))['cases']):
-            if case['usable']:
-                provenance='概算' if 'estimated' in (case['locationStatus'],case['northStatus']) else '入力確認済み'
-                entries.append(('Date'+str(index),case['localTimestamp']+'（'+provenance+'）',f'set_sun_case({index})'))
+    # W05: the日時 list moved into its own「採光」submenu below, alongside
+    # site input/season-date management, instead of sitting inline here.
     if 'reference' not in read('SourcePackage/study.json')['settings']['variants']:
         entries=[entry for entry in entries if entry[0]!='Reference']
     for name,label,command in entries:
@@ -627,6 +861,48 @@ def register_menu():
     add(scenario_menu,'Compare','ScenarioShowA','比較Aを表示','show_compare_a()')
     add(scenario_menu,'Compare','ScenarioShowB','比較Bを表示','show_compare_b()')
     add(scenario_menu,'Compare','ScenarioEndCompare','比較を終了（元の状態へ）','end_compare()')
+
+    # W05: local site input (position/orientation, confidence, provenance)
+    # and datetime solar cases (arbitrary + season-representative), reusing
+    # the same status-label/refresh-after-mutation pattern as 面編集/
+    # 案の保存・比較 above.
+    daylight_menu=parent.add_sub_menu('RyukaDaylight','RyukaDaylight','RyukaDaylight','採光','敷地入力と日時ケース')
+    add(daylight_menu,'Site','SiteStatus',_site_status_text(),'show_site_status()')
+    add(daylight_menu,'Site','SiteLoad','敷地を読み込む','load_site()')
+    add(daylight_menu,'Site','SiteCreate','敷地を新規作成','create_site_input()')
+    add(daylight_menu,'Cases','CasesStatus',_sun_cases_status_text(),'show_sun_cases_status()')
+    add(daylight_menu,'Cases','CaseAdd','日時を追加','add_datetime_case()')
+    add(daylight_menu,'Cases','CaseAddSeason','季節代表日を追加（3/21・6/21・9/21・12/21の9/12/15時）','add_season_cases()')
+    add(daylight_menu,'Cases','CaseRecompute','日時ケースを現在の敷地で再計算','recompute_sun_cases()')
+    if (project()/'sun-cases.json').exists():
+        for index,case in enumerate(validate_cases(read('sun-cases.json'))['cases']):
+            provenance='概算' if 'estimated' in (case['locationStatus'],case['northStatus']) else '入力確認済み'
+            label=case['localTimestamp']+'（'+provenance+'）'
+            # W05 spec: an out-of-range (night-time etc.) case must still be
+            # SHOWN, with its reason, not hidden -- clicking it still goes
+            # through set_sun_case(), which raises with that same reason
+            # (solar_position.apply_case()) rather than silently rounding
+            # into the daylight range.
+            if not case['usable']: label += '［適用不可：'+case['reason']+'］'
+            add(daylight_menu,'Apply',f'CaseApply{index}',label,f'set_sun_case({index})')
+
+    # W05: datetime A/B, mirroring W04's finish A/B above but inverted --
+    # finish/camera/exposure/light/context are fixed, only the picked
+    # datetimes' solar angle switches.
+    daylight_compare_menu=parent.add_sub_menu('RyukaDaylightCompare','RyukaDaylightCompare',
+        'RyukaDaylightCompare','日時比較','同じ仕上げ・視点での日時A/B比較')
+    add(daylight_compare_menu,'Status','DaylightCompareStatus',_daylight_compare_status_text(),'show_daylight_compare_status()')
+    if (project()/'sun-cases.json').exists():
+        cases=validate_cases(read('sun-cases.json'))['cases']
+        for index,case in enumerate(cases):
+            if not case['usable']: continue
+            add(daylight_compare_menu,'PickA',f'DaylightPickA{index}','比較A：'+case['localTimestamp'],f'pick_daylight_compare_a({index})')
+        for index,case in enumerate(cases):
+            if not case['usable']: continue
+            add(daylight_compare_menu,'PickB',f'DaylightPickB{index}','比較B：'+case['localTimestamp'],f'pick_daylight_compare_b({index})')
+    add(daylight_compare_menu,'Show','DaylightShowA','比較Aを表示','show_daylight_compare_a()')
+    add(daylight_compare_menu,'Show','DaylightShowB','比較Bを表示','show_daylight_compare_b()')
+    add(daylight_compare_menu,'Show','DaylightEnd','比較を終了（元の状態へ）','end_daylight_compare()')
 
     menus.refresh_all_widgets()
     return menu
