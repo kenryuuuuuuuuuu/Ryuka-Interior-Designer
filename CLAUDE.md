@@ -1,7 +1,7 @@
 # Claude Code向け
 
-共通ルールは [AGENTS.md](AGENTS.md)、分担と検証方針は [開発手順](docs/DEVELOPMENT_WORKFLOW.md) を読んでください。
+AGENTS.md、docs/DEVELOPMENT_WORKFLOW.mdを読んでください。
 
-現在の実装指示は [W06：電気設備と夜間照明比較](docs/tasks/W06-electrical-lighting.md) です。W05-v2（fcc99c2）は受入済みです。作業場所は `build/worktrees/visual-twin`、ブランチは `feature/visual-twin-foundation`。着手時HEADをBASEとして記録してください。
+現在の実装指示は [W07-G1：複数室の共通基盤](docs/tasks/W07-G1-multi-room-foundation.md)（READY）です。W06は3ceda9bまで受入済み。作業場所は `build/worktrees/visual-twin`、ブランチは `feature/visual-twin-foundation`。着手HEADの完全SHAをBASEに固定します。
 
-GPTが仕様・レビュー、Claude Codeが実装を担当します。完成速度を優先し、検証は仕様の代表的な正常系と簡単な異常系に絞ります。W06は一括で実装し、内部工程ごとのレビュー待ちは不要です。W07には着手しません。
+施主承認済みの順序はゲストG1〜G3→W08-G→自宅H1〜H4→W08-Fです。今回はG1を一括実装し、G2以降には着手しません。内部工程ごとのレビュー待ちは不要です。GPTが仕様/レビュー、Claudeが実装。代表正常系と簡単な異常系を優先し過剰な検証はしません。
