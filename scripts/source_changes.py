@@ -23,11 +23,20 @@ SCOPE_NOTE=('この比較はrooms/furniture/furniture-catalogの追加・削除�
 ROOM_GROUPS=[('形状・階・天井',{'polygon','level','ceiling'}),('名称・注記',{'label','note','status'})]
 FURNITURE_GROUPS=[('配置',{'x','z','rotation','elevation','room','level'}),('型・寸法',{'type'}),('名称・注記',{'label','note','status'})]
 CATALOG_GROUPS=[('型・寸法',{'width','depth','height','shape','category','rotationConvention','clearance'}),('名称・注記',{'label','note'})]
+# W06-v1 review R4: track data/visual/lighting-settings.json's profiles/groups
+# too (the settings an operator actually edits), same shallow keyed-diff
+# treatment as the targets above -- NOT data/electrical.json's full fixture
+# placement list (145 items; reviewer confirmed that detailed a diff is not
+# required: "電気設備全項目の詳細な差分UIは不要").
+LIGHTING_PROFILE_GROUPS=[('光学値',{'source','lumens','temperatureK','spotAngleDeg','directionLocal'}),('状態・注記',{'status','note'})]
+LIGHTING_GROUP_GROUPS=[('構成',{'fixtureIds'}),('名称',{'label'})]
 
 TARGETS={
-    'rooms':      ('data/house.json',              lambda d:d.get('rooms',[]),   'id',   ROOM_GROUPS,      'label'),
-    'furniture':  ('data/furniture.json',           lambda d:d.get('items',[]),   'id',   FURNITURE_GROUPS, 'label'),
-    'catalog':    ('data/furniture-catalog.json',   lambda d:d.get('types',[]),   'type', CATALOG_GROUPS,   'label'),
+    'rooms':            ('data/house.json',                    lambda d:d.get('rooms',[]),   'id',   ROOM_GROUPS,             'label'),
+    'furniture':        ('data/furniture.json',                 lambda d:d.get('items',[]),   'id',   FURNITURE_GROUPS,        'label'),
+    'catalog':          ('data/furniture-catalog.json',         lambda d:d.get('types',[]),   'type', CATALOG_GROUPS,          'label'),
+    'lightingProfiles': ('data/visual/lighting-settings.json',  lambda d:[dict(type=k,**v) for k,v in d.get('profiles',{}).items()], 'type', LIGHTING_PROFILE_GROUPS, 'type'),
+    'lightingGroups':   ('data/visual/lighting-settings.json',  lambda d:d.get('groups',[]),  'id',   LIGHTING_GROUP_GROUPS,   'label'),
 }
 
 
@@ -196,7 +205,8 @@ def summarize(changes):
         if diff is None: return None
         return dict(added=len(diff['added']),removed=len(diff['removed']),modified=len(diff['modified']))
     return dict(rooms=counts(changes.get('rooms')),furniture=counts(changes.get('furniture')),
-        catalog=counts(changes.get('catalog')),issueCount=len(changes['issues']))
+        catalog=counts(changes.get('catalog')),lightingProfiles=counts(changes.get('lightingProfiles')),
+        lightingGroups=counts(changes.get('lightingGroups')),issueCount=len(changes['issues']))
 
 
 def render_html(changes):
@@ -233,4 +243,5 @@ def render_html(changes):
         'details{margin:6px 0}summary{cursor:pointer}</style>'
         '<h1>前回モデルからの変更</h1>'+baseline_html+issues_html
         +entity_section('部屋',changes.get('rooms'))+entity_section('家具',changes.get('furniture'))+entity_section('家具カタログ',changes.get('catalog'))
+        +entity_section('照明プロファイル',changes.get('lightingProfiles'))+entity_section('照明グループ',changes.get('lightingGroups'))
         +'<h2>注意</h2>'+warnings_html+'</html>')

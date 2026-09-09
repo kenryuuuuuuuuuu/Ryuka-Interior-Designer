@@ -97,6 +97,19 @@ class RefreshTests(unittest.TestCase):
             elevationDeg=case['elevationDeg'],solar=case))
         self.assertIn('site',m.retained_inputs(self.previous))
 
+    def test_lighting_fixture_reference_checked_against_current_source(self):
+        # W06-v1 review R4: a retained state's lighting.fixtures must be
+        # checked against the CURRENT source's resolvable fixtures, not left
+        # for Blender to discover after the heavy build has already started.
+        known_state=dict(self.state,schemaVersion='1.2.0',surfaceOverrides={},
+            lighting=dict(mode='night',fixtures={'elec-008':{'on':True}}))
+        self.write('study-state.json',known_state)
+        self.assertIn('state',m.retained_inputs(self.previous))  # a real, current fixture id: fine
+        unknown_state=dict(self.state,schemaVersion='1.2.0',surfaceOverrides={},
+            lighting=dict(mode='night',fixtures={'elec-does-not-exist':{'on':True}}))
+        self.write('study-state.json',unknown_state)
+        with self.assertRaises(ValueError): m.retained_inputs(self.previous)
+
     def test_summary_escapes_note_and_links_only_requested_gallery(self):
         report=dict(note='<script>bad</script>',gallery=False,changedSourceFiles=['data/house.json'])
         page=m.summary(report)

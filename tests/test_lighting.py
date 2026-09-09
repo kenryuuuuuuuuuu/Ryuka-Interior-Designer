@@ -14,7 +14,8 @@ SETTINGS=json.loads((ROOT/'data/visual/lighting-settings.json').read_text(encodi
 
 BINDINGS=dict(schemaVersion='1.0.0',roomId='room-1f-06',fixtures=[
     dict(id='elec-008',type='light-ceiling',label='シーリングライト',status='estimated',
-         positionM=[4.65,3.93,4.55],directionVector=[0,0,-1],source='point',lumens=3800,temperatureK=3000)])
+         positionM=[4.65,3.93,4.55],emitPositionM=[4.65,3.81,4.55],
+         directionVector=[0,-1,0],source='point',lumens=3800,temperatureK=3000)])
 
 
 class LightingSettingsTests(unittest.TestCase):
@@ -53,7 +54,8 @@ class LightingBindingsTests(unittest.TestCase):
 
     def test_rejects_bad_fixture(self):
         for bad in [dict(BINDINGS['fixtures'][0],lumens=-1), dict(BINDINGS['fixtures'][0],temperatureK=99999),
-                    dict(BINDINGS['fixtures'][0],source='laser'), dict(BINDINGS['fixtures'][0],directionVector=[1,1,1])]:
+                    dict(BINDINGS['fixtures'][0],source='laser'), dict(BINDINGS['fixtures'][0],directionVector=[1,1,1]),
+                    dict(BINDINGS['fixtures'][0],emitPositionM=[0,0])]:
             doc=dict(BINDINGS,fixtures=[bad])
             with self.subTest(bad=bad), self.assertRaises(ValueError): validate_lighting_bindings(doc)
 

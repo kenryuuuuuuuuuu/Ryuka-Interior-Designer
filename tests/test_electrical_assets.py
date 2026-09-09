@@ -38,10 +38,23 @@ class ElectricalAssetsTests(unittest.TestCase):
 
     def test_ceiling_height_matches_shared_ceiling_y(self):
         piece=next(p for p in self.data['envelope']['slopedCeilingPieces'] if p['roomId']=='room-1f-06')
-        self.assertAlmostEqual(ceiling_height_at(self.data,4.65,4.55),ceiling_y(self.data,piece,4.55))
-        # Outside any registered piece: the flat default, matching build_envelope()'s own fallback.
-        self.assertAlmostEqual(ceiling_height_at(self.data,-500,-500),
-            self.data['levels']['fl1']+self.data['defaults']['ceilingHeight'])
+        self.assertAlmostEqual(ceiling_height_at(self.data,4.65,4.55,'room-1f-06'),ceiling_y(self.data,piece,4.55))
+
+    def test_ceiling_height_flat_room_uses_default_directly(self):
+        # A room NOT marked ceiling:sloped is a legitimate flat ceiling --
+        # resolved directly from defaults, no piece lookup/raise involved.
+        flat_room=next(r for r in self.data['rooms'] if r.get('ceiling')!='sloped')
+        expected=self.data['levels'][f"fl{flat_room['level']}"]+self.data['defaults']['ceilingHeight']
+        # Any (x,z) at all -- even one nowhere near this room -- must resolve
+        # for a flat room, since ceiling_height_at() never searches pieces for it.
+        self.assertAlmostEqual(ceiling_height_at(self.data,-500,-500,flat_room['id']),expected)
+
+    def test_ceiling_height_unresolved_point_in_sloped_room_raises(self):
+        # W06-v1 review R1: a point OUTSIDE every one of room-1f-06's own
+        # registered pieces must be a distinct, loud failure -- never quietly
+        # treated the same as an ordinary flat ceiling.
+        with self.assertRaises(ValueError):
+            ceiling_height_at(self.data,-500,-500,'room-1f-06')
 
     def test_resolve_mount_ceiling_matches_known_real_values(self):
         # Cross-checked once against a real Blender build (W06 report AC1).
@@ -51,6 +64,11 @@ class ElectricalAssetsTests(unittest.TestCase):
         x,y,z=mount['positionM']
         self.assertAlmostEqual(x,4.65); self.assertAlmostEqual(z,4.55); self.assertAlmostEqual(y,3.9325)
         self.assertEqual(mount['rotYDeg'],0.0)
+        # W06-v1 review R2: the light's own position is the housing's
+        # underside (positionM minus the fixture's own height), never the
+        # mount origin/top itself -- avoids embedding the light in the ceiling.
+        self.assertAlmostEqual(mount['emitPositionM'][1],y-merged['height'])
+        self.assertEqual(mount['emitPositionM'][0],x); self.assertEqual(mount['emitPositionM'][2],z)
 
     def test_resolve_mount_ceiling_pendant_honours_override(self):
         item=next(i for i in self.electrical['items'] if i['id']=='elec-201')
@@ -59,6 +77,7 @@ class ElectricalAssetsTests(unittest.TestCase):
         piece=next(p for p in self.data['envelope']['slopedCeilingPieces'] if p['roomId']=='room-1f-06')
         expected_y=ceiling_y(self.data,piece,merged['z'])-1.9
         self.assertAlmostEqual(mount['positionM'][1],expected_y)
+        self.assertAlmostEqual(mount['emitPositionM'][1],expected_y-merged['height'])
 
     def test_resolve_mount_wall_representative_coordinates(self):
         # W06 AC1: "壁付けは小さな座標テストで可" -- no light-bracket instance
@@ -71,6 +90,9 @@ class ElectricalAssetsTests(unittest.TestCase):
         mount=resolve_mount(self.data,merged)
         self.assertEqual(mount['positionM'],[5.0,self.data['levels']['fl1']+merged['mountHeight'],2.0])
         self.assertEqual(mount['rotYDeg'],0.0)
+        # A wall mount's positionM is already the housing's centre -- no
+        # separate emission offset needed (unlike a ceiling mount).
+        self.assertEqual(mount['emitPositionM'],mount['positionM'])
         mount_side_negative=resolve_mount(self.data,dict(merged,side=-1))
         self.assertEqual(mount_side_negative['rotYDeg'],180.0)
         merged_v=merged_item(dict(base,orientation='V',side=1),self.catalog_by_type)
@@ -89,8 +111,12 @@ class ElectricalAssetsTests(unittest.TestCase):
         self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),['elec-008','elec-200','elec-201'])
         for fixture in bindings['fixtures']:
             # W06 spec: ceiling fixtures' light direction is always straight
-            # down, decoupled from the (sloped) mount surface's own tilt.
-            self.assertEqual(fixture['directionVector'],[0.0,0,-1.0])
+            # down (source convention: x east/y UP/z south, so "down" is a
+            # negative Y component -- W06-v1 review R2 caught an earlier
+            # version of this test asserting the wrong [0,0,-1], which is
+            # horizontal), decoupled from the (sloped) mount surface's own tilt.
+            self.assertEqual(fixture['directionVector'],[0.0,-1.0,0.0])
+            self.assertIn('emitPositionM',fixture)
 
     def test_build_lighting_bindings_rejects_unsupported_lighting_type(self):
         electrical=dict(self.electrical,items=self.electrical['items']+[

@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_house as house_builder
 from surface_finishes import assign_surface_uv, apply_pattern
 from surface_bindings import split_wall_range, wall_cap_for_room, decompose_rectilinear, subtract_rects, intersect_rect
-from electrical_assets import build_lighting_bindings, merged_item, create_fixture_mesh
+from electrical_assets import build_lighting_bindings, merged_item, create_fixture_mesh, ceiling_height_at
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
 from finish_settings import details_for_variant
 from furniture_assets import validate_bindings, asset_parts
@@ -577,10 +577,18 @@ def build_electrical_lighting(data, settings, lighting_state, mats):
     for binding in bindings['fixtures']:
         item = items_by_id[binding['id']]
         merged = merged_item(item, catalog_by_type)
-        create_fixture_mesh(binding, merged, mats, block, item)
+        # W06-v1 review R2: the rod (if any) spans from the ACTUAL ceiling
+        # surface (pre-mountHeight) down to the housing's top -- only
+        # meaningful for a ceiling mount.
+        ceiling_height = (ceiling_height_at(data, merged['x'], merged['z'], merged['room'])
+            if merged['mount'] == 'ceiling' else None)
+        create_fixture_mesh(binding, merged, mats, block, item, ceiling_height)
         effective = effective_fixture(binding, fixture_overrides.get(binding['id']))
         light_type = 'SPOT' if binding['source'] == 'spot' else 'POINT'
-        x, y, z = binding['positionM']
+        # W06-v1 review R2: the light itself sits at emitPositionM (the
+        # housing's underside), not positionM (the mount origin/top) -- never
+        # inside the ceiling void or the fixture's own opaque body.
+        x, y, z = binding['emitPositionM']
         bpy.ops.object.light_add(type=light_type, location=(x, -z, y))
         lamp = bpy.context.object
         lamp.name = f"Light.{binding['id']}"
@@ -595,8 +603,14 @@ def build_electrical_lighting(data, settings, lighting_state, mats):
         if light_type == 'SPOT':
             lamp.data.spot_size = math.radians(binding['spotAngleDeg'])
         dx, dy, dz = binding['directionVector']
+        # W06-v1 review R2: `direction` here is already the ray-TRAVEL
+        # direction (e.g. straight down for a ceiling fixture) -- unlike
+        # setup_lighting()'s sun vector (which points TOWARD the sun and is
+        # negated before to_track_quat()), this must NOT be negated, or the
+        # lamp's local -Z (its own shine axis) ends up pointing the opposite
+        # way (e.g. a downlight aimed up into the ceiling instead of down).
         direction = Vector((dx, -dz, dy))
-        lamp.rotation_euler = (-direction).to_track_quat('-Z', 'Y').to_euler()
+        lamp.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
     return bindings
 
 
@@ -616,16 +630,23 @@ def setup_lighting(settings, args, state=None):
         light['elevationDeg']=args.elevation
     az,el=math.radians(light['azimuthDeg']),math.radians(light['elevationDeg'])
     direction=Vector((math.sin(az)*math.cos(el), math.cos(az)*math.cos(el), math.sin(el)))
+    # W06-v1 review R3: night must actually disable the sun/sky here too, not
+    # just record lighting.mode in study.json -- previously this always used
+    # the plain day sunStrength/skyStrength regardless of state['lighting'],
+    # so a "night" --state render still showed full daylight in Blender. day
+    # (or no lighting state at all) keeps the existing behaviour unchanged.
+    is_night = state is not None and state.get('lighting', {}).get('mode') == 'night'
     bpy.ops.object.light_add(type='SUN')
     sun=bpy.context.object; sun.name='Sun.manual-angle'
     sun.rotation_euler=(-direction).to_track_quat('-Z','Y').to_euler()
-    sun.data.energy=light['sunStrength']; sun.data.angle=math.radians(.53)
+    sun.data.energy=0 if is_night else light['sunStrength']; sun.data.angle=math.radians(.53)
     world=bpy.data.worlds.new('Sky.manual-angle'); bpy.context.scene.world=world; world.use_nodes=True
     sky=world.node_tree.nodes.new('ShaderNodeTexSky')
     supported=sky.bl_rna.properties['sky_type'].enum_items.keys()
     sky.sky_type='MULTIPLE_SCATTERING' if 'MULTIPLE_SCATTERING' in supported else 'NISHITA'
     sky.sun_disc=False; sky.sun_elevation=el; sky.sun_rotation=math.atan2(direction.y,direction.x)
-    background=world.node_tree.nodes.get('Background'); background.inputs['Strength'].default_value=light['skyStrength']
+    background=world.node_tree.nodes.get('Background')
+    background.inputs['Strength'].default_value=0 if is_night else light['skyStrength']
     world.node_tree.links.new(sky.outputs['Color'],background.inputs['Color'])
     return light
 

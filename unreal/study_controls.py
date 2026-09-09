@@ -22,6 +22,23 @@ _lighting_compare=None  # W06 night lighting A/B in progress: same shape as _com
 _selected_lighting=None  # fixture id OR group id currently targeted by the 照明 menu
 
 
+def _active_compare_label():
+    # W06-v1 review R5: the three A/B compares (finish, datetime, lighting)
+    # shared no mutual-exclusion at all -- starting one while another (even
+    # of the same kind) was already active silently clobbered `before`,
+    # losing the ability to cleanly restore whichever was overwritten.
+    if _compare is not None: return 'A/B比較'
+    if _daylight_compare is not None: return '日時比較'
+    if _lighting_compare is not None: return '照明比較'
+    return None
+
+
+def _require_no_active_compare():
+    label=_active_compare_label()
+    if label is not None:
+        raise RuntimeError(f'{label}を終了してから操作してください（比較終了）。')
+
+
 def project(): return Path(unreal.Paths.project_dir()).resolve()
 def read(name): return json.loads((project()/name).read_text(encoding='utf-8'))
 def write(name,value):
@@ -616,6 +633,7 @@ def load_scenario(index):
 
 
 def start_compare(index_a, index_b):
+    _require_no_active_compare()  # W06-v1 review R5
     dirs=_scenario_dirs()
     if not (0<=index_a<len(dirs) and 0<=index_b<len(dirs)): raise RuntimeError('案が見つかりません。')
     refresh_inputs=_refresh_inputs()
@@ -824,6 +842,7 @@ def show_sun_cases_status(): unreal.log(_sun_cases_status_text())
 
 
 def start_daylight_compare(index_a, index_b):
+    _require_no_active_compare()  # W06-v1 review R5
     document=_read_sun_cases_document()
     cases=document['cases']
     if not (0<=index_a<len(cases) and 0<=index_b<len(cases)): raise RuntimeError('日時ケースが見つかりません。')
@@ -931,6 +950,7 @@ def show_lighting_status(): unreal.log(_lighting_status_text())
 
 
 def _set_lighting_mode(mode):
+    _require_no_active_compare()  # W06-v1 review R5
     state=current_state(); state['lighting']=dict(state['lighting'],mode=mode)
     apply_state(state)
     unreal.log('昼間へ切り替えました（保存された太陽・空の条件を復元）。' if mode=='day'
@@ -952,6 +972,13 @@ def _target_fixture_ids(target_id):
     settings=read('lighting-settings.json')
     group=next((g for g in settings['groups'] if g['id']==target_id),None)
     if group is None: raise RuntimeError('この照明/グループは現在のモデルにありません: '+target_id)
+    stale=[fid for fid in group['fixtureIds'] if fid not in known]
+    if stale:
+        # W06-v1 review R4: dropping a stale member used to be silent; the
+        # operator acting on a group must see that some of its members no
+        # longer resolve, every time, not just when the group ends up empty.
+        unreal.log(f"警告：グループ「{target_id}」の一部の照明は現在のモデルにありません（無視されます）: "
+            +', '.join(stale))
     return [fid for fid in group['fixtureIds'] if fid in known]
 
 
@@ -963,14 +990,37 @@ def select_lighting(target_id):
     register_menu()
 
 
+def _selected_lighting_effective():
+    """Current on/dimming/temperatureK for _selected_lighting (one fixture,
+    or a group -- merged with 混在 per field when members disagree). W06-v1
+    review R5: the status line and the dimming/temperature prompts must show/
+    default to the fixture's ACTUAL current values, not a fixed placeholder."""
+    ids=_target_fixture_ids(_selected_lighting)
+    bindings=lighting_bindings()
+    by_id={f['id']:f for f in bindings['fixtures']} if bindings else {}
+    lighting=(_state if _state is not None else initial_state())['lighting']
+    effectives=[effective_fixture(by_id[fid],lighting['fixtures'].get(fid)) for fid in ids if fid in by_id]
+    if not effectives: return dict(on=False,dimming=1.0,temperatureK=None)
+    def merged(field):
+        values={e[field] for e in effectives}
+        return values.pop() if len(values)==1 else '混在'
+    return dict(on=merged('on'),dimming=merged('dimming'),temperatureK=merged('temperatureK'))
+
+
 def _selected_lighting_status_text():
-    return '選択中の照明：なし' if _selected_lighting is None else '選択中の照明：'+_selected_lighting
+    if _selected_lighting is None: return '選択中の照明：なし'
+    eff=_selected_lighting_effective()
+    on_label={True:'点灯',False:'消灯'}.get(eff['on'],str(eff['on']))
+    dimming_label=f"{eff['dimming']:.2f}" if isinstance(eff['dimming'],(int,float)) else str(eff['dimming'])
+    temp_label=f"{eff['temperatureK']:.0f}K" if isinstance(eff['temperatureK'],(int,float)) else str(eff['temperatureK'])
+    return f'選択中の照明：{_selected_lighting}（{on_label}・調光{dimming_label}・{temp_label}）'
 
 
 def show_selected_lighting(): unreal.log(_selected_lighting_status_text())
 
 
 def _apply_fixture_update(update):
+    _require_no_active_compare()  # W06-v1 review R5
     if _selected_lighting is None: raise RuntimeError('先に照明またはグループを選択してください（照明の一覧から）。')
     ids=_target_fixture_ids(_selected_lighting)
     state=current_state()
@@ -988,18 +1038,27 @@ def turn_off_selected_lighting(): _apply_fixture_update(dict(on=False))
 
 
 def set_dimming_selected_lighting():
-    text=_prompt('調光率','0（消灯相当）〜1（全光束）の数値','1').strip()
+    default='1'
+    if _selected_lighting is not None:
+        current=_selected_lighting_effective()['dimming']
+        if isinstance(current,(int,float)): default=f'{current:g}'
+    text=_prompt('調光率','0（消灯相当）〜1（全光束）の数値',default).strip()
     if not text: return
     _apply_fixture_update(dict(dimming=float(text)))
 
 
 def set_temperature_selected_lighting():
-    text=_prompt('色温度','1800〜10000Kの数値（例：2700＝電球色、6500＝昼白色）','2700').strip()
+    default='2700'
+    if _selected_lighting is not None:
+        current=_selected_lighting_effective()['temperatureK']
+        if isinstance(current,(int,float)): default=f'{current:g}'
+    text=_prompt('色温度','1800〜10000Kの数値（例：2700＝電球色、6500＝昼白色）',default).strip()
     if not text: return
     _apply_fixture_update(dict(temperatureK=float(text)))
 
 
 def reset_selected_lighting():
+    _require_no_active_compare()  # W06-v1 review R5
     if _selected_lighting is None: raise RuntimeError('先に照明またはグループを選択してください（照明の一覧から）。')
     ids=_target_fixture_ids(_selected_lighting)
     state=current_state(); fixtures=dict(state['lighting']['fixtures'])
@@ -1010,12 +1069,14 @@ def reset_selected_lighting():
 
 
 def reset_all_lighting():
+    _require_no_active_compare()  # W06-v1 review R5
     state=current_state(); state['lighting']=dict(state['lighting'],fixtures={})
     apply_state(state)
     register_menu()
 
 
 def start_lighting_compare(index_a, index_b):
+    _require_no_active_compare()  # W06-v1 review R5
     dirs=_scenario_dirs()
     if not (0<=index_a<len(dirs) and 0<=index_b<len(dirs)): raise RuntimeError('案が見つかりません。')
     refresh_inputs=_refresh_inputs()
@@ -1034,6 +1095,12 @@ def start_lighting_compare(index_a, index_b):
     fixed=dict(variant=base['variant'],surfaceOverrides=base['surfaceOverrides'],
         azimuthDeg=base['azimuthDeg'],elevationDeg=base['elevationDeg'],
         sunLux=base['sunLux'],exposureEV100=base['exposureEV100'],camera=base['camera'])
+    if base.get('solar') is not None:
+        # W06-v1 review R5: the numeric azimuth/elevation were already fixed
+        # above, but the date/time PROVENANCE label was still being dropped
+        # unconditionally in show_lighting_compare() below -- keep it fixed
+        # too when the base state actually has one.
+        fixed['solar']=base['solar']
     global _lighting_compare
     _lighting_compare=dict(fixed=fixed,before=base,a=state_a,b=state_b,
         names=(dirs[index_a].name,dirs[index_b].name),current=None)
@@ -1042,7 +1109,8 @@ def start_lighting_compare(index_a, index_b):
 
 def show_lighting_compare(which):
     if _lighting_compare is None: raise RuntimeError('照明A/Bを先に開始してください（比較開始）。')
-    state=dict(_lighting_compare[which]); state.update(_lighting_compare['fixed']); state.pop('solar',None)
+    state=dict(_lighting_compare[which]); state.update(_lighting_compare['fixed'])
+    if 'solar' not in _lighting_compare['fixed']: state.pop('solar',None)
     apply_state(state)
     _lighting_compare['current']=which
     unreal.log(f"照明比較中：{_lighting_compare['names'][0 if which=='a' else 1]}"

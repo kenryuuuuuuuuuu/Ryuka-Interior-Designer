@@ -23,6 +23,8 @@ sys.path.insert(0,str(ROOT/'unreal'))
 from study_state import validate_state
 from solar_position import validate_cases, validate_site, cases_match_site, case_matches_site
 from site_context import validate_context
+sys.path.insert(0,str(ROOT/'blender'))
+from electrical_assets import build_lighting_bindings as _build_lighting_bindings
 
 # W05: site.local.json (the local lat/long/plan-north input, see
 # solar_position.validate_site()) added alongside the existing three.
@@ -31,6 +33,31 @@ ALLOWED_SCENARIO_FILES=('study-state.json','sun-cases.json','site-context.json',
 
 def read(path): return json.loads(path.read_text(encoding='utf-8-sig'))
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _current_lighting_fixture_ids():
+    """The CURRENT source's resolvable lighting fixture ids (for the guest
+    LDK study room), used to catch a retained/bundled state's
+    lighting.fixtures referencing a fixture that no longer exists (or is now
+    unsupported/unresolvable) in the CURRENT model -- same "confirm before
+    the heavy step" contract already applied to sun-cases/site above
+    (W06-v1 review R4)."""
+    settings=read(ROOT/'data/visual/guest-ldk-study.json')
+    house_data=read(ROOT/'data/house.json')
+    house_data['envelope']=read(ROOT/'generated/visual-envelope.json')
+    electrical=read(ROOT/'data/electrical.json')
+    catalog=read(ROOT/'data/electrical-catalog.json')
+    lighting_settings=read(ROOT/'data/visual/lighting-settings.json')
+    bindings=_build_lighting_bindings(house_data,electrical,catalog,lighting_settings,settings['roomId'])
+    return {f['id'] for f in bindings['fixtures']}
+
+
+def _check_lighting_fixtures(state,label):
+    fixtures=(state.get('lighting') or {}).get('fixtures') or {}
+    if not fixtures: return
+    unknown=sorted(set(fixtures)-_current_lighting_fixture_ids())
+    if unknown:
+        raise ValueError(f'{label} references unknown lighting fixture id(s): '+', '.join(unknown))
 
 
 def retained_inputs(previous, gallery=False):
@@ -50,6 +77,7 @@ def retained_inputs(previous, gallery=False):
         raise ValueError('Runtime save is mid-recovery (backup present, no current save); resolve it in Unreal (F9) first')
     if runtime.exists() and runtime.stat().st_mtime>state_path.stat().st_mtime: state_path=runtime
     state=validate_state(read(state_path),dict(roomId=settings['roomId'],settings=settings))
+    _check_lighting_fixtures(state,'Retained state')
     paths={'state':state_path}
     cases=None
     if (previous/'sun-cases.json').exists():
@@ -111,6 +139,7 @@ def scenario_inputs(scenario_dir, gallery=False):
         resolved[name]=path
     settings=read(ROOT/'data/visual/guest-ldk-study.json')
     state=validate_state(read(resolved['study-state.json']),dict(roomId=settings['roomId'],settings=settings))
+    _check_lighting_fixtures(state,'Scenario state')
     paths={'state':resolved['study-state.json']}
     cases=None
     if 'sun-cases.json' in resolved:

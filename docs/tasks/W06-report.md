@@ -1,11 +1,35 @@
 # W06 実装報告
 
-状態：READY_FOR_REVIEW
-開始BASE（完全SHA）：`d4fabb229a2b53e2478486e3913f4dd4563fbbbf`
+状態：READY_FOR_REVIEW（v2、W06-v1レビューのR1〜R5対応）
+開始BASE（完全SHA）：`d4fabb229a2b53e2478486e3913f4dd4563fbbbf`（維持）
 使用モデル：Claude Sonnet 5（`claude-sonnet-5`）
 環境：Windows 11 Pro 10.0.26200 / UE 5.8.2 / Blender 5.2.0 LTS。変更した設定なし。
 
-## 結果
+## 結果（v2時点）
+
+**[W06-v1レビュー](W06-review.md)（対象`81b3ddf`、CHANGES_REQUESTED）のR1〜R5をすべて同じW06内で修正しました**（この報告のv2）。v1報告のAC1〜5は「全AC PASS」としていましたが、実際にはR1（Web側の取付け高さが未反映）・R2（発光方向が水平だった）という2件の実バグが残った状態でのPASS表記であり、レビュー指摘の通り実態と合っていませんでした。各項目の対応は以下の通りです。
+
+| 項目 | v1までの状態 | v2での対応 |
+|---|---|---|
+| R1（Web/Blenderの取付け高さ不整合） | `interior-white-model.html`側の天井付け照明のY座標・高さ編集（`electricalGroupY()`、XYZパネル、既定値リセット）が、Blenderの`ceiling_y()`で使っている勾配天井の実際の高さではなく、平坦既定値`CEIL_H`のまま計算していた。`elec-201`（`mountHeightOverride=1.9`）で試算するとWeb側y=1.207mに対しBlender側y=2.103m（差0.896m）という実害あるずれを確認。加えて`ceiling_height_at()`は対応するピースが1件も無い場合に黙って平坦既定値へ逃げており、勾配天井の部屋でのデータ不備を検出できなかった。 | 4箇所（`electricalGroupY()`、XYZパネルの表示・逆変換、既定値リセット）すべてを、Blenderと同じ考え方の`slopedCeilingHeightAt(eff.x, eff.z)`で解決するよう修正。Node.jsで`slopedCeilingHeightAt()`相当を再実装し、`baseY(fl1)+slopedCeilingHeightAt(x,z)-mountHeight`がBlenderの`ceiling_height_at(...)-mountHeight`と厳密一致することを室-1f-06の3器具すべてで数値確認。`ceiling_height_at()`は部屋の`ceiling`が`sloped`でなければ即座に平坦既定値を返し（探索不要な通常の平天井）、`sloped`の部屋だけその部屋自身のピースへの一致を必須にして、一致しない場合は`ValueError`にするよう区別を追加。 |
+| R2（天井付け発光方向の誤り・二重メッシュ） | `data/visual/lighting-settings.json`の天井付け`directionLocal`が`[0,0,-1]`（水平・南向き）になっており、鉛直下向きの`[0,-1,0]`ではなかった。加えてBlender側の器具ランプ回転が太陽光用の「太陽へ向かう方向を反転する」ロジックを誤って流用しており、器具の発光方向ベクトル（すでに照射方向そのもの）を余計に反転していた。また`positionM.y`（器具の取付け原点＝上端）へそのまま光源を置いており、天井裏／器具本体へ光源が埋まる恐れがあった。`unreal/import_study.py`はBlenderのGLBに既に含まれる器具メッシュとは別に、同じ位置へプレースホルダー円柱を二重生成していた。 | `lighting-settings.json`の天井付け3型すべてを`[0,-1,0]`へ修正（壁付け`light-bracket`の`[0,0,1]`は元々正しいため変更なし）。Blender側のランプ回転から不要な反転を削除。新設`emitPositionM`（器具下端）を`resolve_mount()`/`build_lighting_bindings()`で算出し、UE側の光源は`positionM`ではなく`emitPositionM`へ配置。器具メッシュは`positionM.y`から下向きに生成するよう修正（従来は上向きに生成し天井裏へ食い込んでいた）。`import_study.py`のプレースホルダー円柱生成を削除（Blenderが生成した器具メッシュがGLB経由で既にシーンへ含まれるため）。 |
+| R3（夜間でも太陽光が消えない） | `blender/build_interior.py`の`setup_lighting()`が`--state`の`lighting.mode`を一切見ておらず、夜間状態でBlenderレンダリングしても常に昼光（Sun/World strength）がフルで適用されていた。 | `state.lighting.mode=='night'`のとき、Sunの`energy`とWorld背景の`Strength`を0にするよう修正。 |
+| R4（Blender前チェック・変更検出の不足） | `build_lighting_bindings()`の解決はBlender起動後（`build_interior.py`内）でしか行われず、`--state`の未知器具IDもBlenderが動き出してから発覚した。`refresh_inputs.py`にも照明の参照検証が無かった。`study_controls._target_fixture_ids()`はグループの不明メンバーを警告なしで黙って除外していた。`source_changes.py`の変更検出は`lighting-settings.json`（プロファイル/グループ）を対象にしていなかった。 | `scripts/build-visual-twin.py`にBlender起動前の照明解決プリフライトを追加（`--state`の未知器具IDもここで拒否）。`refresh_inputs.py`の`retained_inputs()`/`scenario_inputs()`双方に同種の検証を追加。`_target_fixture_ids()`はグループの不明メンバーがあれば都度`unreal.log()`で警告するよう修正（既知メンバーのみで処理は継続）。`source_changes.py`の`TARGETS`へ`lightingProfiles`/`lightingGroups`を追加し、rooms/furniture/catalogと同じ浅いキー単位差分をHTML/summaryへ表示（`data/electrical.json`本体の全項目差分は対象外のまま、レビューの明示的な了承通り）。 |
+| R5（照明A/Bの日時保持漏れ・排他制御なし） | `show_lighting_compare()`が`solar`（日時来歴）を`fixed`に含めずに毎回`pop`しており、日時由来の状態から照明A/Bを開始すると日時来歴が消えていた（数値の太陽角度自体は保持されていたが、由来の表示が失われる）。3種のA/B（仕上げ/日時/照明）に相互排他が無く、比較中でも通常の照明編集（昼夜切替・ON/OFF・調光・色温度・リセット）がそのまま通ってしまっていた。選択中の照明の表示はIDのみで、調光・色温度プロンプトは常に固定既定値（'1'/'2700'）だった。 | `start_lighting_compare()`が`base.get('solar')`があれば`fixed['solar']`へ含め、`show_lighting_compare()`は`fixed`に`solar`がある場合だけ`pop`しないよう修正。新設`_active_compare_label()`/`_require_no_active_compare()`で、3種いずれかの比較中は新規の比較開始（同種でも）と通常の照明編集（昼夜切替・ON/OFF・調光/色温度変更・リセット）を拒否するよう統一。新設`_selected_lighting_effective()`で現在の実効on/dimming/色温度（グループは不一致時「混在」）を算出し、選択中照明のステータス表示・調光/色温度プロンプトの既定値に反映。 |
+
+| 項目 | 判定 | 証拠・コマンド・終了コード |
+|---|---|---|
+| R1/R2代表検証（Web/Blender座標一致、下向きベクトル、器具メッシュ上下端の単体テスト） | PASS | `tests/test_electrical_assets.py`（14件、新規2件含む）：`ceiling_height_at()`の平坦部屋は探索なしで既定値、勾配天井部屋の未解決点は`ValueError`。`resolve_mount()`の`emitPositionM`が壁付けは`positionM`と同一、天井付けは`positionM.y-height`と一致。`build_lighting_bindings()`が`directionVector=[0,-1,0]`（旧テストの誤った期待値`[0,0,-1]`を修正）。`tests/test_lighting.py`（16件）：`emitPositionM`の型・範囲検証を追加。 |
+| R1/R2実行確認（実Blender/UE） | PASS | `build/W06-v2-night-diag/interior.png`・`build/W06-v2-day-diag/interior.png`：修正版Blenderで夜間/昼間を実レンダリングし、夜間は窓が完全暗転（太陽光の漏れなし）、ペンダントの吊り棒がシェード上端から下へ正しく伸び、下向きの暖色照射が視認できることを目視確認。完全refresh後の`build/W06-v2-refresh-v1/ue/lighting-bindings.json`：3器具すべて`directionVector=[0.0,-1,0.0]`、`emitPositionM.y`が`positionM.y`より低いことを確認。同プロジェクトの実UEエディタ実行（`verify_w06_v2.py`→`w06-v2-verification.json`）：器具アクターが`Light_elec-008/200/201`の3つのみ（`no_duplicate_placeholder_mesh: true`）、ダウンライト（`elec-200`、spot）の前方ベクトルが`[0,0,-1]`で鉛直下向き（`elec_200_points_down: true`）を確認。 |
+| R3代表検証（Blenderの夜間SUN/World設定） | PASS | 上記`build/W06-v2-night-diag`は`setup_lighting()`のnight分岐（Sun/World strength=0）を経由して生成しており、レンダリング結果自体が確認そのもの。`build/W06-v2-day-diag`は同一パイプラインでday分岐（変更なし）が従来通りであることの回帰確認。 |
+| R4代表検証（Blender前の未知器具ID拒否・変更検出） | PASS | `python scripts/build-visual-twin.py ... --state build/W06-diag-unknown-fixture-state.json`：Blenderプロセスが1つも起動せず、出力ディレクトリも作られない時点で`error: lighting.fixtures references unknown fixture id(s): elec-does-not-exist`を確認。`tests/test_refresh_study.py`・`tests/test_study_scenarios.py`に、保存済み状態の器具IDを事後に不正な値へ書き換えて`refresh_inputs.retained_inputs()`/`scenario_inputs()`が拒否することを確認するテストを追加。`tests/test_source_changes.py`に新規`test_lighting_profile_and_group_changes_are_diffed`を追加し、プロファイル/グループの追加・変更が`compare()`/`render_html()`へ反映されることを確認。実行した完全refresh（下記）の`source-changes.json`でも、R2のdirectionLocal修正3件が実際に`lightingProfiles.modified: 3`として検出されていることを確認。 |
+| R5代表検証（照明A/Bのsolar保持・排他制御） | PASS | 実UEエディタ実行（`verify_w06_v2.py`）：日時由来の`solar`を持つ状態を基点に照明A/Bを開始し、A表示中・B表示中とも`current_state().solar`が基点の値と完全一致（`compare_a_solar_preserved`/`compare_b_solar_preserved`いずれも`true`）。比較中の`turn_on_selected_lighting()`/`set_lighting_day()`/`reset_all_lighting()`はいずれも`RuntimeError`で拒否（`edits_blocked_during_compare`に理由文言を記録）。比較中に同じ照明A/Bを再度開始しようとしても拒否（`second_compare_start_blocked: true`）。比較終了後は`solar`が保持されたまま（`solar_after_end_compare: true`）、`_active_compare_label()`が`null`に戻ることを確認。グループの不明メンバー警告は同実行内で、プロジェクト自身の`lighting-settings.json`コピーへ不明IDを含むテスト用グループを一時追加し、`_target_fixture_ids()`呼び出し時に`unreal.log()`へ不明IDを含む警告が出ることを確認（`stale_group_warned: true`）。 |
+| 修正版一式での完全refresh 1回 | PASS | `build/W06-v2-refresh-v1`：`--previous`に夜間・3器具ON状態を持つプロジェクトを与え、`refresh-visual-study.py`を実行。7工程すべて`complete`、`stateVerification`の`statePreserved`/`geometryVerified`/`cameraRotationPreserved`が全て`true`、`unrealVerification.lighting.fixtureIds`が3器具すべてを含み、`unrealImportVerified: true`（659メッシュ、`maxBoundsErrorCm`は6e-5cmと無視できる誤差）。この1回のUEプロジェクトに対して上記R1/R2/R4/R5の実行確認（`verify_w06_v2.py`）をまとめて実施しています。F5/F9往復・再起動復帰はv1報告（`build/W06-ue-v1/walkthrough-smoke.txt`＝PASS）のエビデンスを再利用し、今回は再実行していません（レビューの明示的な許可通り）。 |
+| 関連テスト・回帰 | PASS | `python -m pytest tests/`：161 passed, 55 subtests passed（v1報告の156 passed, 54 subtestsから、R1/R2関連2件・R4関連3件（`test_refresh_study.py`1件・`test_study_scenarios.py`1件・`test_source_changes.py`1件）を追加）。`node scripts/build-web-data.mjs --check`・`python tests/validate_house.py`（33室・35壁、変更なし）・`python tests/validate_electrical.py`（23型・145配置、変更なし）いずれも成功。 |
+
+v1報告のAC3（照明A/B・F5/F9・完全refresh）・AC4（旧状態互換・不正値拒否）は今回のR1〜R5修正が直接及ぶ範囲外（R5の排他制御・solar保持を除く）のため、上記R5代表検証と完全refreshの再実行で該当パスの健全性を再確認しています。個別の再検証はレビューの指示通り、修正箇所の代表確認に絞っています。v1報告のAC1〜5の内容・証拠は下記に維持しますが、**AC1・AC2の「PASS」判定は、上記R1・R2の実バグが残った状態での判定であり、v2の対応後の再判定は上記の表を参照してください**（AC1・AC2自体の記述は当時の記録として変更していません）。
+
+## 結果（v1、レビュー未反映の記録として維持）
 
 ゲストLDK（room-1f-06）で、正本の照明配置（`data/electrical.json`）をBlender/UEへ反映し、夜間の点灯・調光・色温度の比較・保存・再生成ができるようになりました。今回対象のdownlight/ceiling/bracket/pendantのうち、既存`elec-008`（シーリング）に加えdownlight（`elec-200`）・pendant（`elec-201`）をゲストLDKへ新規配置し、2グループ（`guest-ldk-main`＝シーリング+ダウンライト、`guest-ldk-dining`＝ペンダント）に編成しました。light-bracketは配置インスタンスが無いため型・検証経路のみ用意し、light-exterior/light-indirectはW06の対象外として明記しています。
 
@@ -23,7 +47,29 @@ UEエディタに「照明」（昼夜切替、器具/グループ選択、ON/OF
 | 4（旧状態の昼互換と、未知器具IDまたは不正値の簡単な拒否を確認。Python単体テスト中心、異常系のUE全経路反復は不要） | PASS | `tests/test_study_state.py`：1.0.0/1.1.0状態（`lighting`欠落、または任意の値を持たせても）が常に`day`・空`fixtures`へ正規化されること、1.2.0状態は`lighting`欠落・不正な`mode`・型不正な`fixtures`を確実に拒否すること、`on`/`dimming`/`temperatureK`の型・範囲チェック（bool以外のon、範囲外のdimming/temperatureK、未知フィールド）を確認。実UEエディタでも1件、未知の器具ID（`elec-does-not-exist`）を含む状態の`apply_state()`が拒否され（`unknown_fixture_rejected: true`）、シーン・状態が変更されないこと（`state_unchanged_after_rejection: true`）を確認。 |
 | 5（器具の正本/仮仕様/変更反映手順を文書化。関連回帰、validate_house、validate_electrical、build-web-data --check成功） | PASS | [ARCHITECTURE.md「電気設備の再生成反映・夜間照明比較」](../ARCHITECTURE.md#電気設備の再生成反映夜間照明比較lighting-bindingsjsonw062026-09-09追加)・[UNREAL_WALKTHROUGH.md](../UNREAL_WALKTHROUGH.md)・[STATUS.md](../STATUS.md)を更新。`python -m pytest tests/`：156 passed, 54 subtests passed（新規39件：`test_lighting.py`16件、`test_electrical_assets.py`12件、`test_study_state.py`に3件追加）。`node scripts/build-web-data.mjs --check`・`python tests/validate_house.py`（33室・35壁）・`python tests/validate_electrical.py`（23型・145配置＝既存142+新規3）いずれも成功。 |
 
-## 変更と判断
+## 変更と判断（v2で追加・変更した分）
+
+- 主な変更：
+  - `interior-white-model.html`：`electricalGroupY()`・XYZパネルの表示/逆変換・既定値リセットの計4箇所を`slopedCeilingHeightAt()`ベースへ修正（R1）。
+  - `data/visual/lighting-settings.json`：天井付け3型の`directionLocal`を`[0,0,-1]`→`[0,-1,0]`へ修正し、`note`に座標系・修正内容を明記（R2）。
+  - `blender/electrical_assets.py`：`ceiling_height_at()`に`room_id`引数を追加し部屋の`ceiling`種別で分岐、`resolve_mount()`/`build_lighting_bindings()`へ`emitPositionM`を追加、`create_fixture_mesh()`の天井シェード生成を下向きへ修正（R1・R2）。
+  - `blender/build_interior.py`：欠けていた`ceiling_height_at`のインポートを追加、ランプ配置を`emitPositionM`へ、ランプ回転の誤反転を削除、`setup_lighting()`に夜間分岐を追加（R2・R3）。
+  - `unreal/lighting.py`：`validate_lighting_bindings()`が`emitPositionM`も検証するよう修正（R2）。
+  - `unreal/import_study.py`：プレースホルダー円柱の二重生成を削除し、光源位置を`emitPositionM`へ（R2）。
+  - `scripts/build-visual-twin.py`：Blender起動前の照明解決プリフライト（未知器具ID拒否含む）を追加（R4）。
+  - `scripts/refresh_inputs.py`：`retained_inputs()`/`scenario_inputs()`に照明器具ID参照検証を追加（R4）。
+  - `scripts/source_changes.py`：`TARGETS`へ`lightingProfiles`/`lightingGroups`を追加し、`summarize()`/`render_html()`へ反映（R4）。`scripts/refresh-visual-study.py`のトップページ要約にも同2項目を追加。
+  - `unreal/study_controls.py`：`_target_fixture_ids()`のグループ不明メンバー警告、`_active_compare_label()`/`_require_no_active_compare()`による3種A/Bの相互排他と比較中の通常照明編集の禁止、`start_lighting_compare()`/`show_lighting_compare()`の`solar`保持、`_selected_lighting_effective()`による状態表示・プロンプト既定値の実効値化（R5）。
+  - テスト：`tests/test_electrical_assets.py`・`tests/test_lighting.py`・`tests/test_refresh_study.py`・`tests/test_study_scenarios.py`・`tests/test_source_changes.py`を更新・追加。
+- 設計からの差異：なし。R4の`source_changes.py`拡張は`data/electrical.json`本体（145件）の全項目差分ではなく`lighting-settings.json`のプロファイル/グループのみに限定（レビューが明示的に許容した範囲）。
+- 追加依存：なし。環境変更：なし。BASEは`d4fabb2`のまま維持し、v1のコミット（`81b3ddf`）に対する追加コミットとして提出します。
+- 未追跡/ignored成果物（`build/`配下、すべて`.gitignore`対象、v2で新規追加分）：
+  - `build/W06-v2-night-diag`・`build/W06-v2-day-diag`：修正版Blenderの夜間/昼間レンダリング（R1〜R3の視覚確認）
+  - `build/W06-diag-unknown-fixture-state.json`：R4の未知器具ID拒否確認用state
+  - `build/W06-v2-base`：v2完全refreshの`--previous`用ベース（`build/W06-ue-v1`の複製、夜間3器具ON状態に変更）
+  - `build/W06-v2-refresh-v1`：修正版一式での完全refresh代表1回（`verify_w06_v2.py`によるR1/R2/R4/R5実行確認込み）
+
+## 変更と判断（v1、記録として維持）
 
 - 目的：既存の電気設備データモデル・太陽計算・保存/refresh基盤を再利用し、正本の照明配置のBlender/UE反映、夜間の点灯・調光・色温度比較、保存・内覧・再生成への引き継ぎを追加すること。
 - 主な変更：
@@ -58,7 +104,7 @@ UEエディタに「照明」（昼夜切替、器具/グループ選択、ON/OF
 - `light-bracket`（壁付け照明）は配置インスタンスが無いため、座標解決のみ検証済みで実機の見た目確認はしていません。壁付け器具を実際に配置する際は、光方向（既定：器具正面）の妥当性を再確認してください。
 - `light-indirect`（間接照明の造作）・`light-exterior`（屋外灯）はW06の対象外です。将来対応する場合は取付け契約・発光方向の再設計が必要です。
 - 電気回路・消費電力・法規評価は対象外のままです。
-- `source_changes.py`の変更履歴トラッキングは電気設備へ拡張していません（上記「変更と判断」参照）。
+- `source_changes.py`の変更履歴トラッキングは、v2で`lighting-settings.json`のプロファイル/グループへ拡張済みですが、`data/electrical.json`本体（145件の配置インスタンス）の全項目差分は引き続き対象外です（レビューが明示的に不要と判断した範囲）。
 - W07（全館内覧）には着手していません。
 
 ## 再現・復旧

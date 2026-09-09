@@ -90,9 +90,10 @@ def validate_lighting_bindings(document):
         if not isinstance(fid, str) or not fid or fid in seen:
             raise ValueError('Invalid or duplicate fixture id in lighting-bindings.json')
         seen.add(fid)
-        position = fixture.get('positionM')
-        if not isinstance(position, list) or len(position) != 3 or not all(_number(v, -1000, 1000) for v in position):
-            raise ValueError(f'{fid}: invalid positionM')
+        for key in ('positionM', 'emitPositionM'):
+            position = fixture.get(key)
+            if not isinstance(position, list) or len(position) != 3 or not all(_number(v, -1000, 1000) for v in position):
+                raise ValueError(f'{fid}: invalid {key}')
         direction = fixture.get('directionVector')
         if (not isinstance(direction, list) or len(direction) != 3
                 or not all(_number(v, -1, 1) for v in direction)

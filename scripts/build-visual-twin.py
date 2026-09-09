@@ -103,6 +103,36 @@ def main():
                 unknown = sorted(set(state_overrides) - known_ids)
                 if unknown:
                     parser.error('surfaceOverrides references unknown surface id(s): ' + ', '.join(unknown))
+        # W06-v1 review R4: build_lighting_bindings() (unknown/unsupported
+        # lighting type, missing profile, unresolvable mount) previously only
+        # ran INSIDE build_interior.py, after Blender had already built the
+        # whole scene -- not "before Blender starts". Resolve the CURRENT
+        # source here first, same as the surface-registry check above; a
+        # --state naming a fixture id that this resolution doesn't produce is
+        # also caught here, before Blender launches.
+        sys.path.insert(0, str(ROOT / 'blender'))
+        from electrical_assets import build_lighting_bindings
+        guest_settings = json.loads((ROOT / 'data/visual/guest-ldk-study.json').read_text(encoding='utf-8'))
+        house_data = json.loads((ROOT / 'data/house.json').read_text(encoding='utf-8'))
+        house_data['envelope'] = json.loads((ROOT / 'generated/visual-envelope.json').read_text(encoding='utf-8'))
+        electrical_doc = json.loads((ROOT / 'data/electrical.json').read_text(encoding='utf-8'))
+        catalog_doc = json.loads((ROOT / 'data/electrical-catalog.json').read_text(encoding='utf-8'))
+        lighting_settings_doc = json.loads((ROOT / 'data/visual/lighting-settings.json').read_text(encoding='utf-8'))
+        try:
+            lighting_bindings_preflight = build_lighting_bindings(
+                house_data, electrical_doc, catalog_doc, lighting_settings_doc, guest_settings['roomId'])
+        except ValueError as error:
+            parser.error('Lighting fixtures could not be resolved: ' + str(error))
+        if args.state:
+            try:
+                state_lighting = json.loads(args.state.read_text(encoding='utf-8')).get('lighting')
+            except Exception:
+                state_lighting = None  # malformed/unreadable; let build_interior.py's real validate_state() report it
+            if isinstance(state_lighting, dict) and isinstance(state_lighting.get('fixtures'), dict):
+                known_fixture_ids = {f['id'] for f in lighting_bindings_preflight['fixtures']}
+                unknown_fixtures = sorted(set(state_lighting['fixtures']) - known_fixture_ids)
+                if unknown_fixtures:
+                    parser.error('lighting.fixtures references unknown fixture id(s): ' + ', '.join(unknown_fixtures))
     output.parent.mkdir(parents=True, exist_ok=True)
     # Stage a new package; failures cannot replace the last successful build.
     with tempfile.TemporaryDirectory(prefix='.visual-twin-', dir=output.parent) as temp:

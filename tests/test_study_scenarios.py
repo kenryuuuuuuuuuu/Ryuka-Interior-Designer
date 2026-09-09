@@ -153,6 +153,21 @@ class ScenarioTests(unittest.TestCase):
         self.assertEqual(paths['state'],output/'study-state.json')
         self.assertEqual(scenario['name'],'再適用対象の案')
 
+    def test_scenario_rejects_unknown_lighting_fixture(self):
+        # W06-v1 review R4: a scenario's bundled state.lighting.fixtures must
+        # be checked against the CURRENT source's resolvable fixtures too.
+        self.write('study-state.json',dict(self.state,schemaVersion='1.2.0',surfaceOverrides={},
+            lighting=dict(mode='night',fixtures={'elec-008':{'on':True}})))
+        output=self.run_save('照明つきの案')
+        state=json.loads((output/'study-state.json').read_text(encoding='utf-8'))
+        state['lighting']['fixtures']={'elec-does-not-exist':{'on':True}}
+        (output/'study-state.json').write_text(json.dumps(state),encoding='utf-8')
+        scenario=json.loads((output/'scenario.json').read_text(encoding='utf-8'))
+        scenario['files']['study-state.json']=dict(sha256=refresh_inputs.sha(output/'study-state.json'))
+        (output/'scenario.json').write_text(json.dumps(scenario),encoding='utf-8')
+        with self.assertRaises(ValueError):
+            refresh_inputs.scenario_inputs(output)
+
     def test_scenario_bundles_site_and_rejects_stale_cases(self):
         # W05: site.local.json is picked up by the same generic retained-files
         # loop save_scenario_package() already had -- no special-casing needed

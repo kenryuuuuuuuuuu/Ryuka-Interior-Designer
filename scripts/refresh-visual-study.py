@@ -50,7 +50,10 @@ def summary(report):
         if src['baselineStatus']=='available':
             s=src['summary']
             parts=[]
-            for label,key in (('部屋','rooms'),('家具','furniture'),('家具カタログ','catalog')):
+            # W06-v1 review R4: surface the lighting-settings.json diffs here too,
+            # same as rooms/furniture/catalog -- not just buried in the detail page.
+            for label,key in (('部屋','rooms'),('家具','furniture'),('家具カタログ','catalog'),
+                    ('照明プロファイル','lightingProfiles'),('照明グループ','lightingGroups')):
                 c=s.get(key)
                 if c: parts.append(f'{esc(label)}：追加{c["added"]}・削除{c["removed"]}・変更{c["modified"]}')
             source_changes_html=('<h2>前回モデルからの変更</h2><p>'+'、'.join(parts)+

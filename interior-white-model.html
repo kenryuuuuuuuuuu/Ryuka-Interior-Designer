@@ -3112,7 +3112,11 @@ function redoElectrical(){
 // repositionElectricalItem()（取付け高さだけの軽量更新）の両方から呼ぶことで、Y座標計算のロジックを
 // 二重に持たないようにする
 function electricalGroupY(eff, baseY){
-  if(eff.mount==='ceiling') return baseY + CEIL_H - eff.mountHeight;
+  // W06レビューR1：勾配天井（room-1f-06等）では平坦なCEIL_Hと実際の天井高が
+  // 異なるため、壁・天井生成が使っているのと同じslopedCeilingHeightAt()
+  // （既存、内覧の当たり判定・輪郭表示等で使用）で実際の天井高を求める。
+  // 対象外の地点・平坦天井の部屋ではCEIL_Hと同じ値を返すため、既存の見た目は変わらない。
+  if(eff.mount==='ceiling') return baseY + slopedCeilingHeightAt(eff.x, eff.z) - eff.mountHeight;
   return baseY + eff.mountHeight; // wall・floorはFLからの高さ
 }
 // mount:'exterior'（屋外設置）のface+offsetから、実際のワールド座標(x,z)と外向きの
@@ -3501,7 +3505,7 @@ function updateElectricalPositionFields(eff){
     epX.disabled = true; epY.disabled = true; epZ.disabled = true;
   } else { // ceiling・floor：自由座標、クランプなし
     epX.value = round2(eff.x); epZ.value = round2(eff.z);
-    epY.value = round2(eff.mount==='ceiling' ? CEIL_H - eff.mountHeight : eff.mountHeight);
+    epY.value = round2(eff.mount==='ceiling' ? slopedCeilingHeightAt(eff.x, eff.z) - eff.mountHeight : eff.mountHeight);
   }
 }
 // XYZ数値入力の書き込み。applyElectricalDimEdit()と同じ構造（electricalEditsへパッチ→保存→
@@ -3534,7 +3538,10 @@ function applyElectricalPositionEdit(axis, value, skipSnapshot){
     if(axis==='x') patch = { x: round2(v) };
     else if(axis==='z') patch = { z: round2(v) };
     else if(axis==='y'){
-      const mh = eff.mount==='ceiling' ? THREE.MathUtils.clamp(CEIL_H - v, 0, CEIL_H) : Math.max(0, v);
+      // W06レビューR1：逆変換（入力された「床からの高さ」→mountHeight）も
+      // electricalGroupY()と同じ実際の天井高を使う（勾配天井での不一致を解消）。
+      const ceilingHere = slopedCeilingHeightAt(eff.x, eff.z);
+      const mh = eff.mount==='ceiling' ? THREE.MathUtils.clamp(ceilingHere - v, 0, ceilingHere) : Math.max(0, v);
       patch = { mountHeight: round2(mh) };
     }
   } else {
@@ -3642,7 +3649,7 @@ function resetSelectedElectricalHeight(){
   if(!base) return;
   const eff = effectiveElectrical(base);
   const catalogMountHeight = ELECTRICAL_CATALOG[eff.type].mountHeight;
-  const yValue = eff.mount==='ceiling' ? CEIL_H - catalogMountHeight : catalogMountHeight;
+  const yValue = eff.mount==='ceiling' ? slopedCeilingHeightAt(eff.x, eff.z) - catalogMountHeight : catalogMountHeight;
   applyElectricalPositionEdit('y', round2(yValue));
 }
 // 複製：壁付けは同じ壁の空き位置(findFreeWallSlot、範囲はwallRangeForElectricalで求める現在の

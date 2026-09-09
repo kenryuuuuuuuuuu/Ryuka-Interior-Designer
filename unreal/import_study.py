@@ -121,26 +121,29 @@ def main():
             boxes=create_context(json.loads((project/'site-context.json').read_text(encoding='utf-8-sig')),
                                  material('Context_estimated','9c9c9c',.85)))
     # W06: fixtures/lights resolved ONCE by Blender (build_electrical_lighting())
-    # into lighting-bindings.json; UE only spawns actors at those already-
-    # resolved positions/directions, it never re-derives mount geometry
-    # itself. A pre-W06 package simply has no such file -- nothing to spawn,
-    # study_controls.py's own lighting menu/apply_state() likewise treat an
-    # absent lighting-bindings.json as "no fixtures in this project".
+    # into lighting-bindings.json; UE only spawns the LIGHT actors at those
+    # already-resolved positions/directions, it never re-derives mount
+    # geometry itself. The fixture MESH is not spawned separately here --
+    # Blender's build_electrical_lighting() already added it to the scene
+    # exported into interior.glb, so it arrives through the normal Interchange
+    # import above like any other geometry (W06-v1 review R2: a previous
+    # version also spawned a fixed-size placeholder Cylinder here, doubling
+    # every fixture's visible geometry). A pre-W06 package simply has no
+    # lighting-bindings.json -- nothing to spawn, study_controls.py's own
+    # lighting menu/apply_state() likewise treat its absence as "no fixtures
+    # in this project".
     lighting_report=None
     lighting_path=package/'lighting-bindings.json'
     if lighting_path.exists():
         lighting_bindings=validate_lighting_bindings(json.loads(lighting_path.read_text(encoding='utf-8')))
         write_json(project/'lighting-bindings.json',lighting_bindings)
-        fixture_mesh=unreal.load_asset('/Engine/BasicShapes/Cylinder.Cylinder')
-        placeholder_material=material('Light_fixture_placeholder','d8d3c4',.4)
         for fixture in lighting_bindings['fixtures']:
-            x,y,z=fixture['positionM']
+            # W06-v1 review R2: the light itself sits at emitPositionM (the
+            # fixture housing's underside), not positionM (the mesh's mount
+            # origin/top) -- never inside the ceiling void or the fixture's
+            # own opaque body.
+            x,y,z=fixture['emitPositionM']
             location=unreal.Vector(x*100,z*100,y*100)
-            holder=spawn(unreal.StaticMeshActor,'LightFixture_'+fixture['id'],location)
-            holder.static_mesh_component.set_static_mesh(fixture_mesh)
-            holder.static_mesh_component.set_material(0,placeholder_material)
-            holder.set_actor_scale3d(unreal.Vector(.12,.12,.02))
-            holder.static_mesh_component.set_cast_shadow(False)
             dx,dy,dz=fixture['directionVector']
             direction=unreal.Vector(dx,dz,dy)
             light_class=unreal.SpotLight if fixture['source']=='spot' else unreal.PointLight

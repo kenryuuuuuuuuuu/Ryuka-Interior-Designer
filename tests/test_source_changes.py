@@ -22,6 +22,10 @@ def ctype(type,label='Type',width=0.5,depth=0.5,height=0.5,category='seating',sh
     return dict(type=type,label=label,category=category,shape=shape,rotationConvention=rotationConvention,
         width=width,depth=depth,height=height,clearance=clearance,note=note)
 
+def lighting_profile(source='point',lumens=500,temperatureK=2700,spotAngleDeg=None,directionLocal=None,status='estimated',note=''):
+    return dict(source=source,lumens=lumens,temperatureK=temperatureK,spotAngleDeg=spotAngleDeg,
+        directionLocal=directionLocal or [0,-1,0],status=status,note=note)
+
 
 class SourceChangesTests(unittest.TestCase):
     def setUp(self):
@@ -36,6 +40,10 @@ class SourceChangesTests(unittest.TestCase):
         self.bindings=dict(schemaVersion='1.0.0',bindings=[dict(furnitureId='fur-1',assetId='chair-v1',sizing='parametric',status='estimated',note='')])
         self.decor=dict(schemaVersion='1.0.0',roomId='room-a',items=[dict(id='decor-1',kind='rug',furnitureId='fur-1',width=1,depth=1,status='estimated',note='')])
         self.openings=dict(schemaVersion='0.1.0',items=[dict(id='op-1',type='window',face='N',offset=0,level='1F',hingeSide=None,swingDir=None,label='Window',status='estimated')])
+        self.lighting=dict(schemaVersion='1.0.0',
+            profiles={'light-downlight':lighting_profile(),'light-ceiling':lighting_profile(lumens=3000)},
+            unsupportedTypes={},
+            groups=[dict(id='group-a',label='Group A',fixtureIds=['elec-1'])])
         self.write_current(); self.write_previous()
 
     def write_json(self,path,value):
@@ -50,11 +58,13 @@ class SourceChangesTests(unittest.TestCase):
         self.write_json(self.current/'data/visual/asset-bindings.json',self.bindings)
         self.write_json(self.current/'data/visual/guest-decor.json',self.decor)
         self.write_json(self.current/'data/openings.json',self.openings)
+        self.write_json(self.current/'data/visual/lighting-settings.json',self.lighting)
 
-    def write_previous(self,house=None,furniture=None,catalog=None):
+    def write_previous(self,house=None,furniture=None,catalog=None,lighting=None):
         inputs=self.previous/'SourcePackage/inputs'
         files={'data/house.json':house or self.house,'data/furniture.json':furniture or self.furniture,
-               'data/furniture-catalog.json':catalog or self.catalog}
+               'data/furniture-catalog.json':catalog or self.catalog,
+               'data/visual/lighting-settings.json':lighting or self.lighting}
         hashes={}
         for relpath,value in files.items():
             path=inputs/relpath
@@ -83,6 +93,26 @@ class SourceChangesTests(unittest.TestCase):
         self.assertEqual(cat_mod['affectedFurnitureIds'],['fur-1'])  # candidate impact via current furniture
         self.assertEqual(changes['rooms']['added'],[]); self.assertEqual(changes['rooms']['removed'],[])
         self.assertEqual(changes['issues'],[])
+
+    def test_lighting_profile_and_group_changes_are_diffed(self):
+        # W06-v1 review R4: lighting-settings.json's profiles/groups must
+        # appear in the change report too, same shallow keyed-diff treatment
+        # as rooms/furniture/catalog (not electrical.json's full fixture list).
+        self.lighting['profiles']['light-downlight']=lighting_profile(lumens=900)  # changed
+        self.lighting['profiles']['light-pendant']=lighting_profile(source='point',lumens=800)  # added
+        self.lighting['groups']=[dict(id='group-a',label='Group A・改名',fixtureIds=['elec-1','elec-2'])]
+        self.write_current()
+        changes=sc.compare(self.previous,self.current)
+        self.assertEqual(changes['baselineStatus'],'available')
+        profile_mod=next(m for m in changes['lightingProfiles']['modified'] if m['id']=='light-downlight')
+        field=next(f for f in profile_mod['fields'] if f['field']=='lumens')
+        self.assertEqual((field['before'],field['after'],field['category']),(500,900,'光学値'))
+        self.assertEqual(changes['lightingProfiles']['added'][0]['id'],'light-pendant')
+        group_mod=next(m for m in changes['lightingGroups']['modified'] if m['id']=='group-a')
+        categories={f['category'] for f in group_mod['fields']}
+        self.assertEqual(categories,{'構成','名称'})
+        page=sc.render_html(changes)
+        self.assertIn('照明プロファイル',page); self.assertIn('照明グループ',page)
 
     def test_array_reorder_alone_is_not_a_change(self):
         self.house['rooms']=list(reversed(self.house['rooms']))

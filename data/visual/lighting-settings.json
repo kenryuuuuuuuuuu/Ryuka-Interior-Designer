@@ -1,13 +1,13 @@
 {
   "schemaVersion": "1.0.0",
-  "note": "W06: data/electrical-catalog.jsonの照明type（category:lighting）ごとの光学プロファイル（推定値）と、比較用グループ。実測配光・光束・IES・実採用品番の確認前のため、全プロファイルstatus:estimated。位置・寸法はdata/electrical.json側の正本のまま複製しない。directionLocalは器具のローカル+Z軸を基準にした発光方向（天井付けは常に鉛直下向き[0,0,-1]固定＝勾配天井の傾きでは変えない。壁付けは器具の正面＝取付け面から外向き[0,0,1]、blender/electrical_assets.pyのresolve_mount()が実際の設置方位へ回転させたうえで解決済みベクトルをlighting-bindings.jsonへ書き出す）。",
+  "note": "W06: data/electrical-catalog.jsonの照明type（category:lighting）ごとの光学プロファイル（推定値）と、比較用グループ。実測配光・光束・IES・実採用品番の確認前のため、全プロファイルstatus:estimated。位置・寸法はdata/electrical.json側の正本のまま複製しない。座標系は正本と同じx東/y上/z南（m）。directionLocalは器具のローカル+Z軸を基準にした発光方向（天井付けは常に鉛直下向き＝y成分-1の[0,-1,0]固定＝勾配天井の傾きでは変えない。壁付けは器具の正面＝取付け面から外向き（水平、z成分+1の[0,0,1]）、blender/electrical_assets.pyのresolve_mount()が実際の設置方位へ回転させたうえで解決済みベクトルをlighting-bindings.jsonへ書き出す）。W06-v1レビューR2で修正：天井付けの当初値[0,0,-1]はz成分（南向き水平）であり下向きではなかった。",
   "profiles": {
     "light-downlight": {
       "source": "spot",
       "lumens": 650,
       "temperatureK": 2700,
       "spotAngleDeg": 90,
-      "directionLocal": [0, 0, -1],
+      "directionLocal": [0, -1, 0],
       "status": "estimated",
       "note": "一般的なLEDダウンライト(6W相当)の概算光束。実採用品番未確認。"
     },
@@ -16,7 +16,7 @@
       "lumens": 3800,
       "temperatureK": 3000,
       "spotAngleDeg": null,
-      "directionLocal": [0, 0, -1],
+      "directionLocal": [0, -1, 0],
       "status": "estimated",
       "note": "6-8畳向けLEDシーリングライトの概算光束（調光器一体型を想定）。実採用品番未確認。"
     },
@@ -34,7 +34,7 @@
       "lumens": 800,
       "temperatureK": 2700,
       "spotAngleDeg": null,
-      "directionLocal": [0, 0, -1],
+      "directionLocal": [0, -1, 0],
       "status": "estimated",
       "note": "ダイニングテーブル上等を想定したペンダント1灯あたりの概算光束。実採用品番未確認。"
     }
