@@ -154,6 +154,19 @@ def build_lighting_bindings(data, electrical, catalog, settings, room_id):
             profileStatus=profile.get('status', 'estimated'), profileNote=profile.get('note')))
     if not fixtures:
         raise ValueError(f'No supported lighting fixtures found for room {room_id}')
+    # W06-v2 review 必須修正A: lighting-settings.json's groups are a common
+    # operating shortcut (Blender's own build never uses them itself), but a
+    # group referencing a fixture id that this resolution does not produce
+    # (removed from data/electrical.json, wrong room, unsupported type) must
+    # stop HERE too -- the same "before Blender does more work" contract as
+    # every other unresolvable id above, not left to be discovered later as
+    # a silently-partial group in the UE editor.
+    known_ids = {f['id'] for f in fixtures}
+    for group in settings.get('groups', []):
+        unknown = [fid for fid in group.get('fixtureIds', []) if fid not in known_ids]
+        if unknown:
+            raise ValueError(f"lighting-settings.json group '{group.get('id')}' references fixture id(s) "
+                f"not resolvable for room {room_id}: " + ', '.join(unknown))
     return dict(schemaVersion='1.0.0', roomId=room_id, fixtures=fixtures)
 
 

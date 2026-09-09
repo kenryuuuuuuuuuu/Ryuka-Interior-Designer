@@ -206,10 +206,12 @@ def apply_state(state):
 
 
 def set_variant(name):
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     state=current_state(); state['variant']=name; apply_state(state)
 
 
 def set_elevation(degrees):
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     state=current_state(); state.pop('solar',None); state['elevationDeg']=degrees; apply_state(state)
 
 
@@ -228,6 +230,7 @@ def _verify_case_site(case, label):
 
 
 def set_sun_case(index):
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     cases=validate_cases(read('sun-cases.json'))['cases']
     if isinstance(index,bool) or not isinstance(index,int) or not 0<=index<len(cases):
         raise ValueError('Invalid solar case index')
@@ -243,6 +246,7 @@ def fixed_view():
 
 
 def remember_view():
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     position,rotation=unreal.EditorLevelLibrary.get_level_viewport_camera_info()
     state=current_state()
     camera=scene()['Camera_guest_LDK']
@@ -387,6 +391,7 @@ def start_walkthrough():
 
 
 def load_walkthrough():
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     state=read('Saved/walkthrough-state.json')
     apply_state(state)
     save()
@@ -438,6 +443,7 @@ def select_surface(surface_id):
 
 
 def _apply_override(update):
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     if _selected_surface is None: raise RuntimeError('先に面を選択してください（面編集の一覧から）。')
     state=current_state()
     overrides=dict(state['surfaceOverrides'])
@@ -476,12 +482,14 @@ def apply_color_to_selected():
 
 
 def reset_all_overrides():
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     state=current_state(); state['surfaceOverrides']={}
     apply_state(state)
     register_menu()
 
 
 def apply_preset_to_room(variant):
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     room_id=read('SourcePackage/study.json')['roomId']
     state=current_state(); overrides=dict(state['surfaceOverrides'])
     for surface_id,info in surface_bindings()['surfaces'].items():
@@ -600,6 +608,7 @@ def _validate_applicable(state, label):
 
 
 def load_scenario(index):
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     dirs=_scenario_dirs()
     if not 0<=index<len(dirs): raise RuntimeError('案が見つかりません。')
     # W05-v1 review R2: scenario_inputs() validates state/site/sun-cases as
@@ -729,6 +738,7 @@ def show_site_status(): unreal.log(_site_status_text())
 
 
 def load_site():
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     path_text=_prompt('敷地を読み込む','敷地JSONファイルのパス（このworktreeのbuild/配下）','').strip()
     if not path_text: return
     path=Path(path_text)
@@ -745,6 +755,7 @@ def load_site():
 
 
 def create_site_input():
+    _require_no_active_compare()  # W06-v2 review 必須修正B
     lat_text=_prompt('敷地の新規作成 (1/6)','緯度（度。南緯は負の値）例：35.681','').strip()
     lon_text=_prompt('敷地の新規作成 (2/6)','経度（度。西経は負の値）例：139.767','').strip()
     north_text=_prompt('敷地の新規作成 (3/6)','図面北の、真北からの時計回り方位（度、0〜360）例：0','').strip()
@@ -974,12 +985,16 @@ def _target_fixture_ids(target_id):
     if group is None: raise RuntimeError('この照明/グループは現在のモデルにありません: '+target_id)
     stale=[fid for fid in group['fixtureIds'] if fid not in known]
     if stale:
-        # W06-v1 review R4: dropping a stale member used to be silent; the
-        # operator acting on a group must see that some of its members no
-        # longer resolve, every time, not just when the group ends up empty.
-        unreal.log(f"警告：グループ「{target_id}」の一部の照明は現在のモデルにありません（無視されます）: "
-            +', '.join(stale))
-    return [fid for fid in group['fixtureIds'] if fid in known]
+        # W06-v2 review 必須修正A: a stale member must refuse the WHOLE
+        # operation (current state left untouched), not silently continue
+        # with the known subset -- v1's "warn and continue" partial-apply
+        # was explicitly rejected ("警告による部分適用への仕様変更は承認して
+        # いません"). All three callers (select_lighting/_apply_fixture_update/
+        # reset_selected_lighting) call this BEFORE reading/mutating any
+        # state, so raising here leaves the scene exactly as it was.
+        raise RuntimeError(f"グループ「{target_id}」に現在のモデルに無い照明が含まれています。"
+            f"lighting-settings.jsonのgroupsを修正してください（不明な器具ID: {', '.join(stale)}）。")
+    return list(group['fixtureIds'])
 
 
 def select_lighting(target_id):

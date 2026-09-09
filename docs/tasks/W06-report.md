@@ -1,11 +1,28 @@
 # W06 実装報告
 
-状態：READY_FOR_REVIEW（v2、W06-v1レビューのR1〜R5対応）
+状態：READY_FOR_REVIEW（v3、W06-v2再レビューの必須修正A/B対応）
 開始BASE（完全SHA）：`d4fabb229a2b53e2478486e3913f4dd4563fbbbf`（維持）
 使用モデル：Claude Sonnet 5（`claude-sonnet-5`）
 環境：Windows 11 Pro 10.0.26200 / UE 5.8.2 / Blender 5.2.0 LTS。変更した設定なし。
 
-## 結果（v2時点）
+## 結果（v3時点）
+
+**[W06-v2再レビュー](W06-review-v2.md)（対象`1962388`、CHANGES_REQUESTED、R1〜R3は受入済み）の必須修正A・Bを同じW06内で修正しました**（この報告のv3）。今回はレビュー自身が「光源生成・材質・C++を変更しない限りBlender/UEの完全refresh再実行は不要」「少数の関数テストと既存UEでの代表操作で十分」と明記した通り、実UE起動・完全refreshは行わず、レビュー自身が採った手法（対象関数を抽出しcurrent_state/apply_stateを簡易代替して実行）と同水準の軽量確認で対応しています。
+
+| 項目 | v2までの状態 | v3での対応 |
+|---|---|---|
+| 必須修正A（グループの参照切れが適用前に拒否されない） | `build_lighting_bindings()`はgroupsのfixtureIdsを検証しておらず、削除済み器具を含むグループでも正常に残りの器具だけを返していた。生成前チェック（`build-visual-twin.py`）・`refresh_inputs.py`にも接続されていない。UE側`_target_fixture_ids()`は不明メンバーを警告ログに出すだけで、既知メンバーだけへ部分適用していた（v2で追加したが、レビューは「警告による部分適用への仕様変更は承認していません」と明確に却下）。 | `blender/electrical_assets.py`の`build_lighting_bindings()`に、解決済み器具一覧に対するgroups.fixtureIdsの参照検証を追加し、不明メンバーがあればValueErrorで停止するようにした（`build-visual-twin.py`の生成前プリフライト・`refresh_inputs.py`の`retained_inputs()`/`scenario_inputs()`は、いずれも同じ関数を呼んでいるため自動的にこの検証を継承する）。`unreal/study_controls.py`の`_target_fixture_ids()`は、不明メンバーがあれば警告ログではなくRuntimeErrorで操作全体を拒否するよう変更（既知メンバーへの部分適用をやめた）。3つの呼び出し元（`select_lighting`/`_apply_fixture_update`/`reset_selected_lighting`）はいずれも状態を読む/変更する前にこの関数を呼んでいるため、現在の状態は一切変更されない。 |
+| 必須修正B（比較中の固定条件変更・案読込にガードが無い） | `_require_no_active_compare()`は照明編集（`set_lighting_day/night`等）と3種の比較開始にしか適用されておらず、既存の仕上げ変更（`set_variant`）・太陽変更（`set_elevation`/`set_sun_case`）・視点更新（`remember_view`）・面編集（`_apply_override`系）・状態復帰（`load_walkthrough`）・案/敷地読込（`load_scenario`/`load_site`/`create_site_input`）には適用されておらず、比較中でもこれらが素通りしていた。 | 上記11関数すべての先頭に`_require_no_active_compare()`を追加。参照・一覧・選択・保存など固定条件を変更しない操作（`select_surface`・`show_*`・`save`・`save_scenario`・日時ケースの追加/再計算等）は対象外のまま。 |
+
+| 項目 | 判定 | 証拠・コマンド・終了コード |
+|---|---|---|
+| 必須修正A代表検証（不明メンバー1件を含むグループで、生成前拒否と操作時の非部分適用） | PASS | 単体テスト`tests/test_electrical_assets.py::test_build_lighting_bindings_rejects_group_with_stale_member`（新規）。加えて実データ（`data/house.json`/`data/electrical.json`等）を読み込み、`lighting-settings.json`の実グループへ削除済み器具IDを1件足した**メモリ上のコピー**（実ファイルは一切変更していない）で`build_lighting_bindings()`を直接呼び出し、`build-visual-twin.py`の生成前プリフライト・`refresh_inputs.py`が呼ぶのと同じ関数がBlender/UE起動前にValueErrorで停止することを確認（実ソースのまま呼べば3器具・グループ問題なしで解決することも合わせて確認）。UE側は`build/W06-v3-confirm/verify_w06_v3_lightweight.py`（`unreal`を最小スタブへ差し替えてstudy_controls.pyを実ロード、レビュー自身の軽量確認手法と同水準）で、`_target_fixture_ids('guest-ldk-main')`（不明メンバー1件を追加したグループ）がRuntimeErrorで拒否され（`A_target_fixture_ids_rejects_stale_group: true`）、`select_lighting()`は何も選択せず（`A_select_lighting_selected_nothing: true`）、選択済みとみなした状態での`turn_on_selected_lighting()`もRuntimeErrorで拒否され`apply_state()`に一切到達しない（`A_apply_fixture_update_touched_state: false`）ことを確認（`build/W06-v3-confirm/result.json`）。 |
+| 必須修正B代表検証（照明比較中の仕上げ変更・案読込の拒否、比較終了後は通る） | PASS | 同スクリプトで、`_lighting_compare`をレビューと同じ手法（モジュールのグローバルを直接設定）で「比較中」にした状態から`set_variant('warm')`・`load_scenario(0)`を呼ぶといずれもRuntimeErrorで拒否され、`apply_state()`（差し替え済みのスパイ関数）に到達していないこと（`B_set_variant_reached_apply_state_during_compare`/`B_load_scenario_reached_apply_state_during_compare`いずれも`false`）を確認。`_lighting_compare=None`に戻した後の同じ`set_variant('warm')`呼び出しは正常に`apply_state()`まで到達すること（`B_set_variant_reaches_apply_state_after_compare_ends: true`）も確認し、「比較終了後は通る」ことも同じ操作で確かめた。 |
+| 関連テスト・回帰 | PASS | `python -m pytest tests/`：162 passed, 55 subtests passed（v2の161 passedから新規1件追加）。`node scripts/build-web-data.mjs --check`・`python tests/validate_house.py`（33室・35壁、変更なし）・`python tests/validate_electrical.py`（23型・145配置、変更なし）いずれも成功。 |
+
+v2で受け入れられたR1〜R3（Web/Blenderの取付け高さ・発光方向・Blender夜間設定）はv3で変更していません。実UE起動・完全refreshはレビューの明示的な許可通り今回実行していません（`build/W06-v2-refresh-v1`のエビデンスをそのまま参照可能な状態です）。
+
+## 結果（v2、W06-v1レビュー対応。R1〜R3は再レビューで受入済み）
 
 **[W06-v1レビュー](W06-review.md)（対象`81b3ddf`、CHANGES_REQUESTED）のR1〜R5をすべて同じW06内で修正しました**（この報告のv2）。v1報告のAC1〜5は「全AC PASS」としていましたが、実際にはR1（Web側の取付け高さが未反映）・R2（発光方向が水平だった）という2件の実バグが残った状態でのPASS表記であり、レビュー指摘の通り実態と合っていませんでした。各項目の対応は以下の通りです。
 
@@ -46,6 +63,17 @@ UEエディタに「照明」（昼夜切替、器具/グループ選択、ON/OF
 | 3（照明A/B、内覧F5/F9、再起動、名前付き案→完全refresh代表1回で照明状態を保持。1つの連続操作へまとめてよい） | PASS | 実UEエディタ実行（`build/W06-ue-v1/verify_w06.py`→`w06-verification.json`）で一連の流れを確認：グループON→調光0.7→色温度3000→夜間切替→保存→ディスクから再読込（F9相当）で`lighting`完全一致（`reload_matches_saved: true`）。異なる夜間名前付き案2件（`w06-night-a`＝main点灯、`w06-night-b`＝dining点灯）を保存し、照明A/Bを開始→A/B間で`lighting`が明確に異なる（`compare_a_b_differ: true`）ことを確認、比較中も仕上げ・視点は不変（`compare_fixed_variant_held: true`）、終了で開始前の状態へ復元（`state_after_end_matches_before: true`）。この名前付き案（`w06-night-a`）から`refresh-visual-study.py --scenario`で完全refreshを実行（`build/W06-refresh-v1`）し、7工程すべて`complete`、`stateVerification`の`statePreserved`/`geometryVerified`/`cameraRotationPreserved`が全て`true`、再生成後の`comparisonState.lighting`が保存案（night、elec-008/elec-200 on）と一致することを確認。この再生成プロジェクトでDX12スモークを実行し、HUDに「照明：夜間（仮仕様）」が正しく表示され、F5/F9往復も成功（`walkthrough-smoke.txt`＝PASS）することを確認。 |
 | 4（旧状態の昼互換と、未知器具IDまたは不正値の簡単な拒否を確認。Python単体テスト中心、異常系のUE全経路反復は不要） | PASS | `tests/test_study_state.py`：1.0.0/1.1.0状態（`lighting`欠落、または任意の値を持たせても）が常に`day`・空`fixtures`へ正規化されること、1.2.0状態は`lighting`欠落・不正な`mode`・型不正な`fixtures`を確実に拒否すること、`on`/`dimming`/`temperatureK`の型・範囲チェック（bool以外のon、範囲外のdimming/temperatureK、未知フィールド）を確認。実UEエディタでも1件、未知の器具ID（`elec-does-not-exist`）を含む状態の`apply_state()`が拒否され（`unknown_fixture_rejected: true`）、シーン・状態が変更されないこと（`state_unchanged_after_rejection: true`）を確認。 |
 | 5（器具の正本/仮仕様/変更反映手順を文書化。関連回帰、validate_house、validate_electrical、build-web-data --check成功） | PASS | [ARCHITECTURE.md「電気設備の再生成反映・夜間照明比較」](../ARCHITECTURE.md#電気設備の再生成反映夜間照明比較lighting-bindingsjsonw062026-09-09追加)・[UNREAL_WALKTHROUGH.md](../UNREAL_WALKTHROUGH.md)・[STATUS.md](../STATUS.md)を更新。`python -m pytest tests/`：156 passed, 54 subtests passed（新規39件：`test_lighting.py`16件、`test_electrical_assets.py`12件、`test_study_state.py`に3件追加）。`node scripts/build-web-data.mjs --check`・`python tests/validate_house.py`（33室・35壁）・`python tests/validate_electrical.py`（23型・145配置＝既存142+新規3）いずれも成功。 |
+
+## 変更と判断（v3で追加・変更した分）
+
+- 主な変更：
+  - `blender/electrical_assets.py`：`build_lighting_bindings()`の末尾に、解決済み器具一覧に対する`settings['groups']`の`fixtureIds`参照検証を追加（必須修正A）。`scripts/build-visual-twin.py`の生成前プリフライト・`scripts/refresh_inputs.py`の`retained_inputs()`/`scenario_inputs()`はいずれもこの関数を経由するため、コード変更なしでこの検証を継承する。
+  - `unreal/study_controls.py`：`_target_fixture_ids()`を、不明メンバーがあれば警告ログ＋部分適用（v2）からRuntimeErrorによる全体拒否へ変更（必須修正A、レビューの明確な却下を反映）。`set_variant`・`set_elevation`・`set_sun_case`・`remember_view`・`load_walkthrough`・`_apply_override`・`reset_all_overrides`・`apply_preset_to_room`・`load_scenario`・`load_site`・`create_site_input`の11関数の先頭へ`_require_no_active_compare()`を追加（必須修正B）。参照・一覧・選択・保存系（`select_surface`・`show_*`・`save`・`save_scenario`・日時ケース追加/再計算等）は対象外のまま。
+  - `tests/test_electrical_assets.py`：`build_lighting_bindings()`のグループ参照切れ拒否を確認する新規テストを追加。
+- 設計からの差異：なし。UE側の確認は実UE起動・完全refreshを行わず、レビュー自身が採った軽量確認手法（`unreal`モジュールの最小スタブ＋実コードのロード）を踏襲（レビューが明示的に許容・推奨した方法）。
+- 追加依存：なし。環境変更：なし。BASEは`d4fabb2`のまま維持し、v2のコミット（`1962388`）に対する追加コミットとして提出します。
+- 未追跡/ignored成果物（`build/`配下、すべて`.gitignore`対象、v3で新規追加分）：
+  - `build/W06-v3-confirm/verify_w06_v3_lightweight.py`・`result.json`：必須修正A/Bの軽量確認スクリプトと結果（`unreal`スタブ経由でstudy_controls.pyを実ロード）
 
 ## 変更と判断（v2で追加・変更した分）
 

@@ -140,5 +140,16 @@ class ElectricalAssetsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_lighting_bindings(self.data,self.electrical,self.catalog,self.settings,'room-does-not-exist')
 
+    def test_build_lighting_bindings_rejects_group_with_stale_member(self):
+        # W06-v2 review 必須修正A: a group referencing a fixture id this
+        # resolution does not produce (e.g. removed from data/electrical.json)
+        # must stop the whole build, not be returned as if the group were
+        # still fully valid.
+        settings=json.loads(json.dumps(self.settings))
+        settings['groups']=settings['groups']+[dict(id='test-stale-group',label='x',
+            fixtureIds=['elec-201','elec-does-not-exist'])]
+        with self.assertRaises(ValueError):
+            build_lighting_bindings(self.data,self.electrical,self.catalog,settings,'room-1f-06')
+
 
 if __name__=='__main__': unittest.main()
