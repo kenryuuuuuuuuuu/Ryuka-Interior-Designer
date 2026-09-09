@@ -65,21 +65,33 @@ def _check_lighting_fixtures(state,label):
         raise ValueError(f'{label} references unknown lighting fixture id(s): '+', '.join(unknown))
 
 
-def retained_inputs(previous, gallery=False):
-    report=read(previous/'import-verification.json')
-    if not report.get('unrealImportVerified'): raise ValueError('Previous study must have a successful import report')
+def latest_state_path(previous):
+    """The path holding the CURRENT project's own newest saved comparison
+    state: the editor's own `study-state.json`, or the native walkthrough's
+    `Saved/walkthrough-state.json` if it was saved more recently (W07-G1
+    review R3: this selection -- previously only applied by retained_inputs()
+    for the no-`--scenario` refresh path -- must also govern the merge BASE
+    a `--scenario` refresh reads for rooms the scenario itself does not
+    cover; otherwise a room-1f-05 F5 save newer than the editor's own
+    study-state.json was silently ignored and overwritten back to the older
+    editor value the moment an unrelated scenario for a DIFFERENT room was
+    merged in). Raises ValueError if a runtime save is mid-recovery (the
+    same disk signature Walkthrough.cpp's RecoverSaveIfNeeded reacts to:
+    SaveView()'s final replace AND its own restore-from-backup both failed,
+    leaving no current save but its .bak still present) -- this is only a
+    presence check; the actual recovery stays exclusively in the C++ side."""
     state_path=previous/'study-state.json'
     runtime=previous/'Saved/walkthrough-state.json'
-    # A runtime save mid-recovery (SaveView()'s final replace and its own
-    # restore-from-backup both failed; see Walkthrough.cpp's
-    # RecoverSaveIfNeeded) leaves exactly this disk signature: no current
-    # save, but its .bak still present. Silently falling back to
-    # study-state.json here would hide that from whoever is retaining/saving
-    # from this state. This is only a presence check -- the actual recovery
-    # stays exclusively in the C++ side, not duplicated here.
     if not runtime.exists() and (previous/'Saved/walkthrough-state.json.bak').exists():
         raise ValueError('Runtime save is mid-recovery (backup present, no current save); resolve it in Unreal (F9) first')
     if runtime.exists() and runtime.stat().st_mtime>state_path.stat().st_mtime: state_path=runtime
+    return state_path
+
+
+def retained_inputs(previous, gallery=False):
+    report=read(previous/'import-verification.json')
+    if not report.get('unrealImportVerified'): raise ValueError('Previous study must have a successful import report')
+    state_path=latest_state_path(previous)
     legacy_study=_legacy_study()
     state=mrs.validate_state_own_scope(read(state_path),_scopes_document(),legacy_study,legacy_study['variants'])
     _check_lighting_fixtures(state,'Retained state')

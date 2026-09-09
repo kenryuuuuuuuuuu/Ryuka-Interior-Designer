@@ -350,7 +350,7 @@ def validate_state(state, room_ids, variants, scopes_document, legacy_study):
 # Partial application (--scenario / --previous / named-scenario load)
 # --------------------------------------------------------------------------
 
-def partial_apply(previous_state, incoming_state, room_ids, allow_missing_rooms=False):
+def partial_apply(previous_state, incoming_state, room_ids, scope_id, allow_missing_rooms=False):
     """`previous_state`/`incoming_state`: both already-validated 2.0.0
     states. Applies `incoming_state`'s whole-house fields and ONLY the rooms
     it actually covers; every other in-scope room keeps `previous_state`'s
@@ -363,7 +363,30 @@ def partial_apply(previous_state, incoming_state, room_ids, allow_missing_rooms=
     all -- W07-G1 spec section 2: "新規モデルを作る明示操作に限り、不足室の
     初期状態を使えます", handled by the caller supplying a synthetic
     previous_state built from default_state_v2() in that case, not by this
-    function inventing one)."""
+    function inventing one).
+
+    `scope_id`: the CALLER's own target scope (`room_ids` must be exactly
+    that scope's rooms) -- the merged result's scopeId is always this, never
+    `incoming_state`'s own (W07-G1 review R2: `merged = dict(incoming_state)`
+    used to carry `incoming_state`'s scopeId through unchanged, so merging a
+    migrated legacy single-room scenario -- whose own scopeId resolves to the
+    SMALLEST scope containing just that room, e.g. 'guest-ldk' -- into a
+    wider scope like 'guest-pilot' produced a merged state whose declared
+    scopeId no longer matched its own roomStates' actual rooms. That state
+    then failed re-validation the moment anything (a re-save, the next
+    refresh) revalidated it via validate_state_own_scope(), which resolves
+    room_ids from the state's OWN scopeId rather than trusting the caller).
+    `incoming_state`'s own (possibly different, possibly narrower) scopeId is
+    intentionally NOT preserved anywhere in the result -- it was only ever
+    the smallest scope validate_state_own_scope() could resolve for a
+    single-room legacy scenario, not meaningful provenance to keep."""
+    # W07-G1 review R2: a room `incoming_state` covers that falls OUTSIDE
+    # `room_ids` must stop the merge, not be silently dropped -- e.g. a
+    # scenario saved against a wider scope than the one it is now being
+    # merged into.
+    extra_rooms = sorted(set(incoming_state['roomStates']) - set(room_ids))
+    if extra_rooms:
+        raise ValueError('This state covers room(s) outside the current scope: ' + ', '.join(extra_rooms))
     room_states = dict(previous_state['roomStates'])
     missing = []
     for room_id in room_ids:
@@ -374,6 +397,7 @@ def partial_apply(previous_state, incoming_state, room_ids, allow_missing_rooms=
     if missing and not allow_missing_rooms:
         raise ValueError('No prior state for room(s) not covered by this scenario: ' + ', '.join(missing))
     merged = dict(incoming_state)
+    merged['scopeId'] = scope_id
     merged['roomStates'] = {room_id: room_states[room_id] for room_id in room_ids if room_id in room_states}
     if merged.get('activeRoomId') not in merged['roomStates']:
         merged['activeRoomId'] = next(iter(merged['roomStates']))

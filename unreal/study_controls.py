@@ -70,6 +70,20 @@ def current_state():
     return scene_state(_state if _state is not None else initial_state())
 
 
+def _display_state():
+    """The last-applied/on-disk state, WITHOUT the live-scene reconciliation
+    current_state() performs (scene_state() -> scene(), which requires
+    /Game/Generated/House to already be open). register_menu() -- and every
+    status-text label it builds -- can run before any level is loaded at all
+    (init_unreal.py fires at editor/commandlet startup), so building a menu
+    label must never require a live scene (W07-G1 review R1: this used to be
+    current_state() for the new 対象室 menu, which raised on every startup
+    before the level was open). Only for DISPLAY/LABEL purposes -- every
+    actual editing operation still goes through current_state() and
+    legitimately requires the live scene."""
+    return _state if _state is not None else initial_state()
+
+
 def scene():
     world=unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     if world.get_path_name().split('.')[0] != '/Game/Generated/House':
@@ -365,8 +379,7 @@ def _room_label(room_id):
 
 
 def _room_status_text():
-    state=current_state()
-    return '対象室: '+_room_label(state['activeRoomId'])
+    return '対象室: '+_room_label(_display_state()['activeRoomId'])
 
 
 def show_room_status(): unreal.log(_room_status_text())
@@ -800,7 +813,12 @@ def load_scenario(index):
     # validated at this point, so merging cannot itself introduce anything
     # unusable.
     study=read('SourcePackage/study.json')
-    merged=mrs.partial_apply(current_state(),incoming,study['roomIds'])
+    # W07-G1 review R2: the merged result must carry THIS project's own
+    # scopeId, never the (possibly narrower) scopeId a migrated legacy
+    # scenario happens to resolve to -- otherwise a re-save/re-validate of
+    # the merged state fails the moment anything re-derives room_ids from
+    # its own declared scopeId (validate_state_own_scope()).
+    merged=mrs.partial_apply(current_state(),incoming,study['roomIds'],study['scopeId'])
     # Everything above is read-only (scenario_inputs()/_validate_applicable()
     # touch nothing); only past this point do we start writing, so a failure
     # anywhere above leaves the current site/sun-cases/state exactly as they
@@ -857,7 +875,16 @@ def show_compare(which):
     # (W04 review R2).
     state=copy.deepcopy(_compare['before'])
     state['roomStates']=dict(state['roomStates'])
-    state['roomStates'][_compare['active_room_id']]=_compare[which]
+    active_room_id=_compare['active_room_id']
+    candidate=_compare[which]
+    # W07-G1 review R4: finish A/B swaps ONLY variant/surfaceOverrides --
+    # `candidate` (a scenario's own roomState) always carries its own
+    # `fixtures` too (see validate_room_state()), but that must NOT replace
+    # the active room's lighting; keep whatever `before` had, matching the
+    # "仕上げの違いと照明の違いを混ぜて比較しない" contract the comment above
+    # already claimed but the code did not actually enforce.
+    state['roomStates'][active_room_id]=dict(state['roomStates'][active_room_id],
+        variant=candidate['variant'],surfaceOverrides=candidate['surfaceOverrides'])
     apply_state(state)
     _compare['current']=which
     unreal.log(f"比較中：{_compare['names'][0 if which=='a' else 1]}（他室・照明・太陽・視点・露出は比較開始時点で固定）")
@@ -1132,12 +1159,8 @@ def show_daylight_compare_status(): unreal.log(_daylight_compare_status_text())
 
 def _lighting_status_text():
     # register_menu() (and therefore this label) can run before the level is
-    # even open (init_unreal.py at editor startup) -- current_state() calls
-    # scene_state(), which requires the live scene and raises otherwise. Use
-    # the last-applied in-memory state, or the plain on-disk/default state,
-    # neither of which touch the scene (same reasoning as the other W04/W05
-    # status labels in this menu, none of which call current_state()).
-    base=_state if _state is not None else initial_state()
+    # even open (init_unreal.py at editor startup) -- see _display_state().
+    base=_display_state()
     lighting=base['lighting']
     mode_label='夜間（仮仕様）' if lighting['mode']=='night' else '昼間'
     bindings=lighting_bindings()
@@ -1217,7 +1240,7 @@ def _selected_lighting_effective():
     ids=_target_fixture_ids(_selected_lighting)
     bindings=lighting_bindings()
     by_id={f['id']:f for f in bindings['fixtures']} if bindings else {}
-    room_states=(_state if _state is not None else initial_state())['roomStates']
+    room_states=_display_state()['roomStates']
     effectives=[effective_fixture(by_id[fid],room_states.get(by_id[fid]['roomId'],{}).get('fixtures',{}).get(fid))
         for fid in ids if fid in by_id]
     if not effectives: return dict(on=False,dimming=1.0,temperatureK=None)
@@ -1414,7 +1437,15 @@ def _compare_status_text():
         return '比較中の案：なし'
     which=_compare.get('current')
     shown={'a':'A','b':'B'}.get(which,'未表示')
-    fixed=_compare['fixed']
+    # W07-G1 review v2 fix: `_compare` has carried before/a/b/active_room_id/
+    # names/current (never a separate 'fixed' dict) since the finish A/B
+    # redesign -- this stale reference to `_compare['fixed']` was never
+    # updated, so every start_compare() raised KeyError the moment
+    # register_menu() (called at the end of start_compare()/show_compare())
+    # tried to build this status label. Fixed conditions (elevation/azimuth/
+    # exposure/other rooms/照明/視点) are exactly `_compare['before']`,
+    # unchanged for the whole compare.
+    fixed=_compare['before']
     return (f"A/B比較中（表示中：{shown}）　A＝{_compare['names'][0]}　B＝{_compare['names'][1]}　"
         f"固定条件＝太陽高度{fixed['elevationDeg']:.0f}°・方位{fixed['azimuthDeg']:.0f}°・"
         f"露出EV{fixed['exposureEV100']:.1f}・視点固定")
@@ -1455,9 +1486,11 @@ def register_menu():
         target.add_menu_entry(section,entry)
 
     # W07-G1: which room 面編集/照明 list/target -- switching rooms only
-    # touches this, never any other room's state (spec section 4).
+    # touches this, never any other room's state (spec section 4). Menu
+    # BUILDING must never require a live scene (review R1), so this reads
+    # the display-only state, same as _room_status_text() below.
     study_doc=read('SourcePackage/study.json')
-    active_room_id=current_state()['activeRoomId']
+    active_room_id=_display_state()['activeRoomId']
     room_menu=parent.add_sub_menu('RyukaRoom','RyukaRoom','RyukaRoom','対象室',_room_status_text())
     add(room_menu,'Status','RoomStatus',_room_status_text(),'show_room_status()')
     for room_id in study_doc['roomIds']:

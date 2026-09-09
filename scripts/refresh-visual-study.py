@@ -13,7 +13,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'unreal'))
 sys.path.insert(0,str(ROOT/'scripts'))
 from finish_settings import validate_finishes
-from refresh_inputs import read, sha, retained_inputs, scenario_inputs
+from refresh_inputs import read, sha, retained_inputs, scenario_inputs, latest_state_path
 import multi_room_state as mrs
 import source_changes
 import surface_registry
@@ -152,7 +152,28 @@ def main():
     # retained_inputs()/scenario_inputs() already refused above if it was
     # mid-recovery) -- so a broken runtime save still cannot block this.
     incoming=mrs.validate_state_own_scope(read(saved/'study-state.json'),scopes_document,legacy_study,variants)
-    previous_full=mrs.validate_state_own_scope(read(previous/'study-state.json'),scopes_document,legacy_study,variants)
+    # W07-G1 review R3: a scenario/retained selection that already covers
+    # EVERY room in scope needs no base at all -- reading and validating
+    # --previous's own saved state in that case both contradicts the spec
+    # ("全室案なら--previousの壊れた保存を読まない") and needlessly stops a
+    # perfectly good full-scope refresh over an unrelated broken/mid-recovery
+    # --previous save. Only fetch (and require) a base when some in-scope
+    # room actually needs one.
+    covers_all_rooms=set(room_ids)<=set(incoming['roomStates'])
+    if covers_all_rooms:
+        previous_full=dict(roomStates={})
+    else:
+        try:
+            # W07-G1 review R3: the same newest-save selection (editor vs.
+            # native walkthrough F5) retained_inputs() already applies for
+            # the no-`--scenario` path must also govern the merge base here
+            # -- previously this always read the editor's own
+            # `study-state.json` even when a NEWER `Saved/walkthrough-
+            # state.json` existed for a room the scenario does not cover.
+            previous_full=mrs.validate_state_own_scope(
+                read(latest_state_path(previous)),scopes_document,legacy_study,variants)
+        except ValueError as error:
+            parser.error(f'Cannot resolve a base state for room(s) not covered by this scenario: {error}')
     if args.allow_new_rooms:
         # W07-G1 spec section 2: "新規モデルを作る明示操作に限り、不足室の
         # 初期状態を使えます" -- only reached with --allow-new-rooms; a room
@@ -166,7 +187,7 @@ def main():
                 default_variant=mrs.room_render(room_render_settings,room_id,legacy_study)['defaultVariant']
                 previous_full['roomStates'][room_id]=dict(variant=default_variant,surfaceOverrides={},fixtures={})
     try:
-        merged=mrs.partial_apply(previous_full,incoming,room_ids)
+        merged=mrs.partial_apply(previous_full,incoming,room_ids,scope_id)
     except ValueError as error:
         parser.error(str(error))
     merged_path=output/'merged-study-state.json'

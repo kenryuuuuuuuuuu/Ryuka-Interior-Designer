@@ -469,7 +469,7 @@ def build_openings(ops, settings, mats):
             rect('closed-leaf',a+fw,b-fw,low+.005,high-fw,mats['cabinet'],.035)
 
 
-def build_furniture(data,room_ids,mats):
+def build_furniture(data,room_ids,mats_by_room):
     # W07-G1: only items belonging to an IN-SCOPE room are generated at all
     # (spec section 3: "家具は対象roomIdsに属する既存配置を生成します") --
     # room reference (item['room']) and actual coordinates must agree; a
@@ -491,6 +491,12 @@ def build_furniture(data,room_ids,mats):
         items.append(i)
     role_bindings={}
     for item in items:
+        # W07-G1 review R5: each item's OWN room's materials set -- every
+        # `mats[...]` reference below now resolves against that room's
+        # actual variant instead of always the fixed baseline, so Blender's
+        # own preview render agrees with UE's per-room role material
+        # application instead of only LDK's variant ever showing correctly.
+        mats=mats_by_room[item['room']]
         profile=catalog[item['type']]
         w,d,h=[item.get(k+'Override',profile[k]) for k in ('width','depth','height')]
         created=[]
@@ -599,11 +605,11 @@ def build_furniture(data,room_ids,mats):
             for vertex in obj.data.vertices:
                 x,y,z=vertex.co
                 vertex.co=(c*x-s*y+item['x'],s*x+c*y-item['z'],z+data['levels'][f"fl{item['level']}"]+item.get('elevation',0))
-            # W07-G1: this object's whole-scene role-slot material (see
-            # role_bindings_json() below) must follow ITS OWN room's active
-            # variant, never a single global one -- Blender doesn't need this
-            # tag itself (it already only ever builds ONE variant's palette
-            # per generation), but UE's apply_state() does, once per room.
+            # W07-G1: this object's whole-scene role-slot material must
+            # follow ITS OWN room's active variant, never a single global
+            # one -- both here (review R5: `mats` above is now this item's
+            # own room's materials set, not always the fixed baseline) and
+            # in UE's apply_state(), once per room.
             role_bindings[obj.name]=item['room']
     return items,role_bindings
 
@@ -762,22 +768,46 @@ def main():
         for key in ('operation','category','archRise'):
             if key in profiles[o['type']]: o[key]=profiles[o['type']][key]
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    # W07-G1: this scene's OWN base materials (mats['wall'] etc.) use the
+    # W07-G1: the ENVELOPE's own base materials (mats['wall'] etc.) use the
     # fixed baseline variant, never a per-room one -- every in-scope room's
     # OWN registered wall/floor/ceiling pieces get their own marker material
     # (SurfaceBinder, per-room) regardless, so this only shows through on
     # genuinely un-owned geometry (exterior walls/roof, thin unmarked wall
     # side faces, out-of-scope rooms) -- spec section 3: "対象外室/外皮は
-    # 既存の基準材質を維持".
-    palette=variants[mrs.BASE_VARIANT]
-    mats={key:material(key,value,texture='wood' if key=='wood' else 'fabric' if key=='fabric' else None)
-          for key,value in palette.items() if key!='label'}
-    mats.update(frame=material('Frame','38332d',.38),stone=material('Counter','e4e0d5',.32),
-                metal=material('Metal','b8b8b2',.3,.7),black=material('Glass.black','15191b',.12))
+    # 既存の基準材質を維持". Furniture/decor are NOT envelope -- they are
+    # exactly the role-owned geometry role-bindings.json exists to let UE
+    # switch per room, so Blender's own preview render must build one
+    # materials set PER ROOM VARIANT and let build_furniture()/build_decor()
+    # pick each item's own room's set, instead of (review R5's finding) every
+    # room's furniture always using the fixed baseline regardless of that
+    # room's actual variant -- UE and Blender then agree again.
     finish_document=read(ROOT/'data/visual/unreal-finishes.json')
-    surface_details=details_for_variant(finish_document,mrs.BASE_VARIANT)
-    for role,detail in surface_details.items():
-        if detail.get('pattern'): apply_pattern(mats[role],palette[detail['paletteRole']],detail,rgb)
+    # frame/stone/metal/black are fixed hex colours, not driven by any
+    # variant's palette (review R5: "固定色の金属等...変更する必要はない") --
+    # built once and shared across every room's materials set.
+    extras=dict(frame=material('Frame','38332d',.38),stone=material('Counter','e4e0d5',.32),
+                metal=material('Metal','b8b8b2',.3,.7),black=material('Glass.black','15191b',.12))
+    def build_palette_materials(variant):
+        palette=variants[variant]
+        # W07-G1 review v2 fix: UE's Interchange import sanitizes '.' out of
+        # imported material names (confirmed via a real import: Blender's
+        # own 'natural.wall' comes back as 'natural_wall' when queried via
+        # mat.get_name() in import_study.py) -- '_' survives the round trip
+        # unchanged, so the separator must be '_', matching the UE-side
+        # library's own M_{variant}_{role} naming convention.
+        result={key:material(f'{variant}_{key}',value,texture='wood' if key=='wood' else 'fabric' if key=='fabric' else None)
+                for key,value in palette.items() if key!='label'}
+        surface_details=details_for_variant(finish_document,variant)
+        for role,detail in surface_details.items():
+            if detail.get('pattern'): apply_pattern(result[role],palette[detail['paletteRole']],detail,rgb)
+        result.update(extras)
+        return result
+    mats_by_variant={mrs.BASE_VARIANT:build_palette_materials(mrs.BASE_VARIANT)}
+    def mats_for_variant(variant):
+        if variant not in mats_by_variant: mats_by_variant[variant]=build_palette_materials(variant)
+        return mats_by_variant[variant]
+    mats=mats_by_variant[mrs.BASE_VARIANT]  # the envelope's own fixed baseline set, unchanged usage below
+    mats_by_room={room_id:mats_for_variant(variant_by_room[room_id]) for room_id in room_ids}
     # W04: registered surface IDs -> real wall/floor/ceiling geometry. Every
     # override key here must resolve to real bound geometry; anything else
     # stops the build rather than silently dropping the override. The
@@ -795,8 +825,12 @@ def main():
     if no_surface:
         raise RuntimeError('surfaceOverrides references no-surface id(s) (no matching geometry found): '+', '.join(no_surface))
     (args.output/'surface-bindings.json').write_text(json.dumps(binder.bindings_json(),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    items,role_bindings=build_furniture(data,room_ids,mats)
-    decorations=build_decor(read(ROOT/'data/visual/guest-decor.json'),data,items,ops,mats,block,mesh,read(ROOT/'data/furniture-catalog.json'))
+    items,role_bindings=build_furniture(data,room_ids,mats_by_room)
+    # guest-decor.json is fixed to room-1f-06 (LDK) by its own roomId field
+    # (see the role_bindings loop below) -- its own room's materials set,
+    # same as any other LDK furniture (review R5).
+    decorations=build_decor(read(ROOT/'data/visual/guest-decor.json'),data,items,ops,
+        mats_by_room.get('room-1f-06',mats),block,mesh,read(ROOT/'data/furniture-catalog.json'))
     # guest-decor.json is fixed to room-1f-06 (LDK) by its own roomId field
     # (unchanged by W07-G1: "新しい小物・画像相当の装飾は不要" for the
     # western room) -- every decoration object it just created belongs there.

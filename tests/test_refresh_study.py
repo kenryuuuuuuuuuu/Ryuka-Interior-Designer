@@ -203,6 +203,122 @@ class RefreshTests(unittest.TestCase):
         self.assertTrue(any('fur-MISSING' in i['message'] for i in m.read(output/'source-changes.json')['issues']))
         self.assertFalse((output/'index.html').exists())
 
+    def test_full_coverage_scenario_ignores_corrupted_previous_state(self):
+        # W07-G1 review R3: a scenario that already covers EVERY room in the
+        # target scope needs no base state at all -- --previous's own saved
+        # state being corrupt must not block a full-coverage refresh (spec:
+        # "全室案なら--previousの壊れた保存を読まない"). Stops predictably at
+        # 01c-surface-registry (same technique as the test below) so this
+        # test never has to run Blender/Unreal for real; reaching that point
+        # at all already proves the corrupted previous/study-state.json was
+        # never read.
+        root=self.previous/'repo'
+        data=root/'data'; visual=data/'visual'; visual.mkdir(parents=True)
+        (visual/'unreal-finishes.json').write_text((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8'),encoding='utf-8')
+        def write(relative,value): (root/relative).write_text(json.dumps(value),encoding='utf-8')
+        write('data/house.json',dict(rooms=[dict(id='room-a',level='1F',label='A',polygon=[[0,0],[2,0],[2,2],[0,2]],status='estimated',note='')]))
+        write('data/furniture.json',dict(items=[]))
+        write('data/furniture-catalog.json',dict(categories=[],types=[]))
+        write('data/visual/guest-ldk-study.json',dict(roomId='room-a'))
+        self._write_scope_files(root,room_id='room-a')
+        write('data/visual/asset-bindings.json',dict(bindings=[]))
+        write('data/visual/guest-decor.json',dict(roomId='room-a',items=[]))
+        write('data/openings.json',dict(items=[]))
+        write('data/visual/surface-registry.json',dict(schemaVersion='1.0.0',surfaces=[
+            dict(id='surf-x',roomId='room-a',kind='wall',label='X',note='',edge=[[9,9],[9,10]])]))
+        engine=root/'engine'; (engine/'Engine/Binaries/Win64').mkdir(parents=True)
+        (engine/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe').touch()
+        blender=root/'blender.exe'; blender.touch()
+        (self.previous/'SourcePackage').mkdir()
+        self.write('SourcePackage/manifest.json',dict(sourceHashes={}))
+        # The previous project's OWN saved state is corrupt -- a full-scope
+        # scenario must never need to read it.
+        (self.previous/'study-state.json').write_text('{not valid json',encoding='utf-8')
+        scenario_dir=self.previous/'scenario'; scenario_dir.mkdir()
+        (scenario_dir/'scenario.json').write_text(json.dumps(dict(schemaVersion='1.0.0',id='x')),encoding='utf-8')
+        scenario_state=dict(schemaVersion='1.0.0',roomId='room-a',variant='warm',
+            azimuthDeg=180,elevationDeg=30,sunLux=50000,exposureEV100=7.5,camera=None)
+        (scenario_dir/'study-state.json').write_text(json.dumps(scenario_state),encoding='utf-8')
+        output=root/'build/result'
+        argv=['refresh','--previous',str(self.previous),'--output',str(output),'--engine',str(engine),
+              '--blender',str(blender),'--cache',str(self.previous/'cache'),'--scenario',str(scenario_dir)]
+        with mock.patch.object(m,'ROOT',root),mock.patch.object(m.source_changes,'ROOT',root),\
+             mock.patch.object(m.surface_registry,'ROOT',root),\
+             mock.patch.object(m.sys,'argv',argv),\
+             mock.patch.object(m,'scenario_inputs',return_value=(
+                 {'state':scenario_dir/'study-state.json'},dict(id='x',name='y',note='',origin={}))),\
+             mock.patch.object(m.shutil,'which',return_value='node'),\
+             mock.patch.object(m,'sources',return_value={'input':'a'}),\
+             mock.patch.object(m.subprocess,'run',return_value=SimpleNamespace(returncode=0)) as run:
+            with self.assertRaisesRegex(RuntimeError,'surface registry'): m.main()
+            self.assertEqual(run.call_count,1)  # only 01-source-check; never blocked on the corrupted previous state
+        result=m.read(output/'refresh.json')
+        self.assertEqual(result['status'],'failed')
+        merged=m.read(output/'merged-study-state.json')
+        self.assertEqual(merged['scopeId'],'guest-ldk')
+        self.assertEqual(merged['roomStates']['room-a']['variant'],'warm')
+
+    def test_partial_coverage_scenario_uses_newer_walkthrough_save_for_uncovered_room(self):
+        # W07-G1 review R3: for a room the --scenario does NOT cover, the
+        # merge base must be whichever of study-state.json (editor save) or
+        # Saved/walkthrough-state.json (native walkthrough F5 save) is
+        # actually newer -- previously this always read study-state.json
+        # even when a newer walkthrough save existed for that room.
+        import os
+        root=self.previous/'repo'
+        data=root/'data'; visual=data/'visual'; visual.mkdir(parents=True)
+        (visual/'unreal-finishes.json').write_text((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8'),encoding='utf-8')
+        def write(relative,value): (root/relative).write_text(json.dumps(value),encoding='utf-8')
+        write('data/house.json',dict(rooms=[
+            dict(id='room-a',level='1F',label='A',polygon=[[0,0],[2,0],[2,2],[0,2]],status='estimated',note=''),
+            dict(id='room-b',level='1F',label='B',polygon=[[2,0],[4,0],[4,2],[2,2]],status='estimated',note='')]))
+        write('data/furniture.json',dict(items=[]))
+        write('data/furniture-catalog.json',dict(categories=[],types=[]))
+        write('data/visual/guest-ldk-study.json',dict(roomId='room-a',variants={'warm':{},'natural':{},'reference':{}}))
+        (root/'data/visual/study-scopes.json').write_text(json.dumps(dict(schemaVersion='1.0.0',scopes=[
+            dict(scopeId='both',label='x',roomIds=['room-a','room-b'],defaultRoomId='room-a')])),encoding='utf-8')
+        write('data/visual/asset-bindings.json',dict(bindings=[]))
+        write('data/visual/guest-decor.json',dict(roomId='room-a',items=[]))
+        write('data/openings.json',dict(items=[]))
+        write('data/visual/surface-registry.json',dict(schemaVersion='1.0.0',surfaces=[
+            dict(id='surf-x',roomId='room-a',kind='wall',label='X',note='',edge=[[9,9],[9,10]])]))
+        engine=root/'engine'; (engine/'Engine/Binaries/Win64').mkdir(parents=True)
+        (engine/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe').touch()
+        blender=root/'blender.exe'; blender.touch()
+        (self.previous/'SourcePackage').mkdir()
+        self.write('SourcePackage/manifest.json',dict(sourceHashes={}))
+        def two_room_state(room_b_variant):
+            return dict(schemaVersion='2.0.0',scopeId='both',activeRoomId='room-a',activeLevel=1,camera=None,
+                azimuthDeg=180,elevationDeg=30,sunLux=50000,exposureEV100=7.5,lighting=dict(mode='day'),
+                roomStates={'room-a':dict(variant='natural',surfaceOverrides={},fixtures={}),
+                            'room-b':dict(variant=room_b_variant,surfaceOverrides={},fixtures={})})
+        self.write('study-state.json',two_room_state('natural'))  # older editor save: room-b still natural
+        (self.previous/'Saved').mkdir()
+        self.write('Saved/walkthrough-state.json',two_room_state('warm'))  # newer F5 save: room-b now warm
+        os.utime(self.previous/'study-state.json',(100,100))
+        os.utime(self.previous/'Saved/walkthrough-state.json',(200,200))
+        scenario_dir=self.previous/'scenario'; scenario_dir.mkdir()
+        (scenario_dir/'scenario.json').write_text(json.dumps(dict(schemaVersion='1.0.0',id='x')),encoding='utf-8')
+        scenario_state=dict(schemaVersion='1.0.0',roomId='room-a',variant='reference',
+            azimuthDeg=180,elevationDeg=30,sunLux=50000,exposureEV100=7.5,camera=None)
+        (scenario_dir/'study-state.json').write_text(json.dumps(scenario_state),encoding='utf-8')
+        output=root/'build/result'
+        argv=['refresh','--previous',str(self.previous),'--output',str(output),'--engine',str(engine),
+              '--blender',str(blender),'--cache',str(self.previous/'cache'),'--scenario',str(scenario_dir),
+              '--scope','both']
+        with mock.patch.object(m,'ROOT',root),mock.patch.object(m.source_changes,'ROOT',root),\
+             mock.patch.object(m.surface_registry,'ROOT',root),\
+             mock.patch.object(m.sys,'argv',argv),\
+             mock.patch.object(m,'scenario_inputs',return_value=(
+                 {'state':scenario_dir/'study-state.json'},dict(id='x',name='y',note='',origin={}))),\
+             mock.patch.object(m.shutil,'which',return_value='node'),\
+             mock.patch.object(m,'sources',return_value={'input':'a'}),\
+             mock.patch.object(m.subprocess,'run',return_value=SimpleNamespace(returncode=0)):
+            with self.assertRaisesRegex(RuntimeError,'surface registry'): m.main()
+        merged=m.read(output/'merged-study-state.json')
+        self.assertEqual(merged['roomStates']['room-a']['variant'],'reference')  # replaced by the scenario
+        self.assertEqual(merged['roomStates']['room-b']['variant'],'warm')  # kept from the NEWER walkthrough save
+
     def test_unresolved_surface_registry_stops_before_blender_or_unreal(self):
         # W03-C: an unresolved registered surface must also fail before any
         # subprocess (Blender/Unreal) is launched, same as a reference issue.

@@ -65,7 +65,8 @@ def main():
     # re-derives it the same way from study-bindings.json's own roomId tag.
     role_bindings_doc=json.loads((package/'role-bindings.json').read_text(encoding='utf-8'))
     actor_room={name.replace('.','_'):room_id for name,room_id in role_bindings_doc['actors'].items()}
-    room_materials={room_id:library[study['roomStates'][room_id]['variant']] for room_id in study['roomIds']}
+    room_variant_names={room_id:study['roomStates'][room_id]['variant'] for room_id in study['roomIds']}
+    room_materials={room_id:library[variant] for room_id,variant in room_variant_names.items()}
     base_materials=library[mrs.BASE_VARIANT]
     glass=material('Glass_provisional','ffffff',.02,glass=True)
     bindings={}
@@ -74,9 +75,26 @@ def main():
         label=actor.get_actor_label()
         room_id=actor_room.get(label)
         materials=room_materials[room_id] if room_id in room_materials else base_materials
+        # W07-G1 review v1 R5 fix: Blender now builds one materials set PER
+        # ROOM VARIANT (blender/build_interior.py's mats_for_variant()),
+        # named f'{variant}_{role}' so multiple rooms' differently-coloured
+        # 'wood'/'cabinet'/etc. can coexist in the same exported scene --
+        # `mat.get_name()` is therefore no longer a bare role key by itself.
+        # This actor's OWN room's variant (base variant for un-owned/
+        # envelope geometry) is already known, so strip exactly that prefix
+        # before matching against `materials`'s plain role keys. The
+        # separator must be '_', not '.' -- confirmed via a real import that
+        # UE's Interchange sanitizes '.' out of imported material names
+        # (Blender's 'natural.wall' comes back as 'natural_wall' here), so a
+        # '.' separator silently matched nothing and left study-bindings.json
+        # empty (review v2 finding, caught by the same Undo-mismatch check
+        # this review's R1 fix already surfaced once for a different reason).
+        prefix=(room_variant_names[room_id] if room_id in room_variant_names else mrs.BASE_VARIANT)+'_'
         for index, mat in enumerate(comp.get_materials()):
-            if mat.get_name() in materials:
-                role='floor' if label.startswith('slab_') and mat.get_name()=='wood' else mat.get_name()
+            name=mat.get_name()
+            stripped=name[len(prefix):] if name.startswith(prefix) else None
+            if stripped in materials:
+                role='floor' if label.startswith('slab_') and stripped=='wood' else stripped
                 entry=bindings.setdefault(label,dict(roomId=room_id,slots={}))
                 entry['slots'][str(index)]=role
                 comp.set_material(index, materials[role])
