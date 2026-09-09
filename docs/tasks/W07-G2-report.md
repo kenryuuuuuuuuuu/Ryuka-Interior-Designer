@@ -3,7 +3,7 @@
 - **仕様書**：[W07-G2-guest-circulation.md](W07-G2-guest-circulation.md)
 - **前段レビュー**：[W07-G1-review-v2.md](W07-G1-review-v2.md)（ACCEPTED）
 - **BASE**：`60d8cd644d00e57f11708dbbb1a1aa263095b2bc`（着手時HEAD、W07-G1-v2のHEADと同じ）
-- **HEAD**：本コミット（下記「変更ファイル一覧」参照）
+- **HEAD**：`5b77a3dbe0d02f7dfd4f02a995e4e0a0e58b1866`（`W07-G2: guest circulation (multi-room walking + door open/close)`）
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2のみ（ゲスト8室の歩行・7扉の開閉）。G3（残り6室の登録）は未着手。
 
