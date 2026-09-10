@@ -3,7 +3,7 @@
 - **仕様書**：[W07-G3-guest-interiors.md](W07-G3-guest-interiors.md)
 - **前段レビュー**：[W07-G2-review-v4.md](W07-G2-review-v4.md)（ACCEPTED）
 - **BASE**：`e9113b94d03f6eaf5c83bede32fc9532bca470c0`（G3着手時HEAD＝G2受入HEAD。G2のBASEは使い回していません）
-- **HEAD**：`31c78d0`（`W07-G3: guest 8-room interiors` の上に `W07-G3: add scopeIds circulation test; sync report counts` と本SHA記録docsコミットが乗る）
+- **HEAD**：`__HEAD__`（`W07-G3: guest 8-room interiors`〔63c8afd〕→ `W07-G3: add scopeIds circulation test`〔31c78d0〕→ `docs: record W07-G3 HEAD SHA`〔e28dbc7〕→ 本コミット〔昼夜代表画像の証跡記載〕。本行SHAは直後のdocsコミットで確定）
 - **提出**：`build/reviews/W07-G3-v1`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2受入済み実装へゲスト8区画のデータ展開。全館化・自宅・階段・新ランチャー・配布導線（W08-G）は含みません。
@@ -118,7 +118,7 @@ python scripts/refresh-visual-study.py --previous build/W07-G3-ue-v2 --output bu
 - `build/W07-G3-ue-v2/Saved/walkthrough-smoke.txt`（PASS）・`walkthrough-smoke.png`（DX12 実描画）
 - `build/W07-G3-ue-v2/surface-bindings.json`（52面）・`lighting-bindings.json`（10灯）・`import-verification.json`
 - `build/W07-G3-refresh-v1/refresh.json`（`status: complete`）・`ue/state-transfer-verification.json`・`blender/door-bindings.json`
-- 昼・夜の代表画像：`build/W07-G3-images/`（下記）
+- 昼・夜の代表画像：`build/W07-G3-images/`（`g3-ldk-{day,night}`・`g3-washroom-{day,night}`・`g3-ub-{day,night}`・`g3-toilet-day`・`g3-genkan-day`・`g3-hall-day` の10枚）。取得は `build/W07-G3-ue-v2/g3_one.py`（ビルド成果物のエディタスクリプト。正本コード非改変。1枚1エディタプロセスで `scripts/unreal/capture_study.py` と同じ単発 tick を使う）。各室の `study_controls.select_room()` で `room-render-settings.json` の仮視点へ移動し、`lighting.mode`・室別 variant・当該室の照明1灯（既定off対策）を与えて描画。レベルは保存しない。所見：LDK昼夜は白飛び/真っ黒/天井抜け/面重なり無し・器具視認可。水回り3室は実寸が狭く（洗面/UB 1.82m角、トイレ 0.91m幅）単一視点では画角が窮屈だが、便器・洗面台・洗濯機・浴槽の形状は識別可能で浴槽内部は中空（正本どおり）。玄関/ホールは奥行0.91mの浅い区画で室内視点の自由度が低い（仮視点、下記「不足・未決定」1）。
 - `tests/test_circulation.py`・`tests/test_surface_registry.py`
 
 ## 変更ファイル一覧
