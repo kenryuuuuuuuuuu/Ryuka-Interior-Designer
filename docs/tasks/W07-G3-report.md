@@ -3,7 +3,7 @@
 - **仕様書**：[W07-G3-guest-interiors.md](W07-G3-guest-interiors.md)
 - **前段レビュー**：[W07-G2-review-v4.md](W07-G2-review-v4.md)（ACCEPTED）
 - **BASE**：`e9113b94d03f6eaf5c83bede32fc9532bca470c0`（G3着手時HEAD＝G2受入HEAD。G2のBASEは使い回していません）
-- **HEAD**：`63c8afd`（`W07-G3: guest 8-room interiors (surfaces + water fixtures + 10 lights)`。本行を記録するdocsコミットがその上に1つ乗ります）
+- **HEAD**：`31c78d0`（`W07-G3: guest 8-room interiors` の上に `W07-G3: add scopeIds circulation test; sync report counts` と本SHA記録docsコミットが乗る）
 - **提出**：`build/reviews/W07-G3-v1`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2受入済み実装へゲスト8区画のデータ展開。全館化・自宅・階段・新ランチャー・配布導線（W08-G）は含みません。
