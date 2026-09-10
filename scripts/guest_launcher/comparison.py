@@ -52,9 +52,12 @@ def records_root() -> Path:
 
 
 def record_finish_ab(cfg: _config.LauncherConfig, model_dir: Path, name: str, note: str = "",
-                     variants=("natural", "warm"),
+                     variants=("natural", "warm"), elevation: float = 45.0,
                      on_line: Optional[Callable[[str], None]] = None) -> ComparisonRecord:
-    """model_dir の固定カメラで variants の仕上げ違いを撮り、条件付きで記録する。"""
+    """model_dir の対象室（保存状態の activeRoomId）の固定カメラで、仕上げ違いを撮る。
+
+    既存 capture-unreal-study.py を variant ごとに1回ずつ。太陽は同じ手動角度に固定。
+    レベルは保存されない（--variant/--elevation は一時適用）。撮影失敗は記録しない。"""
     name = (name or "").strip()
     if not name:
         return ComparisonRecord(ok=False, recordDir=None, captureDir=None, name="", note=note,
@@ -64,47 +67,54 @@ def record_finish_ab(cfg: _config.LauncherConfig, model_dir: Path, name: str, no
     if not info_iv.is_file() or not _read(info_iv).get("unrealImportVerified"):
         return ComparisonRecord(ok=False, recordDir=None, captureDir=None, name=name, note=note,
                                 reason="検証済みのモデルではありません。先にモデルを更新・登録してください。")
+    if not (model_dir / "study-state.json").is_file():
+        return ComparisonRecord(ok=False, recordDir=None, captureDir=None, name=name, note=note,
+                                reason="このモデルには保存状態（study-state.json）がありません。内覧でF5保存してから記録してください。")
 
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     record_dir = paths.RECORDS_DIR / stamp
     capture_dir = record_dir / "capture"
-    record_dir.mkdir(parents=True, exist_ok=True)
-    log_path = paths.LOG_DIR / f"compare-{stamp}.log"
-
-    argv = runner.python_argv(
-        _SCRIPTS / "compare-unreal-studies.py",
-        "--engine", cfg.engine, "--project", model_dir, "--cache", cfg.cache,
-        "--output", capture_dir, "--variants", *variants,
-        "--note", "実敷地・採用品番は確認待ちの仮条件です。",
-    )
-    try:
-        proc = runner.run_logged(argv, log_path, cwd=paths.ROOT, on_line=on_line)
-    except Exception as e:  # noqa: BLE001
-        return ComparisonRecord(ok=False, recordDir=str(record_dir), captureDir=None, name=name, note=note,
-                                reason=f"撮影の実行に失敗しました（{e}）。ログ: {log_path}")
-
-    manifest = capture_dir / "manifest.json"
-    if proc.returncode != 0 or not manifest.is_file():
-        return ComparisonRecord(ok=False, recordDir=str(record_dir), captureDir=str(capture_dir), name=name, note=note,
-                                reason=f"撮影に失敗しました（終了コード {proc.returncode}）。ログ: {log_path}")
-    doc = _read(manifest)
-    if doc.get("status") != "complete":
-        return ComparisonRecord(ok=False, recordDir=str(record_dir), captureDir=str(capture_dir), name=name, note=note,
-                                reason=f"撮影が完了しませんでした（{doc.get('error') or doc.get('status')}）。撮影失敗は記録しません。")
+    capture_dir.mkdir(parents=True, exist_ok=True)
+    saved_dir = model_dir / "Saved"
 
     images = []
-    for cap in doc["captures"]:
-        if cap.get("status") != "complete":
-            continue
-        images.append(dict(variant=cap["variant"], caseIndex=cap["caseIndex"],
-                           image=cap["image"], conditions=cap["conditions"]))
-    if not images:
-        return ComparisonRecord(ok=False, recordDir=str(record_dir), captureDir=str(capture_dir), name=name, note=note,
-                                reason="完成した画像がありません。")
+    for variant in variants:
+        cap_name = f"gl-ab-{stamp}-{variant}"
+        log_path = paths.LOG_DIR / f"{cap_name}.log"
+        argv = runner.python_argv(
+            _SCRIPTS / "capture-unreal-study.py",
+            "--engine", cfg.engine, "--project", model_dir, "--cache", cfg.cache,
+            "--name", cap_name, "--variant", variant, "--elevation", elevation,
+        )
+        try:
+            proc = runner.run_logged(argv, log_path, cwd=paths.ROOT, on_line=on_line)
+        except Exception as e:  # noqa: BLE001
+            return ComparisonRecord(ok=False, recordDir=str(record_dir), captureDir=str(capture_dir),
+                                    name=name, note=note, reason=f"撮影の実行に失敗しました（{e}）。ログ: {log_path}")
+        png = saved_dir / f"{cap_name}.png"
+        cond = saved_dir / f"{cap_name}-conditions.json"
+        report_json = saved_dir / f"{cap_name}.json"
+        if proc.returncode != 0 or not png.is_file() or not cond.is_file():
+            return ComparisonRecord(ok=False, recordDir=str(record_dir), captureDir=str(capture_dir),
+                                    name=name, note=note,
+                                    reason=f"{variant} の撮影に失敗しました（終了コード {proc.returncode}）。"
+                                           f"撮影失敗は記録しません。ログ: {log_path}")
+        out_png = f"{variant}.png"
+        out_cond = f"{variant}.json"
+        shutil.copy2(png, capture_dir / out_png)
+        shutil.copy2(cond, capture_dir / out_cond)
+        if report_json.is_file():
+            shutil.copy2(report_json, capture_dir / f"{variant}-report.json")
+        images.append(dict(variant=variant, image=out_png, conditions=out_cond))
 
+    if not images:
+        return ComparisonRecord(ok=False, recordDir=str(record_dir), captureDir=str(capture_dir),
+                                name=name, note=note, reason="完成した画像がありません。")
+
+    record_dir.mkdir(parents=True, exist_ok=True)
     record = dict(schemaVersion="1.0.0", createdAt=datetime.now().astimezone().isoformat(),
                   name=name, note=note, model=paths.to_repo_relative(model_dir),
-                  captureManifest="capture/manifest.json", images=images)
+                  manualSunElevationDeg=elevation, images=images)
     (record_dir / "record.json").write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return ComparisonRecord(ok=True, recordDir=str(record_dir), captureDir=str(capture_dir),
                             name=name, note=note, images=images)
