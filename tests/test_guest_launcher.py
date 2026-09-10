@@ -93,6 +93,47 @@ class FurnitureCandidateTests(unittest.TestCase):
         kinds = {(c.id, c.kind) for c in report.changes}
         self.assertIn((removed, "removed"), kinds)
 
+    def test_apply_refuses_when_source_or_candidate_changed_after_preview(self):
+        # review R2: the diff was built against specific bytes; apply must not
+        # write unseen content.
+        doc = json.loads(json.dumps(self.current))
+        item = next(i for i in doc["items"] if i.get("room"))
+        item["x"] = round(item["x"] + 0.04, 2)
+        cand = self._write_candidate(doc)
+        report = furniture.build_report(cand, root=self.root)
+        self.assertTrue(report.ok)
+        src = self.root / "data/furniture.json"
+        original_source = src.read_text(encoding="utf-8")
+
+        # (a) source changed after preview
+        src_doc = json.loads(original_source)
+        src_doc["items"][1]["note"] = "别の取込で足したメモ"
+        src.write_text(json.dumps(src_doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "もう一度"):
+            furniture.apply_candidate(cand, root=self.root, backup_dir=self.tmp / "b1",
+                                      expected_source_sha=report.sourceSha,
+                                      expected_candidate_sha=report.candidateSha)
+        # the unseen source note is still there (not clobbered)
+        self.assertEqual(json.loads(src.read_text(encoding="utf-8"))["items"][1].get("note"), "别の取込で足したメモ")
+        src.write_text(original_source, encoding="utf-8")
+
+        # (b) candidate re-written to the same path after preview
+        doc["items"][0]["heightOverride"] = 0.7
+        cand.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "もう一度"):
+            furniture.apply_candidate(cand, root=self.root, backup_dir=self.tmp / "b2",
+                                      expected_source_sha=report.sourceSha,
+                                      expected_candidate_sha=report.candidateSha)
+        self.assertEqual(src.read_text(encoding="utf-8"), original_source)
+
+        # (c) matching shas -> applies
+        fresh = furniture.build_report(cand, root=self.root)
+        res = furniture.apply_candidate(cand, root=self.root, backup_dir=self.tmp / "b3",
+                                        expected_source_sha=fresh.sourceSha,
+                                        expected_candidate_sha=fresh.candidateSha)
+        self.assertTrue(res.applied)
+        furniture.restore_backup(res.backupPath, root=self.root)
+
     def test_apply_backs_up_replaces_and_regenerates(self):
         doc = json.loads(json.dumps(self.current))
         item = next(i for i in doc["items"] if i.get("room"))
@@ -233,6 +274,78 @@ class SharedCopyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             comparison.build_shared_copy(self.record, self.tmp / "shared2", root=ROOT)
         self.assertFalse((self.tmp / "shared2").exists())
+
+
+try:
+    import tkinter as _tk
+    _tk.Tk().destroy()
+    _HAS_TK = True
+except Exception:  # noqa: BLE001 - headless / no display
+    _HAS_TK = False
+
+
+@unittest.skipUnless(_HAS_TK, "tkinter/display not available")
+class GuiResilienceTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self._orig = (gl_paths.CONFIG_PATH, gl_paths.LAUNCHER_DIR, gl_paths.LOG_DIR)
+        gl_paths.LAUNCHER_DIR = self.tmp / "launcher"
+        gl_paths.CONFIG_PATH = gl_paths.LAUNCHER_DIR / "config.json"
+        gl_paths.LOG_DIR = gl_paths.LAUNCHER_DIR / "logs"
+        gl_paths.ensure_dirs = lambda: gl_paths.LAUNCHER_DIR.mkdir(parents=True, exist_ok=True)
+        from guest_launcher import app as gl_app
+        self.gl_app = gl_app
+        self.root = _tk.Tk()
+        self.root.withdraw()
+        self.app = gl_app.LauncherApp(self.root)
+        self.addCleanup(self.root.destroy)
+
+    def tearDown(self):
+        gl_paths.CONFIG_PATH, gl_paths.LAUNCHER_DIR, gl_paths.LOG_DIR = self._orig
+
+    def test_drain_queue_isolates_a_dead_widget_callback(self):
+        # review R3: a TclError from one destroyed target must not stop the
+        # pump or skip the job-completion callbacks queued behind it.
+        ran = []
+
+        def boom():
+            raise _tk.TclError("invalid command name .dead.stepsbox")
+
+        self.app._on_main(boom)
+        self.app._on_main(lambda: ran.append("after-boom"))
+        self.app._drain_queue()  # must not raise
+        self.root.update()
+        self.assertIn("after-boom", ran)
+
+    def test_apply_update_success_switches_model_without_a_window(self):
+        # the current-model switch lives on the app, not the UpdateWindow, so
+        # closing that window mid-run cannot prevent it.
+        proj = self.tmp / "newmodel" / "ue"
+        proj.mkdir(parents=True)
+        self.app.apply_update_success(str(proj), str(self.tmp / "newmodel"))
+        again = gl_config.load()
+        self.assertEqual(again.currentModel, gl_paths.to_repo_relative(proj))
+
+    def test_app_close_blocked_while_update_running(self):
+        from unittest import mock
+        from guest_launcher import runner as gl_runner
+        with gl_runner.BackgroundJob._lock:
+            gl_runner.BackgroundJob._active_keys.add("model-update")
+        try:
+            with mock.patch.object(self.gl_app.messagebox, "showwarning") as warn, \
+                 mock.patch.object(self.root, "destroy") as destroy:
+                self.app._on_app_close()
+            warn.assert_called_once()
+            destroy.assert_not_called()
+        finally:
+            with gl_runner.BackgroundJob._lock:
+                gl_runner.BackgroundJob._active_keys.discard("model-update")
+        # with nothing running, close proceeds
+        with mock.patch.object(self.root, "destroy") as destroy:
+            self.app._on_app_close()
+            destroy.assert_called_once()
 
 
 if __name__ == "__main__":

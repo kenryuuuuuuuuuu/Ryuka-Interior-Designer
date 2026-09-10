@@ -68,7 +68,7 @@ def open_editor(cfg: _config.LauncherConfig, model_dir: Path,
 
 WALKTHROUGH_KEYS = (
     "WASD：歩く／マウス：見回す／Tab：カーソル表示",
-    "1・2・3：対象室の仕上げ切替（編集対象の室のみ）",
+    "1・2・3：対象室の仕上げ切替（guest は8区画すべて編集対象。Tab→メニューで対象室を選ぶ）",
     "4・5：太陽高度（手動角度・未校正）",
     "E：近くの扉の開閉",
     "F5：今の仕上げ・視点・扉・太陽条件をこのモデルに保存",

@@ -16,23 +16,41 @@ if context_path.exists():
     from site_context import verify_scene
     verify_scene(json.loads(context_path.read_text(encoding='utf-8-sig')))
 job=json.loads((project/'capture-job.json').read_text(encoding='utf-8'))
-if (project/'study-state.json').exists():
+
+
+def _apply_active_variant(state,variant):
+    # variant lives per room in the 2.1.0 shape; the fixed camera frames the
+    # ACTIVE room, so only that room's finish changes between A and B.
+    active=state.get('activeRoomId'); room_states=state.get('roomStates')
+    if isinstance(room_states,dict) and active in room_states:
+        room_states[active]=dict(room_states[active],variant=variant)
+    else:
+        state['variant']=variant
+
+
+if job.get('state') is not None:
+    # W08-G review R1: render EXACTLY the state the caller selected (the newest
+    # of the editor save and the walkthrough F5 save, already validated) --
+    # its rooms, camera, fixtures, doors and sun/solar -- changing only the
+    # active room's variant for the A/B. current_state()/scene_state() are
+    # bypassed: they validate the LIVE scene against a base and would reject a
+    # runtime save that legitimately differs from the .umap's import-time
+    # baked state. apply_state() sets the scene from the state directly. The
+    # level is never saved; study-state.json / walkthrough-state.json are not
+    # touched.
+    import study_controls
+    base=json.loads(json.dumps(job['state']))
+    if job.get('variant'): _apply_active_variant(base,job['variant'])
+    if job.get('elevation') is not None:
+        base.pop('solar',None); base['elevationDeg']=job['elevation']
+    study_controls.apply_state(base)
+    state=study_controls._state
+    (project/'Saved'/(job['name']+'-conditions.json')).write_text(json.dumps(state,indent=2),encoding='utf-8')
+elif (project/'study-state.json').exists():
     import study_controls
     if job.get('sunCase') is not None: study_controls.set_sun_case(job['sunCase'])
     state=study_controls.current_state()
-    if job.get('variant'):
-        # W08-G: the comparison-state is the multi-room 2.1.0 shape now --
-        # variant lives per room in roomStates, not as a top-level key, so
-        # `state['variant']=...` was silently ignored and compare-unreal-
-        # studies.py's own check_capture() then rejected the mismatch. Apply
-        # the requested finish to the ACTIVE room (the one the fixed camera
-        # frames), matching the pre-2.1.0 single-room behaviour.
-        active=state.get('activeRoomId')
-        room_states=state.get('roomStates')
-        if isinstance(room_states,dict) and active in room_states:
-            room_states[active]=dict(room_states[active],variant=job['variant'])
-        else:
-            state['variant']=job['variant']
+    if job.get('variant'): _apply_active_variant(state,job['variant'])
     if job.get('elevation') is not None:
         state.pop('solar',None)
         state['elevationDeg']=job['elevation']

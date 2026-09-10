@@ -1,9 +1,10 @@
 """仕上げA/Bの記録と、共有用コピーの出力。
 
-- 記録：既存 compare-unreal-studies.py で対象室の仕上げ違い（既定 natural/warm）を
-  固定カメラで撮り、画像とその画像を生成した条件（案名・対象室・視点・日時または
-  手動太陽・露出・昼夜/点灯・仮仕様）を対応付けてローカルに残す。
-  撮影失敗は完成画像として登録しない。比較元の案・モデル状態は変更しない。
+- 記録：撮影開始時に **F5/エディタ保存の最新の有効な保存** を案保存と同じ共通処理
+  （refresh_inputs.retained_inputs）で1つ選び、その状態（部屋・視点・fixtures・扉・
+  太陽/来歴）を A/B で固定して `capture-unreal-study.py --state` へ渡す。A と B の
+  差は対象室（activeRoomId）の仕上げだけ。太陽高度は保存値のまま（無断で45度へ
+  変えない）。元の保存ファイルは書き換えない。撮影失敗は登録しない。
 - 共有用コピー：画像と必要な比較条件の許可リストだけで構成する。
   絶対パス・敷地座標・site.local.json・生ログ・元JSON一式はコピーしない。
 """
@@ -22,6 +23,12 @@ from . import config as _config
 from . import paths, runner
 
 _SCRIPTS = paths.ROOT / "scripts"
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+if str(paths.ROOT / "unreal") not in sys.path:
+    sys.path.insert(0, str(paths.ROOT / "unreal"))
+import multi_room_state as _mrs  # noqa: E402
+from refresh_inputs import retained_inputs as _retained_inputs, read as _ri_read  # noqa: E402
 
 # 共有用に出してよい撮影条件のキー（許可リスト）。これ以外は共有コピーに含めない。
 _SHARED_STATE_KEYS = ("schemaVersion", "scopeId", "activeRoomId", "activeLevel",
@@ -51,13 +58,26 @@ def records_root() -> Path:
     return paths.RECORDS_DIR
 
 
-def record_finish_ab(cfg: _config.LauncherConfig, model_dir: Path, name: str, note: str = "",
-                     variants=("natural", "warm"), elevation: float = 45.0,
-                     on_line: Optional[Callable[[str], None]] = None) -> ComparisonRecord:
-    """model_dir の対象室（保存状態の activeRoomId）の固定カメラで、仕上げ違いを撮る。
+def _select_latest_state(model_dir: Path):
+    """案保存と同じ選択・検証（refresh_inputs.retained_inputs）で、エディタ保存と
+    内覧のF5保存のうち新しい方を選び、移行済みの状態dict と由来を返す。"""
+    retained = _retained_inputs(model_dir)          # raises ValueError on mid-recovery / invalid
+    state_path = Path(retained["state"])
+    legacy = _ri_read(paths.ROOT / "data/visual/guest-ldk-study.json")
+    scopes = _mrs.validate_scopes(_ri_read(paths.ROOT / "data/visual/study-scopes.json"))
+    state = _mrs.validate_state_own_scope(_ri_read(state_path), scopes, legacy, legacy["variants"])
+    source = "内覧のF5保存" if state_path.parent.name == "Saved" else "エディタ保存"
+    mtime = datetime.fromtimestamp(state_path.stat().st_mtime).astimezone().isoformat()
+    return state, dict(source=source, path=paths.to_repo_relative(state_path), mtime=mtime)
 
-    既存 capture-unreal-study.py を variant ごとに1回ずつ。太陽は同じ手動角度に固定。
-    レベルは保存されない（--variant/--elevation は一時適用）。撮影失敗は記録しない。"""
+
+def record_finish_ab(cfg: _config.LauncherConfig, model_dir: Path, name: str, note: str = "",
+                     variants=("natural", "warm"),
+                     on_line: Optional[Callable[[str], None]] = None) -> ComparisonRecord:
+    """model_dir の対象室（選んだ保存の activeRoomId）の固定カメラで、仕上げ違いを撮る。
+
+    撮影開始時に選んだ保存（F5/エディタの新しい方）を A/B で固定。太陽は保存値のまま。
+    対象室 variant 以外は変更しない。元の保存ファイルは書き換えない。撮影失敗は記録しない。"""
     name = (name or "").strip()
     if not name:
         return ComparisonRecord(ok=False, recordDir=None, captureDir=None, name="", note=note,
@@ -67,15 +87,24 @@ def record_finish_ab(cfg: _config.LauncherConfig, model_dir: Path, name: str, no
     if not info_iv.is_file() or not _read(info_iv).get("unrealImportVerified"):
         return ComparisonRecord(ok=False, recordDir=None, captureDir=None, name=name, note=note,
                                 reason="検証済みのモデルではありません。先にモデルを更新・登録してください。")
-    if not (model_dir / "study-state.json").is_file():
+
+    try:
+        state, selected = _select_latest_state(model_dir)
+    except ValueError as e:
         return ComparisonRecord(ok=False, recordDir=None, captureDir=None, name=name, note=note,
-                                reason="このモデルには保存状態（study-state.json）がありません。内覧でF5保存してから記録してください。")
+                                reason=f"撮影に使う保存状態を選べません（{e}）。内覧でF5保存してから記録してください。")
 
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     record_dir = paths.RECORDS_DIR / stamp
     capture_dir = record_dir / "capture"
     capture_dir.mkdir(parents=True, exist_ok=True)
     saved_dir = model_dir / "Saved"
+
+    # 撮影開始時に選んだ状態を1回だけ書き出し、両方の撮影で固定して使う。
+    state_file = record_dir / "selected-state.json"
+    state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if on_line:
+        on_line(f"比較撮影に使う保存：{selected['source']}（{selected['path']}、{selected['mtime']}）")
 
     images = []
     for variant in variants:
@@ -84,7 +113,7 @@ def record_finish_ab(cfg: _config.LauncherConfig, model_dir: Path, name: str, no
         argv = runner.python_argv(
             _SCRIPTS / "capture-unreal-study.py",
             "--engine", cfg.engine, "--project", model_dir, "--cache", cfg.cache,
-            "--name", cap_name, "--variant", variant, "--elevation", elevation,
+            "--name", cap_name, "--variant", variant, "--state", state_file,
         )
         try:
             proc = runner.run_logged(argv, log_path, cwd=paths.ROOT, on_line=on_line)
@@ -111,13 +140,46 @@ def record_finish_ab(cfg: _config.LauncherConfig, model_dir: Path, name: str, no
         return ComparisonRecord(ok=False, recordDir=str(record_dir), captureDir=str(capture_dir),
                                 name=name, note=note, reason="完成した画像がありません。")
 
-    record_dir.mkdir(parents=True, exist_ok=True)
-    record = dict(schemaVersion="1.0.0", createdAt=datetime.now().astimezone().isoformat(),
+    # 撮影が対象室の仕上げだけを変えたか、選んだ保存と一致するかを確認する。
+    mismatch = _verify_ab(capture_dir, state, images)
+    if mismatch:
+        return ComparisonRecord(ok=False, recordDir=str(record_dir), captureDir=str(capture_dir),
+                                name=name, note=note, reason="撮影条件が選んだ保存と一致しません：" + mismatch)
+
+    record = dict(schemaVersion="1.1.0", createdAt=datetime.now().astimezone().isoformat(),
                   name=name, note=note, model=paths.to_repo_relative(model_dir),
-                  manualSunElevationDeg=elevation, images=images)
+                  selectedSave=selected, activeRoomId=state.get("activeRoomId"), images=images)
     (record_dir / "record.json").write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return ComparisonRecord(ok=True, recordDir=str(record_dir), captureDir=str(capture_dir),
                             name=name, note=note, images=images)
+
+
+def _verify_ab(capture_dir: Path, selected_state: dict, images: list) -> Optional[str]:
+    """撮影した条件が、選んだ保存に対して 対象室 variant 以外 一致するか確認する。"""
+    active = selected_state.get("activeRoomId")
+    fixed = {k: selected_state.get(k) for k in ("scopeId", "activeRoomId", "camera", "azimuthDeg",
+                                                "elevationDeg", "exposureEV100", "doorStates")}
+    fixed["lightingMode"] = (selected_state.get("lighting") or {}).get("mode")
+    for img in images:
+        cond = _read(capture_dir / img["conditions"])
+        for k, v in fixed.items():
+            if k == "lightingMode":
+                got = (cond.get("lighting") or {}).get("mode")
+            else:
+                got = cond.get(k)
+            if got != v:
+                return f"{img['variant']} の {k} が保存と違います（{got!r} ≠ {v!r}）"
+        for room_id, rs in (selected_state.get("roomStates") or {}).items():
+            got_rs = (cond.get("roomStates") or {}).get(room_id, {})
+            if room_id == active:
+                if got_rs.get("variant") != img["variant"]:
+                    return f"{img['variant']} の対象室 variant が {got_rs.get('variant')!r}"
+                if got_rs.get("surfaceOverrides") != rs.get("surfaceOverrides"):
+                    return f"{img['variant']} の対象室 surfaceOverrides が変わっています"
+            else:
+                if got_rs.get("variant") != rs.get("variant") or got_rs.get("fixtures") != rs.get("fixtures"):
+                    return f"{img['variant']} で他室 {room_id} の設定が変わっています"
+    return None
 
 
 def list_records() -> list:

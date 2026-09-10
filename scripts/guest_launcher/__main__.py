@@ -57,12 +57,14 @@ def _furniture_report(path):
     r = furniture.build_report(Path(path))
     _dump(dict(sourcePath=r.sourcePath, ok=r.ok, validationError=r.validationError, counts=r.counts,
                totalItems=r.totalItems, assetBindingWarnings=r.assetBindingWarnings,
+               sourceSha=r.sourceSha, candidateSha=r.candidateSha,
                changes=[dict(id=c.id, kind=c.kind, inGuestScope=c.inGuestScope, room=c.room,
                              fields=c.fields, provenanceLoss=c.provenanceLoss) for c in r.changes]))
 
 
-def _furniture_apply(path, backup_dir=None):
-    res = furniture.apply_candidate(Path(path), backup_dir=Path(backup_dir) if backup_dir else paths.BACKUP_DIR)
+def _furniture_apply(path, backup_dir=None, expect_source_sha=None, expect_candidate_sha=None):
+    res = furniture.apply_candidate(Path(path), backup_dir=Path(backup_dir) if backup_dir else paths.BACKUP_DIR,
+                                    expected_source_sha=expect_source_sha, expected_candidate_sha=expect_candidate_sha)
     _dump(dict(applied=res.applied, webDataRegenerated=res.webDataRegenerated,
                backupPath=res.backupPath, webLog=res.webLog, message=res.message))
 
@@ -82,12 +84,13 @@ def main(argv=None):
     elif cmd == "furniture-report":
         _furniture_report(rest[0])
     elif cmd == "furniture-apply":
-        bd = None
-        if "--backup-dir" in rest:
-            idx = rest.index("--backup-dir")
-            bd = rest[idx + 1]
-            rest = rest[:idx] + rest[idx + 2:]
-        _furniture_apply(rest[0], bd)
+        opts = {}
+        for flag, key in (("--backup-dir", "bd"), ("--expect-source-sha", "ss"), ("--expect-candidate-sha", "cs")):
+            if flag in rest:
+                i = rest.index(flag)
+                opts[key] = rest[i + 1]
+                rest = rest[:i] + rest[i + 2:]
+        _furniture_apply(rest[0], opts.get("bd"), opts.get("ss"), opts.get("cs"))
     elif cmd == "furniture-restore":
         furniture.restore_backup(Path(rest[0]))
         print("restored data/furniture.json from", rest[0])

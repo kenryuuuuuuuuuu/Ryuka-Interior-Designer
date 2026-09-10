@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import queue
 import subprocess
+import sys
 import threading
 import time
 import tkinter as tk
@@ -35,6 +36,7 @@ class LauncherApp:
 
     # ---------- UI construction ----------
     def _build_ui(self):
+        self.root.protocol("WM_DELETE_WINDOW", self._on_app_close)
         top = ttk.Frame(self.root, padding=12)
         top.pack(fill="x")
         self.status_var = tk.StringVar(value="…")
@@ -81,24 +83,59 @@ class LauncherApp:
         self._ui_queue.put(("steps", text))
 
     def _drain_queue(self):
+        # Each item is isolated: a TclError from one destroyed target (e.g. a
+        # closed UpdateWindow's step box) must never stop the pump or skip the
+        # job-completion callbacks queued behind it. The reschedule is in a
+        # finally so the loop always keeps running.
         try:
             while True:
-                kind, payload = self._ui_queue.get_nowait()
-                if kind == "log":
-                    self.log.configure(state="normal")
-                    self.log.insert("end", payload + "\n")
-                    self.log.see("end")
-                    self.log.configure(state="disabled")
-                elif kind == "steps":
-                    self.steps_var.set(payload)
-                elif kind == "call":
-                    payload()
-        except queue.Empty:
-            pass
-        self.root.after(120, self._drain_queue)
+                try:
+                    kind, payload = self._ui_queue.get_nowait()
+                except queue.Empty:
+                    break
+                try:
+                    if kind == "log":
+                        self.log.configure(state="normal")
+                        self.log.insert("end", payload + "\n")
+                        self.log.see("end")
+                        self.log.configure(state="disabled")
+                    elif kind == "steps":
+                        self.steps_var.set(payload)
+                    elif kind == "call":
+                        payload()
+                except tk.TclError as e:
+                    sys.stderr.write(f"[launcher] UI update skipped (widget gone): {e}\n")
+                except Exception as e:  # noqa: BLE001 - a bad callback must not kill the pump
+                    sys.stderr.write(f"[launcher] queued callback failed: {e!r}\n")
+        finally:
+            try:
+                self.root.after(120, self._drain_queue)
+            except tk.TclError:
+                pass  # root itself is gone (app closing)
 
     def _on_main(self, fn):
         self._ui_queue.put(("call", fn))
+
+    def _on_app_close(self):
+        # A running model-update owns a UE subprocess; closing the app would
+        # orphan it and lose the post-run model switch. Block until it ends
+        # (or the user can keep working). Other short jobs are fine to leave.
+        if runner.BackgroundJob.is_running("model-update"):
+            messagebox.showwarning(APP_TITLE, "モデル更新の実行中です。完了までランチャーを閉じないでください。\n"
+                                              "結果はメインのログと状態表示に出ます。")
+            return
+        self.root.destroy()
+
+    def apply_update_success(self, new_model_dir: str, output_dir: str):
+        """Switch the current model after a successful update. Deliberately on
+        the app, not the UpdateWindow, so closing that window mid-run cannot
+        prevent the switch (review R3)."""
+        self.cfg = _config.load()
+        self.cfg.set_current_model(Path(new_model_dir))
+        self.cfg.lastUpdateOutput = paths.to_repo_relative(Path(output_dir))
+        _config.save(self.cfg)
+        self._log(f"更新に成功しました。現行モデルを {paths.to_repo_relative(Path(new_model_dir))} へ切り替えました。")
+        self._on_main(self._refresh_status)
 
     def _refresh_status(self):
         self.cfg = _config.load()
@@ -144,8 +181,16 @@ class LauncherApp:
         if job.error:
             self._log(f"！エラー：{job.error}")
         if on_done:
-            on_done(job)
-        self._refresh_status()
+            try:
+                on_done(job)
+            except tk.TclError as e:
+                sys.stderr.write(f"[launcher] job-done UI update skipped: {e}\n")
+            except Exception as e:  # noqa: BLE001
+                self._log(f"！完了処理でエラー：{e!r}")
+        try:
+            self._refresh_status()
+        except tk.TclError:
+            pass
 
     # ---------- actions ----------
     def on_open_walkthrough(self):
@@ -262,13 +307,20 @@ class FurnitureImportWindow(tk.Toplevel):
         if not messagebox.askyesno(self.title(), "この差分を data/furniture.json に反映します。よろしいですか？"):
             return
         self.app._log(f"家具JSONを反映します：{self.candidate_path}")
+        # review R2: the diff was built against these exact bytes; apply refuses
+        # if either the source or the candidate changed since.
+        src_sha = self.report.sourceSha
+        cand_sha = self.report.candidateSha
 
         def work():
-            return furniture.apply_candidate(self.candidate_path)
+            return furniture.apply_candidate(self.candidate_path,
+                                             expected_source_sha=src_sha, expected_candidate_sha=cand_sha)
 
         def done(job):
             if job.error:
                 messagebox.showerror(self.title(), str(job.error))
+                if "もう一度" in str(job.error):
+                    self.destroy()  # stale preview -- operator must re-open the import window
                 return
             res: furniture.ApplyResult = job.result
             self.app._log(res.message)
@@ -327,9 +379,20 @@ class UpdateWindow(tk.Toplevel):
         ttk.Button(foot, text="閉じる", command=self.destroy).pack(side="right", padx=6)
         self.elapsed_var = tk.StringVar(value="")
         ttk.Label(foot, textvariable=self.elapsed_var).pack(side="left")
+        ttk.Label(self, text="この画面を閉じても更新は続き、結果はメインのログと状態表示に出ます。",
+                  padding=(10, 0, 10, 8)).pack(fill="x")
+
+    def _safe(self, fn):
+        """Run a widget update only if this window still exists (review R3:
+        the job keeps running and writing even after the window is closed)."""
+        try:
+            if self.winfo_exists():
+                fn()
+        except tk.TclError:
+            pass
 
     def _append(self, text: str):
-        self.app._on_main(lambda: self._do_append(text))
+        self.app._on_main(lambda: self._safe(lambda: self._do_append(text)))
 
     def _do_append(self, text: str):
         self.steps_box.configure(state="normal")
@@ -338,10 +401,13 @@ class UpdateWindow(tk.Toplevel):
         self.steps_box.configure(state="disabled")
 
     def _tick(self):
-        if self._start_ts is None:
+        if self._start_ts is None or not self.winfo_exists():
             return
-        self.elapsed_var.set(f"経過 {int(time.monotonic() - self._start_ts)} 秒")
-        self.after(1000, self._tick)
+        try:
+            self.elapsed_var.set(f"経過 {int(time.monotonic() - self._start_ts)} 秒")
+            self.after(1000, self._tick)
+        except tk.TclError:
+            pass
 
     def _start(self):
         if not messagebox.askyesno(self.title(), "内覧・エディタは保存して閉じてから更新してください。開始しますか？"):
@@ -357,35 +423,42 @@ class UpdateWindow(tk.Toplevel):
                                for s in steps)
             self.app._set_steps(names)
 
+        def on_line(t):
+            self._append(t)
+            self.app._log(t)
+
         def work():
-            return update.run_update(self.app.cfg, self.model_dir, out,
-                                     on_line=lambda t: (self._append(t), self.app._log(t)) and None,
-                                     on_step=on_step)
+            return update.run_update(self.app.cfg, self.model_dir, out, on_line=on_line, on_step=on_step)
 
         def done(job):
             self._start_ts = None
             if job.error:
-                self._append(f"！実行エラー：{job.error}")
-                messagebox.showerror(self.title(), str(job.error))
-                self.run_btn.configure(state="normal")
+                self.app._log(f"！モデル更新の実行エラー：{job.error}")
+                self._safe(lambda: (self._do_append(f"！実行エラー：{job.error}"), self.run_btn.configure(state="normal")))
                 return
             outcome: update.UpdateOutcome = job.result
-            self._append(f"\n結果：{outcome.status}（{int(outcome.elapsedSec)}秒）")
+            # The current-model switch is on the app, not this window -- it
+            # happens whether or not the window is still open (review R3).
             if outcome.ok:
-                self.app.cfg.set_current_model(Path(outcome.newModelDir))
-                self.app.cfg.lastUpdateOutput = paths.to_repo_relative(Path(outcome.outputDir))
-                _config.save(self.app.cfg)
-                self._append(f"現行モデルを {paths.to_repo_relative(Path(outcome.newModelDir))} へ切り替えました。")
-                messagebox.showinfo(self.title(), "更新に成功し、現行モデルを新しいものへ切り替えました。")
-                self.app._refresh_status()
+                self.app.apply_update_success(outcome.newModelDir, outcome.outputDir)
             else:
-                self._append(f"失敗工程：{outcome.failedStep or '(不明)'}")
-                self._append(f"理由：{outcome.reason}")
-                if outcome.refreshJson:
-                    self._append(f"詳細：{outcome.refreshJson}")
-                self._append("前のモデルと案は維持されています。ログを確認し、修正後に再試行するか前モデルで続行してください。")
-                messagebox.showwarning(self.title(), f"更新に失敗しました（工程：{outcome.failedStep}）。前のモデルを維持しています。")
-                self.run_btn.configure(state="normal")
+                self.app._log(f"モデル更新に失敗しました（工程：{outcome.failedStep or '不明'}）。前のモデルと案は維持されています。"
+                              f" 理由：{outcome.reason}" + (f" 詳細：{outcome.refreshJson}" if outcome.refreshJson else ""))
+
+            def refresh_window():
+                self._do_append(f"\n結果：{outcome.status}（{int(outcome.elapsedSec)}秒）")
+                if outcome.ok:
+                    self._do_append(f"現行モデルを {paths.to_repo_relative(Path(outcome.newModelDir))} へ切り替えました。")
+                    messagebox.showinfo(self.title(), "更新に成功し、現行モデルを新しいものへ切り替えました。")
+                else:
+                    self._do_append(f"失敗工程：{outcome.failedStep or '(不明)'} / 理由：{outcome.reason}")
+                    if outcome.refreshJson:
+                        self._do_append(f"詳細：{outcome.refreshJson}")
+                    self._do_append("「モデルを選ぶ」で前のモデルへ戻せます。")
+                    messagebox.showwarning(self.title(), f"更新に失敗しました（工程：{outcome.failedStep}）。前のモデルを維持しています。")
+                    self.run_btn.configure(state="normal")
+
+            self._safe(refresh_window)
 
         self.app._run_bg("model-update", work, on_done=done)
 

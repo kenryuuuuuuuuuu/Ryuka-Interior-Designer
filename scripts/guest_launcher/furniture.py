@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -41,6 +42,10 @@ def _read(path: Path):
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
+def _sha(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
 @dataclass
 class ItemChange:
     id: str
@@ -61,6 +66,11 @@ class CandidateReport:
     counts: dict = field(default_factory=dict)           # added/removed/modified, and guest/other splits
     assetBindingWarnings: list = field(default_factory=list)
     totalItems: int = 0
+    # W08-G review R2: the exact bytes the operator saw the diff against. The
+    # apply step refuses if data/furniture.json OR the candidate file changed
+    # since this report was built, and sends the operator back to re-preview.
+    sourceSha: Optional[str] = None
+    candidateSha: Optional[str] = None
 
     @property
     def has_changes(self) -> bool:
@@ -94,13 +104,16 @@ def _diff_item(before: dict, after: dict) -> list:
 
 def build_report(candidate_path: Path, root: Path = paths.ROOT) -> CandidateReport:
     """候補と現行正本の差分＋検証結果をまとめる。正本は一切変更しない。"""
+    candidate_path = Path(candidate_path)
     candidate = read_candidate(candidate_path)
-    current = _read(root / "data" / "furniture.json")
+    source_path = root / "data" / "furniture.json"
+    current = _read(source_path)
     catalog = _read(root / "data" / "furniture-catalog.json")
     house = _read(root / "data" / "house.json")
 
     report = CandidateReport(sourcePath=str(candidate_path), ok=False, validationError=None,
-                             totalItems=len(candidate["items"]))
+                             totalItems=len(candidate["items"]),
+                             sourceSha=_sha(source_path), candidateSha=_sha(candidate_path))
 
     cur_by_id = {i["id"]: i for i in current["items"]}
     new_by_id = {}
@@ -200,13 +213,30 @@ class ApplyResult:
 
 
 def apply_candidate(candidate_path: Path, root: Path = paths.ROOT,
-                    backup_dir: Path = paths.BACKUP_DIR) -> ApplyResult:
+                    backup_dir: Path = paths.BACKUP_DIR,
+                    expected_source_sha: Optional[str] = None,
+                    expected_candidate_sha: Optional[str] = None) -> ApplyResult:
     """検証済み候補を正本へ反映する。build_report() が ok を返した候補だけに使う。
 
-    手順：直前正本を backup_dir へコピー → data/furniture.json を置換 →
+    `expected_source_sha` / `expected_candidate_sha` を渡すと、差分確認時から
+    `data/furniture.json` か候補ファイルが変わっていないかを反映直前に照合する
+    （review R2：見ていない内容を書き込まない）。どちらか変わっていれば ValueError で
+    止め、再確認へ戻す。
+
+    手順：sha照合 → 直前正本を backup_dir へコピー → data/furniture.json を置換 →
     `node scripts/build-web-data.mjs`（--write）で generated/ を再生成。
     どこで失敗しても、その時点までの実状態を ApplyResult に入れて返す。
     """
+    candidate_path = Path(candidate_path)
+    source_path = root / "data" / "furniture.json"
+
+    if expected_source_sha is not None and _sha(source_path) != expected_source_sha:
+        raise ValueError("差分を確認したあとで data/furniture.json が変わりました（別の取込や編集の可能性）。"
+                         "もう一度「家具JSON取込」で差分を確認してください。反映は中止しました。")
+    if expected_candidate_sha is not None and _sha(candidate_path) != expected_candidate_sha:
+        raise ValueError("差分を確認したあとで候補ファイルが変わりました（同じ場所へ再書出しされた可能性）。"
+                         "もう一度「家具JSON取込」で差分を確認してください。反映は中止しました。")
+
     report = build_report(candidate_path, root)
     if not report.ok:
         raise ValueError(report.validationError or "候補が検証を通っていません。")

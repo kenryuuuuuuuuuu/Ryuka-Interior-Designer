@@ -18,6 +18,9 @@ parser.add_argument('--name',default='interior-unreal',help='New PNG basename fo
 parser.add_argument('--variant',choices=('natural','warm','reference'),help='Temporary finish override; does not save the level')
 parser.add_argument('--elevation',type=float,help='Temporary manual sun elevation in degrees')
 parser.add_argument('--sun-case',type=int,help='Zero-based index in the generated project sun-cases.json')
+parser.add_argument('--state',type=Path,help='W08-G: a specific comparison state json to render (already selected/validated '
+    'by the caller -- e.g. the newest of the editor save and the walkthrough F5 save). Used verbatim except the '
+    'ACTIVE room\'s variant (from --variant); the level is never saved.')
 args=parser.parse_args()
 project=args.project.resolve(); cache=args.cache.resolve()
 if not args.name or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_' for c in args.name):
@@ -32,10 +35,15 @@ if (args.variant or args.elevation is not None or args.sun_case is not None) and
     parser.error('Rebuild this project with the comparison controls first.')
 if not (project/'import-verification.json').is_file(): parser.error('A successfully verified generated project is required.')
 if image.exists(): parser.error('Capture exists; use a new --name or another project.')
+state_payload=None
+if args.state is not None:
+    if not args.state.is_file(): parser.error('--state file not found: '+str(args.state))
+    state_payload=json.loads(args.state.read_text(encoding='utf-8-sig'))
 shutil.copy2(ROOT/'unreal/capture_study.py',project/'capture_study.py')
 level_file=project/'Content/Generated/House.umap'
 level_before=hashlib.sha256(level_file.read_bytes()).hexdigest()
-(project/'capture-job.json').write_text(json.dumps(dict(name=args.name,variant=args.variant,elevation=args.elevation,sunCase=args.sun_case)),encoding='utf-8')
+(project/'capture-job.json').write_text(json.dumps(dict(name=args.name,variant=args.variant,elevation=args.elevation,
+    sunCase=args.sun_case,state=state_payload)),encoding='utf-8')
 command=[str(args.engine.resolve()/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe'),
          str(project/'RyukaInterior.uproject'),
          "-ExecCmds=py import runpy; runpy.run_path(__import__('unreal').Paths.project_dir()+'capture_study.py')",
