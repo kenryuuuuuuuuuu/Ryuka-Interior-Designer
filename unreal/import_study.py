@@ -158,14 +158,34 @@ def main():
     door_bindings_raw = json.loads((package/'door-bindings.json').read_text(encoding='utf-8'))
     circulation.validate_door_bindings(door_bindings_raw)
     door_bindings = {}
+    # W07-G2 review R1: independently re-assert every leaf's transform here
+    # too, from the SAME doorStates (study.json, recorded by build_interior.py
+    # for exactly this purpose) that decided Blender's own bake -- rather
+    # than only trusting that the baked pose survived the GLB export/
+    # Interchange import unchanged. Absolute sets (rotation to exactly Delta
+    # or 0; location to exactly the closed baseline or baseline+offset), so
+    # this is correct regardless of whatever pose the mesh actually imported
+    # at. The closed baseline for an offset leaf is recovered from its
+    # CURRENT (just-imported) location using its own bakedOpen flag -- the
+    # same "don't assume whatever pose I see now is closed" fix the native
+    # walkthrough's own lazy spawn-capture needs (see Walkthrough.cpp).
+    door_states = study.get('doorStates', {})
     for door_id, info in door_bindings_raw['doors'].items():
         leaves = []
+        is_open = circulation.effective_door_open(door_id, door_states)
         for leaf in info['leaves']:
             actor_label = leaf['actor'].replace('.', '_')
             actor = actor_by_label.get(actor_label)
             if actor is None:
                 continue  # should not happen: the earlier bounds check already asserted no meshes were lost on import
             actor.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+            if 'openYawDeltaDeg' in leaf:
+                actor.set_actor_rotation(unreal.Rotator(pitch=0, yaw=leaf['openYawDeltaDeg'] if is_open else 0., roll=0), False)
+            elif 'openOffsetCm' in leaf:
+                offset = unreal.Vector(*leaf['openOffsetCm'])
+                current = actor.get_actor_location()
+                closed_base = current - offset if leaf['bakedOpen'] else current
+                actor.set_actor_location(closed_base + offset if is_open else closed_base, False, False)
             leaves.append(dict(leaf, actor=actor_label))
         door_bindings[door_id] = dict(info, leaves=leaves)
     write_json(project/'door-bindings.json', dict(schemaVersion=circulation.DOOR_BINDINGS_SCHEMA, doors=door_bindings))

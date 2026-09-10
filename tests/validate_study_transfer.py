@@ -28,11 +28,19 @@ assert actual.get('doorStates')==source.get('doorStates'),'doorStates lost durin
 assert actual.get('walkthrough')==source.get('walkthrough'),'walkthrough position lost during regeneration'
 for key in ('azimuthDeg','elevationDeg','sunLux','exposureEV100'):
     assert abs(actual[key]-source[key])<1e-6,key
-for key in ('locationCm','rotationDeg'):
-    assert all(abs(a-b)<1e-6 for a,b in zip(actual['camera'][key],source['camera'][key])),key
-# CineCamera stores focal length as float32; native runtime JSON may contain float64.
-expected_lens=struct.unpack('<f',struct.pack('<f',source['camera']['lensMm']))[0]
-assert actual['camera']['lensMm']==expected_lens, 'Camera lens changed beyond float32 storage precision'
+# A saved viewpoint (camera != null) must survive regeneration exactly. When
+# the source state has no saved viewpoint (camera == null -- initial_state()'s
+# default, and a merge whose --previous base never had one), import_study.py
+# is free to frame the active room with a synthesized default camera for the
+# editor render; that is a render convenience, not round-tripped state, so
+# there is nothing to compare here.
+if source.get('camera') is not None:
+    assert actual.get('camera') is not None, 'saved viewpoint lost during regeneration'
+    for key in ('locationCm','rotationDeg'):
+        assert all(abs(a-b)<1e-6 for a,b in zip(actual['camera'][key],source['camera'][key])),key
+    # CineCamera stores focal length as float32; native runtime JSON may contain float64.
+    expected_lens=struct.unpack('<f',struct.pack('<f',source['camera']['lensMm']))[0]
+    assert actual['camera']['lensMm']==expected_lens, 'Camera lens changed beyond float32 storage precision'
 assert report['unrealImportVerified'] and report['maxBoundsErrorCm']<.1
 assert report['comparisonState']==actual
 assert actual.get('solar')==source.get('solar'), 'Solar provenance lost during regeneration'

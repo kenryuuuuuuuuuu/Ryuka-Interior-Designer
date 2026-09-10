@@ -102,10 +102,26 @@ def resolve_connections(rooms_by_id, interior_doors, catalog_by_type, room_ids):
             continue
         if len(matches) > 2:
             raise ValueError(f"door {item['id']!r} matches more than two rooms in scope: {matches}")
+        # W07-G2 review R3: which way a SWING leaf opens is derived from
+        # GEOMETRY, not the door instance's own swingDir/hingeSide fields
+        # (authored for exterior openings, and -- like several guest door
+        # LABELS -- not reliable for interior use). A swing leaf opens TOWARD
+        # whichever of the two rooms reaches FURTHER from the shared wall (a
+        # door into a room, never into a narrow hall). `swingToward`: '+' =
+        # toward the larger-perpendicular-coordinate side of the wall.
+        # (A slide leaf's along-wall tuck direction is separate --
+        # slide_open_offset() keeps using slideDir.)
+        perp_index = 1 if horizontal else 0
+        def _reach(room_id):
+            coords = [p[perp_index] for p in rooms_by_id[room_id]['polygon']]
+            return max(max(coords) - at, 0.0), max(at - min(coords), 0.0)  # (reach on + side, reach on - side)
+        reach_a, reach_b = _reach(matches[0]), _reach(matches[1])
+        reach_plus = max(reach_a[0], reach_b[0])
+        reach_minus = max(reach_a[1], reach_b[1])
         connections.append(dict(id=item['id'], level=item.get('floor'), operation=operation, roomIds=matches,
             orientation=orientation, wallAt=at, center=center, width=width, height=merged['height'],
             sill=merged.get('sill', 0), hingeSide=merged.get('hingeSide'), swingDir=merged.get('swingDir'),
-            slideDir=merged.get('slideDir')))
+            slideDir=merged.get('slideDir'), swingToward='+' if reach_plus >= reach_minus else '-'))
     return connections
 
 
@@ -156,8 +172,21 @@ def validate_door_bindings(document):
             raise ValueError(f'doors[{door_id}]: roomIds must name exactly two rooms')
         if not isinstance(info.get('openable'), bool):
             raise ValueError(f'doors[{door_id}]: invalid openable flag')
-        if info['openable'] and not info.get('leaves'):
-            raise ValueError(f'doors[{door_id}]: openable door must have at least one leaf')
+        if info['openable']:
+            if not info.get('leaves'):
+                raise ValueError(f'doors[{door_id}]: openable door must have at least one leaf')
+            for leaf in info['leaves']:
+                # W07-G2 review R1: each leaf's INITIAL pose (this generation's
+                # own render, and what UE actually imports) must now match the
+                # state doorStates given to Blender, not always start closed --
+                # `bakedOpen` records which one generation actually chose, so
+                # every consumer (UE's initial import, and the native
+                # walkthrough's own lazy spawn-baseline capture for a slide
+                # leaf) can recover the true CLOSED baseline regardless of
+                # which doorStates happens to be active when it first looks,
+                # instead of assuming "whatever pose I see now is closed".
+                if not isinstance(leaf, dict) or not isinstance(leaf.get('bakedOpen'), bool):
+                    raise ValueError(f'doors[{door_id}]: each leaf must record bakedOpen (bool)')
     return document
 
 
@@ -216,13 +245,15 @@ def swing_hinge_and_delta(connection, room_polygon_for_swing_side):
 
 def _swing_delta_deg(connection, sign=1.0):
     """Signed yaw delta (Blender-space, source degrees about +Y-equivalent)
-    applied when opening. 'out' swings toward the room whose polygon extends
-    further along the wall-normal axis (larger z for an H wall, larger x for
-    V); 'in' swings the other way -- always a real adjacent room, never into
-    the wall itself (see module docstring: this is a documented convention,
-    not lifted from any pre-existing exterior-door meaning of in/out)."""
+    applied when opening. The leaf swings toward `swingToward` -- the side of
+    the wall (larger perpendicular coord = '+') that resolve_connections()
+    derived from GEOMETRY as the room reaching furthest from the wall (a door
+    into a room, not into a narrow hall). Never into the wall itself; falls
+    back to the door instance's own swingDir only for a connection that
+    predates swingToward."""
     base = 85.0  # a few degrees short of 90 so the open leaf clears a perfectly flush frame
-    toward_positive = connection.get('swingDir') != 'in'
+    toward = connection.get('swingToward')
+    toward_positive = (toward == '+') if toward in ('+', '-') else (connection.get('swingDir') != 'in')
     # hingeSide determines which end is fixed; the leaf always sweeps AWAY
     # from its own hinge, so the rotation sign also depends on which end
     # that is (Ln hinge sweeps toward +u, R hinge sweeps toward -u, for the
@@ -235,9 +266,20 @@ def _swing_delta_deg(connection, sign=1.0):
 def double_swing_hinges_and_deltas(connection):
     """For a double-swing door (door-catalog operation 'double-swing', e.g.
     a closet): two independent leaves, each hinged at its OWN outer edge of
-    the opening, each covering half the width, both swinging the same
-    direction (spec: "両開きは2葉の回転で開閉"). Returns
-    [(hinge_left, delta_left, 'left'), (hinge_right, delta_right, 'right')]."""
+    the opening, each covering half the width, BOTH swinging toward the
+    SAME target room (spec: "両開きは2葉の回転で開閉"). Returns
+    [(hinge_left, delta_left, 'left'), (hinge_right, delta_right, 'right')].
+
+    W07-G2 review R3: a leaf's sign convention already flips with its own
+    hingeSide inside _swing_delta_deg() (a hinge at the 'lo' end and one at
+    the 'hi' end need OPPOSITE-signed yaw deltas to sweep into the SAME
+    room -- mirrored hinges, mirrored rotation direction, same destination).
+    Calling it plainly for both leaves (each with its own correct hingeSide)
+    already produces that opposite-sign pair; the previous code ALSO passed
+    sign=-1.0 for the right leaf, double-flipping it back to the SAME sign
+    as the left leaf -- which sends the two leaves toward DIFFERENT rooms
+    (confirmed against the real door-024 data: both leaves got the same
+    openYawDeltaDeg=-85, one swinging toward 洋室, the other toward 収納)."""
     lo, hi = connection['center'] - connection['width'] / 2, connection['center'] + connection['width'] / 2
     at = connection['wallAt']
     horizontal = connection['orientation'] == 'H'
@@ -245,7 +287,7 @@ def double_swing_hinges_and_deltas(connection):
     right_hinge = (hi, at) if horizontal else (at, hi)
     left = dict(connection, hingeSide='L')
     right = dict(connection, hingeSide='R')
-    return [(left_hinge, _swing_delta_deg(left), 'left'), (right_hinge, _swing_delta_deg(right, sign=-1.0), 'right')]
+    return [(left_hinge, _swing_delta_deg(left), 'left'), (right_hinge, _swing_delta_deg(right), 'right')]
 
 
 def slide_open_offset(connection):

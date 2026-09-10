@@ -61,6 +61,19 @@ class RealDataConnectivityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             circ.resolve_connections(self.rooms_by_id, bad_doors, self.catalog, GUEST_ROOM_IDS)
 
+    def test_double_swing_leaves_open_toward_the_same_room_not_opposite_rooms(self):
+        # W07-G2 review R3: the previous code gave door-024's two leaves the
+        # SAME signed openYawDeltaDeg (both -85), which sends one leaf toward
+        # 洋室 and the other toward 収納 (mirrored hinges swinging the same
+        # angular direction end up in DIFFERENT rooms) -- both must swing
+        # into the SAME target room instead, which for mirrored hinges means
+        # OPPOSITE-signed deltas of equal magnitude.
+        hinges_and_deltas = circ.double_swing_hinges_and_deltas(self.by_id['door-024'])
+        deltas = {kind: delta for _, delta, kind in hinges_and_deltas}
+        self.assertEqual(abs(deltas['left']), abs(deltas['right']))
+        self.assertNotEqual(deltas['left'], deltas['right'])
+        self.assertEqual(deltas['left'], -deltas['right'])
+
 
 class SyntheticGeometryTests(unittest.TestCase):
     """Small synthetic fixtures for edge cases the real data does not cover."""
@@ -129,6 +142,21 @@ class ValidateDoorBindingsTests(unittest.TestCase):
     def test_valid_document_passes(self):
         doc = dict(schemaVersion='1.0.0', doors={
             'door-025': dict(operation='open', roomIds=['a', 'b'], openable=False, leaves=[])})
+        self.assertEqual(circ.validate_door_bindings(doc), doc)
+
+    def test_rejects_leaf_missing_baked_open(self):
+        # W07-G2 review R1: a leaf's INITIAL pose must be traceable back to
+        # what generation actually baked, regardless of whichever doorStates
+        # happens to be active later -- bakedOpen is required, not optional.
+        with self.assertRaises(ValueError):
+            circ.validate_door_bindings(dict(schemaVersion='1.0.0', doors={
+                'door-002': dict(operation='swing', roomIds=['a', 'b'], openable=True,
+                    leaves=[dict(actor='x', kind='single', openYawDeltaDeg=85.0)])}))
+
+    def test_accepts_leaf_with_baked_open(self):
+        doc = dict(schemaVersion='1.0.0', doors={
+            'door-002': dict(operation='swing', roomIds=['a', 'b'], openable=True,
+                leaves=[dict(actor='x', kind='single', openYawDeltaDeg=85.0, bakedOpen=True)])})
         self.assertEqual(circ.validate_door_bindings(doc), doc)
 
 

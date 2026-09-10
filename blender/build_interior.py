@@ -462,13 +462,16 @@ def _recenter_object(obj, pivot_xy):
     obj.location.x += px; obj.location.y += py
 
 
-def build_openings(ops, settings, mats, door_connections_by_id=None):
+def build_openings(ops, settings, mats, door_connections_by_id=None, door_states=None):
     # W07-G2: `door_connections_by_id` (circulation.resolve_connections()'s
     # output, keyed by door id) names exactly the doors the ACTIVE walkthrough
     # profile actually walks through -- every other opening (windows, and any
     # door outside today's profile) keeps the pre-G2 flat, non-movable
-    # closed-leaf placeholder unchanged.
+    # closed-leaf placeholder unchanged. `door_states` (the given --state's
+    # own doorStates, or {} for none/default) decides each in-profile leaf's
+    # INITIAL baked pose (review R1) -- see the is_open comment below.
     door_connections_by_id = door_connections_by_id or {}
+    door_states = door_states or {}
     door_bindings = {}
     cfg = settings['window']; fw=cfg['frameWidth']
     glass=material('Glass.provisional','ffffff',.015)
@@ -545,6 +548,27 @@ def build_openings(ops, settings, mats, door_connections_by_id=None):
         # a real, independently-movable leaf (or two, for double-swing) with
         # a proper hinge pivot for swing, and record door-bindings.json so UE
         # knows which actor(s) to move and by how much when the door toggles.
+        #
+        # W07-G2 review R1: the leaf's INITIAL pose (this generation's own
+        # render, and what UE actually imports) must match the given state's
+        # doorStates -- previously every leaf always started closed here
+        # regardless of doorStates, so a saved "door open" condition showed
+        # closed in both this preview render and the freshly-imported UE
+        # level until something else moved it later. `is_open` below is
+        # applied to the object's own transform (on top of the always-closed
+        # geometry `rect()`/`_recenter_object()` already build), and recorded
+        # per leaf as `bakedOpen` so every later consumer (UE's initial
+        # import, and the native walkthrough's own lazy closed-baseline
+        # capture for a slide leaf) can recover the TRUE closed baseline
+        # regardless of whichever doorStates is active when it first looks.
+        #
+        # Blender-space axis convention (same as _hinge_blender_xy()/panel()
+        # above): Blender X = source x unchanged; Blender Y = -(source z).
+        # circulation.py's angles/offsets are all source/UE-space, so a
+        # rotation must be NEGATED for Blender's own Y-flipped axes, and a
+        # slide offset's z-component must be negated the same way (its
+        # x-component is not).
+        is_open=circulation.effective_door_open(o['id'],door_states)
         leaves=[]
         if connection['operation']=='double-swing':
             mid=(a+b)/2
@@ -554,18 +578,36 @@ def build_openings(ops, settings, mats, door_connections_by_id=None):
                 x0=lo_u+(fw if kind=='left' else 0); x1=hi_u-(fw if kind=='right' else 0)
                 obj=rect(f'leaf-{kind}',x0,x1,low+.005,high-fw,mats['cabinet'],.035)
                 _recenter_object(obj,_hinge_blender_xy(o['orientation'],o['at'],hinge_xz,w['thickness']))
-                leaves.append(dict(actor=obj.name,kind=kind,openYawDeltaDeg=delta_deg))
+                if is_open: obj.rotation_euler[2]=math.radians(-delta_deg)
+                leaves.append(dict(actor=obj.name,kind=kind,openYawDeltaDeg=delta_deg,bakedOpen=is_open))
         elif connection['operation']=='swing':
             hinge_xz,delta_deg=circulation.swing_hinge_and_delta(connection,None)
             obj=rect('leaf',a+fw,b-fw,low+.005,high-fw,mats['cabinet'],.035)
             _recenter_object(obj,_hinge_blender_xy(o['orientation'],o['at'],hinge_xz,w['thickness']))
-            leaves.append(dict(actor=obj.name,kind='single',openYawDeltaDeg=delta_deg))
+            if is_open: obj.rotation_euler[2]=math.radians(-delta_deg)
+            leaves.append(dict(actor=obj.name,kind='single',openYawDeltaDeg=delta_deg,bakedOpen=is_open))
         elif connection['operation']=='slide':
             obj=rect('leaf',a+fw,b-fw,low+.005,high-fw,mats['cabinet'],.035)
             # A pure translation needs no pivot change -- the object's
             # existing world-space origin is fine either way.
+            #
+            # W07-G2 review R3: model this as an OUTSET sliding door
+            # (アウトセット引き戸) -- the leaf sits on ONE FACE of its wall,
+            # both closed and (slid aside) open -- rather than a pocket door
+            # whose open leaf embeds in a wall cavity that is not modelled.
+            # The perpendicular outset (toward the +wall-normal side: +source
+            # z for an H wall, +source x for a V wall) is baked into the
+            # leaf's CLOSED placement here, so `openOffsetCm` stays a pure
+            # along-wall translation and every consumer (UE import, native
+            # walkthrough) captures the already-outset closed baseline
+            # automatically. Closed, the leaf still spans the doorway (a few
+            # cm off its centre plane), so it still blocks passage.
+            outset=w['thickness']/2+.035/2+.01
+            if o['orientation']=='H': obj.location.y-=outset   # Blender Y = -(source z): -Y is +source z
+            else: obj.location.x+=outset                       # Blender X = source x
             dx,dz=circulation.slide_open_offset(connection)
-            leaves.append(dict(actor=obj.name,kind='single',openOffsetCm=[dx*100,dz*100,0]))
+            if is_open: obj.location.x+=dx; obj.location.y+=-dz
+            leaves.append(dict(actor=obj.name,kind='single',openOffsetCm=[dx*100,dz*100,0],bakedOpen=is_open))
         else:
             raise ValueError(f"Unsupported openable door operation: {connection['operation']!r} ({o['id']})")
         door_bindings[o['id']]=dict(level=connection['level'],roomIds=connection['roomIds'],
@@ -936,7 +978,12 @@ def main():
     door_catalog_by_type={t['type']:t for t in read(ROOT/'data/door-catalog.json')['types']}
     connections=circulation.resolve_connections(rooms_by_id,data['interiorDoors'],door_catalog_by_type,walk_profile['roomIds'])
     door_connections_by_id={c['id']:c for c in connections}
-    ops=build_envelope(data,mats,binder); door_bindings=build_openings(ops,legacy_study,mats,door_connections_by_id)
+    # W07-G2 review R1: the SAME doorStates given to this generation (default
+    # {} = every door closed, matching mrs.default_state_v2()'s own "every
+    # profile door starts closed" contract) decides each leaf's initial baked
+    # pose -- not always closed regardless of --state, as before.
+    door_states=state['doorStates'] if state else {}
+    ops=build_envelope(data,mats,binder); door_bindings=build_openings(ops,legacy_study,mats,door_connections_by_id,door_states)
     circulation.validate_door_bindings(dict(schemaVersion=circulation.DOOR_BINDINGS_SCHEMA,doors=door_bindings))
     (args.output/'door-bindings.json').write_text(
         json.dumps(dict(schemaVersion=circulation.DOOR_BINDINGS_SCHEMA,doors=door_bindings),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
@@ -992,6 +1039,14 @@ def main():
     # left behind naming a stale single room.
     report=dict(status='estimated',schemaVersion='2.0.0',scopeId=scope['scopeId'],roomIds=room_ids,
                 activeRoomId=active_room_id,roomStates=room_states,
+                # W07-G2 review R1: recorded here (study.json is this
+                # generation's own persistent record, same role roomStates
+                # already plays) so import_study.py can independently apply
+                # the SAME doorStates to each leaf's actual UE transform,
+                # regardless of whether --state was a file or the internal
+                # default -- not just trust that Blender's own bake (above)
+                # survived the GLB export/Interchange import unchanged.
+                doorStates=door_states,
                 settings=dict(variants=legacy_study['variants'],lighting=legacy_study['lighting'],window=legacy_study['window'],
                               note=legacy_study['note']),
                 lighting=light,decorations=decorations,furnitureIds=[i['id'] for i in items],
@@ -999,7 +1054,6 @@ def main():
                 electricalLighting=dict(mode=lighting_mode,fixtureIds=[f['id'] for f in lighting_bindings['fixtures']]),
                 limitations=['Furniture is procedural, with approximate details; source placement retained',
                              'Window frames and per-surface shadow transmittance .9 (pane approx .81) are estimated',
-                             'All actual door leaves closed; no operation animation',
                              'No neighbouring buildings or measured site orientation',
                              'Stair opening and guard walls present; stair treads still absent',
                              'Roof/gable details incomplete; source ceiling heights remain estimated',

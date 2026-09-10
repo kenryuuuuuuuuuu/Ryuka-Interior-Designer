@@ -90,7 +90,9 @@ python scripts/launch-unreal-walkthrough.py --engine 'C:/Program Files/Epic Game
 
 ## 検証状況（2026-09-10、W07-G2で更新）
 
-ゲスト8室（玄関・ホール・LDK・洋室・トイレ・洗面脱衣・UB・収納）を実際に歩いて行き来し、7つの扉（引き戸2・開き戸3・両開き1・開放1）を開閉できることを実機で確認しました。実Blenderビルド・実UEインポート・C++ Walkthroughモジュールの実コンパイルに加え、`-RyukaSmoke`ネイティブ自己診断を拡張し、引き戸（door-001）・開き戸（door-002）それぞれについて、閉状態での通行ブロック→扉トグル→開状態での通行成功を実際のCharacterMovementスイープで確認、洋室相当の編集可能室で扉を開けてF5→別室へ移動して扉を閉じ直す→F9で室・位置・扉状態を復元、をNullRHI（ロジックのみ）・DX12（実描画、スクリーンショット取得）の両方でPASSを確認しています。詳細な確認項目・コマンドは[W07-G2-report.md](tasks/W07-G2-report.md)を参照してください。
+ゲスト8室（玄関・ホール・LDK・洋室・トイレ・洗面脱衣・UB・収納）を実際に歩いて行き来し、7つの扉（引き戸2・開き戸3・両開き1・開放1）を開閉できることを実機で確認しました。`-RyukaSmoke`ネイティブ自己診断を**1本の連続スイープ**へ置き換え、玄関→ホール(door-025)→door-002開扉→LDK→ホール→door-002閉扉→door-005開扉→洋室→（洋室でFinish2→F5→ホールへ→door-005閉→F9で室・位置・扉・両室状態を復元）→洋室→ホール→door-001開扉→トイレ（水回り入口）到達、の全24脚が`true`。両開きdoor-024は焦点確認（閉時ブロック／`fur-007`がアーク内にあると開扉拒否／`fur-007`のコリジョンを一時無効化すると両葉が動いて通行可・収納側へ到達／閉扉可）。実Blenderビルド・実UEインポート（`unrealImportVerified: true`）・C++実コンパイル（`error C`/`error LNK` 0件）に加え、NullRHI（ロジックのみ）・DX12（実描画、`walkthrough-smoke.png`取得）の両方でPASS。UEエディタの`study_controls.py`検証（`verify_w07_g2.py`、24項目）で、`doorStates`が実際の扉パネルのtransformへ反映されること・エディタ視点変更で`walkthrough`帰属が解除されること・仕上げA/B比較中に実葉が固定されること・旧案の通常読込で実葉が閉じることも確認しました。詳細な確認項目・コマンドは[W07-G2-report.md](tasks/W07-G2-report.md)を参照してください。
+
+**レビューv1（R1〜R4）対応**：初回提出（`89d07af`）はGPTレビューでCHANGES_REQUESTED。同じG2で、R1（`doorStates`を`bakedOpen`基準でBlender生成・UE初期インポート・`apply_state()`／案読込の全経路が実葉へ適用。引き戸はアウトセット化）、R2（エディタ視点変更で`walkthrough`解除、C++`Restore()`が保存帰属を`profileId`/`roomId`実在/`level`一致で自己検証し不整合は拒否）、R3（両開きの両葉が同一室へ開く符号修正＋幾何由来の`swingToward`、`LeafMotionClear()`による開扉方向の移動領域干渉検査、`FindNearestDoor()`の壁越し除外）、R4（上記の連続経路実機確認）を修正しました。BASE `60d8cd6` は不変です。
 
 この過程で不具合を発見・修正しました：
 

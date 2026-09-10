@@ -36,7 +36,7 @@ private:
  // profile (the pre-G2 guest-ldk-solo profile) degenerates this to exactly
  // the old single-room behaviour, not a separate code path.
  struct FRoomInfo {TArray<FVector2D> Polygon; double FloorCm=0; int32 Level=0; FString Label;};
- struct FLeafInfo {FString Actor; FString Kind; bool bHasYaw=false; double OpenYawDeltaDeg=0; bool bHasOffset=false; FVector OpenOffsetCm=FVector::ZeroVector;};
+ struct FLeafInfo {FString Actor; FString Kind; bool bHasYaw=false; double OpenYawDeltaDeg=0; bool bHasOffset=false; FVector OpenOffsetCm=FVector::ZeroVector; bool bBakedOpen=false;};
  struct FConnectionInfo {FString Id; TArray<FString> RoomIds; FString Operation; bool bOpenable=false; bool bHorizontal=false; double AtCm=0; double LoCm=0; double HiCm=0; TArray<FLeafInfo> Leaves; FString Label;};
  struct FOpeningWindow {bool bHorizontal=false; double At=0; double Lo=0; double Hi=0;};
  TMap<FString,FRoomInfo> Rooms;
@@ -48,7 +48,12 @@ private:
  // ApplyConditions() sees it (never re-captured afterward, or repeated
  // opens/closes would drift) -- an unattached actor's "relative" location
  // API is just its absolute one, so the open offset must be added to a
- // remembered baseline rather than composed some other way.
+ // remembered baseline rather than composed some other way. W07-G2 review
+ // R1: the CAPTURED value is corrected by that leaf's own bakedOpen flag
+ // (FLeafInfo::bBakedOpen) at capture time, since the leaf's actual pose the
+ // first time this looks may already be OPEN (build_interior.py now bakes a
+ // door open when generation's own doorStates says so) -- never assumed
+ // closed just because it is whatever this happens to see first.
  TMap<FString,FVector> DoorLeafSpawnLocation;
  // W04: loaded once in BeginPlay(); invalid/empty for a pre-W04 generated
  // project (no surface-bindings.json/no registered surfaces there), in
@@ -62,6 +67,7 @@ private:
  // below just finds no fixtures to apply -- not an error.
  TSharedPtr<class FJsonObject> LightingBindings;
  FVector LastSafeLocation=FVector::ZeroVector;
+ mutable FString LastLeafMotionBlocker;  // W07-G2: diagnostic -- label of whatever last made LeafMotionClear() return false
  void SetFinish(const FString& Name,const FString& Label);
  void SetSun(float Elevation);
  bool ApplyConditions();
@@ -72,6 +78,7 @@ private:
  void UpdateCurrentRoom();
  void FindNearestDoor();
  bool GetDoorOpen(const FString& DoorId) const;
+ bool LeafMotionClear(AActor* Leaf, const FTransform& From, const FTransform& To, const TArray<AActor*>& AlsoIgnore) const;
  bool Restore(const TSharedPtr<FJsonObject>& Candidate);
 };
 
