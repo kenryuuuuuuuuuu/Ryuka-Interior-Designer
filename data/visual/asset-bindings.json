@@ -43,6 +43,34 @@
       "sizing": "parametric",
       "status": "estimated",
       "note": "参考画像の円卓・細い木製脚・曲線の背を手掛かりにした自作の仮モデル。特定製品の再現ではない。"
+    },
+    {
+      "furnitureId": "fur-035",
+      "assetId": "toilet-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "タンク・便器ボウル・便座・蓋を簡易な部品で組んだ自作モデル。特定製品の再現ではない。陶器の白は室variantで変えない。"
+    },
+    {
+      "furnitureId": "fur-001",
+      "assetId": "vanity-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "洗面ボウル（縁＋一段下げた底）・カウンター・鏡・水栓を簡易な部品で組んだ自作モデル。特定製品の再現ではない。"
+    },
+    {
+      "furnitureId": "fur-002",
+      "assetId": "washer-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "ドラム式洗濯機の本体・前面の丸ドア・操作パネルを簡易な部品で組んだ自作モデル。特定製品の再現ではない。"
+    },
+    {
+      "furnitureId": "fur-003",
+      "assetId": "bathtub-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "浴槽の外殻・エプロン・縁・一段下げた内側の底・水栓を簡易な部品で組んだ自作モデル（内部を固体で埋めない）。特定製品の再現ではない。実寸は正本のまま。"
     }
   ]
 }

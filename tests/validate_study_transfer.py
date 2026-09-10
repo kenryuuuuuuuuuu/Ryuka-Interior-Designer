@@ -36,8 +36,12 @@ for key in ('azimuthDeg','elevationDeg','sunLux','exposureEV100'):
 # there is nothing to compare here.
 if source.get('camera') is not None:
     assert actual.get('camera') is not None, 'saved viewpoint lost during regeneration'
-    for key in ('locationCm','rotationDeg'):
-        assert all(abs(a-b)<1e-6 for a,b in zip(actual['camera'][key],source['camera'][key])),key
+    assert all(abs(a-b)<1e-6 for a,b in zip(actual['camera']['locationCm'],source['camera']['locationCm'])),'locationCm'
+    # rotation compared modulo 360 -- UE stores an actor's yaw normalised to
+    # (-180, 180], so a saved 200deg comes back as -160deg (the same
+    # orientation), which an exact compare would wrongly reject.
+    for a,b in zip(actual['camera']['rotationDeg'],source['camera']['rotationDeg']):
+        assert min((a-b)%360,(b-a)%360)<1e-4,'rotationDeg'
     # CineCamera stores focal length as float32; native runtime JSON may contain float64.
     expected_lens=struct.unpack('<f',struct.pack('<f',source['camera']['lensMm']))[0]
     assert actual['camera']['lensMm']==expected_lens, 'Camera lens changed beyond float32 storage precision'

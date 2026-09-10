@@ -1,17 +1,37 @@
 {
   "schemaVersion": "1.0.0",
-  "note": "W07-G1: 内装比較の対象範囲（複数室の組）。roomIdはdata/house.jsonのroomsを参照します。roomId/家具ID等の正本は複製しません。",
+  "note": "W07-G1: 内装比較の対象範囲（複数室の組）。roomIdはdata/house.jsonのroomsを参照します。roomId/家具ID等の正本は複製しません。 W07-G3: scopeId=guest（8区画）を追加。guest-ldk/guest-pilotの意味は変更しない。",
   "scopes": [
     {
       "scopeId": "guest-ldk",
       "label": "ゲストLDK（単室、旧W03-W06互換）",
-      "roomIds": ["room-1f-06"],
+      "roomIds": [
+        "room-1f-06"
+      ],
       "defaultRoomId": "room-1f-06"
     },
     {
       "scopeId": "guest-pilot",
       "label": "ゲストLDK＋洋室（W07-G1先行2室）",
-      "roomIds": ["room-1f-06", "room-1f-05"],
+      "roomIds": [
+        "room-1f-06",
+        "room-1f-05"
+      ],
+      "defaultRoomId": "room-1f-06"
+    },
+    {
+      "scopeId": "guest",
+      "label": "ゲスト全8区画（玄関〜水回り、W07-G3）",
+      "roomIds": [
+        "room-1f-02",
+        "room-1f-24",
+        "room-1f-06",
+        "room-1f-05",
+        "room-1f-01",
+        "room-1f-03",
+        "room-1f-04",
+        "room-1f-23"
+      ],
       "defaultRoomId": "room-1f-06"
     }
   ]

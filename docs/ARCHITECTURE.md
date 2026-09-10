@@ -435,6 +435,19 @@ v3レビューは、v2で新設した「実行時の部分開放」が保存条�
 
 - **v2以降の検証**：`-RyukaSmoke` 連続経路（全脚PASS、NullRHI・DX12）＋`verify_w07_g2.py`（36項目：引き戸・swing扉のセッション跨ぎ、select_room の walkthrough 再解決とカメラ室内判定、他）＋非nullカメラ入力の完全refresh1回。詳細は[W07-G2-report.md](tasks/W07-G2-report.md)。
 
+## ゲスト全8区画の仕上げ・設備・照明（W07-G3・2026-09-10追加）
+
+G1（編集2室）・G2（8室の歩行と建具）に続き、G3で**ゲスト8区画すべての壁/床/天井の仕上げ・所属家具・10灯の照明**を比較・保存・再生成できるようにした。全館化・自宅・W08-G（起動/更新/試用導線）は含まない。
+
+- **編集scope `guest`（`data/visual/study-scopes.json`）**：8室（玄関 room-1f-02・ホール room-1f-24・LDK room-1f-06・洋室 room-1f-05・トイレ room-1f-01・洗面脱衣 room-1f-03・UB room-1f-04・収納 room-1f-23）。`guest-ldk`（単室）・`guest-pilot`（2室）は不変。既定CLIは切り替えず `--scope guest` を明示する。生成パイプライン（`build_interior.py`／`build-unreal-study.py`／`study_controls.py`／`refresh-visual-study.py`）はG1時点で既に scope 汎用のため、データ追加だけで新 scope が通る。
+- **歩行 profile は複製しない**：`data/visual/walkthrough-profiles.json` の `guest-circulation` の `scopeId` を **`scopeIds: ["guest-pilot", "guest"]`** へ拡張（同じ8室/7接続/開始室を別 profile として複製しない）。`circulation.validate_profiles()`／`resolve_profile_for_scope()` が `scopeIds`（配列）と旧 `scopeId`（文字列）の両方を受け付け、同一 scope を2 profile が主張する不正定義を拒否する。編集 scope（`guest` は8室、`guest-pilot` は2室）と歩行対象（両者とも8室、同一 profile）は引き続き別概念。
+- **面登録（`data/visual/surface-registry.json`）**：残り6室は house.json の 4 頂点矩形・フラット天井なので、各室 4 壁＋床＋天井＝ 36 面を安定 ID（`surf-genkan-*`／`-hall-*`／`-toilet-*`／`-washroom-*`／`-ub-*`／`-closet-*`）で追加（合計 52 面）。`surface_registry.py` の辺一致でレジストリが解決し、`SurfaceBinder` が in-scope 室の面をマーカー材質へ bind する。旧 scope 生成では従来どおり scope 内の面だけが編集対象。
+- **空室の variant 読み戻し（`study_controls.scene_state()`）**：玄関/ホール/収納（と家具1点のトイレ/UB）は whole-scene の役割スロット幾何を持たないため、`scene_state()` の「役割スロット材質から室の variant を1つに確定」ができない。これらの室は登録済み壁/床/天井の**サーフェスマーカー（MID の親 `M_Surf_<id>_<variant>`）から実 variant を読み戻す**。エディタ保存・レベル再読込を跨いでも空室の仕上げが正しく往復し、未管理の変更は従来どおり保存前に拒否される。
+- **水回り設備の簡易形状（`blender/furniture_assets.py`／`data/visual/asset-bindings.json`）**：便器（`toilet-v1`：タンク＋ボウル＋便座＋蓋）・洗面台（`vanity-v1`：カウンター枠＋一段下げた楕円の底＋縁＋水栓＋鏡）・洗濯機（`washer-v1`：本体＋前面の丸ドア＋操作パネル）・浴槽（`bathtub-v1`：外殻＋エプロン＋縁＋一段下げた内側の底＋水栓）。既存の parametric asset 経路（`asset_parts`／`validate_bindings` の registry）へ追加し、便器の陶器・水栓の金属は固定材質で室 variant では木へ置換しない。カタログ外形寸法（浴槽 widthOverride 1.82 を含む）・向き・位置は正本のまま、部品寸法は `estimated`。水槽内部は縁＋底で表現し固体で埋めない。
+- **10灯**：`build_electrical_lighting()`（scope 汎用）が guest の8室10灯（elec-001〜008・200・201）を `lighting-bindings.json` へ 1 回で解決。既存の on/off・調光・色温度、昼夜条件、太陽来歴は不変。室別グループ（`lighting-settings.json`）の追加は任意。
+- **8室への拡張と旧案**：`refresh-visual-study.py --scope guest --allow-new-rooms` の時だけ不足6室を各室の初期 variant で初期化（既存 2 室の設定・扉・視点・来歴は保持）。通常の部分案適用や旧1室/2室案の通常読込では、案の roomStates だけ置換し他室は現在状態を保持（`mrs.partial_apply()`）。G2の安全開角・引き戸の不変閉基準は不変。
+- **検証**：`verify_w07_g3.py`（scope=guest・52面 bind・空室含む variant/面変更の室内隔離・器具 on/off の室別性・水回り設備が多部品 Actor・新規室設定の保存往復・対象室を含まない比較案の拒否）＋`-RyukaSmoke`（歩行は scope 非依存、G2 の連続経路が PASS）＋8室 roomStates・開扉・非nullカメラを入力にした完全refresh1回（`status: complete`、状態転送照合成功、`openYawDeltaDeg=73` 維持）＋昼夜の代表画像。詳細は[W07-G3-report.md](tasks/W07-G3-report.md)。
+
 ## 内覧モード（walk）
 
 俯瞰・平面図の間取りを実際に歩いて体験できることを目的としたモード。壁の当たり判定は上記「rooms / walls について」の自動導出壁（`wallSegmentsByLevel`）を使い、これに加えてドアの扉本体（近づくと開く演出）と家具の当たり判定を持つ。

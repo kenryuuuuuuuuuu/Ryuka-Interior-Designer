@@ -501,6 +501,32 @@ def scene_state(base):
             where='部屋'+room_id if room_id is not None else '対象室に属さない基準材質'
             raise RuntimeError(f'{where}の仕上げが混在しています。Undo等の影響が考えられます。')
         room_variant[room_id]=matching[0]
+    # W07-G3: an empty room (玄関/ホール/収納, and near-empty トイレ/UB) has no
+    # whole-scene role-slotted geometry at all -- study-bindings.json lists
+    # nothing for it, so the loop above never sets its variant. Its only
+    # finish is its registered wall/floor/ceiling SURFACE markers; read the
+    # variant back from those (the MID parent is M_Surf_<id>_<variant>), so
+    # scene_state reflects the LIVE scene -- an unmanaged change is still
+    # caught below, and re-applying the managed state still resets it.
+    surface_markers=surface_bindings()['surfaces']
+    for room_id in study['roomIds']:
+        if room_id in room_variant:
+            continue
+        found=set()
+        for sid,info in surface_markers.items():
+            if info['roomId']!=room_id or info['status']!='bound':
+                continue
+            for mesh_ref in info['meshes']:
+                a=actors.get(mesh_ref['actor'])
+                live=a.static_mesh_component.get_material(mesh_ref['slot']) if a else None
+                parent=live.get_editor_property('parent') if isinstance(live,unreal.MaterialInstanceDynamic) else None
+                if parent is not None:
+                    stem=parent.get_name()  # M_Surf_<sid>_<variant>
+                    for v in variants:
+                        if stem.endswith('_'+v):
+                            found.add(v)
+        room_variant[room_id]=(found.pop() if len(found)==1
+            else base.get('roomStates',{}).get(room_id,{}).get('variant',mrs.BASE_VARIANT))
     # W04/W07-G1: study-bindings.json (the whole-scene role map above) never
     # lists surface-marker slots -- those are tracked separately in
     # surface-bindings.json and never touched by the loop above -- so this

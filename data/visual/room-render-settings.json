@@ -1,11 +1,19 @@
 {
   "schemaVersion": "1.0.0",
-  "note": "W07-G1: 室ごとの初期カメラ・既定variant。仕上げパレット・太陽/露出等の共通レンダー設定はdata/visual/guest-ldk-study.jsonを引き続き共有します（二重の正本を避けるため、ここでは複製しません）。カメラの座標配列は[x,z,床からの高さ]（source単位・m）で、guest-ldk-study.jsonのcamera契約と同じです。",
+  "note": "W07-G1: 室ごとの初期カメラ・既定variant。仕上げパレット・太陽/露出等の共通レンダー設定はdata/visual/guest-ldk-study.jsonを引き続き共有します（二重の正本を避けるため、ここでは複製しません）。カメラの座標配列は[x,z,床からの高さ]（source単位・m）で、guest-ldk-study.jsonのcamera契約と同じです。 W07-G3: 残り6室（玄関・ホール・トイレ・洗面脱衣・UB・収納）の仮初期視点・既定variantを追加。",
   "rooms": {
     "room-1f-06": {
       "camera": {
-        "position": [2.13, 4.25, 1.55],
-        "target": [6.15, 5.05, 1.35],
+        "position": [
+          2.13,
+          4.25,
+          1.55
+        ],
+        "target": [
+          6.15,
+          5.05,
+          1.35
+        ],
         "lensMm": 20,
         "note": "data/visual/guest-ldk-study.jsonの既存cameraと同一値（W06までの単室設定を room-render-settings.json 側の正本として引き継いだもの）。"
       },
@@ -13,10 +21,120 @@
     },
     "room-1f-05": {
       "camera": {
-        "position": [3.1, 3.3, 1.5],
-        "target": [6.0, 1.3, 1.2],
+        "position": [
+          3.1,
+          3.3,
+          1.5
+        ],
+        "target": [
+          6.0,
+          1.3,
+          1.2
+        ],
         "lensMm": 22,
         "note": "洋室南西の入口寄りから、ベッド2台とデスク側を見渡す仮設定。実運用時の見え方は未確認。"
+      },
+      "defaultVariant": "natural"
+    },
+    "room-1f-02": {
+      "camera": {
+        "position": [
+          2.4,
+          1.6,
+          1.55
+        ],
+        "target": [
+          1.2,
+          1.05,
+          1.35
+        ],
+        "lensMm": 20,
+        "note": "玄関を框側から見る仮設定。実運用時の見え方は未確認。"
+      },
+      "defaultVariant": "natural"
+    },
+    "room-1f-24": {
+      "camera": {
+        "position": [
+          2.45,
+          2.55,
+          1.55
+        ],
+        "target": [
+          1.0,
+          2.05,
+          1.35
+        ],
+        "lensMm": 20,
+        "note": "ホールを東寄りから見渡す仮設定。"
+      },
+      "defaultVariant": "natural"
+    },
+    "room-1f-01": {
+      "camera": {
+        "position": [
+          0.78,
+          2.45,
+          1.5
+        ],
+        "target": [
+          0.42,
+          1.35,
+          1.15
+        ],
+        "lensMm": 24,
+        "note": "トイレを入口（ホール側）から見る仮設定。狭所のため内部には入れない。"
+      },
+      "defaultVariant": "natural"
+    },
+    "room-1f-03": {
+      "camera": {
+        "position": [
+          1.55,
+          2.95,
+          1.55
+        ],
+        "target": [
+          0.35,
+          3.75,
+          1.25
+        ],
+        "lensMm": 22,
+        "note": "洗面脱衣を入口寄りから洗面台・洗濯機側を見る仮設定。"
+      },
+      "defaultVariant": "natural"
+    },
+    "room-1f-04": {
+      "camera": {
+        "position": [
+          1.55,
+          4.8,
+          1.5
+        ],
+        "target": [
+          0.75,
+          6.0,
+          1.05
+        ],
+        "lensMm": 22,
+        "note": "ユニットバスを入口（洗面側）から浴槽側を見る仮設定。狭所。"
+      },
+      "defaultVariant": "natural"
+    },
+    "room-1f-23": {
+      "camera": {
+        "position": [
+          6.52,
+          3.0,
+          1.45
+        ],
+        "target": [
+          7.25,
+          3.0,
+          1.2
+        ],
+        "lensMm": 24,
+        "note": "収納を両開き戸の開口から見る仮設定。内部には入れない。"
       },
       "defaultVariant": "natural"
     }

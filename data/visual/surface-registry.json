@@ -7,7 +7,16 @@
       "kind": "wall",
       "label": "北側の壁（間仕切り短辺・東寄り）",
       "note": "house.jsonのroom-1f-06 polygon辺0（頂点[1.82,2.73]-[2.73,2.73]）。部屋status=verifiedを引き継ぐ。",
-      "edge": [[1.82, 2.73], [2.73, 2.73]]
+      "edge": [
+        [
+          1.82,
+          2.73
+        ],
+        [
+          2.73,
+          2.73
+        ]
+      ]
     },
     {
       "id": "surf-guest-wall-002",
@@ -15,7 +24,16 @@
       "kind": "wall",
       "label": "西側の壁（間仕切り短辺・北寄り）",
       "note": "house.jsonのroom-1f-06 polygon辺1（頂点[2.73,2.73]-[2.73,3.691]）。部屋status=verifiedを引き継ぐ。",
-      "edge": [[2.73, 2.73], [2.73, 3.691]]
+      "edge": [
+        [
+          2.73,
+          2.73
+        ],
+        [
+          2.73,
+          3.691
+        ]
+      ]
     },
     {
       "id": "surf-guest-wall-003",
@@ -23,7 +41,16 @@
       "kind": "wall",
       "label": "北側の壁（主要面）",
       "note": "house.jsonのroom-1f-06 polygon辺2（頂点[2.73,3.691]-[7.28,3.691]）。部屋status=verifiedを引き継ぐ。",
-      "edge": [[2.73, 3.691], [7.28, 3.691]]
+      "edge": [
+        [
+          2.73,
+          3.691
+        ],
+        [
+          7.28,
+          3.691
+        ]
+      ]
     },
     {
       "id": "surf-guest-wall-004",
@@ -31,7 +58,16 @@
       "kind": "wall",
       "label": "東側の壁",
       "note": "house.jsonのroom-1f-06 polygon辺3（頂点[7.28,3.691]-[7.28,6.37]）。部屋status=verifiedを引き継ぐ。",
-      "edge": [[7.28, 3.691], [7.28, 6.37]]
+      "edge": [
+        [
+          7.28,
+          3.691
+        ],
+        [
+          7.28,
+          6.37
+        ]
+      ]
     },
     {
       "id": "surf-guest-wall-005",
@@ -39,7 +75,16 @@
       "kind": "wall",
       "label": "南側の壁",
       "note": "house.jsonのroom-1f-06 polygon辺4（頂点[7.28,6.37]-[1.82,6.37]）。部屋status=verifiedを引き継ぐ。",
-      "edge": [[7.28, 6.37], [1.82, 6.37]]
+      "edge": [
+        [
+          7.28,
+          6.37
+        ],
+        [
+          1.82,
+          6.37
+        ]
+      ]
     },
     {
       "id": "surf-guest-wall-006",
@@ -47,7 +92,16 @@
       "kind": "wall",
       "label": "西側の壁（主要面）",
       "note": "house.jsonのroom-1f-06 polygon辺5（頂点[1.82,6.37]-[1.82,2.73]）。部屋status=verifiedを引き継ぐ。",
-      "edge": [[1.82, 6.37], [1.82, 2.73]]
+      "edge": [
+        [
+          1.82,
+          6.37
+        ],
+        [
+          1.82,
+          2.73
+        ]
+      ]
     },
     {
       "id": "surf-guest-floor-001",
@@ -69,7 +123,16 @@
       "kind": "wall",
       "label": "北側の壁",
       "note": "W07-G1。house.jsonのroom-1f-05 polygon辺0（頂点[2.73,0.91]-[7.28,0.91]）。部屋status=estimatedを引き継ぐ。",
-      "edge": [[2.73, 0.91], [7.28, 0.91]]
+      "edge": [
+        [
+          2.73,
+          0.91
+        ],
+        [
+          7.28,
+          0.91
+        ]
+      ]
     },
     {
       "id": "surf-western-wall-002",
@@ -77,7 +140,16 @@
       "kind": "wall",
       "label": "東側の壁（上部）",
       "note": "W07-G1。house.jsonのroom-1f-05 polygon辺1（頂点[7.28,0.91]-[7.28,2.326]）。部屋status=estimatedを引き継ぐ。",
-      "edge": [[7.28, 0.91], [7.28, 2.326]]
+      "edge": [
+        [
+          7.28,
+          0.91
+        ],
+        [
+          7.28,
+          2.326
+        ]
+      ]
     },
     {
       "id": "surf-western-wall-003",
@@ -85,7 +157,16 @@
       "kind": "wall",
       "label": "クローク境界（水平）",
       "note": "W07-G1。house.jsonのroom-1f-05 polygon辺2（頂点[7.28,2.326]-[6.37,2.326]）。room-1f-23（クローク）との境界。部屋status=estimatedを引き継ぐ。",
-      "edge": [[7.28, 2.326], [6.37, 2.326]]
+      "edge": [
+        [
+          7.28,
+          2.326
+        ],
+        [
+          6.37,
+          2.326
+        ]
+      ]
     },
     {
       "id": "surf-western-wall-004",
@@ -93,7 +174,16 @@
       "kind": "wall",
       "label": "クローク境界（垂直）",
       "note": "W07-G1。house.jsonのroom-1f-05 polygon辺3（頂点[6.37,2.326]-[6.37,3.691]）。room-1f-23（クローク）との境界。部屋status=estimatedを引き継ぐ。",
-      "edge": [[6.37, 2.326], [6.37, 3.691]]
+      "edge": [
+        [
+          6.37,
+          2.326
+        ],
+        [
+          6.37,
+          3.691
+        ]
+      ]
     },
     {
       "id": "surf-western-wall-005",
@@ -101,7 +191,16 @@
       "kind": "wall",
       "label": "南側の壁（LDKとの共有壁）",
       "note": "W07-G1。house.jsonのroom-1f-05 polygon辺4（頂点[6.37,3.691]-[2.73,3.691]）。room-1f-06（LDK）のsurf-guest-wall-003と同じ壁実体（generated/interior-walls.jsonのwall-1f-auto-012、x:2.73-7.28）の一部を共有する。共有壁の両面はそれぞれ独立に登録・仕上げ変更できる（docs/tasks/W07-G1-multi-room-foundation.md 3章）。部屋status=estimatedを引き継ぐ。",
-      "edge": [[6.37, 3.691], [2.73, 3.691]]
+      "edge": [
+        [
+          6.37,
+          3.691
+        ],
+        [
+          2.73,
+          3.691
+        ]
+      ]
     },
     {
       "id": "surf-western-wall-006",
@@ -109,7 +208,16 @@
       "kind": "wall",
       "label": "西側の壁",
       "note": "W07-G1。house.jsonのroom-1f-05 polygon辺5（頂点[2.73,3.691]-[2.73,0.91]）。部屋status=estimatedを引き継ぐ。",
-      "edge": [[2.73, 3.691], [2.73, 0.91]]
+      "edge": [
+        [
+          2.73,
+          3.691
+        ],
+        [
+          2.73,
+          0.91
+        ]
+      ]
     },
     {
       "id": "surf-western-floor-001",
@@ -124,6 +232,498 @@
       "kind": "ceiling",
       "label": "天井（平天井）",
       "note": "W07-G1。house.jsonのroom-1f-05部屋全体。room-1f-06と異なりceiling指定なし（平天井、既定高さ）。部屋status=estimatedを引き継ぐ。"
+    },
+    {
+      "id": "surf-genkan-wall-001",
+      "roomId": "room-1f-02",
+      "kind": "wall",
+      "label": "南側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-02 polygon辺0（頂点[0.91, 0.91]-[2.73, 0.91]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          0.91,
+          0.91
+        ],
+        [
+          2.73,
+          0.91
+        ]
+      ]
+    },
+    {
+      "id": "surf-genkan-wall-002",
+      "roomId": "room-1f-02",
+      "kind": "wall",
+      "label": "東側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-02 polygon辺1（頂点[2.73, 0.91]-[2.73, 1.82]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          2.73,
+          0.91
+        ],
+        [
+          2.73,
+          1.82
+        ]
+      ]
+    },
+    {
+      "id": "surf-genkan-wall-003",
+      "roomId": "room-1f-02",
+      "kind": "wall",
+      "label": "北側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-02 polygon辺2（頂点[2.73, 1.82]-[0.91, 1.82]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          2.73,
+          1.82
+        ],
+        [
+          0.91,
+          1.82
+        ]
+      ]
+    },
+    {
+      "id": "surf-genkan-wall-004",
+      "roomId": "room-1f-02",
+      "kind": "wall",
+      "label": "西側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-02 polygon辺3（頂点[0.91, 1.82]-[0.91, 0.91]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          0.91,
+          1.82
+        ],
+        [
+          0.91,
+          0.91
+        ]
+      ]
+    },
+    {
+      "id": "surf-genkan-floor-001",
+      "roomId": "room-1f-02",
+      "kind": "floor",
+      "label": "床",
+      "note": "W07-G3。house.jsonのroom-1f-02部屋全体。部屋status=estimatedを引き継ぐ。"
+    },
+    {
+      "id": "surf-genkan-ceiling-001",
+      "roomId": "room-1f-02",
+      "kind": "ceiling",
+      "label": "天井（フラット）",
+      "note": "W07-G3。house.jsonのroom-1f-02部屋全体。ceiling=flat。部屋status=estimatedを引き継ぐ。"
+    },
+    {
+      "id": "surf-hall-wall-001",
+      "roomId": "room-1f-24",
+      "kind": "wall",
+      "label": "南側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-24 polygon辺0（頂点[0.91, 1.82]-[2.73, 1.82]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          0.91,
+          1.82
+        ],
+        [
+          2.73,
+          1.82
+        ]
+      ]
+    },
+    {
+      "id": "surf-hall-wall-002",
+      "roomId": "room-1f-24",
+      "kind": "wall",
+      "label": "東側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-24 polygon辺1（頂点[2.73, 1.82]-[2.73, 2.73]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          2.73,
+          1.82
+        ],
+        [
+          2.73,
+          2.73
+        ]
+      ]
+    },
+    {
+      "id": "surf-hall-wall-003",
+      "roomId": "room-1f-24",
+      "kind": "wall",
+      "label": "北側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-24 polygon辺2（頂点[2.73, 2.73]-[0.91, 2.73]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          2.73,
+          2.73
+        ],
+        [
+          0.91,
+          2.73
+        ]
+      ]
+    },
+    {
+      "id": "surf-hall-wall-004",
+      "roomId": "room-1f-24",
+      "kind": "wall",
+      "label": "西側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-24 polygon辺3（頂点[0.91, 2.73]-[0.91, 1.82]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          0.91,
+          2.73
+        ],
+        [
+          0.91,
+          1.82
+        ]
+      ]
+    },
+    {
+      "id": "surf-hall-floor-001",
+      "roomId": "room-1f-24",
+      "kind": "floor",
+      "label": "床",
+      "note": "W07-G3。house.jsonのroom-1f-24部屋全体。部屋status=estimatedを引き継ぐ。"
+    },
+    {
+      "id": "surf-hall-ceiling-001",
+      "roomId": "room-1f-24",
+      "kind": "ceiling",
+      "label": "天井（フラット）",
+      "note": "W07-G3。house.jsonのroom-1f-24部屋全体。ceiling=flat。部屋status=estimatedを引き継ぐ。"
+    },
+    {
+      "id": "surf-toilet-wall-001",
+      "roomId": "room-1f-01",
+      "kind": "wall",
+      "label": "南側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-01 polygon辺0（頂点[0, 0.91]-[0.91, 0.91]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [
+        [
+          0,
+          0.91
+        ],
+        [
+          0.91,
+          0.91
+        ]
+      ]
+    },
+    {
+      "id": "surf-toilet-wall-002",
+      "roomId": "room-1f-01",
+      "kind": "wall",
+      "label": "東側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-01 polygon辺1（頂点[0.91, 0.91]-[0.91, 2.73]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [
+        [
+          0.91,
+          0.91
+        ],
+        [
+          0.91,
+          2.73
+        ]
+      ]
+    },
+    {
+      "id": "surf-toilet-wall-003",
+      "roomId": "room-1f-01",
+      "kind": "wall",
+      "label": "北側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-01 polygon辺2（頂点[0.91, 2.73]-[0, 2.73]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [
+        [
+          0.91,
+          2.73
+        ],
+        [
+          0,
+          2.73
+        ]
+      ]
+    },
+    {
+      "id": "surf-toilet-wall-004",
+      "roomId": "room-1f-01",
+      "kind": "wall",
+      "label": "西側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-01 polygon辺3（頂点[0, 2.73]-[0, 0.91]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [
+        [
+          0,
+          2.73
+        ],
+        [
+          0,
+          0.91
+        ]
+      ]
+    },
+    {
+      "id": "surf-toilet-floor-001",
+      "roomId": "room-1f-01",
+      "kind": "floor",
+      "label": "床",
+      "note": "W07-G3。house.jsonのroom-1f-01部屋全体。部屋status=verifiedを引き継ぐ。"
+    },
+    {
+      "id": "surf-toilet-ceiling-001",
+      "roomId": "room-1f-01",
+      "kind": "ceiling",
+      "label": "天井（フラット）",
+      "note": "W07-G3。house.jsonのroom-1f-01部屋全体。ceiling=flat。部屋status=verifiedを引き継ぐ。"
+    },
+    {
+      "id": "surf-washroom-wall-001",
+      "roomId": "room-1f-03",
+      "kind": "wall",
+      "label": "南側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-03 polygon辺0（頂点[0, 2.73]-[1.82, 2.73]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [
+        [
+          0,
+          2.73
+        ],
+        [
+          1.82,
+          2.73
+        ]
+      ]
+    },
+    {
+      "id": "surf-washroom-wall-002",
+      "roomId": "room-1f-03",
+      "kind": "wall",
+      "label": "東側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-03 polygon辺1（頂点[1.82, 2.73]-[1.82, 4.55]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [
+        [
+          1.82,
+          2.73
+        ],
+        [
+          1.82,
+          4.55
+        ]
+      ]
+    },
+    {
+      "id": "surf-washroom-wall-003",
+      "roomId": "room-1f-03",
+      "kind": "wall",
+      "label": "北側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-03 polygon辺2（頂点[1.82, 4.55]-[0, 4.55]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [
+        [
+          1.82,
+          4.55
+        ],
+        [
+          0,
+          4.55
+        ]
+      ]
+    },
+    {
+      "id": "surf-washroom-wall-004",
+      "roomId": "room-1f-03",
+      "kind": "wall",
+      "label": "西側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-03 polygon辺3（頂点[0, 4.55]-[0, 2.73]）。部屋status=verifiedを引き継ぐ。",
+      "edge": [
+        [
+          0,
+          4.55
+        ],
+        [
+          0,
+          2.73
+        ]
+      ]
+    },
+    {
+      "id": "surf-washroom-floor-001",
+      "roomId": "room-1f-03",
+      "kind": "floor",
+      "label": "床",
+      "note": "W07-G3。house.jsonのroom-1f-03部屋全体。部屋status=verifiedを引き継ぐ。"
+    },
+    {
+      "id": "surf-washroom-ceiling-001",
+      "roomId": "room-1f-03",
+      "kind": "ceiling",
+      "label": "天井（フラット）",
+      "note": "W07-G3。house.jsonのroom-1f-03部屋全体。ceiling=flat。部屋status=verifiedを引き継ぐ。"
+    },
+    {
+      "id": "surf-ub-wall-001",
+      "roomId": "room-1f-04",
+      "kind": "wall",
+      "label": "南側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-04 polygon辺0（頂点[0, 4.55]-[1.82, 4.55]）。部屋status=derivedを引き継ぐ。",
+      "edge": [
+        [
+          0,
+          4.55
+        ],
+        [
+          1.82,
+          4.55
+        ]
+      ]
+    },
+    {
+      "id": "surf-ub-wall-002",
+      "roomId": "room-1f-04",
+      "kind": "wall",
+      "label": "東側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-04 polygon辺1（頂点[1.82, 4.55]-[1.82, 6.37]）。部屋status=derivedを引き継ぐ。",
+      "edge": [
+        [
+          1.82,
+          4.55
+        ],
+        [
+          1.82,
+          6.37
+        ]
+      ]
+    },
+    {
+      "id": "surf-ub-wall-003",
+      "roomId": "room-1f-04",
+      "kind": "wall",
+      "label": "北側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-04 polygon辺2（頂点[1.82, 6.37]-[0, 6.37]）。部屋status=derivedを引き継ぐ。",
+      "edge": [
+        [
+          1.82,
+          6.37
+        ],
+        [
+          0,
+          6.37
+        ]
+      ]
+    },
+    {
+      "id": "surf-ub-wall-004",
+      "roomId": "room-1f-04",
+      "kind": "wall",
+      "label": "西側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-04 polygon辺3（頂点[0, 6.37]-[0, 4.55]）。部屋status=derivedを引き継ぐ。",
+      "edge": [
+        [
+          0,
+          6.37
+        ],
+        [
+          0,
+          4.55
+        ]
+      ]
+    },
+    {
+      "id": "surf-ub-floor-001",
+      "roomId": "room-1f-04",
+      "kind": "floor",
+      "label": "床",
+      "note": "W07-G3。house.jsonのroom-1f-04部屋全体。部屋status=derivedを引き継ぐ。"
+    },
+    {
+      "id": "surf-ub-ceiling-001",
+      "roomId": "room-1f-04",
+      "kind": "ceiling",
+      "label": "天井（フラット）",
+      "note": "W07-G3。house.jsonのroom-1f-04部屋全体。ceiling=flat。部屋status=derivedを引き継ぐ。"
+    },
+    {
+      "id": "surf-closet-wall-001",
+      "roomId": "room-1f-23",
+      "kind": "wall",
+      "label": "南側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-23 polygon辺0（頂点[6.37, 2.326]-[7.28, 2.326]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          6.37,
+          2.326
+        ],
+        [
+          7.28,
+          2.326
+        ]
+      ]
+    },
+    {
+      "id": "surf-closet-wall-002",
+      "roomId": "room-1f-23",
+      "kind": "wall",
+      "label": "東側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-23 polygon辺1（頂点[7.28, 2.326]-[7.28, 3.691]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          7.28,
+          2.326
+        ],
+        [
+          7.28,
+          3.691
+        ]
+      ]
+    },
+    {
+      "id": "surf-closet-wall-003",
+      "roomId": "room-1f-23",
+      "kind": "wall",
+      "label": "北側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-23 polygon辺2（頂点[7.28, 3.691]-[6.37, 3.691]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          7.28,
+          3.691
+        ],
+        [
+          6.37,
+          3.691
+        ]
+      ]
+    },
+    {
+      "id": "surf-closet-wall-004",
+      "roomId": "room-1f-23",
+      "kind": "wall",
+      "label": "西側の壁",
+      "note": "W07-G3。house.jsonのroom-1f-23 polygon辺3（頂点[6.37, 3.691]-[6.37, 2.326]）。部屋status=estimatedを引き継ぐ。",
+      "edge": [
+        [
+          6.37,
+          3.691
+        ],
+        [
+          6.37,
+          2.326
+        ]
+      ]
+    },
+    {
+      "id": "surf-closet-floor-001",
+      "roomId": "room-1f-23",
+      "kind": "floor",
+      "label": "床",
+      "note": "W07-G3。house.jsonのroom-1f-23部屋全体。部屋status=estimatedを引き継ぐ。"
+    },
+    {
+      "id": "surf-closet-ceiling-001",
+      "roomId": "room-1f-23",
+      "kind": "ceiling",
+      "label": "天井（フラット）",
+      "note": "W07-G3。house.jsonのroom-1f-23部屋全体。ceiling=flat。部屋status=estimatedを引き継ぐ。"
     }
   ]
 }

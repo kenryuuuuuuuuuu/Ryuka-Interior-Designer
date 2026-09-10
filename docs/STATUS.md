@@ -1,5 +1,9 @@
 # 進捗・未解決事項
 
+2026-09-10更新（W07-G3 実装）：**[W07-G3詳細仕様](tasks/W07-G3-guest-interiors.md)（ゲスト全8区画の仕上げ・主要設備・照明）** をClaude Codeが一括実装しました。G1/G2の仕組みへ scopeId=guest（8区画）を展開し、残り6室の壁/床/天井を surface-registry へ登録（合計52面すべて解決・bind）、既存家具23点・照明10灯を1回で解決、便器/洗面台/洗濯機/浴槽に種類が分かる簡易parametric部品を追加。歩行は guest-circulation プロファイルを再利用（scopeId→scopeIds[guest-pilot, guest]）。編集scopeは pilot は2室のまま。[報告](tasks/W07-G3-report.md)とレビュー用差分一式（`build/reviews/W07-G3-v1`）を提出。W08-Gには未着手。
+
+2026-09-10更新（W07-G2 最終判定）：**W07-G2-v4（`e9113b9`）は [最終レビュー](tasks/W07-G2-review-v4.md) で ACCEPTED。** door-002 の安全開角（約73度）が Blender・エディタ・内覧・refresh で一致することを確認、unittest 192件・非nullカメラの完全refresh成功。G1/G2 受入完了、次は G3。以下の過去の記述よりこの2行を優先します。
+
 2026-09-10 ???????**W07-G2-v3?08d945c??CHANGES_REQUESTED**???[?????](tasks/W07-G2-review-v3.md)????????????????75???????/Blender?85???????????1?????????????????????????????????G3????????????????????????????
 
 2026-09-10更新（W07-G2 再レビューv3対応）：**W07-G2-v3（`08d945c`）はGPT再レビューで CHANGES_REQUESTED** となりました（[再レビューv3](tasks/W07-G2-review-v3.md)）。指摘は1件：内覧で新設した部分開放が保存条件・全表示経路と不整合（同じ扉が内覧75度／bindings 85度）。**固定壁に対する安全な開角を `circulation.py` が生成条件として一度解決し（door-002 は約73度）、`door-bindings.json` の `openYawDeltaDeg` に反映。Blender生成・UEインポート・エディタ `apply_state`・内覧がすべて同じ閉/開transformを適用する。内覧の実行時での部分開放の再計算は撤去し、干渉判定は「状態が実際に変わる開閉動作」にのみ適用（同一状態の再適用・仕上げ/太陽変更では葉を動かさない）。障害物があれば操作を拒否し `open=true` の意味をその場で変えない。** [報告](tasks/W07-G2-report.md)とレビュー用差分一式（`build/reviews/W07-G2-v4`）を更新しました。元BASE（`60d8cd6`）は維持。G1は受入済み、G3は未着手です。以下の過去の記述よりこの行を優先します。

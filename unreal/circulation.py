@@ -251,20 +251,38 @@ def validate_profiles(document):
         if profile_id in seen:
             raise ValueError(f'Duplicate profileId: {profile_id}')
         seen.add(profile_id)
-        if not isinstance(profile.get('scopeId'), str) or not profile['scopeId']:
-            raise ValueError(f'{profile_id}: invalid scopeId')
+        # W07-G3: a walkthrough is reused across scopes that share the same
+        # walkable rooms -- `scopeIds` (list) is the current form; `scopeId`
+        # (string) still accepted for a profile written before G3. Exactly
+        # one profile may claim any given scope id.
+        scope_ids = _profile_scope_ids(profile)
+        if not scope_ids or not all(isinstance(x, str) and x for x in scope_ids):
+            raise ValueError(f'{profile_id}: requires scopeId (string) or scopeIds (non-empty string list)')
         room_ids = profile.get('roomIds')
         if not isinstance(room_ids, list) or not room_ids or len(set(room_ids)) != len(room_ids):
             raise ValueError(f'{profile_id}: roomIds must be a non-empty list of unique room ids')
         if profile.get('entryRoomId') not in room_ids:
             raise ValueError(f'{profile_id}: entryRoomId must be one of roomIds')
+    claims = {}
+    for profile in profiles:
+        for sid in _profile_scope_ids(profile):
+            if sid in claims:
+                raise ValueError(f'scope {sid!r} claimed by both {claims[sid]!r} and {profile["profileId"]!r}')
+            claims[sid] = profile['profileId']
     return document
+
+
+def _profile_scope_ids(profile):
+    ids = profile.get('scopeIds')
+    if ids is None and isinstance(profile.get('scopeId'), str):
+        ids = [profile['scopeId']]
+    return ids if isinstance(ids, list) else []
 
 
 def resolve_profile_for_scope(document, scope_id):
     validate_profiles(document)
     for profile in document['profiles']:
-        if profile['scopeId'] == scope_id:
+        if scope_id in _profile_scope_ids(profile):
             return profile
     raise ValueError(f'No walkthrough profile for scope {scope_id!r}')
 

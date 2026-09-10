@@ -31,10 +31,12 @@ SQUARE_A=[[0,0],[2,0],[2,2],[0,2]]  # room-a: 4 edges
 
 class SurfaceRegistryTests(unittest.TestCase):
     def test_real_registry_resolves_against_real_house(self):
-        # W07-G1: 8 (room-1f-06, LDK) + 8 (room-1f-05, 洋室) = 16.
+        # W07-G1: 8 (LDK) + 8 (洋室). W07-G3: + 6 rooms x (4 walls + floor +
+        # ceiling) = 36 more;玄関/ホール/トイレ/洗面脱衣/UB/収納 are all
+        # 4-vertex rectangles. Every registered surface must still resolve.
         result=sr.resolve_from(ROOT)
         self.assertEqual(result['issues'],[])
-        self.assertEqual(len(result['surfaces']),16)
+        self.assertEqual(len(result['surfaces']),16+36)
         self.assertTrue(all(s['status']=='resolved' for s in result['surfaces']))
 
     # --- acceptance 2: reorder/reversed vertices, shared-wall two rooms ---

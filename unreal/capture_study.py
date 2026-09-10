@@ -29,6 +29,12 @@ if (project/'study-state.json').exists():
     (project/'Saved'/(job['name']+'-conditions.json')).write_text(json.dumps(state,indent=2),encoding='utf-8')
 camera=next(a for a in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
             if a.get_actor_label()=='Camera_guest_LDK')
+# W07-G3: honour a per-capture viewpoint. `study-state.json`'s own camera
+# (a saved/selected room viewpoint) frames whatever room this capture is
+# for -- water rooms, the hall, etc. -- rather than always the LDK camera.
+# apply_state() above already moved the Camera_guest_LDK ACTOR to the
+# state's camera when state['camera'] is non-null, so the actor's current
+# transform is the right one to render from either way.
 unreal.EditorLevelLibrary.set_level_viewport_camera_info(camera.get_actor_location(),camera.get_actor_rotation())
 world=unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
 for command in ('r.ScreenPercentage 100','sg.GlobalIlluminationQuality 4','sg.ReflectionQuality 4',

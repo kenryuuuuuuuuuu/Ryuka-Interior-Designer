@@ -20,7 +20,11 @@ def validate_bindings(document, items, catalog):
         if target not in by_id: raise ValueError(f'Remove or reassign orphan furniture binding: {target}')
         registry = {'sofa-timber-v1': ('sofa', sofa_parts),
                     'round-table-v1': ('roundTable', round_table_parts),
-                    'chair-timber-v1': ('timberChair', chair_parts)}
+                    'chair-timber-v1': ('timberChair', chair_parts),
+                    'toilet-v1': ('toilet', toilet_parts),
+                    'vanity-v1': ('vanity', vanity_parts),
+                    'washer-v1': ('boxAppliance', washer_parts),
+                    'bathtub-v1': ('bathtub', bathtub_parts)}
         if binding.get('assetId') not in registry or binding.get('sizing') != 'parametric':
             raise ValueError(f'Unsupported asset or sizing policy: {target}')
         if binding.get('status') != 'estimated' or not binding.get('note'):
@@ -115,7 +119,83 @@ def chair_parts(w,d,h):
 def asset_parts(asset_id,w,d,h):
     return {'sofa-timber-v1':sofa_parts,'round-table-v1':round_table_parts,
             'chair-timber-v1':chair_parts,'range-hood-v1':hood_parts,
-            'faucet-v1':faucet_parts,'air-conditioner-v1':air_conditioner_parts}[asset_id](w,d,h)
+            'faucet-v1':faucet_parts,'air-conditioner-v1':air_conditioner_parts,
+            'toilet-v1':toilet_parts,'vanity-v1':vanity_parts,
+            'washer-v1':washer_parts,'bathtub-v1':bathtub_parts}[asset_id](w,d,h)
+
+
+# W07-G3: water-room fixtures -- simple parametric parts that read as their
+# TYPE (a tank+bowl+seat toilet, a basin+mirror vanity, a front-load washer,
+# a hollow tub with a rim), not a product reproduction. Ceramic/metal stay
+# fixed materials; a room variant must not turn them into wood. Basins and
+# the tub are built as rims + a lowered inner bottom -- never a solid box
+# filling the vessel. Outer dimensions from furniture-catalog.json/overrides.
+
+def toilet_parts(w, d, h):
+    check_dimensions((w, d, h), ((.34, .55), (.6, .85), (.7, 1.15)))
+    seat = min(.42, h * .43)
+    return [
+        solid('cistern', [-w / 2, w / 2, -d / 2, -d / 2 + .21, seat + .02, min(h, seat + .40)], 'stone', bevel=.012),
+        solid('pedestal', [-w * .26, w * .26, -d / 2 + .16, d * .16, 0, seat - .02], 'stone', kind='ellipse', bevel=.02),
+        solid('bowl', [-w * .44, w * .44, -d * .08, d / 2 - .01, seat - .12, seat], 'stone', kind='ellipse', bevel=.03),
+        solid('seat', [-w * .47, w * .47, -d * .12, d / 2, seat, seat + .03], 'black', kind='ellipse', bevel=.01),
+        solid('lid', [-w * .47, w * .47, -d / 2 + .04, -d / 2 + .07, seat + .02, min(h, seat + .40)], 'black', bevel=.008),
+    ]
+
+
+def vanity_parts(w, d, h):
+    check_dimensions((w, d, h), ((.5, 1.3), (.4, .65), (.7, 2.1)))
+    counter = min(.86, h * .5)
+    bx0, bx1, bz0, bz1 = -w * .30, w * .30, -d * .18, d * .30
+    inner = counter - .13
+    parts = [
+        solid('cabinet', [-w / 2, w / 2, -d / 2 + .02, d / 2, .04, counter - .03], 'cabinet', bevel=.004),
+        solid('plinth', [-w * .46, w * .46, -d * .42, d * .42, 0, .04], 'frame', bevel=.002),
+    ]
+    # counter as a frame around the basin cut-out (no slab across the basin)
+    for name, x0, x1, z0, z1 in [('left', -w / 2, bx0, -d / 2, d / 2), ('right', bx1, w / 2, -d / 2, d / 2),
+                                 ('rear', bx0, bx1, -d / 2, bz0), ('front', bx0, bx1, bz1, d / 2)]:
+        parts.append(solid('counter-' + name, [x0, x1, z0, z1, counter - .03, counter], 'stone', bevel=.003))
+    parts.append(solid('basin-bottom', [bx0, bx1, bz0, bz1, inner, inner + .01], 'stone', kind='ellipse', bevel=.006))
+    for name, x0, x1, z0, z1 in [('left', bx0, bx0 + .012, bz0, bz1), ('right', bx1 - .012, bx1, bz0, bz1),
+                                 ('rear', bx0, bx1, bz0, bz0 + .012), ('front', bx0, bx1, bz1 - .012, bz1)]:
+        parts.append(solid('basin-' + name, [x0, x1, z0, z1, inner, counter - .02], 'stone', bevel=.004))
+    parts.append(solid('faucet', [-w * .07, w * .07, -d * .06, d * .06, counter, counter + .18], 'metal', kind='ellipse', bevel=.006))
+    parts.append(solid('mirror', [-w * .46, w * .46, -d / 2 + .01, -d / 2 + .04, counter + .18, h], 'black', bevel=.004))
+    return parts
+
+
+def washer_parts(w, d, h):
+    check_dimensions((w, d, h), ((.45, .75), (.5, .85), (.8, 1.15)))
+    front = d / 2
+    parts = [
+        solid('body', [-w / 2, w / 2, -d / 2, front - .015, .02, h], 'metal', bevel=.012),
+        solid('feet', [-w * .44, w * .44, -d * .42, d * .42, 0, .02], 'frame', bevel=.002),
+        solid('panel', [-w * .46, w * .46, front - .015, front, h - .12, h - .02], 'black', bevel=.004),
+    ]
+    r = min(w * .32, (h - .30) / 2)
+    cy = .12 + r + .06
+    parts.append(solid('door-rim', [-r, r, front - .015, front + .02, cy - r, cy + r], 'frame', kind='ellipse', bevel=.01))
+    parts.append(solid('door-glass', [-r + .04, r - .04, front - .003, front + .012, cy - r + .04, cy + r - .04], 'black', kind='ellipse', bevel=.006))
+    return parts
+
+
+def bathtub_parts(w, d, h):
+    check_dimensions((w, d, h), ((1.2, 2.0), (.65, 1.0), (.45, .75)))
+    wall_t = .07
+    inner = min(.14, h * .28)
+    parts = [
+        solid('inner-bottom', [-w / 2 + wall_t, w / 2 - wall_t, -d / 2 + wall_t, d / 2 - wall_t, inner, inner + .012], 'stone', bevel=.03),
+        solid('skirt', [-w / 2, w / 2, d / 2 - .04, d / 2, 0, h - .02], 'stone', bevel=.006),
+        solid('plinth', [-w / 2, w / 2, -d / 2, d / 2, 0, .05], 'frame', bevel=.003),
+    ]
+    for name, x0, x1, z0, z1 in [('left', -w / 2, -w / 2 + wall_t, -d / 2, d / 2),
+                                 ('right', w / 2 - wall_t, w / 2, -d / 2, d / 2),
+                                 ('head', -w / 2, w / 2, -d / 2, -d / 2 + wall_t)]:
+        parts.append(solid('rim-' + name, [x0, x1, z0, z1, .05, h], 'stone', bevel=.02))
+    parts.append(solid('rim-front', [-w / 2, w / 2, d / 2 - wall_t - .02, d / 2 - .04, h - .05, h], 'stone', bevel=.02))
+    parts.append(solid('tap', [w / 2 - wall_t - .10, w / 2 - wall_t - .02, -d * .05, d * .05, h, h + .16], 'metal', kind='ellipse', bevel=.006))
+    return parts
 
 
 def hood_parts(w,d,h):
