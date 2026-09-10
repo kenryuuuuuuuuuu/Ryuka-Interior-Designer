@@ -4,7 +4,7 @@
 - **前段レビュー**：[W07-G3-review-v2.md](W07-G3-review-v2.md)（ACCEPTED、HEAD `1d6a11b`）
 - **本レビュー**：[W08-G-review.md](W08-G-review.md)（v1＝CHANGES_REQUESTED、R1〜R3）。本 v2 で一括対応。
 - **BASE**：`1d6a11bb4f035b4aabaf9209766f54c677f18cc3`（W08-G着手時HEAD。v1から不変。着手時の未コミットの受入記録・仕様・STATUSは `224e7d7` で保持）
-- **HEAD**：`__HEAD__`（v1: 〜`d6f17d8` → `ca2e876`〔v1レビュー記録〕→ `24e9466`〔R1〜R3コード修正〕→ 代表確認・報告更新・本SHA記録）
+- **HEAD**：`361f74f`（v1: 〜`d6f17d8` → `ca2e876`〔v1レビュー記録〕→ `24e9466`〔R1〜R3コード修正〕→ 代表確認・報告更新・本SHA記録）
 - **提出**：`build/reviews/W08-G-v2`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`（merge/pushはしていません）
 - **範囲**：既存CLIとUE機能を薄いランチャーでまとめる。UE不要の配布exe・全館/階段・クラウド公開・採用品の精密モデル化は対象外。W07-H1以降は未着手。
