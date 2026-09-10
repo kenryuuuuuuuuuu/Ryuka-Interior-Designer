@@ -4,7 +4,7 @@
 - **前段レビュー**：[W07-G1-review-v2.md](W07-G1-review-v2.md)（ACCEPTED）
 - **レビュー履歴**：[v1](W07-G2-review.md)（`89d07af`）→ [v2](W07-G2-review-v2.md)（`e7d6106`）→ [v3](W07-G2-review-v3.md)（`08d945c`）→ 本報告（v3のR1に対応）。いずれも CHANGES_REQUESTED。
 - **BASE**：`60d8cd644d00e57f11708dbbb1a1aa263095b2bc`（W07-G2着手時HEAD、W07-G1-v2のHEADと同じ。**v1〜v3から変更していません**）
-- **HEAD**：`__HEAD__`（`W07-G2-v4: fix review-v3 R1 (safe open angle resolved once at generation, shared by all consumers)`。本行を記録するdocsコミットがその上に1つ乗ります）
+- **HEAD**：`b6c2b55`（`W07-G2-v4: fix review-v3 R1 (safe open angle resolved once at generation, shared by all consumers)`。本行を記録するdocsコミットがその上に1つ乗ります）
 - **提出**：`build/reviews/W07-G2-v4`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2のみ。G3（残り6室の登録）には着手していません。
