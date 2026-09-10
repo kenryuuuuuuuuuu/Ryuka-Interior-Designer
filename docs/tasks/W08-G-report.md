@@ -3,7 +3,7 @@
 - **仕様書**：[W08-G-guest-delivery.md](W08-G-guest-delivery.md)
 - **前段レビュー**：[W07-G3-review-v2.md](W07-G3-review-v2.md)（ACCEPTED、HEAD `1d6a11b`）
 - **BASE**：`1d6a11bb 4f035b4aabaf9209766f54c677f18cc3`（W08-G着手時HEAD。G3のBASEは使い回していません。着手時の未コミットの受入記録・仕様・STATUSは `224e7d7` で保持）
-- **HEAD**：`__HEAD__`
+- **HEAD**：`5ebf30b`
 - **提出**：`build/reviews/W08-G-v1`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`（merge/pushはしていません）
 - **範囲**：既存CLIとUE機能を薄いランチャーでまとめる。UE不要の配布exe・全館/階段・クラウド公開・採用品の精密モデル化は対象外。W07-H1以降は未着手。
