@@ -2,6 +2,10 @@
 
 house.json 側の rooms/levels と整合しているかも確認する（部屋の取り違え・階の
 取り違えを機械的に検出するため）。詳細は docs/ARCHITECTURE.md を参照。
+
+`validate(catalog, furniture, house)` は同じ検査を候補データ（例: ブラウザから
+書き出した furniture.json、W08-Gランチャーの取込）に対しても正本を変える前に
+適用できるよう関数化したもの。`main()` はリポジトリの正本を読んで呼ぶ。
 """
 
 import json
@@ -25,11 +29,9 @@ def room_bbox(polygon):
     return min(xs), max(xs), min(zs), max(zs)
 
 
-def main():
-    catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
-    furniture = json.loads(FURNITURE.read_text(encoding="utf-8"))
-    house = json.loads(HOUSE.read_text(encoding="utf-8"))
-
+def validate(catalog, furniture, house):
+    """catalog/furniture/house（いずれもパース済みdict）を検査する。
+    問題があれば最初の1件を AssertionError で送出（呼び出し側で文言をそのまま提示できる）。"""
     assert catalog["schemaVersion"] == "1.0.0"
     assert catalog["units"] == "m"
     types = catalog["types"]
@@ -75,7 +77,15 @@ def main():
             assert x0 - BBOX_TOLERANCE <= item["x"] <= x1 + BBOX_TOLERANCE, f"{item['id']}: xが部屋「{room_id}」の外形から大きく外れている"
             assert z0 - BBOX_TOLERANCE <= item["z"] <= z1 + BBOX_TOLERANCE, f"{item['id']}: zが部屋「{room_id}」の外形から大きく外れている"
 
-    print(f"furniture: {len(types)} types in catalog, {len(items)} placed items - checks passed")
+    return dict(types=len(types), items=len(items))
+
+
+def main():
+    catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
+    furniture = json.loads(FURNITURE.read_text(encoding="utf-8"))
+    house = json.loads(HOUSE.read_text(encoding="utf-8"))
+    result = validate(catalog, furniture, house)
+    print(f"furniture: {result['types']} types in catalog, {result['items']} placed items - checks passed")
 
 
 if __name__ == "__main__":
