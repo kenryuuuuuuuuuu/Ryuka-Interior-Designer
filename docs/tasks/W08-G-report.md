@@ -1,10 +1,11 @@
-# W08-G 実装報告：ゲスト試用版の起動・更新・比較記録
+# W08-G 実装報告：ゲスト試用版の起動・更新・比較記録（v2）
 
 - **仕様書**：[W08-G-guest-delivery.md](W08-G-guest-delivery.md)
 - **前段レビュー**：[W07-G3-review-v2.md](W07-G3-review-v2.md)（ACCEPTED、HEAD `1d6a11b`）
-- **BASE**：`1d6a11bb 4f035b4aabaf9209766f54c677f18cc3`（W08-G着手時HEAD。G3のBASEは使い回していません。着手時の未コミットの受入記録・仕様・STATUSは `224e7d7` で保持）
-- **HEAD**：`5ebf30b`
-- **提出**：`build/reviews/W08-G-v1`
+- **本レビュー**：[W08-G-review.md](W08-G-review.md)（v1＝CHANGES_REQUESTED、R1〜R3）。本 v2 で一括対応。
+- **BASE**：`1d6a11bb4f035b4aabaf9209766f54c677f18cc3`（W08-G着手時HEAD。v1から不変。着手時の未コミットの受入記録・仕様・STATUSは `224e7d7` で保持）
+- **HEAD**：`__HEAD__`（v1: 〜`d6f17d8` → `ca2e876`〔v1レビュー記録〕→ `24e9466`〔R1〜R3コード修正〕→ 代表確認・報告更新・本SHA記録）
+- **提出**：`build/reviews/W08-G-v2`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`（merge/pushはしていません）
 - **範囲**：既存CLIとUE機能を薄いランチャーでまとめる。UE不要の配布exe・全館/階段・クラウド公開・採用品の精密モデル化は対象外。W07-H1以降は未着手。
 
@@ -71,15 +72,16 @@
 ### 4. モデル更新と失敗時の復帰
 
 - `update.plan_update()`：`source_changes.compare()` で rooms/furniture/catalog/照明設定の追加・削除・変更＋参照切れ、変更された入力ファイル数を表示。取込直後は「取込 ≠ UE反映」＝「モデル更新が必要」と区別。
-- `update.run_update()`：`refresh-visual-study.py --previous <選択> --output build/W08-G-update-<日時> --scope guest`。既定で `--gallery` なし。前モデル・案は上書き/削除しません。工程名（`01-source-check`…`04-state-check`）・実行中/成功/失敗・経過秒・ログを表示。根拠のない進捗率は出しません。GUIはスレッド実行で応答継続。同一キー `model-update` の二重起動を `runner.BackgroundJob` が防止。既存refreshの入力変更検知（`unchanged()`）は維持。
+- `update.run_update()`：`refresh-visual-study.py --previous <選択> --output build/W08-G-update-<日時> --scope guest`。`--previous` の最新の有効な保存（エディタ保存と内覧F5保存の新しい方）を既存 `retained_inputs` が選ぶ。既定で `--gallery` なし。前モデル・案は上書き/削除しません。工程名（`01-source-check`…`04-state-check`）・実行中/成功/失敗・経過秒・ログを表示。根拠のない進捗率は出しません。GUIはスレッド実行で応答継続。同一キー `model-update` の二重起動を `runner.BackgroundJob` が防止。既存refreshの入力変更検知（`unchanged()`）は維持。
 - 切替は **終了コード0 ＋ `refresh.json` の `status: complete` ＋ `models.inspect_project(<out>/ue).valid` ＋ `state-transfer-verification.json` の `statePreserved`/`geometryVerified`** を確認してから。失敗時は工程・理由・ログ・`refresh.json` を示し、前モデルと案を維持。「モデルを選ぶ」で前モデルへ戻せます。中断/再起動で確定できないジョブは成功扱いしません（`refresh.json` の `status` と `import-verification.json` を照合）。
-- **代表確認（実行済み）**：`--previous` は `build/W07-G3-ue-v2`（そのローカルの `study-state.json` を、施主がLDKでF5保存した状態に相当する 全室 natural・`activeRoomId: room-1f-06`・LDK視点カメラ `[213,425,225.7]`・`doorStates: {}` に整えたもの。G3受入対象は正本コミットとレビュー束であり、build配下の保存状態は git 除外の作業入力）。ランチャーから `update build/W07-G3-ue-v2 --output build/W08-G-update-v2` → 全7工程 complete、`unrealImportVerified: true`（scope guest・712メッシュ）、`walkthrough configured`、`state-transfer-verification.json` すべて true。現行モデルが `build/W08-G-update-v2/ue` へ切り替わり、`config.json` の `lastUpdateOutput` を記録。切替後も `activeRoomId: room-1f-06`・LDK視点を保持。**簡単な失敗確認**：`import-verification.json` が未検証の壊れた `--previous` を指定 → 重い生成前に `ok=False, status: failed`、`config.json` の `currentModel` は不変。
+- **代表確認（実行済み・v2）**：`--previous` は `build/W08-G-update-v2/ue`。まず 施主がLDKでF5保存した状態に相当する編集保存（全室 natural・LDK視点）に加え、**内覧のF5保存に相当する `Saved/walkthrough-state.json`（新しい方）** を用意した：`activeRoomId: room-1f-03`（洗面脱衣へ移動）、LDK=warm・洗面脱衣=reference・UB=warm、`doorStates: {door-002: open}`、洗面脱衣の照明 elec-004 on、手動太陽 55°、洗面脱衣視点カメラ。ランチャーから `update build/W08-G-update-v2/ue --output build/W08-G-update-v3` → 既存 `refresh_inputs.retained_inputs` が**新しい方（F5保存）を選択**、全7工程 complete、`unrealImportVerified: true`、`walkthrough configured`、`state-transfer-verification.json` すべて true。更新後モデルは `activeRoomId: room-1f-03`・LDK warm/洗面 reference/UB warm・`doorStates: {door-002: open}`・洗面照明 on・手動太陽55°・洗面視点を保持、`door-bindings.json` の door-002 は `bakedOpen: true`／`openYawDeltaDeg: 73.0`（開扉が実ジオメトリにベイク）。 現行モデルが `build/W08-G-update-v3/ue` へ切替。**簡単な失敗確認**：`import-verification.json` が未検証の壊れた `--previous` を指定 → 重い生成前に `ok=False, status: failed`、`config.json` の `currentModel` は不変。
+  - 旧参考（v1）：`--previous build/W07-G3-ue-v2` で全室 natural の基準状態から `build/W08-G-update-v2` を作成（`build` 配下の保存状態は git 除外の作業入力）。**簡単な失敗確認**：`import-verification.json` が未検証の壊れた `--previous` を指定 → 重い生成前に `ok=False, status: failed`、`config.json` の `currentModel` は不変。
 
 ### 5. 比較記録と共有用出力
 
-- `comparison.record_finish_ab()`：対象室（保存状態の `activeRoomId`）の固定カメラで、`capture-unreal-study.py` を variant（natural/warm）ごとに1回ずつ、太陽は同じ手動角度に固定して撮影。レベルは保存されません（`--variant`/`--elevation` は一時適用）。画像と `*-conditions.json`（案名相当・対象室・視点・手動太陽角度・露出・昼夜/点灯・schema）を `build/launcher/comparisons/<日時>/` に対応付けて保存。撮影失敗は登録しません（`ok=False` を返す）。比較元の案・モデル状態は変更しません。
+- `comparison.record_finish_ab()`：**撮影開始時に、案保存と同じ共通処理（`refresh_inputs.retained_inputs`）でエディタ保存と内覧F5保存の新しい方を1つ選び検証**し、その状態（部屋・視点・fixtures・扉・太陽/来歴）を `selected-state.json` に固定。`capture-unreal-study.py --state`（新設）へ渡し、A と B の差は**対象室（activeRoomId）の仕上げだけ**。太陽高度は保存値のまま（v1 の無断45°を撤回）。`_verify_ab()` が両撮影の条件を選んだ保存と突き合わせ（対象室 variant 以外の視点・他室・fixtures・扉・太陽が一致するか）。撮影失敗・条件不一致は `ok=False`。元の保存ファイル（`study-state.json`／`Saved/walkthrough-state.json`）は書き換えません。
 - `comparison.build_shared_copy()`：記録から**画像＋許可リストの条件のみ**を新規フォルダへ出力。許可キーは `schemaVersion/scopeId/activeRoomId/activeLevel/camera/azimuthDeg/elevationDeg/exposureEV100/lighting/roomStates` ＋ 導出した対象室ラベル・日時/手動太陽・仮仕様注記。出力前に JSON を走査し、`site.local.json`/`site-context.json`/`latitudeDeg`/`longitudeDeg`/絶対パス/`sourceHashes`/`projectFingerprint`/`sha256` 等が含まれていたら**全体を消して中止**。案名・メモは利用者の文章として `shared.json`/`README.txt` に出力（利用者が事前確認）。ネットへの自動公開・送信はしません。
-- **代表記録（実行済み）**：`record-ab build/W08-G-update-v2/ue "ゲストLDK仕上げA/B"` → `build/launcher/comparisons/20260910-225920/`（natural.png / warm.png ＋ 各 conditions、record.json）。対象室 LDK（room-1f-06）、`--variant` が実際に natural/warm へ切替（`unreal/capture_study.py` の 2.1.0 対応修正を含む）、手動太陽45°、レベル非保存。`shared-copy` → `build/W08-G-shared-v1`（画像2枚＋許可リスト条件のみ。禁止語走査で 絶対パス/座標/`sha256`/`site.local` 等なしを確認）。
+- **代表記録（実行済み・v2）**：`build/W08-G-update-v2/ue` にエディタ保存（全室natural）と、それより新しい F5 相当保存（洗面脱衣へ移動・LDK warm/洗面 reference/UB warm・door-002 open・洗面照明 on・手動太陽55°）を用意 → `record-ab` → **F5保存が選択**（`record.json` の `selectedSave.source: 内覧のF5保存`）。両撮影の条件が F5保存と一致（活性室 room-1f-03、camera `[135,355,225.7]`、elev **55**（45でない）、`doorStates: {door-002: open}`、洗面照明 on、LDK warm/UB warm）。**natural/warm の差は洗面脱衣（対象室）の variant のみ**（natural.json→`room-1f-03: natural`、warm.json→`room-1f-03: warm`、他室不変）。撮影後に `study-state.json`／`walkthrough-state.json` の SHA-256 が不変。記録は `build/launcher/comparisons/20260911-084022/`。`shared-copy` → `build/W08-G-shared-v2`（画像2枚＋許可リスト条件のみ。禁止語走査でクリーン）。
 
 ### 6. 試用ガイドと既知の制限
 
@@ -93,17 +95,17 @@
 |---|---|---|
 | 1 | **満たす** | `guest-launcher.cmd` ダブルクリック → 選択済みguestを内覧起動。`config.json`（git除外）に選択・登録が残り、ランチャー再起動後も `status`/`detect` で復元。OS再起動は不要。 |
 | 2 | **満たす** | 家具JSONの差分確認 → 反映。移動/寸法変更/既存型追加が検証を通り、不正JSON1件は正本不変で拒否。検証用家具は正本へ残さず復元。 |
-| 3 | **満たす** | 更新成功で新モデルへ切替（`build/W08-G-update-v2/ue`）。壊れた `--previous` 1件では重い生成前に失敗し、前の成功先と案を維持。新旧入力ハッシュ・実条件を記録。 |
-| 4 | **満たす** | 同じ代表refreshの転送結果（`state-transfer-verification.json` すべて true）。基準状態へ戻す試験スクリプトは通常更新に流用していません。※開扉・室別設定の転送は W07-G3-v1 で確認済み（転送ロジック不変）。 |
+| 3 | **満たす** | 更新成功で新モデルへ切替（`build/W08-G-update-v3/ue`）。壊れた `--previous` 1件では重い生成前に失敗し、前の成功先と案を維持。新旧入力ハッシュ・実条件を記録。更新画面を閉じても切替は `LauncherApp.apply_update_success` で完了（review R3）。 |
+| 4 | **満たす（v2で実施）** | 代表更新の `--previous`（`build/W08-G-update-v2/ue`）の最新保存に**新旧室で異なる仕上げ**（LDK warm/洗面 reference/UB warm）・**点灯**（洗面 elec-004 on）・**開扉**（door-002 open）・**非nullの安全な視点**（洗面視点）を含め、`retained_inputs` がその F5保存を選択して更新。`build/W08-G-update-v3` は `state-transfer-verification.json` すべて true、door-002 が `bakedOpen: true`／`openYawDeltaDeg: 73.0` で再生成され、洗面照明 on・LDK warm 等も保持。基準状態へ戻す試験スクリプトは通常更新に流用していません。 |
 | 5 | **満たす** | `save_current_as_scenario()` の関連テスト＋実操作（`build/scenarios/W08-G試用テスト`、scope guest・8室・保存元 editor）。再起動後に `scenarios` から一覧。仕上げA/B1組を条件付きで記録。 |
 | 6 | **満たす** | 共有用コピーに許可リストの比較条件があり、絶対パス/座標/生ログ/元JSONは含まれない（`test_guest_launcher.py` の無害化テスト＋代表記録）。 |
-| 7 | **満たす（画質・使用感は施主確認待ち）** | `docs/GUEST_TRIAL_GUIDE.md` で一連の試用が可能。依存不足時に `missing_dependencies()` が次の操作を提示。画質・使用感は施主確認待ち。 |
+| 7 | **満たす（画質・使用感は施主確認待ち）** | `docs/GUEST_TRIAL_GUIDE.md` で一連の試用が可能（「編集対象外」の pilot 時代の記述を guest 8室すべて編集対象へ訂正）。依存不足時に `missing_dependencies()` が次の操作を提示。画質・使用感は施主確認待ち。 |
 
 ## 実施した検証
 
-- `python -m pytest tests/ -q`：**217 passed, 55 subtests**（`tests/test_guest_launcher.py` の16件を含む。設定往復・モデル検証・家具候補の差分/検証/反映/復元・共有コピー無害化）。
+- `python -m pytest tests/ -q`：**221 passed, 55 subtests**（`tests/test_guest_launcher.py` の20件を含む。R2の反映前sha照合、R3の `_drain_queue` 分離・`apply_update_success` の窓非依存・更新中のアプリ終了ブロックを追加。設定往復・モデル検証・家具候補の差分/検証/反映/復元・共有コピー無害化）。
 - `python tests/validate_house.py` / `validate_furniture.py` / `validate_electrical.py` / `validate_openings.py` / `node scripts/build-web-data.mjs --check`：すべて成功。
-- 補助CLIによる実操作：`status`・`detect`・`furniture-report`（正常/不正）・`furniture-apply`＋`furniture-restore`・`scenario-save`・`scenarios`・`update-plan`・`update`（成功1・失敗1）・`record-ab`・`shared-copy`。
+- 補助CLIによる実操作：`status`・`detect`・`furniture-report`（sha付き・正常/不正）・`furniture-apply`（sha一致で反映・sha不一致で拒否）＋`furniture-restore`・`scenario-save`・`scenarios`・`update-plan`・`update`（成功2〔基準状態／変わったF5保存〕・失敗1）・`record-ab`（F5保存を選択）・`shared-copy`。
 - GUI：tkinter でウィンドウ構築（`LauncherApp` 生成→`update()`）まで確認。施主による試用・画質評価は未実施（「施主確認待ち」）。
 
 ### 検証コマンド（実行済み）
@@ -118,15 +120,16 @@ python scripts/guest_launcher/__main__.py furniture-report <候補furniture.json
 python scripts/guest_launcher/__main__.py furniture-apply <候補> --backup-dir <一時>
 python scripts/guest_launcher/__main__.py furniture-restore <控え>
 python scripts/guest_launcher/__main__.py scenario-save build/W07-G3-ue-v3 "W08-G試用テスト" "..."
-python scripts/guest_launcher/__main__.py update build/W07-G3-ue-v2 --output build/W08-G-update-v2
-python scripts/guest_launcher/__main__.py record-ab build/W08-G-update-v2/ue "ゲストLDK仕上げA/B" "..."
+python scripts/guest_launcher/__main__.py update build/W08-G-update-v2/ue --output build/W08-G-update-v3   # 変わったF5保存を選択
+python scripts/guest_launcher/__main__.py furniture-apply <候補> --expect-source-sha <sha> --expect-candidate-sha <sha>
+python scripts/guest_launcher/__main__.py record-ab build/W08-G-update-v2/ue "洗面脱衣 仕上げA/B（F5保存から）" "..."
 python scripts/guest_launcher/__main__.py shared-copy build/launcher/comparisons/<日時> <出力先>
 ```
 
 ## 証跡ファイル
 
-- `build/W08-G-update-v2/refresh.json`（`status: complete`、全7工程）・`ue/import-verification.json`・`ue/state-transfer-verification.json`・`ue/walkthrough-verification.json`
-- `build/launcher/comparisons/<日時>/record.json`＋`capture/`（仕上げA/Bの画像と条件）と共有用コピー
+- `build/W08-G-update-v3/refresh.json`（`status: complete`、全7工程）・`ue/import-verification.json`・`ue/state-transfer-verification.json`・`ue/walkthrough-verification.json`・`ue/study-state.json`（F5保存由来の変わった条件）
+- `build/launcher/comparisons/20260911-084022/record.json`（`selectedSave.source: 内覧のF5保存`）＋`capture/`（natural.png/warm.png＋条件）・`selected-state.json`、`build/W08-G-shared-v2`（共有用コピー）
 - `build/scenarios/W08-G試用テスト/scenario.json`
 - `scripts/guest_launcher/`・`guest-launcher.cmd`・`tests/test_guest_launcher.py`・`docs/GUEST_TRIAL_GUIDE.md`
 - 機械固有パスはローカル証跡（`build/launcher/logs/`、`config.json`）に留め、本文書は相対パス・汎用記述。
@@ -140,7 +143,8 @@ python scripts/guest_launcher/__main__.py shared-copy build/launcher/comparisons
 - `docs/GUEST_TRIAL_GUIDE.md`（新規）
 - `docs/ARCHITECTURE.md`・`docs/STATUS.md`：W08-Gランチャーを反映
 - `docs/tasks/W07-G3-report.md`：AC5/6 の refresh-v2 条件を実出力へ訂正（`224e7d7`）
-- `unreal/capture_study.py`：`capture-job.json` の `--variant` を、無視されていた top-level キーではなく**対象室（activeRoomId）の roomState** へ適用（2.1.0 対応。`compare-unreal-studies.py` の仕上げA/Bも実際に切り替わる。既存CLIの不具合修正）
+- `scripts/capture-unreal-study.py`：`--state`（撮影する状態を呼び出し側が選ぶ）を新設。
+- `unreal/capture_study.py`：`--state` パスで `current_state()`/`scene_state()` を通さず状態を直接適用（.umap基準と異なる F5保存も撮影可）。`--variant` を、無視されていた top-level キーではなく**対象室（activeRoomId）の roomState** へ適用（2.1.0 対応。`compare-unreal-studies.py` の仕上げA/Bも実際に切り替わる。既存CLIの不具合修正）
 - `.gitignore` は不変（`build/` で既にランチャーのローカル状態を除外）
 
 ## 不足・未決定一覧
@@ -148,7 +152,7 @@ python scripts/guest_launcher/__main__.py shared-copy build/launcher/comparisons
 1. **施主による試用・画質評価**：未実施（「施主確認待ち」）。実装者の操作確認とは区別します。テスト数で写真同等品質を宣言しません。
 2. **洗濯機（fur-002）の設置向き**：正本 `rotation: 0`。丸ドアが壁側。取込経路で位置・向きは変更できますが、既定の妥当性は配置レビューの残件。推測で変えていません。
 3. **仮仕様の引き継ぎ**：仕上げ・照明・採光は未校正。実敷地の位置・真北・採用品番は確認待ち。狭所の視点制限も継続。
-4. **比較記録の太陽条件**：ゲストの保存状態が手動角度（未校正）のため、A/B は手動太陽高度（既定45°）で撮影。日時ベースの比較は `sun-cases.json` を持つモデルで既存の日時A/B機能を使います。
+4. **比較記録の太陽条件**：A/B は選んだ保存の太陽条件（手動角度／日時ケース）をそのまま使います。日時ベースの複数ケース比較は `sun-cases.json` を持つモデルで既存の日時A/B機能を使います。
 
 ## 残件（次段階へ持ち越し）
 
