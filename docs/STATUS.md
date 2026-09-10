@@ -1,5 +1,7 @@
 # 進捗・未解決事項
 
+2026-09-11更新（W08-G-v2 提出）：**レビューv1のR1〜R3を一括修正**（`24e9466`）。R1＝比較撮影が案保存と同じ共通処理で最新F5保存を選び、その状態を固定してA/B（対象室仕上げのみ変更、太陽は保存値のまま、元保存は不変。`capture-unreal-study.py --state` 新設）。R2＝家具の反映前に差分確認時のsource/candidateのsha照合（変わっていれば再確認へ）。R3＝`_drain_queue` を1件ごとに分離し常に再スケジュール、現行モデル切替を `LauncherApp.apply_update_success`（窓非依存）へ、更新中はアプリ終了をブロック。pytest 221件（`test_guest_launcher.py` 20件）。代表：F5保存からのA/B（`selectedSave.source: 内覧のF5保存`、elev55保持、対象室のみ変更、保存sha不変）、変わったF5保存からの更新 `build/W08-G-update-v3`（door-002 `bakedOpen: true`、転送検証true）、02-blenderの一時失敗で前モデル維持。[報告](tasks/W08-G-report.md)と `build/reviews/W08-G-v2` を提出。BASE不変、W07-H1以降未着手。画質・使用感は施主確認待ち。以下の過去の記述よりこの行を優先します。
+
 2026-09-11更新（W08-G レビューv1）：**W08-G-v1（`d6f17d8`）は CHANGES_REQUESTED**（[レビュー](tasks/W08-G-review.md)）。最新F5保存と比較撮影条件の不一致、家具差分確認後の正本/候補変更の未検知、更新画面を閉じた際のGUI完了処理停止の3点を同じW08-Gで修正します。217件のunittestと提出証跡14点の一致は確認済みです。G1/G2/G3受入は維持し、自宅H1以降は未着手です。
 
 2026-09-10更新（W08-G 提出）：**ゲスト試用版ランチャーを一括実装**。`guest-launcher.cmd`（ダブルクリック）→ `scripts/guest_launcher/`（Python標準GUI）。既存CLI（`launch-unreal-walkthrough`/`refresh-visual-study`/`save_scenario_package`/`capture-unreal-study`/`build-web-data.mjs`）を薄く束ね、施主がパス・コマンドを入力せず「内覧 → 家具取込 → 更新 → 案保存 → 比較記録」まで操作できる。ローカル設定は `build/launcher/config.json`（git除外）。pytest（+`test_guest_launcher.py` 16件）・全validator成功、家具の反映と復元・案の保存・モデル更新（成功1/失敗1）・A/B記録と共有コピーを補助CLIで実操作確認。G3報告のrefresh-v2条件は実出力へ訂正済み（`224e7d7`）。[報告](tasks/W08-G-report.md)・[試用ガイド](GUEST_TRIAL_GUIDE.md)・`build/reviews/W08-G-v1` を提出。BASE `1d6a11b`、W07-H1以降は未着手（施主の試用結果で次を決定）。画質・使用感は「施主確認待ち」。以下の過去の記述よりこの行を優先します。
