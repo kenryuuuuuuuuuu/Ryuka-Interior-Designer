@@ -73,17 +73,15 @@ private:
  void UpdateCurrentRoom();
  void FindNearestDoor();
  bool GetDoorOpen(const FString& DoorId) const;
- // W07-G2 review-v2 R3: fraction [0,1] of the From->To leaf motion that is
- // clear. 1.0 == the whole motion is clear. `bIncludeWalls` -- building
- // walls count as obstacles (used when OPENING: they cap how far the leaf
- // swings); off when CLOSING (the closed pose is generation-validated
- // geometry, only dynamic things in the path matter). `bCheckPlayer` --
- // the player's own capsule is an obstacle too (used for an interactive
- // toggle: a close that would sweep through someone in the doorway is
- // rejected here, not only by the later static Safe()). Always excluded:
- // the leaf, this door's own frame + sibling leaves (AlsoIgnore), and every
- // door's frame pieces (jambs/head/sill -- trim, part of the wall assembly).
- float LeafMotionClearFraction(AActor* Leaf, const FTransform& From, const FTransform& To, const TArray<AActor*>& AlsoIgnore, bool bIncludeWalls, bool bCheckPlayer) const;
+ // W07-G2 review-v3 R3: fraction [0,1] of the From->To leaf motion that is
+ // clear. 1.0 == the whole motion is clear. Both end poses are already
+ // generation-validated against the fixed building walls (see
+ // circulation.py's maxSwingDeltaDeg), so this watches only for FURNITURE,
+ // another door's leaf, and -- when `bCheckPlayer` (an interactive toggle)
+ // -- the player's own capsule between the two poses. Always excluded: the
+ // leaf, this door's own frame + sibling leaves (AlsoIgnore), every door's
+ // frame pieces (jambs/head/sill), and the building walls (wall_/Ground_).
+ float LeafMotionClearFraction(AActor* Leaf, const FTransform& From, const FTransform& To, const TArray<AActor*>& AlsoIgnore, bool bCheckPlayer) const;
  bool bInteractiveDoorToggle=false; // true only while InteractDoor()'s own ApplyConditions() runs
  bool Restore(const TSharedPtr<FJsonObject>& Candidate);
 };

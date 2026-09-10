@@ -215,25 +215,18 @@ bool AWalkthroughCharacter::GetDoorOpen(const FString& DoorId) const {
  if(!(*DoorStatesObj)->TryGetObjectField(DoorId,Override)) return false;
  bool bOpen=false; (*Override)->TryGetBoolField(TEXT("open"),bOpen); return bOpen;
 }
-float AWalkthroughCharacter::LeafMotionClearFraction(AActor* Leaf,const FTransform& From,const FTransform& To,const TArray<AActor*>& AlsoIgnore,bool bIncludeWalls,bool bCheckPlayer) const {
- // W07-G2 review-v2 R3: a discrete swept check (no physics sim, no smooth
- // animation -- as the review permits) of how far the leaf can travel from
- // From to To before it hits a real obstacle. Rather than sweeping the whole
- // panel as one OBB (whose far corners graze the wall it started flush in --
- // constant false positives) this samples POINTS along the panel's own
- // WIDTH axis, each a small sphere sized to the panel's own half-thickness
- // plus a couple of cm of tolerance -- NOT a person's margin: the leaf is
- // not a person, a leaf clearing a wall by a few cm is fine. Whether the
- // RESULTING doorway is wide enough to walk through is decided by the caller
- // from the returned fraction.
- //
- // Obstacles: furniture, OTHER doors' leaves, and (when bIncludeWalls) the
- // building walls (wall_/Ground_) that cap how far a leaf can open, and
- // (when bCheckPlayer) the player's own capsule -- so a close that would
- // sweep through someone standing in the doorway is caught here. Always
- // excluded: the leaf, this door's own frame + sibling leaves (AlsoIgnore),
- // and every door's frame pieces (opening_*_left/right/head/sill -- trim,
- // part of the wall assembly). Other doors' *_leaf* actors stay in.
+float AWalkthroughCharacter::LeafMotionClearFraction(AActor* Leaf,const FTransform& From,const FTransform& To,const TArray<AActor*>& AlsoIgnore,bool bCheckPlayer) const {
+ // W07-G2 review-v3 R3: a discrete swept check (no physics sim, no smooth
+ // animation) of how far the leaf can travel from From to To before it hits
+ // an obstacle. Both end poses are already wall-safe (circulation.py's
+ // maxSwingDeltaDeg resolves the open angle against the fixed walls once, at
+ // generation), so this only watches for FURNITURE, another door's leaf,
+ // and -- when bCheckPlayer (an interactive toggle) -- the player's own
+ // capsule between them. Rather than sweeping the whole panel as one OBB
+ // (whose far corners graze the wall it started flush in) it samples POINTS
+ // along the panel's width, each a small sphere. Excluded: the leaf, this
+ // door's frame + sibling leaves (AlsoIgnore), every door's frame pieces
+ // (opening_*_left/right/head/sill), and the building walls (wall_/Ground_).
  LastLeafMotionBlocker.Empty();
  if(From.Equals(To,0.5f)) return 1.f;
  auto MeshActor=Cast<AStaticMeshActor>(Leaf); if(!MeshActor) return 1.f;
@@ -248,9 +241,9 @@ float AWalkthroughCharacter::LeafMotionClearFraction(AActor* Leaf,const FTransfo
  if(!bCheckPlayer) Params.AddIgnoredActor(this);
  for(TActorIterator<AActor> It(GetWorld());It;++It) {
   const FString L=It->GetActorLabel();
-  if(L.StartsWith(TEXT("opening_"))&&(L.EndsWith(TEXT("_left"))||L.EndsWith(TEXT("_right"))||L.EndsWith(TEXT("_head"))||L.EndsWith(TEXT("_sill"))))
-   {Params.AddIgnoredActor(*It); continue;} // any door's jamb/head/sill: trim, part of the wall assembly
-  if(!bIncludeWalls&&(L.StartsWith(TEXT("wall_"))||L.StartsWith(TEXT("Ground_")))) Params.AddIgnoredActor(*It);
+  if(L.StartsWith(TEXT("wall_"))||L.StartsWith(TEXT("Ground_"))
+     ||(L.StartsWith(TEXT("opening_"))&&(L.EndsWith(TEXT("_left"))||L.EndsWith(TEXT("_right"))||L.EndsWith(TEXT("_head"))||L.EndsWith(TEXT("_sill")))))
+   Params.AddIgnoredActor(*It);
  }
  static constexpr int32 PoseSteps=8;
  const bool bRotating=!From.GetRotation().Equals(To.GetRotation(),0.01f);
@@ -773,52 +766,36 @@ bool AWalkthroughCharacter::ApplyConditions() {
   // the interference check (see LeafMotionClearFraction()'s own comment).
   TArray<AActor*> DoorOwnActors;
   for(auto& Pair:Actors) if(Pair.Key.StartsWith(TEXT("opening_")+Connection.Id+TEXT("_"))) DoorOwnActors.Add(Pair.Value);
-  const double DoorwayWidthCm=Connection.HiCm-Connection.LoCm;
   for(auto& Leaf:Connection.Leaves) {
    AActor* LeafActor=Actors.FindRef(Leaf.Actor); if(!LeafActor) return false;
    const FTransform FromXform=LeafActor->GetActorTransform();
-   FTransform FullToXform=FromXform;
+   FTransform ToXform=FromXform;
    if(Leaf.bHasYaw) {
-    FullToXform.SetRotation(FQuat(FRotator(0,bOpen?Leaf.OpenYawDeltaDeg:0.,0)));
+    // W07-G2 review-v3 R1: OpenYawDeltaDeg IS the safe open angle already --
+    // circulation.py resolved it once against the fixed building walls
+    // (door-002 is capped by the LDK's west wall) and every consumer
+    // (Blender bake, UE import, editor apply_state, here) applies this same
+    // value. No runtime re-limiting: this pose is wall-safe by construction.
+    ToXform.SetRotation(FQuat(FRotator(0,bOpen?Leaf.OpenYawDeltaDeg:0.,0)));
    } else if(Leaf.bHasOffset) {
     // W07-G2 review-v2 R1: the closed baseline is the IMMUTABLE
     // ClosedLocationCm import_study.py captured once and stamped into
     // door-bindings.json -- never re-estimated here from a live pose.
     const FVector Base=Leaf.bHasClosedLocation?Leaf.ClosedLocationCm:LeafActor->GetActorLocation();
-    FullToXform.SetLocation(bOpen?Base+Leaf.OpenOffsetCm:Base);
+    ToXform.SetLocation(bOpen?Base+Leaf.OpenOffsetCm:Base);
    } else continue;
-   // W07-G2 review-v2 R3: how far can the leaf actually travel? Opening
-   // checks against the building walls too (they cap the swing) and, for an
-   // interactive toggle, the player's capsule; closing ignores the walls
-   // (the closed pose is generation-validated) but still catches furniture
-   // or a person in the leaf's path. A blocked CLOSE is always rejected (a
-   // half-closed leaf across a doorway is worse than leaving it open). A
-   // blocked OPEN is applied at the furthest collision-free pose IF that
-   // still leaves a walkable gap, else rejected -- never forced through.
-   FTransform ToXform=FullToXform;
-   if(!FromXform.Equals(FullToXform,0.5f)) {
-    const float Frac=LeafMotionClearFraction(LeafActor,FromXform,FullToXform,DoorOwnActors,
-     /*bIncludeWalls*/bOpen,/*bCheckPlayer*/bInteractiveDoorToggle);
-    if(Frac<0.999f) {
-     if(!bOpen||Frac<0.05f) return false; // cannot fully close, or cannot move at all -- something is in the way
-     // Partial open: usable only if the leaf(s) have swung far enough that a
-     // person still fits through. Every leaf together spans the doorway when
-     // closed; after swinging Frac*delta the panels' projection back onto the
-     // wall line is span*cos(angle), so the remaining clear opening is
-     // span*(1-cos(angle)) -- correct for one leaf or two.
-     bool bPassable=false;
-     if(Leaf.bHasYaw) {
-      const double Angle=FMath::DegreesToRadians(FMath::Abs(Leaf.OpenYawDeltaDeg)*Frac);
-      bPassable=(DoorwayWidthCm*(1.-FMath::Cos(Angle)))>=48.; // one adult capsule + tolerance
-     } else {
-      bPassable=(FMath::Abs(Leaf.OpenOffsetCm.X)+FMath::Abs(Leaf.OpenOffsetCm.Y))*Frac
-                >=FMath::Max(DoorwayWidthCm-15.,48.); // slid nearly its whole travel
-     }
-     if(!bPassable) return false;
-     ToXform.BlendWith(FromXform,1.f-Frac); // == Lerp(From, FullTo, Frac)
-     LastLeafMotionBlocker=FString::Printf(TEXT("%s (partial open %.0f%%: %s)"),*Connection.Id,Frac*100.f,*LastLeafMotionBlocker);
-    }
-   }
+   // W07-G2 review-v3 R1: the interference check runs ONLY when this leaf
+   // actually moves (an open<->closed transition). SetFinish()/SetSun()/a
+   // re-Restore of the same doorStates leave From == To and never re-check
+   // or re-interpret the door. Both end poses are generation-validated
+   // against the walls, so this only watches for FURNITURE / another door's
+   // leaf / -- for an interactive toggle -- the player's own capsule
+   // between them. Any obstruction rejects the toggle outright (no partial
+   // pose, no forcing through); InteractDoor() then restores the prior
+   // state and shows the reason.
+   if(!FromXform.Equals(ToXform,0.5f)
+      &&LeafMotionClearFraction(LeafActor,FromXform,ToXform,DoorOwnActors,bInteractiveDoorToggle)<0.999f)
+    return false;
    if(Leaf.bHasYaw) DoorPlan.Add({LeafActor,true,ToXform.Rotator(),FVector::ZeroVector});
    else DoorPlan.Add({LeafActor,false,FRotator::ZeroRotator,ToXform.GetLocation()});
   }

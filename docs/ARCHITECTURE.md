@@ -421,10 +421,19 @@ v1対応版（`e7d6106`）も再レビューでCHANGES_REQUESTED。同じG2で�
 - **R2：エディタの洋室視点が内覧で玄関へ戻る問題**。v1は `walkthrough` を `None` にするだけだったが、C++ `Restore()` は「`walkthrough` 無し＝初回起動」として常に `EntryRoomId`（玄関）を選ぶため、「LDK内覧保存→エディタで洋室へ切替・保存→内覧復帰」が玄関へ補正されていた。修正：`select_room()`／`remember_view()` は `walkthrough` を**その室へ再解決**して保存する（`_walkthrough_attribution()`、編集scope室は必ず歩行プロファイル内なので解決する）。C++ `Restore()` は加えて、`walkthrough` が指す室に**保存カメラの実XYが入っているか**を照合し、明らかに別の歩行プロファイル室に入っていれば「保存データの内覧位置と視点が一致しません」で拒否する。`walkthrough` が本当に無い状態（生成直後の初回起動）だけが玄関になる。
 - **R3：干渉判定を「壁・閉方向・移動途中の施主」まで含める**。`LeafMotionClear()` を `LeafMotionClearFraction()` へ作り直し、`From`→`To` のうち衝突しないで進める割合[0,1]を返す。
   - **構造壁を検査対象に戻した**（v1は `wall_`/`Ground_` を一括除外していた）。除外は「その扉自身の枠・兄弟葉」と「あらゆる扉の枠部材（`opening_*_left/right/head/sill`＝壁体の一部の見切り）」だけに限定。プローブ半径も「葉厚半分＋2cm」に絞り（人の余裕34cmは葉には不要。通行できる開口幅かは経路の実スイープが判定）、蝶番端は掃かないよう葉の外側半分だけをサンプルする（蝶番端は壁面にあり枠の切れ端をかすめるだけの誤検出源）。
-  - **開閉両方向を検査**する。開扉で壁が85度まで許さない場合は、**衝突しない最大角の部分開放**（その角度でも人が通れる開口が残るなら）へ制限し、残らなければ拒否する（無効化して押し通さない）。閉扉は、閉ポーズ自体は生成時検証済みなので壁は無視するが、**移動途中に施主のカプセルや家具があれば拒否**（`InteractDoor()` 経由のトグル時のみ施主カプセルを検査対象に含める）。
-  - door-002 は west壁（`wall-1f-auto-009`）により**75度で頭打ち**になり、その角度で開いて通行できることを実機確認（v1報告の「壁で制限される」を、実装が実際に角度を制限する形にした）。
+  - **移動途中に施主のカプセルや家具があれば拒否**（`InteractDoor()` 経由のトグル時のみ施主カプセルを検査対象に含める）。
   - **両開きの開く向きの符号**：H壁とV壁では葉の沿い軸と掃き軸が入れ替わり、`swingToward` へ向かうyaw符号が反転する。`_swing_delta_deg()` に V壁のときの符号反転を追加（door-024 が収納側でなく洋室側へ開くようになった。`tests/test_circulation.py` に、生成の実回転を再現して自由端の掃き方向が `swingToward` と一致することを検査するテストを追加）。修正後、door-024 は実シーンで**両葉が洋室側へ開き、収納側から洋室へ歩いて抜けられる**（v1の「コリジョン一時無効化での開通確認」は撤去）。
-- **検証**：`-RyukaSmoke` 連続経路（全脚PASS、NullRHI・DX12）＋`verify_w07_g2.py`（引き戸を開いて保存→レベル再読込→開位置不変→閉じると `closedLocationCm` へ厳密復帰、select_room の walkthrough 再解決とカメラ室内判定、他）＋非nullカメラ入力の完全refresh1回。詳細は[W07-G2-report.md](tasks/W07-G2-report.md)。
+
+### 再レビューv3（R1）対応（2026-09-10）
+
+v3レビューは、v2で新設した「実行時の部分開放」が保存条件・全表示経路と不整合（内覧で見た扉が75度、`door-bindings.json` は85度、保存は `open:bool` のみ）と指摘。修正：**固定壁に対する安全な開角を `circulation.py` が生成条件として一度だけ解決**する。
+
+- `_wall_limited_swing_deg(connection, swing_room_polygon, 85)`：葉が開く先の室の境界壁（扉の取り付く壁と、閉葉が既に接している開口枠の辺を除く）に対し、葉を線分（蝶番から扉幅ぶん）として1度刻みで掃引し、壁半厚＋葉半厚＋余裕（0.10m）以内に近づく最初の角度の3度手前を安全角とする（2D、ソースメートル）。`resolve_connections()` が swing/double-swing 接続へ `maxSwingDeltaDeg` を記録、`_swing_delta_deg()` の大きさは `min(85, maxSwingDeltaDeg)`。実データ：door-002=73°、door-003=75°、door-004=73°、door-024=±81°。
+- この値が `door-bindings.json` の `openYawDeltaDeg` になり、**Blender生成の焼きポーズ・UEインポート・エディタ `apply_state`・内覧**がすべて同じ閉/開transformを適用する。
+- `Walkthrough.cpp:ApplyConditions()` は swing 葉を `OpenYawDeltaDeg` そのまま適用（実行時の部分ポーズ生成 `BlendWith` を撤去）。干渉判定（`LeafMotionClearFraction`）は**葉が実際に動く開閉遷移のときだけ**呼び（`SetFinish`/`SetSun`/同一 doorStates の再適用では `From == To` で葉を動かさず、開扉状態を再解釈しない）、**建物壁を除外**して家具・別扉の葉・（対話トグル時のみ）施主カプセルだけを見る。障害物があれば**トグル全体を拒否**し `open:true` の意味をその場で変えない。`bIncludeWalls` 引数は削除。
+- **検証（door-002 のみ、v3レビュー指定）**：`-RyukaSmoke`（閉→開で壁と交差せず通過、73度で開き通行可、施主が掃引範囲にいると閉扉拒否）＋`verify_w07_g2.py`（実葉角度＝bindings 値、太陽・仕上げ変更で不変、保存→レベル再読込→同じ角度→閉じると0度）＋非nullカメラ入力の完全refresh1回（`openYawDeltaDeg=73` が再生成後も一致）。
+
+- **v2以降の検証**：`-RyukaSmoke` 連続経路（全脚PASS、NullRHI・DX12）＋`verify_w07_g2.py`（36項目：引き戸・swing扉のセッション跨ぎ、select_room の walkthrough 再解決とカメラ室内判定、他）＋非nullカメラ入力の完全refresh1回。詳細は[W07-G2-report.md](tasks/W07-G2-report.md)。
 
 ## 内覧モード（walk）
 

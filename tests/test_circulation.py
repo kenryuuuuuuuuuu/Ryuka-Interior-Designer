@@ -96,6 +96,21 @@ class RealDataConnectivityTests(unittest.TestCase):
             self.assertGreater(travel[perp[c['orientation']]] * want, 0.05,
                                f'door-024 {kind} leaf swings the wrong way: travel={travel}')
 
+    def test_swing_open_angle_is_wall_resolved_once_and_shared(self):
+        # W07-G2 review-v3 R1: the safe open angle is a generation condition,
+        # resolved against the fixed walls in resolve_connections() and used
+        # by every consumer -- NOT a runtime-only partial-open. door-002 is
+        # capped by the LDK's own west wall; the applied delta matches.
+        for cid in ('door-002', 'door-003', 'door-004', 'door-024'):
+            c = self.by_id[cid]
+            self.assertIn('maxSwingDeltaDeg', c)
+            self.assertLessEqual(c['maxSwingDeltaDeg'], 85.0)
+            self.assertGreaterEqual(c['maxSwingDeltaDeg'], 40.0)  # still passable
+        self.assertLess(self.by_id['door-002']['maxSwingDeltaDeg'], 85.0)  # actually wall-limited
+        # the delta the door-bindings actually carries == the resolved safe angle
+        _, d002 = circ.swing_hinge_and_delta(self.by_id['door-002'], None)
+        self.assertAlmostEqual(abs(d002), self.by_id['door-002']['maxSwingDeltaDeg'], places=3)
+
 
 class SyntheticGeometryTests(unittest.TestCase):
     """Small synthetic fixtures for edge cases the real data does not cover."""

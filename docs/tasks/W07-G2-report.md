@@ -2,13 +2,33 @@
 
 - **仕様書**：[W07-G2-guest-circulation.md](W07-G2-guest-circulation.md)
 - **前段レビュー**：[W07-G1-review-v2.md](W07-G1-review-v2.md)（ACCEPTED）
-- **レビュー履歴**：[v1](W07-G2-review.md)（`89d07af`、CHANGES_REQUESTED）→ [v2](W07-G2-review-v2.md)（`e7d6106`、CHANGES_REQUESTED）→ 本報告（v2のR1〜R3に対応）
-- **BASE**：`60d8cd644d00e57f11708dbbb1a1aa263095b2bc`（W07-G2着手時HEAD、W07-G1-v2のHEADと同じ。**v1・v2から変更していません**）
-- **HEAD**：`03a07e2`（`W07-G2-v3: fix review-v2 R1-R3 (immutable slide baseline, walkthrough re-resolution, walls+close+capsule interference)`。本行を記録するdocsコミットがその上に1つ乗ります）
-- **提出**：`build/reviews/W07-G2-v3`
+- **レビュー履歴**：[v1](W07-G2-review.md)（`89d07af`）→ [v2](W07-G2-review-v2.md)（`e7d6106`）→ [v3](W07-G2-review-v3.md)（`08d945c`）→ 本報告（v3のR1に対応）。いずれも CHANGES_REQUESTED。
+- **BASE**：`60d8cd644d00e57f11708dbbb1a1aa263095b2bc`（W07-G2着手時HEAD、W07-G1-v2のHEADと同じ。**v1〜v3から変更していません**）
+- **HEAD**：`__HEAD__`（`W07-G2-v4: fix review-v3 R1 (safe open angle resolved once at generation, shared by all consumers)`。本行を記録するdocsコミットがその上に1つ乗ります）
+- **提出**：`build/reviews/W07-G2-v4`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2のみ。G3（残り6室の登録）には着手していません。
-- **代表プロジェクト**：`build/W07-G2-blender-v8` → `build/W07-G2-ue-v8`（`unrealImportVerified: true`）、完全refresh `build/W07-G2-refresh-v3`。
+- **代表プロジェクト**：`build/W07-G2-blender-v9` → `build/W07-G2-ue-v9`（`unrealImportVerified: true`）、完全refresh `build/W07-G2-refresh-v4`。
+
+## 再レビューv3（R1）への対応
+
+### R1（高）：内覧の部分開放を保存条件と全表示経路へ統一する
+
+**対応：固定壁に対する安全な開角を `circulation.py` が生成条件として一度だけ解決し、`door-bindings.json` の `openYawDeltaDeg` に反映。Blender生成・UEインポート・エディタ `apply_state`・内覧がすべて同じ閉/開transformを適用します。内覧実行時の部分開放の再計算は撤去しました。**
+
+- `unreal/circulation.py`：`_wall_limited_swing_deg(connection, swing_room_polygon, 85)` を新設。葉が開く先の室（`swingToward` 側）の境界壁のうち、扉が取り付く壁と「閉葉が既に接している開口枠」を除いた辺に対し、葉を線分（蝶番から扉幅ぶん）として1度刻みで掃引し、壁半厚＋葉半厚＋余裕（0.10m）以内に近づく最初の角度から3度手前を安全角とします（2D、ソースメートル）。`resolve_connections()` が swing/double-swing 接続へ `maxSwingDeltaDeg` として記録し、`_swing_delta_deg()` の大きさは `min(85, maxSwingDeltaDeg)`。
+  - 実データでの結果：**door-002 = 73度**（LDK西壁 `wall-1f-auto-009` により制限）、door-003 = 75度、door-004 = 73度、door-024（両開き）= ±81度。
+- `blender/build_interior.py`：`swing_hinge_and_delta()`／`double_swing_hinges_and_deltas()` は上記の制限角を返すので、`is_open` の焼きポーズ（`rotation_euler[2]=radians(-delta_deg)`）・`door-bindings.json` の `openYawDeltaDeg` が自動的に安全角になります。
+- `unreal/import_study.py`・`unreal/study_controls.py:apply_state()`：`openYawDeltaDeg`（＝安全角）を絶対回転としてセットするだけ（変更なし。値が安全角になっただけ）。
+- `unreal/walkthrough/.../Walkthrough.cpp:ApplyConditions()`：
+  - swing 葉は `FRotator(0, bOpen ? OpenYawDeltaDeg : 0, 0)` を**そのまま**適用（`FullToXform`/`ToXform` の区別・`BlendWith` による部分ポーズ生成を撤去）。この開ポーズは生成時に壁安全なので、実行時に角度を再制限しません。
+  - 干渉判定（`LeafMotionClearFraction`）は **葉が実際に動くとき（`From != To` ＝開閉遷移）だけ**呼びます。`SetFinish()`／`SetSun()`／同一 doorStates の再 `Restore()` は `From == To` で葉を動かさず、開扉状態を再解釈しません。
+  - 検査対象から**建物壁を除外**（両端ポーズとも生成時検証済みのため）。家具・別の扉の葉・（対話トグル時のみ）施主カプセルだけを見ます。障害物があれば**トグル全体を拒否**（部分ポーズも押し通しも無し）。`InteractDoor()` は拒否時に元状態へ戻し理由を表示。
+  - `LeafMotionClearFraction` から `bIncludeWalls` 引数を削除。
+- **確認（door-002 のみ、v3レビュー指定）**：
+  1. `-RyukaSmoke`：`openDoor002`＋`hallToLdk`（閉→開で壁と交差せず通過）、`r3Door002OpenPoseClearAndWalkable`（73度で開き、その開口を歩いて通れる）。`r3CloseRejectedWithPersonInSwing`（施主が掃引範囲にいると閉扉拒否、離れれば閉じる）は維持。
+  2. `verify_w07_g2.py`：`door002_binding_angle_is_wall_limited`（bindings が 55〜85度未満）、`door_override_moved_real_leaf_to_binding_angle`（実葉角度＝bindings 値±1度）、`sun_change_leaves_door_angle_unchanged`（太陽変更で実葉角度が±0.2度以内で不変）、`compare_a/b/end_real_leaf_still_open`（比較A/B/終了を通じて実葉角度不変）。
+  3. `verify_w07_g2.py`：`swing_open_angle_is_binding_angle` → `sc.save()`（`.umap`＋`study-state.json`）→ `level.load_level()`（新セッション相当）→ `reloaded_swing_leaf_still_at_binding_angle`（同じ角度）→ `closing_returns_swing_leaf_to_zero`。加えて**非nullカメラ入力の完全refresh1回**（`build/W07-G2-refresh-v4`）で `openYawDeltaDeg` が bindings を通じて保持され、生成物の実葉ポーズも一致。
 
 ## 再レビューv2（R1〜R3）への対応
 
@@ -36,22 +56,23 @@
 - **確認**：
   - `verify_w07_g2.py`：`select_room_reresolves_walkthrough_to_that_room`（洋室以外へ `walkthrough` を立てた状態で `select_room('room-1f-06')` → `walkthrough == {profileId:'guest-circulation', roomId:'room-1f-06', level:1}`）、`select_room_camera_is_inside_that_room`（`state['camera']` の実XYがその室ポリゴン内）、`select_room_reresolves_on_switch_back`。
   - ネイティブ `-RyukaSmoke`：`r2EditorAttributionRestoresToThatRoom`（`walkthrough={洋室}`＋洋室内カメラの候補を `Restore()` → `CurrentRoomId==洋室`、玄関ではない）、`r2StaleAttributionRejected`（`walkthrough={洋室}` だがカメラがLDK内 → `Restore()` が false）、`r2NoAttributionIsFirstLaunchGenkan`（`walkthrough` 無し → `CurrentRoomId==EntryRoomId`）。
-  - 完全refresh `build/W07-G2-refresh-v3` は**非nullカメラ**（LDK内の視点）を入力にし、`validate_study_transfer.py` が `camera`/`doorStates`/`walkthrough` の一致を照合。
+  - 完全refresh `build/W07-G2-refresh-v4` は**非nullカメラ**（LDK内の視点）を入力にし、`validate_study_transfer.py` が `camera`/`doorStates`/`walkthrough` の一致を照合。
 
 ### R3（高）：壁・閉方向・移動途中の施主を含む干渉判定
 
-**対応：`LeafMotionClear()` を `LeafMotionClearFraction()` へ作り直し。壁を検査対象へ戻し、開閉両方向を検査し、開扉は衝突しない最大角へ制限（不可なら拒否）、閉扉は移動途中の施主・家具で拒否します。無効化して押し通す方式は削除しました。**
+> **注（v3レビュー R1 対応で更新）**：v2対応では「実行時に壁を検査し衝突しない最大角へ部分開放」でしたが、v3レビューの指摘（内覧75度／bindings 85度の不整合）を受けて、安全開角は**生成時に一度解決して全経路で共有**する方式へ変更しました（上記「再レビューv3への対応」）。以下は v2 時点の記述で、変更点は取り消し線相当に読み替えてください。
 
-- **構造壁を検査対象へ**（v1は `wall_`/`Ground_` を一括除外）。除外は「その扉自身の枠・兄弟葉」と「あらゆる扉の枠部材（`opening_*_left/right/head/sill`＝壁体の見切り）」に限定。プローブ半径は「葉厚半分＋2cm」に縮小（人の余裕は葉には不要。通行できる開口幅かは経路の実スイープが判定）。蝶番端は掃かないよう、回転葉は**外側半分だけ**をサンプル（蝶番端は壁面上で枠切れ端をかすめる誤検出源）。引き戸は幅全体を対称サンプル。
-- **開閉両方向を検査**。開扉が壁で85度まで許さない場合は、`LeafMotionClearFraction()` の返す割合から**衝突しない最大角の部分開放**を計算し、その角度でも人が通れる開口（葉が掃く後の残り開口 `幅×(1−cos角)` ≥ 48cm）が残るなら**その部分ポーズを適用**、残らなければ**拒否**。閉扉は、閉ポーズ自体は生成時検証済みなので壁は無視するが、**移動途中に施主のカプセルや家具・別の扉の葉があれば拒否**（`InteractDoor()` 経由のトグル時だけ施主カプセルを検査対象に含める。F9復元時など非対話の `ApplyConditions()` では含めない）。
-- `ApplyConditions()` のトランザクション：検査は読み取りフェーズで行い、拒否時は状態も葉も触らず `return false`。`InteractDoor()` は拒否時に扉状態・パネル位置を元へ戻し「扉を開閉できません（壁・家具・人が扉の可動範囲にあります）」を表示。
-- **door-002 の開き角制限が実装に入った**：west壁（`wall-1f-auto-009`）により **75度で頭打ち**。実装が実際に角度を制限し（v1報告の「壁で制限される」は文言だけで、実装は固定85度を `SetActorRotation` していた）、その角度で開いて通行できることを実機確認。
-- **両開きの開く向きの符号（V壁）**：H壁とV壁では葉の沿い軸と掃き軸が入れ替わり、`swingToward` へ向かうyaw符号が反転します。`_swing_delta_deg()` に V壁のときの符号反転を追加しました。修正前は door-024 の両葉が（同一方向ではあるが）**収納側**へ開いていました。修正後は**両葉が洋室側へ開き、収納側から洋室へ歩いて抜けられます**（`-RyukaSmoke` の `doubleSwing_leafYaws: "L=85 R=-85"`、`doubleSwingOpenOrRejectCoherent`）。v1の「fur-007 のコリジョンを一時無効化した開通確認」は撤去しました。
+- **構造壁を検査対象へ**（v1は `wall_`/`Ground_` を一括除外）。除外は「その扉自身の枠・兄弟葉」と「あらゆる扉の枠部材（`opening_*_left/right/head/sill`＝壁体の見切り）」に限定。プローブ半径は「葉厚半分＋2cm」に縮小。蝶番端は掃かないよう回転葉は外側半分だけをサンプル、引き戸は幅全体を対称サンプル。
+- 〔v3で撤去〕開扉の実行時「衝突しない最大角の部分開放」計算。→ v4：開角は生成時解決の `openYawDeltaDeg` を全経路が適用。実行時の干渉判定は**壁を除外**し、家具・別扉の葉・（対話トグル時のみ）施主カプセルだけを見て、あれば**トグル全体を拒否**。
+- 閉扉は、閉ポーズ自体は生成時検証済みなので壁は無視するが、**移動途中に施主のカプセルや家具・別の扉の葉があれば拒否**。干渉判定は**葉が実際に動く開閉遷移のときだけ**（`SetFinish`/`SetSun`/同一状態の再適用では葉を動かさない＝v3レビューの要求）。
+- `InteractDoor()` は拒否時に扉状態・パネル位置を元へ戻し「扉を開閉できません（壁・家具・人が扉の可動範囲にあります）」を表示。
+- **door-002 の開き角**：west壁（`wall-1f-auto-009`）により **73度**（v4で生成時に解決し全経路で共有）。
+- **両開きの開く向きの符号（V壁）**：H壁とV壁では葉の沿い軸と掃き軸が入れ替わり、`swingToward` へ向かうyaw符号が反転します。`_swing_delta_deg()` に V壁のときの符号反転を追加。修正後は**両葉が洋室側へ開き、収納側から洋室へ歩いて抜けられます**（`-RyukaSmoke` の `doubleSwing_leafYaws: "L=81 R=-81"`、`doubleSwingOpenOrRejectCoherent`）。v1の「fur-007 のコリジョンを一時無効化した開通確認」は撤去しました。
 - `FindNearestDoor()` の `Controller->GetControlRotation()` 化・視線トレースでの壁越し扉除外は v1 のまま維持。
 - **確認**：`-RyukaSmoke`（v2レビュー R3 指定の代表2件）—
   - `r3CloseRejectedWithPersonInSwing`：door-002 を開けて**LDK側の閉扉アーク内に施主を置き**、閉じようとすると `LeafMotionClearFraction()` が施主カプセルで止め（ブロッカー `{WalkthroughCharacter0}`、`t=0.12`）、扉は**開のまま**・`doorStates` 不変。`r3ClosesOnceSwingClear`：アークから外れると通常どおり閉じる。
-  - `r3Door002OpenPoseClearAndWalkable`：door-002 が **75度**の衝突しないポーズで開き（`r3_door002OpenYawDeg: 75.0`）、その開口を歩いて通れる。
-  - `tests/test_circulation.py:test_every_swing_leaf_actually_travels_toward_its_swingToward_side`：生成の実回転を再現し、door-002/003/004（H壁）と door-024 両葉（V壁）の自由端の掃き方向が `swingToward` と一致することを検査。pytest 190→**191**。
+  - `r3Door002OpenPoseClearAndWalkable`：door-002 が **73度**（bindings と同一値）の衝突しないポーズで開き（`r3_door002OpenYawDeg: 73.0`）、その開口を歩いて通れる。
+  - `tests/test_circulation.py:test_every_swing_leaf_actually_travels_toward_its_swingToward_side`：生成の実回転を再現し、door-002/003/004（H壁）と door-024 両葉（V壁）の自由端の掃き方向が `swingToward` と一致することを検査。pytest 190→**192**（v3・v4で各1件追加）。
 
 ## 扉・室の接続解決結果（ジオメトリのみ、ラベル不使用）
 
@@ -71,7 +92,7 @@
 
 - LDK⟷洋室の直接接続は存在しません（両室ともホール経由）。捏造した直接開口はありません。
 - 編集scope（LDK・洋室）と内覧の歩行対象8室は別概念。非編集室では仕上げキーが無効化されます。
-- **door-002（LDK⟷ホール）**：west壁により開き角が**75度**で頭打ち（実装が制限する固定幾何制約。開扉・通過は成立）。
+- **swing扉の安全開角**：固定壁に対する安全開角を `circulation.py` が生成条件として解決し `door-bindings.json` の `openYawDeltaDeg` に反映（door-002=73°、door-003=75°、door-004=73°、door-024=±81°、door-005 は引き戸で対象外）。door-002/004 は室が狭い分だけ85°より小さくなりますが、いずれも通行できる開口（葉が掃いた後の残り開口 > カプセル径）を確保しています。Blender/エディタ/内覧すべて同じ値を適用します。
 - **door-024（洋室⟷収納 両開き）**：現行のゲスト家具配置では、両葉が洋室側へ開いて収納へ抜けられます（`fur-007` の位置は実寸のまま。修正後の符号では `fur-007` はアーク外）。収納は宿泊客の必須動線ではありません。
 - エディタメニューに扉トグルの直接操作UIはありません（レビューで不要と明記、フォーム反映は実装済み）。
 - `fold`／`double-fold` 操作、残り6室（G3）は今回対象外です。
@@ -82,13 +103,13 @@
 
 | AC | 内容 | 結果 | 根拠 |
 |---|---|---|---|
-| 1 | ゲストの接続・建具bindingsが正本から解決し、ラベル相違に引きずられない | **満たす** | 上表7接続すべてジオメトリのみで解決。`tests/test_circulation.py`（21件）。 |
+| 1 | ゲストの接続・建具bindingsが正本から解決し、ラベル相違に引きずられない | **満たす** | 上表7接続すべてジオメトリのみで解決。`tests/test_circulation.py`（22件）。 |
 | 2 | 玄関→ホール→LDK→ホール→洋室を実際に歩いて往復、閉扉は遮り開扉で通過、水回り入口へ到達 | **満たす（実シーン）** | `-RyukaSmoke` の1本の連続スイープで全脚 `true`（NullRHI・DX12 とも PASS、`walkthrough-smoke.png` 取得）。 |
-| 3 | 開き戸・引き戸・両開きの葉/衝突がともに移動、壁/対象外を抜けない、閉動作中の干渉を拒否 | **満たす（実シーン）** | door-001/002/005/024 実走行。door-002 は 75度の**衝突しないポーズ**で開き通行可（実装が角度を制限）。閉扉は**移動途中の施主で拒否**（`r3CloseRejectedWithPersonInSwing`）、外れれば閉じる。door-024 は両葉が洋室側へ開き収納へ通行可。引き戸はアウトセット化で壁へ埋め込まれない。 |
+| 3 | 開き戸・引き戸・両開きの葉/衝突がともに移動、壁/対象外を抜けない、閉動作中の干渉を拒否 | **満たす（実シーン）** | door-001/002/005/024 実走行。door-002 は生成時解決の73度で開き通行可（Blender/エディタ/内覧すべて同一値）。閉扉は**移動途中の施主で拒否**（`r3CloseRejectedWithPersonInSwing`）、外れれば閉じる。door-024 は両葉が洋室側へ開き収納へ通行可。引き戸はアウトセット化で壁へ埋め込まれない。 |
 | 4 | 洋室相当の編集可能室で保存→別室で扉/仕上げ変更→F9で室・位置・扉・両室状態が戻る | **満たす（実シーン）** | 連続経路内で洋室 Finish2→F5→ホールで door-005 閉→F9。F9後に 現在室＝洋室／door-005 開／`room-1f-05.variant=="warm"`／`room-1f-06.variant=="natural"`（`ac4RestoredRoomPositionDoorAndBothRoomStates`）。 |
-| 5 | 旧G1状態/旧LDK案を読込→新版保存。扉を開いた状態で比較A/B/終了を通して扉・他室が不変 | **満たす（辞書＋実シーン）** | `verify_w07_g2.py`：辞書（`compare_*_doors_json_unchanged`）と実葉回転（`compare_a/b/end_real_leaf_still_open` ＝85±1°固定）がともに不変。旧1.0.0単室案の通常読込で `doorStates` が空へ置換され**実葉も閉じる**（`legacy_load_closed_the_real_leaf`）。 |
-| 6 | 保存案の開扉状態と位置を完全refresh1回で保持、内覧構築/転送検証まで終了コード0 | **満たす** | `refresh-visual-study.py --previous build/W07-G2-ue-v8 --scope guest-pilot`（前プロジェクトの `study-state.json` に `doorStates:{door-002:{open:true}}`・`walkthrough`・**非nullカメラ**）。`refresh.json` の `status: complete`、終了コード0。生成後の `comparisonState` が `camera`/`doorStates`/`walkthrough` を保持、`validate_study_transfer.py` の一致検証成功。 |
-| 7 | 既存検証成功、通行できない狭所/未仕上げ区画/仮定を明示 | **満たす** | `pytest tests/`：**191 passed, 55 subtests**。`build-web-data.mjs --check`・`validate_house.py`/`validate_electrical.py`/`validate_furniture.py`/`validate_openings.py` すべて成功。仮定・限界は「移動制限・前提」「残件」節。 |
+| 5 | 旧G1状態/旧LDK案を読込→新版保存。扉を開いた状態で比較A/B/終了を通して扉・他室が不変 | **満たす（辞書＋実シーン）** | `verify_w07_g2.py`：辞書（`compare_*_doors_json_unchanged`）と実葉回転（`compare_a/b/end_real_leaf_still_open` ＝bindings 値73°で固定）がともに不変。旧1.0.0単室案の通常読込で `doorStates` が空へ置換され**実葉も閉じる**（`legacy_load_closed_the_real_leaf`）。 |
+| 6 | 保存案の開扉状態と位置を完全refresh1回で保持、内覧構築/転送検証まで終了コード0 | **満たす** | `refresh-visual-study.py --previous build/W07-G2-ue-v9 --scope guest-pilot`（前プロジェクトの `study-state.json` に `doorStates:{door-002:{open:true}}`・`walkthrough`・**非nullカメラ**）。`refresh.json` の `status: complete`、終了コード0。生成後の `comparisonState` が `camera`/`doorStates`/`walkthrough` を保持、`validate_study_transfer.py` の一致検証成功。**再生成された `door-bindings.json` の `openYawDeltaDeg`（door-002=73°）も入力と一致**＝実開角がrefreshを跨いで保持。 |
+| 7 | 既存検証成功、通行できない狭所/未仕上げ区画/仮定を明示 | **満たす** | `pytest tests/`：**192 passed, 55 subtests**。`build-web-data.mjs --check`・`validate_house.py`/`validate_electrical.py`/`validate_furniture.py`/`validate_openings.py` すべて成功。仮定・限界は「移動制限・前提」「残件」節。 |
 
 ## v1で発見・修正済みの実際の不具合（維持）
 
@@ -99,16 +120,16 @@
 
 ### 単体・軽量確認
 
-- `python -m pytest tests/ -q`：**191 passed, 55 subtests passed**（`tests/test_circulation.py` 21件）。
+- `python -m pytest tests/ -q`：**192 passed, 55 subtests passed**（`tests/test_circulation.py` 21件）。
 - `node scripts/build-web-data.mjs --check`：最新。
 - `python tests/validate_house.py` / `validate_electrical.py` / `validate_furniture.py` / `validate_openings.py`：すべて成功。
 
-### Unreal Engine（実行、代表プロジェクト `build/W07-G2-ue-v8`）
+### Unreal Engine（実行、代表プロジェクト `build/W07-G2-ue-v9`）
 
 - 実インポート：`unrealImportVerified: true`。C++ Walkthroughモジュールの実コンパイル：`error C`/`error LNK` ともに0。
 - ネイティブ `-RyukaSmoke`（NullRHI・DX12）：連続経路＋AC4＋R2 3件＋R3 2件＋両開き、全脚 `true`、`walkthrough-smoke.txt`＝PASS、`walkthrough-smoke.png` 取得。
-- UEエディタ `verify_w07_g2.py`（`-run=pythonscript`）：**29項目すべて成功**（＋ビューポート非依存の `remember_view` 1件をヘッドレスのためスキップ、理由記録）。R1-v2の引き戸セッション跨ぎ・R2-v2の `select_room` 再解決とカメラ室内判定・A/B比較中の実葉固定・旧案読込での実葉クローズを含む。
-- **完全refresh1回**（`refresh-visual-study.py --previous build/W07-G2-ue-v8 --scope guest-pilot`、非nullカメラ）：`status: complete`、終了コード0、`camera`/`doorStates`/`walkthrough` 一致（`state-transfer-verification.json`）。
+- UEエディタ `verify_w07_g2.py`（`-run=pythonscript`）：**33項目すべて成功**（＋ビューポート非依存の `remember_view` 1件をヘッドレスのためスキップ、理由記録）。R1-v2の引き戸セッション跨ぎ・R2-v2の `select_room` 再解決とカメラ室内判定・A/B比較中の実葉固定・旧案読込での実葉クローズを含む。
+- **完全refresh1回**（`refresh-visual-study.py --previous build/W07-G2-ue-v9 --scope guest-pilot`、非nullカメラ）：`status: complete`、終了コード0、`camera`/`doorStates`/`walkthrough` 一致（`state-transfer-verification.json`）。
 
 ## 検証コマンド（実行済み）
 
@@ -120,39 +141,46 @@ python tests/validate_electrical.py
 python tests/validate_furniture.py
 python tests/validate_openings.py
 
-python scripts/build-visual-twin.py --blender "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --interior --scope guest-pilot --output build/W07-G2-blender-v8
-python scripts/build-unreal-study.py --engine "C:/Program Files/Epic Games/UE_5.8" --package build/W07-G2-blender-v8 --output build/W07-G2-ue-v8 --cache C:/UE_DDC/w07g2h
-python scripts/enable-unreal-walkthrough.py --project build/W07-G2-ue-v8 --engine "C:/Program Files/Epic Games/UE_5.8" --cache C:/UE_DDC/w07g2h
-python scripts/launch-unreal-walkthrough.py --project build/W07-G2-ue-v8 --engine "C:/Program Files/Epic Games/UE_5.8" --cache C:/UE_DDC/w07g2h --smoke --logic-only
-python scripts/launch-unreal-walkthrough.py --project build/W07-G2-ue-v8 --engine "C:/Program Files/Epic Games/UE_5.8" --cache C:/UE_DDC/w07g2h --smoke
-# UEエディタ検証：UnrealEditor-Cmd.exe <v8>/RyukaInterior.uproject -run=pythonscript -script=<v8>/verify_w07_g2.py -unattended -NullRHI ...
-python scripts/refresh-visual-study.py --previous build/W07-G2-ue-v8 --output build/W07-G2-refresh-v3 --blender "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --engine "C:/Program Files/Epic Games/UE_5.8" --cache C:/UE_DDC/w07g2refresh3 --scope guest-pilot
+python scripts/build-visual-twin.py --blender "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --interior --scope guest-pilot --output build/W07-G2-blender-v9
+python scripts/build-unreal-study.py --engine "C:/Program Files/Epic Games/UE_5.8" --package build/W07-G2-blender-v9 --output build/W07-G2-ue-v9 --cache C:/UE_DDC/w07g2i
+python scripts/enable-unreal-walkthrough.py --project build/W07-G2-ue-v9 --engine "C:/Program Files/Epic Games/UE_5.8" --cache C:/UE_DDC/w07g2i
+python scripts/launch-unreal-walkthrough.py --project build/W07-G2-ue-v9 --engine "C:/Program Files/Epic Games/UE_5.8" --cache C:/UE_DDC/w07g2i --smoke --logic-only
+python scripts/launch-unreal-walkthrough.py --project build/W07-G2-ue-v9 --engine "C:/Program Files/Epic Games/UE_5.8" --cache C:/UE_DDC/w07g2i --smoke
+# UEエディタ検証：UnrealEditor-Cmd.exe <v9>/RyukaInterior.uproject -run=pythonscript -script=<v9>/verify_w07_g2.py -unattended -NullRHI ...
+python scripts/refresh-visual-study.py --previous build/W07-G2-ue-v9 --output build/W07-G2-refresh-v4 --blender "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --engine "C:/Program Files/Epic Games/UE_5.8" --cache C:/UE_DDC/w07g2refresh4 --scope guest-pilot
 ```
 
 ### 証跡ファイル（実行したスクリプト自体も証跡として記載）
 
-- `build/W07-G2-ue-v8/verify_w07_g2.py` と `build/W07-G2-ue-v8/verify_w07_g2_result.json`（`_all_passed: true`、29項目）
-- `build/W07-G2-ue-v8/Saved/walkthrough-smoke.txt`（PASS）、`build/W07-G2-ue-v8/Saved/walkthrough-smoke-route.json`（連続経路＋R2/R3脚）、`build/W07-G2-ue-v8/Saved/walkthrough-smoke.png`（DX12実描画）
-- `build/W07-G2-ue-v8/import-verification.json`、`build/W07-G2-ue-v8/door-bindings.json`（`closedLocationCm` 込み、door-024 左85/右-85）
-- `build/W07-G2-refresh-v3/refresh.json`（`status: complete`）、`build/W07-G2-refresh-v3/ue/state-transfer-verification.json`
-- `tests/test_circulation.py`（21件）
+- `build/W07-G2-ue-v9/verify_w07_g2.py` と `build/W07-G2-ue-v9/verify_w07_g2_result.json`（`_all_passed: true`、33項目）
+- `build/W07-G2-ue-v9/Saved/walkthrough-smoke.txt`（PASS）、`build/W07-G2-ue-v9/Saved/walkthrough-smoke-route.json`（連続経路＋R2/R3脚）、`build/W07-G2-ue-v9/Saved/walkthrough-smoke.png`（DX12実描画）
+- `build/W07-G2-ue-v9/import-verification.json`、`build/W07-G2-ue-v9/door-bindings.json`（`closedLocationCm` 込み、door-024 左81/右-81、door-002 openYawDeltaDeg=73）
+- `build/W07-G2-refresh-v4/refresh.json`（`status: complete`）、`build/W07-G2-refresh-v4/ue/state-transfer-verification.json`
+- `tests/test_circulation.py`（22件）
 
-## 変更ファイル一覧（v2差分に対する今ラウンドの追加・変更）
+## 変更ファイル一覧
 
-- `unreal/import_study.py`：引き戸葉の閉ワールド座標を生成直後に捕捉し `door-bindings.json` へ `closedLocationCm` を記録（R1）
-- `unreal/study_controls.py`：`apply_state()` の引き戸葉を `closedLocationCm` アンカーの絶対位置セットに変更（キャッシュ撤去）、`_walkthrough_attribution()` 新設、`select_room()`/`remember_view()` が `walkthrough` を再解決（R1・R2）
-- `unreal/circulation.py`：`_swing_delta_deg()` に V壁の符号反転（R3）、`swing_leaf_free_end_travel()` 新設（掃き方向の幾何検査用）、`validate_door_bindings()` が `closedLocationCm` を検証
-- `unreal/walkthrough/Source/RyukaInterior/Walkthrough.h`・`.cpp`：`FLeafInfo::ClosedLocationCm`、`LeafMotionClear()`→`LeafMotionClearFraction()`（壁含む・開閉両方向・部分開放/拒否・対話トグル時のみ施主カプセル）、`Restore()` の保存カメラ室内照合、`DoorLeafSpawnLocation` 撤去、`-RyukaSmoke` に R2 3件・R3 2件・両開き開通の脚を追加（R1・R2・R3）
-- `tests/test_circulation.py`：`test_every_swing_leaf_actually_travels_toward_its_swingToward_side` 追加（190→191）
-- `build/W07-G2-ue-v8/verify_w07_g2.py`：引き戸セッション跨ぎ（R1-v2）・`select_room` 再解決とカメラ室内判定（R2-v2）を追加
-- `docs/ARCHITECTURE.md`・`docs/STATUS.md`：v2対応の内容を反映
+### v3レビュー（R1）対応
+
+- `unreal/circulation.py`：`_wall_limited_swing_deg()`／`_seg_seg_distance()` 新設、`resolve_connections()` が swing/double-swing 接続へ `maxSwingDeltaDeg` を記録、`_swing_delta_deg()` の大きさを `min(85, maxSwingDeltaDeg)` に。`BASE_SWING_DEG` 定数化。
+- `unreal/walkthrough/Source/RyukaInterior/Walkthrough.h`・`.cpp`：`ApplyConditions()` の swing 葉を `OpenYawDeltaDeg` そのまま適用（部分ポーズ生成 `BlendWith` を撤去）、干渉判定は `From != To`（開閉遷移）のときだけ・壁を除外、`LeafMotionClearFraction()` から `bIncludeWalls` 引数削除。
+- `build/W07-G2-ue-v9/verify_w07_g2.py`：`door002_binding_angle_is_wall_limited`・`sun_change_leaves_door_angle_unchanged`・swing 葉のセッション跨ぎ（`swing_open_angle_is_binding_angle`→save→reload→`reloaded_swing_leaf_still_at_binding_angle`→`closing_returns_swing_leaf_to_zero`）を追加（33項目）。
+- `docs/ARCHITECTURE.md`・`docs/STATUS.md`：v3対応の内容を反映。
+
+### v2レビュー（R1〜R3）対応（前ラウンド）
+
+- `unreal/import_study.py`：引き戸葉の閉ワールド座標を生成直後に捕捉し `door-bindings.json` へ `closedLocationCm` を記録。
+- `unreal/study_controls.py`：`apply_state()` の引き戸葉を `closedLocationCm` アンカーの絶対位置セットに（キャッシュ撤去）、`_walkthrough_attribution()` 新設、`select_room()`/`remember_view()` が `walkthrough` を再解決。
+- `unreal/circulation.py`：`_swing_delta_deg()` に V壁の符号反転、`swing_leaf_free_end_travel()` 新設、`validate_door_bindings()` が `closedLocationCm` を検証。
+- `unreal/walkthrough/.../Walkthrough.h`・`.cpp`：`FLeafInfo::ClosedLocationCm`、`LeafMotionClear()`→`LeafMotionClearFraction()`、`Restore()` の保存カメラ室内照合、`DoorLeafSpawnLocation` 撤去、`-RyukaSmoke` に R2 3件・R3 2件・両開き開通の脚。
+- `tests/test_circulation.py`：`test_every_swing_leaf_actually_travels_toward_its_swingToward_side` 追加（190→191）。
 
 ## 残件（次段階へ持ち越し）
 
 1. **G3：残り6室の登録**は未着手。
 2. **自宅の `fold`／`double-fold` 操作の扉**は今回一般化していない。
 3. エディタメニューに扉トグルの直接操作UIは無い（レビューで不要と明記）。
-4. door-002 の開き角は west壁により75度で頭打ち（実装が制限する固定幾何制約。開扉・通過は成立）。
+4. door-002 の開き角は west壁により生成時に73度へ解決（全経路で同一値。開扉・通過は成立）。
 
 ---
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

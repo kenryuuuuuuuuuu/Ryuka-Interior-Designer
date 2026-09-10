@@ -118,11 +118,123 @@ def resolve_connections(rooms_by_id, interior_doors, catalog_by_type, room_ids):
         reach_a, reach_b = _reach(matches[0]), _reach(matches[1])
         reach_plus = max(reach_a[0], reach_b[0])
         reach_minus = max(reach_a[1], reach_b[1])
-        connections.append(dict(id=item['id'], level=item.get('floor'), operation=operation, roomIds=matches,
+        swing_toward = '+' if reach_plus >= reach_minus else '-'
+        conn = dict(id=item['id'], level=item.get('floor'), operation=operation, roomIds=matches,
             orientation=orientation, wallAt=at, center=center, width=width, height=merged['height'],
             sill=merged.get('sill', 0), hingeSide=merged.get('hingeSide'), swingDir=merged.get('swingDir'),
-            slideDir=merged.get('slideDir'), swingToward='+' if reach_plus >= reach_minus else '-'))
+            slideDir=merged.get('slideDir'), swingToward=swing_toward)
+        # W07-G2 review-v3 R1: the SAFE open angle (a fixed leaf cannot swing
+        # through a fixed building wall) is resolved HERE, once, as a
+        # generation condition -- 85 deg unless a wall of the room the leaf
+        # opens into cuts the arc short. Every consumer (Blender bake, UE
+        # import, editor apply_state, native walkthrough) then applies the
+        # SAME closed/open transforms; the runtime interference check only
+        # has to watch for FURNITURE / a person / another leaf between two
+        # poses that are both already known wall-safe.
+        if operation in ('swing', 'double-swing'):
+            swing_room = matches[0] if _reach(matches[0])[0 if swing_toward == '+' else 1] >= \
+                _reach(matches[1])[0 if swing_toward == '+' else 1] else matches[1]
+            conn['maxSwingDeltaDeg'] = _wall_limited_swing_deg(
+                conn, rooms_by_id[swing_room]['polygon'], BASE_SWING_DEG)
+        connections.append(conn)
     return connections
+
+
+BASE_SWING_DEG = 85.0  # a few degrees short of 90 so an open leaf clears a flush frame
+
+
+def _seg_seg_distance(p1, p2, p3, p4):
+    """Minimum distance between segment p1p2 and segment p3p4 (0 if they
+    cross). Pure 2D."""
+    import math
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    if ((cross(p3, p4, p1) > 0) != (cross(p3, p4, p2) > 0)
+            and (cross(p1, p2, p3) > 0) != (cross(p1, p2, p4) > 0)):
+        return 0.0
+
+    def pt_seg(p, a, b):
+        ax, ay, bx, by = a[0], a[1], b[0], b[1]
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy
+        t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / L2))
+        return math.hypot(p[0] - (ax + t * dx), p[1] - (ay + t * dy))
+    return min(pt_seg(p1, p3, p4), pt_seg(p2, p3, p4),
+              pt_seg(p3, p1, p2), pt_seg(p4, p1, p2))
+
+
+def _wall_limited_swing_deg(connection, swing_room_polygon, ideal_deg):
+    """Largest opening angle (<= ideal_deg) at which the leaf -- a segment
+    from its hinge, ~one opening-width long -- does not cross a boundary
+    wall of the room it swings into. The wall the door is MOUNTED in (the
+    polygon edge collinear with `wallAt`) is excluded; the leaf swings away
+    from it. Pure 2D, source metres. Conservative: a small inset keeps a
+    leaf flush in its own jamb from counting, and 2-3 deg of margin is
+    dropped so the runtime pose (measured against real geometry) is never
+    tighter than this."""
+    import math
+    at = connection['wallAt']
+    lo = connection['center'] - connection['width'] / 2
+    hi = connection['center'] + connection['width'] / 2
+    horizontal = connection['orientation'] == 'H'
+    toward_plus = connection['swingToward'] == '+'
+    edges = [(swing_room_polygon[i], swing_room_polygon[(i + 1) % len(swing_room_polygon)])
+             for i in range(len(swing_room_polygon))]
+    # drop edges collinear with the mounting wall (perp coord == at)
+    def _on_mount(e):
+        (ax, az), (bx, bz) = e
+        return (abs((az if horizontal else ax) - at) < 1e-6
+                and abs((bz if horizontal else bx) - at) < 1e-6)
+    edges = [e for e in edges if not _on_mount(e)]
+
+    def hinge_and_free(hinge_side):
+        u_h = lo if hinge_side != 'R' else hi
+        u_f = hi if hinge_side != 'R' else lo
+        hinge = (u_h, at) if horizontal else (at, u_h)
+        free = (u_f, at) if horizontal else (at, u_f)
+        return hinge, free
+
+    hinge_sides = ['L', 'R'] if connection['operation'] == 'double-swing' \
+        else [connection.get('hingeSide') or 'L']
+    # wall half-thickness (~0.06) + leaf half-thickness (~0.02) + clearance
+    margin = 0.10
+    limit = ideal_deg
+    for hs in hinge_sides:
+        hinge, free_closed = hinge_and_free(hs)
+        vx, vy = free_closed[0] - hinge[0], free_closed[1] - hinge[1]
+        vlen = math.hypot(vx, vy)
+        vx, vy = vx / vlen, vy / vlen
+        radius = connection['width']
+
+        def seg_at(dirx, diry):
+            return ((hinge[0] + dirx * radius * 0.3, hinge[1] + diry * radius * 0.3),
+                    (hinge[0] + dirx * radius, hinge[1] + diry * radius))
+        # Edges the CLOSED leaf already lies flush against belong to the
+        # doorway itself (far jamb / opening frame); the leaf only moves AWAY
+        # from them as it swings in, so they are not obstacles.
+        closed_a, closed_b = seg_at(vx, vy)
+        active = [e for e in edges
+                  if _seg_seg_distance(closed_a, closed_b, e[0], e[1]) > margin + 0.06]
+        # rotation sense that carries the free end toward `swingToward`
+        sense = 1.0
+        for rot_sign in (1.0, -1.0):
+            th = math.radians(5.0) * rot_sign
+            c, s = math.cos(th), math.sin(th)
+            comp = ((vx * s + vy * c) - vy) if horizontal else ((vx * c - vy * s) - vx)
+            if (comp > 0) == toward_plus:
+                sense = rot_sign
+                break
+        cleared = ideal_deg
+        for deg in range(5, int(ideal_deg) + 1):
+            th = math.radians(deg) * sense
+            c, s = math.cos(th), math.sin(th)
+            seg_a, seg_b = seg_at(vx * c - vy * s, vx * s + vy * c)
+            if any(_seg_seg_distance(seg_a, seg_b, e[0], e[1]) < margin for e in active):
+                cleared = deg - 3.0  # 3 deg safety margin below the first contact
+                break
+        limit = min(limit, max(cleared, 0.0))
+    return round(limit, 1)
 
 
 def validate_profiles(document):
@@ -259,7 +371,11 @@ def _swing_delta_deg(connection, sign=1.0):
     into a room, not into a narrow hall). Never into the wall itself; falls
     back to the door instance's own swingDir only for a connection that
     predates swingToward."""
-    base = 85.0  # a few degrees short of 90 so the open leaf clears a perfectly flush frame
+    # W07-G2 review-v3 R1: the magnitude is the SAFE open angle resolved once
+    # in resolve_connections() against the fixed building walls -- 85 unless a
+    # wall of the room the leaf opens into cuts the arc short (e.g. door-002,
+    # limited by the LDK's west wall). One value, shared by every consumer.
+    base = min(85.0, connection.get('maxSwingDeltaDeg', 85.0))
     toward = connection.get('swingToward')
     toward_positive = (toward == '+') if toward in ('+', '-') else (connection.get('swingDir') != 'in')
     # hingeSide determines which end is fixed; the leaf always sweeps AWAY
