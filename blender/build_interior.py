@@ -188,8 +188,22 @@ class SurfaceBinder:
         self.detail = {}
         self.status = {}
         self.bound_meshes = {}
+        # W07-G3 review R1: the surface REGISTRY is validated in full (all
+        # entries must still resolve against the current house.json -- the
+        # build-visual-twin / refresh preflight does that). But an EDITABLE
+        # binding is only produced for a surface whose room is in the current
+        # edit scope. A narrower scope (guest-pilot's 2 rooms) must not emit
+        # bindings for room-1f-02 etc.: study.roomStates has no entry for
+        # them, so import_study.py's `study['roomStates'][roomId]['variant']`
+        # and study_controls would KeyError. Out-of-scope wall/floor/ceiling
+        # geometry is still built by build_envelope(); with no registration
+        # matched it simply keeps the plain base material (spec section 2:
+        # "対象外の遮蔽形状と基準材質は残します").
+        in_scope = set(variant_by_room)
         for s in resolved_surfaces:
             if s['status'] != 'resolved':
+                continue
+            if s['roomId'] not in in_scope:
                 continue
             self.by_room_kind.setdefault((s['roomId'], s['kind']), []).append(s)
             self.status[s['id']] = dict(roomId=s['roomId'], kind=s['kind'], label=s.get('label'), state='no-surface')
@@ -662,12 +676,25 @@ def build_furniture(data,room_ids,mats_by_room):
                 kind=spec.get('kind','box')
                 if kind!='box':
                     x0,x1,z0,z1,y0,y1=spec['bounds']
-                    polygon=spec.get('polygon')
-                    if kind=='ellipse':
-                        polygon=[((x0+x1)/2+(x1-x0)/2*math.cos(j*2*math.pi/64),
-                                  (z0+z1)/2+(z1-z0)/2*math.sin(j*2*math.pi/64)) for j in range(64)]
-                    obj=prism(f"furniture.{item['id']}.{spec['name']}",[(x,-z,y0) for x,z in polygon],
-                              (0,0,y1-y0),mats[spec['material']],item)
+                    if kind=='disc':
+                        # W07-G3 review R3: a circle standing in the VERTICAL
+                        # x/height plane, thin along depth -- for a front-load
+                        # washer door the round opening actually reads as
+                        # round from the front (the plan-plane 'ellipse' made
+                        # a thin sliver extruded upward instead). Ring in
+                        # (x, height) at the near depth face, extruded through
+                        # the depth span z0->z1.
+                        cx,cy=(x0+x1)/2,(y0+y1)/2; rx,ry=(x1-x0)/2,(y1-y0)/2
+                        ring=[(cx+rx*math.cos(j*2*math.pi/64),cy+ry*math.sin(j*2*math.pi/64)) for j in range(64)]
+                        obj=prism(f"furniture.{item['id']}.{spec['name']}",[(px,-z0,py) for px,py in ring],
+                                  (0,-(z1-z0),0),mats[spec['material']],item)
+                    else:
+                        polygon=spec.get('polygon')
+                        if kind=='ellipse':
+                            polygon=[((x0+x1)/2+(x1-x0)/2*math.cos(j*2*math.pi/64),
+                                      (z0+z1)/2+(z1-z0)/2*math.sin(j*2*math.pi/64)) for j in range(64)]
+                        obj=prism(f"furniture.{item['id']}.{spec['name']}",[(x,-z,y0) for x,z in polygon],
+                                  (0,0,y1-y0),mats[spec['material']],item)
                     mod=obj.modifiers.new('Soft edges','BEVEL'); mod.width=spec['bevel']; mod.segments=3
                     obj.modifiers.new('Weighted normals','WEIGHTED_NORMAL')
                     obj['detail_status']='estimated';created.append(obj)

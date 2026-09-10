@@ -1,5 +1,7 @@
 # 進捗・未解決事項
 
+2026-09-10更新（W07-G3 レビューv1）：**W07-G3-v1（`b255f2f`）は CHANGES_REQUESTED**（[レビュー](tasks/W07-G3-review.md)）。旧scope取込の対象外roomState参照、空室の面上書きと基本variantの混同、洗面/洗濯機の形状の3点を同じG3で修正します。193件のunittestと提出証跡の一致は確認済みです。G1/G2は受入済み、W08-GはG3受入後です。以下の過去の記述よりこの行を優先します。
+
 2026-09-10更新（W07-G3 実装）：**[W07-G3詳細仕様](tasks/W07-G3-guest-interiors.md)（ゲスト全8区画の仕上げ・主要設備・照明）** をClaude Codeが一括実装しました。G1/G2の仕組みへ scopeId=guest（8区画）を展開し、残り6室の壁/床/天井を surface-registry へ登録（合計52面すべて解決・bind）、既存家具23点・照明10灯を1回で解決、便器/洗面台/洗濯機/浴槽に種類が分かる簡易parametric部品を追加。歩行は guest-circulation プロファイルを再利用（scopeId→scopeIds[guest-pilot, guest]）。編集scopeは pilot は2室のまま。[報告](tasks/W07-G3-report.md)とレビュー用差分一式（`build/reviews/W07-G3-v1`）を提出。W08-Gには未着手。
 
 2026-09-10更新（W07-G2 最終判定）：**W07-G2-v4（`e9113b9`）は [最終レビュー](tasks/W07-G2-review-v4.md) で ACCEPTED。** door-002 の安全開角（約73度）が Blender・エディタ・内覧・refresh で一致することを確認、unittest 192件・非nullカメラの完全refresh成功。G1/G2 受入完了、次は G3。以下の過去の記述よりこの2行を優先します。

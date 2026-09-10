@@ -148,10 +148,20 @@ def vanity_parts(w, d, h):
     counter = min(.86, h * .5)
     bx0, bx1, bz0, bz1 = -w * .30, w * .30, -d * .18, d * .30
     inner = counter - .13
+    # W07-G3 review R3: the cabinet must leave a real cavity under the basin
+    # -- a full-height solid box buried the bowl and its walls, so the
+    # counter cut-out only ever revealed the box's top. Build the carcass as
+    # a low base plus panels flanking the basin footprint; the basin空間
+    # (bx0..bx1 x bz0..bz1, from just under the bowl up to the counter) stays
+    # open (spec section 3: "水槽内部を裏の固体箱で埋めない").
+    cab_top = counter - .03
     parts = [
-        solid('cabinet', [-w / 2, w / 2, -d / 2 + .02, d / 2, .04, counter - .03], 'cabinet', bevel=.004),
+        solid('cabinet-base', [-w / 2, w / 2, -d / 2 + .02, d / 2, .04, inner - .02], 'cabinet', bevel=.004),
         solid('plinth', [-w * .46, w * .46, -d * .42, d * .42, 0, .04], 'frame', bevel=.002),
     ]
+    for name, x0, x1, z0, z1 in [('left', -w / 2, bx0, -d / 2 + .02, d / 2), ('right', bx1, w / 2, -d / 2 + .02, d / 2),
+                                 ('rear', bx0, bx1, -d / 2 + .02, bz0), ('front', bx0, bx1, bz1, d / 2)]:
+        parts.append(solid('cabinet-' + name, [x0, x1, z0, z1, inner - .02, cab_top], 'cabinet', bevel=.004))
     # counter as a frame around the basin cut-out (no slab across the basin)
     for name, x0, x1, z0, z1 in [('left', -w / 2, bx0, -d / 2, d / 2), ('right', bx1, w / 2, -d / 2, d / 2),
                                  ('rear', bx0, bx1, -d / 2, bz0), ('front', bx0, bx1, bz1, d / 2)]:
@@ -175,8 +185,13 @@ def washer_parts(w, d, h):
     ]
     r = min(w * .32, (h - .30) / 2)
     cy = .12 + r + .06
-    parts.append(solid('door-rim', [-r, r, front - .015, front + .02, cy - r, cy + r], 'frame', kind='ellipse', bevel=.01))
-    parts.append(solid('door-glass', [-r + .04, r - .04, front - .003, front + .012, cy - r + .04, cy + r - .04], 'black', kind='ellipse', bevel=.006))
+    # W07-G3 review R3: the door opening is a circle in the VERTICAL plane
+    # facing front (kind='disc'), not a plan-plane ellipse extruded upward.
+    # The glass sits proud of the rim so the round porthole reads from the
+    # front and the rim shows as a frame ring around it.
+    parts.append(solid('door-rim', [-r, r, front - .02, front + .015, cy - r, cy + r], 'frame', kind='disc', bevel=.01))
+    parts.append(solid('door-glass', [-(r - .035), r - .035, front + .010, front + .035, cy - (r - .035), cy + (r - .035)],
+                       'black', kind='disc', bevel=.006))
     return parts
 
 
