@@ -15,8 +15,8 @@
 |---|---|---|---|---|
 | 玄関 | room-1f-02 | なし | elec-002 | surf-genkan-wall-001〜004 / -floor-001 / -ceiling-001（6） |
 | ホール | room-1f-24 | なし | elec-003 | surf-hall-*（6） |
-| LDK | room-1f-06 | fur-006/007/008/009/010/011/012/036/037/038/041/042/043/047/048（15） | elec-008, elec-200, elec-201 | surf-guest-*（8、G1のまま） |
-| 洋室 | room-1f-05 | fur-045/046/049 ＋ ベッド類（4） | elec-006 | surf-western-*（8、G1のまま） |
+| LDK | room-1f-06 | fur-006/007/008/009/010/011/012/038/043/044/045/046/047/048/049（15） | elec-008, elec-200, elec-201 | surf-guest-*（8、G1のまま） |
+| 洋室 | room-1f-05 | fur-036/037/041/042（4） | elec-006 | surf-western-*（8、G1のまま） |
 | トイレ | room-1f-01 | fur-035（toilet） | elec-001 | surf-toilet-*（6） |
 | 洗面脱衣 | room-1f-03 | fur-001（vanity）、fur-002（washing-machine） | elec-004 | surf-washroom-*（6） |
 | UB | room-1f-04 | fur-003（bathtub） | elec-005 | surf-ub-*（6） |
