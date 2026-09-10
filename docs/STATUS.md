@@ -1,5 +1,7 @@
 # 進捗・未解決事項
 
+2026-09-10更新（W08-G 提出）：**ゲスト試用版ランチャーを一括実装**。`guest-launcher.cmd`（ダブルクリック）→ `scripts/guest_launcher/`（Python標準GUI）。既存CLI（`launch-unreal-walkthrough`/`refresh-visual-study`/`save_scenario_package`/`capture-unreal-study`/`build-web-data.mjs`）を薄く束ね、施主がパス・コマンドを入力せず「内覧 → 家具取込 → 更新 → 案保存 → 比較記録」まで操作できる。ローカル設定は `build/launcher/config.json`（git除外）。pytest（+`test_guest_launcher.py` 16件）・全validator成功、家具の反映と復元・案の保存・モデル更新（成功1/失敗1）・A/B記録と共有コピーを補助CLIで実操作確認。G3報告のrefresh-v2条件は実出力へ訂正済み（`224e7d7`）。[報告](tasks/W08-G-report.md)・[試用ガイド](GUEST_TRIAL_GUIDE.md)・`build/reviews/W08-G-v1` を提出。BASE `1d6a11b`、W07-H1以降は未着手（施主の試用結果で次を決定）。画質・使用感は「施主確認待ち」。以下の過去の記述よりこの行を優先します。
+
 2026-09-10更新（W08-G 着手指示）：施主指示により [W08-G詳細仕様](tasks/W08-G-guest-delivery.md) をREADYにしました。G3受入HEAD `1d6a11b` を前提に、ゲストの起動入口・家具JSON取込・更新・案/比較記録・試用ガイドをClaude Codeが一括実装します。自宅H1以降はまだ着手しません。
 
 2026-09-10更新（W07-G3 最終判定）：**W07-G3-v2（`1d6a11b`）は [再レビューv2](tasks/W07-G3-review-v2.md) で ACCEPTED**。R1〜R3解消、201件のunittest成功、旧pilot取込・guest実機検証20項目・refresh成功の証跡を確認しました。洗濯機の設置向きは配置レビューの残件です。報告書のv2 refresh条件には転記誤りがあり、実際は全室natural・扉閉の基準状態（詳細はレビュー）。G1/G2/G3受入済み、次はW08-Gの仕様・起動導線です。以下の過去の記述よりこの行を優先します。

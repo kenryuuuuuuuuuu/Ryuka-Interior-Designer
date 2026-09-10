@@ -20,7 +20,19 @@ if (project/'study-state.json').exists():
     import study_controls
     if job.get('sunCase') is not None: study_controls.set_sun_case(job['sunCase'])
     state=study_controls.current_state()
-    if job.get('variant'): state['variant']=job['variant']
+    if job.get('variant'):
+        # W08-G: the comparison-state is the multi-room 2.1.0 shape now --
+        # variant lives per room in roomStates, not as a top-level key, so
+        # `state['variant']=...` was silently ignored and compare-unreal-
+        # studies.py's own check_capture() then rejected the mismatch. Apply
+        # the requested finish to the ACTIVE room (the one the fixed camera
+        # frames), matching the pre-2.1.0 single-room behaviour.
+        active=state.get('activeRoomId')
+        room_states=state.get('roomStates')
+        if isinstance(room_states,dict) and active in room_states:
+            room_states[active]=dict(room_states[active],variant=job['variant'])
+        else:
+            state['variant']=job['variant']
     if job.get('elevation') is not None:
         state.pop('solar',None)
         state['elevationDeg']=job['elevation']

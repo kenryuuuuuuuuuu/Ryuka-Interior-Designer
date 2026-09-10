@@ -448,6 +448,21 @@ G1（編集2室）・G2（8室の歩行と建具）に続き、G3で**ゲスト8
 - **8室への拡張と旧案**：`refresh-visual-study.py --scope guest --allow-new-rooms` の時だけ不足6室を各室の初期 variant で初期化（既存 2 室の設定・扉・視点・来歴は保持）。通常の部分案適用や旧1室/2室案の通常読込では、案の roomStates だけ置換し他室は現在状態を保持（`mrs.partial_apply()`）。G2の安全開角・引き戸の不変閉基準は不変。
 - **検証**：`verify_w07_g3.py`（scope=guest・52面 bind・空室含む variant/面変更の室内隔離・器具 on/off の室別性・水回り設備が多部品 Actor・新規室設定の保存往復・対象室を含まない比較案の拒否）＋`-RyukaSmoke`（歩行は scope 非依存、G2 の連続経路が PASS）＋8室 roomStates・開扉・非nullカメラを入力にした完全refresh1回（`status: complete`、状態転送照合成功、`openYawDeltaDeg=73` 維持）＋昼夜の代表画像。詳細は[W07-G3-report.md](tasks/W07-G3-report.md)。
 
+## ゲスト試用版ランチャー（guest_launcher、W08-G・2026-09-10追加）
+
+施主が build 内のパスやコマンドを毎回 AI へ尋ねずに「内覧を開く → 家具変更を取り込む → 更新する → 案を保存する → 比較を記録する」まで操作できる薄い入口。**既存CLIとUE機能を束ねるだけ**で、状態schema・部屋/面/器具ID・単位・正本の契約は複製しない。新しいアプリ基盤・サーバー・インストーラー・UE不要の配布exe は作らない。
+
+- **入口**：`guest-launcher.cmd`（ワークツリー直下、ダブルクリック）→ `scripts/guest_launcher/`（Python標準ライブラリ＋tkinter）。パス解決は `paths.ROOT = Path(__file__).parents[2]` で cwd 非依存。外部CLIは `runner.run_logged(argv, ...)`（`shell=False`、引数配列。パス・案名をシェルへ連結しない）。
+- **ローカル設定**：`build/launcher/config.json`（`.gitignore` の `build/` 配下）にエンジン/Blender/cache のパス・選択中モデル・登録モデル・最新更新出力。モデル参照は可能ならワークツリー相対（`paths.to_repo_relative`）。再起動後に選択と案を復元。依存不足は `config.missing_dependencies()` が日本語で不足箇所と次の操作を返す。
+- **モデル検出（`models.py`）**：`build/*/RyukaInterior.uproject` と `build/*/ue/RyukaInterior.uproject` を、`import-verification.json` の `scopeId==guest` ＋ `unrealImportVerified`、`walkthrough-verification.json` の `configured` で**実際に確認**。日付・ディレクトリ名だけで最新版と判定しない。
+- **内覧（`walkthrough.py`）**：`launch-unreal-walkthrough.py`（`--smoke` なし）。smoke/verify/初期化スクリプトは通常起動に流用しない。ランチャーは `study-state.json` を書かないので保存済みF5状態を基準状態で上書きしない。「編集・比較」は `UnrealEditor.exe <uproject>`（面編集・A/Bはエディタの『ツール → 内装比較』）。
+- **家具取込（`furniture.py`）**：Three.js「furniture.jsonを書き出す」の出力のみ（`schemaVersion 1.0.0 / units m / items 配列` を先に確認、house/電気/建具JSONは拒否）。`build_report()` が現行正本と**全件差分**（ゲスト対象/対象外・削除件数・note/status の消失を明示）を出し、**検証前に正本を変更しない**。検証は `tests/validate_furniture.py:validate(catalog, furniture, house)`（同じ検査を候補へ適用できるよう関数化）＋ asset-binding 事前照合。`apply_candidate()` は 直前正本を `build/launcher/backups/` へコピー → `data/furniture.json` を置換 → `node scripts/build-web-data.mjs`。失敗時は「正本反映済み／Web生成失敗」等の実状態を返す。
+- **モデル更新（`update.py`）**：取込 ≠ UE反映（「モデル更新が必要」と区別）。`plan_update()` が `source_changes.compare()` で入力差分を表示。`run_update()` が `refresh-visual-study.py --previous <選択> --scope guest --output build/W08-G-update-<日時>`（既定 `--gallery` なし、前モデル・案は上書き/削除しない）。工程名・実行中/成功/失敗・経過秒・ログを表示。二重起動を `runner.BackgroundJob` が防止。**終了コード0 ＋ `status: complete` ＋ 新モデルの `inspect_project().valid` ＋ 転送検証** を確認してから現行モデルを切替。失敗時は前モデルと案を維持し工程・理由・ログを提示。
+- **案（`scenarios.py`）**：`list_scenarios()`（`list-study-scenarios.py:describe()` 再利用）＋ `save_current_as_scenario()` → `refresh_inputs.save_scenario_package()`（保存元はF5/エディタの最新の有効な保存を既存共通処理が選択、slug 衝突は `-2`/`-3`、既存案を上書きしない）。読込・比較は既存メニュー/CLIへの導線を文言で提示。
+- **比較記録（`comparison.py`）**：`record_finish_ab()` が対象室（保存状態の `activeRoomId`）の固定カメラで `capture-unreal-study.py` を variant ごとに1回（太陽は同じ手動角度、レベル非保存）。画像と `*-conditions.json`（対象室・視点・手動太陽・露出・昼夜/点灯）を `build/launcher/comparisons/<日時>/` に対応付け。撮影失敗は登録しない。`build_shared_copy()` は**画像＋許可リストの条件のみ**を出力し、`site.local.json`/座標/絶対パス/`sourceHashes`/`sha256`/生ログ/元JSON が JSON に混じっていたら**全体を消して中止**。自動公開・送信はしない。
+- **補助CLI**：`python scripts/guest_launcher/__main__.py <status|detect|furniture-report|furniture-apply|furniture-restore|update-plan|update|scenario-save|scenarios|record-ab|shared-copy>`（実装者の操作確認・CI用。施主の日常操作はGUI）。
+- **検証**：`tests/test_guest_launcher.py`（設定往復・モデル検証・家具候補の差分/検証/反映/復元・共有コピー無害化）＋ 補助CLIによる実操作（家具の反映と復元、案の保存、モデル更新の成功1・失敗1、A/Bの記録と共有コピー）。詳細は[W08-G-report.md](tasks/W08-G-report.md)、使い方は[GUEST_TRIAL_GUIDE.md](GUEST_TRIAL_GUIDE.md)。
+
 ## 内覧モード（walk）
 
 俯瞰・平面図の間取りを実際に歩いて体験できることを目的としたモード。壁の当たり判定は上記「rooms / walls について」の自動導出壁（`wallSegmentsByLevel`）を使い、これに加えてドアの扉本体（近づくと開く演出）と家具の当たり判定を持つ。
