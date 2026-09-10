@@ -21,7 +21,6 @@ _compare=None  # W04 finish A/B in progress: dict(fixed=..,before=..,a=..,b=..,c
 _daylight_compare=None  # W05 datetime A/B in progress: dict(fixed=..,before=..,a=..,b=..,current=..,names=..)
 _lighting_compare=None  # W06 night lighting A/B in progress: same shape as _compare
 _selected_lighting=None  # fixture id OR group id currently targeted by the 照明 menu
-_door_leaf_closed_location={}  # W07-G2: actor label -> unreal.Vector, a slide leaf's own CLOSED baseline (see apply_state())
 
 
 def _active_compare_label():
@@ -228,13 +227,14 @@ def apply_state(state):
     # the saved condition had it open. Same "collect the whole plan before
     # touching anything" discipline as the material/surface plans above.
     # openYawDeltaDeg leaves get an ABSOLUTE rotation set (0 or Delta) --
-    # correct regardless of whatever pose the mesh actually has. An
-    # openOffsetCm leaf needs its own CLOSED baseline recovered once (like
-    # the native walkthrough's own DoorLeafSpawnLocation) -- cached in
-    # _door_leaf_closed_location across calls in this same editor session,
-    # corrected for whichever pose the leaf was ACTUALLY baked in
-    # (`bakedOpen`), not assumed from whatever apply_state() happens to see
-    # first.
+    # correct regardless of whatever pose the mesh actually has.
+    #
+    # W07-G2 review-v2 R1: a sliding leaf is set to an ABSOLUTE position too,
+    # anchored on `closedLocationCm` -- the immutable closed-world location
+    # import_study.py captured once on the fresh imported scene and stamped
+    # into door-bindings.json. No per-session estimation from a live pose,
+    # so an editor save that persisted an open leaf, an Undo, or a reload
+    # can no longer shift the baseline (the v2 review defect).
     door_plan=[]
     for door_id,info in (door_bindings_doc or dict(doors={}))['doors'].items():
         if not info['openable']: continue
@@ -245,10 +245,9 @@ def apply_state(state):
             if 'openYawDeltaDeg' in leaf:
                 door_plan.append((actor,'rotate',leaf['openYawDeltaDeg'] if is_open else 0.))
             elif 'openOffsetCm' in leaf:
-                if leaf['actor'] not in _door_leaf_closed_location:
-                    current=actor.get_actor_location(); offset=unreal.Vector(*leaf['openOffsetCm'])
-                    _door_leaf_closed_location[leaf['actor']]=current-offset if leaf['bakedOpen'] else current
-                base=_door_leaf_closed_location[leaf['actor']]
+                if 'closedLocationCm' not in leaf:
+                    raise RuntimeError('door-bindings.json leaf missing closedLocationCm (re-run import_study.py): '+leaf['actor'])
+                base=unreal.Vector(*leaf['closedLocationCm'])
                 door_plan.append((actor,'move',base+unreal.Vector(*leaf['openOffsetCm']) if is_open else base))
     finish_document=read('finish-settings.json')
     surface_planned=[]
@@ -378,6 +377,29 @@ def fixed_view():
     unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).pilot_level_actor(camera)
 
 
+def _walkthrough_attribution(room_id):
+    """W07-G2 review-v2 R2: the `walkthrough` (profileId/roomId/level) an
+    editor viewpoint save should carry so the native walkthrough's Restore()
+    can put F9 back where this save actually is. Editor edit-scope rooms are
+    always inside the guest walkthrough profile, so this resolves; a room the
+    active profile does not walk yields None (no attribution rather than a
+    wrong one). This is a deliberate re-resolution -- NOT clearing to None,
+    which made Restore() fall back to the profile entry room (玄関) and send
+    F9 there instead of to the room the editor viewpoint belongs to."""
+    scope_id=read('SourcePackage/study.json')['scopeId']
+    try:
+        profile=circulation.resolve_profile_for_scope(
+            read('SourcePackage/inputs/data/visual/walkthrough-profiles.json'),scope_id)
+    except Exception:
+        return None
+    if not profile or room_id not in profile.get('roomIds',[]):
+        return None
+    room=next((r for r in _house()['rooms'] if r['id']==room_id),None)
+    if room is None:
+        return None
+    return dict(profileId=profile['profileId'],roomId=room_id,level=room['level'])
+
+
 def remember_view():
     _require_no_active_compare()  # W06-v2 review 必須修正B
     position,rotation=unreal.EditorLevelLibrary.get_level_viewport_camera_info()
@@ -385,15 +407,11 @@ def remember_view():
     camera=scene()['Camera_guest_LDK']
     state['camera']=dict(locationCm=list(position.to_tuple()),rotationDeg=[rotation.pitch,rotation.yaw,rotation.roll],
         lensMm=camera.get_cine_camera_component().get_editor_property('current_focal_length'))
-    # W07-G2 review R2: this camera is the EDITOR's own fixed comparison
-    # viewpoint, not a position the native walkthrough itself ever visited --
-    # a stale `walkthrough` attribution left over from an earlier native F5
-    # save must not keep pointing at a room/position this new camera has
-    # nothing to do with (F9 would then try to restore INTO that stale room
-    # using coordinates that actually belong here). Cleared, not re-resolved:
-    # this function has no native-walkthrough "current room" concept to
-    # resolve one from.
-    state['walkthrough']=None
+    # W07-G2 review-v2 R2: re-resolve the walkthrough attribution to the room
+    # this viewpoint is FOR (the active edit-scope room), so F9 restores here
+    # and not to the profile entry room. Clearing it to None (v2) left
+    # Restore() with nothing to resolve and it always chose EntryRoomId.
+    state['walkthrough']=_walkthrough_attribution(state['activeRoomId'])
     apply_state(state)
 
 
@@ -432,13 +450,12 @@ def select_room(room_id):
     state=current_state()
     state['activeRoomId']=room_id
     state['camera']=_room_camera_cm(room_id)
-    # W07-G2 review R2: same reasoning as remember_view() -- this room's own
-    # safe initial camera is not a position the native walkthrough itself
-    # ever visited, so a stale `walkthrough` attribution from an earlier
-    # native F5 save must not survive this switch (F9 would otherwise try to
-    # restore into a since-abandoned room using coordinates that now belong
-    # to a DIFFERENT room's camera).
-    state['walkthrough']=None
+    # W07-G2 review-v2 R2: re-resolve the walkthrough attribution to the room
+    # just selected (whose camera we just set), so F9 restores into THIS room
+    # rather than the profile entry room (玄関). v2 cleared this to None,
+    # which made C++ Restore() -- treating "walkthrough absent" as first
+    # launch -- always pick EntryRoomId.
+    state['walkthrough']=_walkthrough_attribution(room_id)
     apply_state(state)
     # A stale selection from the PREVIOUS active room (面編集/照明) must not
     # silently keep being the edit target once the operator has moved on to

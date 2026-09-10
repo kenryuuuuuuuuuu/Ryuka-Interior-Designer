@@ -36,7 +36,7 @@ private:
  // profile (the pre-G2 guest-ldk-solo profile) degenerates this to exactly
  // the old single-room behaviour, not a separate code path.
  struct FRoomInfo {TArray<FVector2D> Polygon; double FloorCm=0; int32 Level=0; FString Label;};
- struct FLeafInfo {FString Actor; FString Kind; bool bHasYaw=false; double OpenYawDeltaDeg=0; bool bHasOffset=false; FVector OpenOffsetCm=FVector::ZeroVector; bool bBakedOpen=false;};
+ struct FLeafInfo {FString Actor; FString Kind; bool bHasYaw=false; double OpenYawDeltaDeg=0; bool bHasOffset=false; FVector OpenOffsetCm=FVector::ZeroVector; bool bBakedOpen=false; bool bHasClosedLocation=false; FVector ClosedLocationCm=FVector::ZeroVector;};
  struct FConnectionInfo {FString Id; TArray<FString> RoomIds; FString Operation; bool bOpenable=false; bool bHorizontal=false; double AtCm=0; double LoCm=0; double HiCm=0; TArray<FLeafInfo> Leaves; FString Label;};
  struct FOpeningWindow {bool bHorizontal=false; double At=0; double Lo=0; double Hi=0;};
  TMap<FString,FRoomInfo> Rooms;
@@ -44,17 +44,12 @@ private:
  TMap<FString,TArray<FOpeningWindow>> RoomOpenings;
  TArray<FString> EditRoomIds;
  FString ProfileId, EntryRoomId, CurrentRoomId, NearestDoorId;
- // A slide leaf's CLOSED world location, captured lazily the first time
- // ApplyConditions() sees it (never re-captured afterward, or repeated
- // opens/closes would drift) -- an unattached actor's "relative" location
- // API is just its absolute one, so the open offset must be added to a
- // remembered baseline rather than composed some other way. W07-G2 review
- // R1: the CAPTURED value is corrected by that leaf's own bakedOpen flag
- // (FLeafInfo::bBakedOpen) at capture time, since the leaf's actual pose the
- // first time this looks may already be OPEN (build_interior.py now bakes a
- // door open when generation's own doorStates says so) -- never assumed
- // closed just because it is whatever this happens to see first.
- TMap<FString,FVector> DoorLeafSpawnLocation;
+ // W07-G2 review-v2 R1: a slide leaf's CLOSED world location is no longer
+ // guessed at runtime from a live actor pose (an editor .umap save, an Undo
+ // or a reload could persist the leaf OPEN and be mistaken for closed).
+ // import_study.py captures it once on the fresh imported scene and stamps
+ // FLeafInfo::ClosedLocationCm into door-bindings.json -> walkthrough.json;
+ // ApplyConditions() reads that fixed value directly.
  // W04: loaded once in BeginPlay(); invalid/empty for a pre-W04 generated
  // project (no surface-bindings.json/no registered surfaces there), in
  // which case ApplyConditions() simply has no per-surface overrides to
@@ -67,7 +62,7 @@ private:
  // below just finds no fixtures to apply -- not an error.
  TSharedPtr<class FJsonObject> LightingBindings;
  FVector LastSafeLocation=FVector::ZeroVector;
- mutable FString LastLeafMotionBlocker;  // W07-G2: diagnostic -- label of whatever last made LeafMotionClear() return false
+ mutable FString LastLeafMotionBlocker;  // W07-G2: diagnostic -- label of whatever last limited/blocked a leaf's motion
  void SetFinish(const FString& Name,const FString& Label);
  void SetSun(float Elevation);
  bool ApplyConditions();
@@ -78,7 +73,18 @@ private:
  void UpdateCurrentRoom();
  void FindNearestDoor();
  bool GetDoorOpen(const FString& DoorId) const;
- bool LeafMotionClear(AActor* Leaf, const FTransform& From, const FTransform& To, const TArray<AActor*>& AlsoIgnore) const;
+ // W07-G2 review-v2 R3: fraction [0,1] of the From->To leaf motion that is
+ // clear. 1.0 == the whole motion is clear. `bIncludeWalls` -- building
+ // walls count as obstacles (used when OPENING: they cap how far the leaf
+ // swings); off when CLOSING (the closed pose is generation-validated
+ // geometry, only dynamic things in the path matter). `bCheckPlayer` --
+ // the player's own capsule is an obstacle too (used for an interactive
+ // toggle: a close that would sweep through someone in the doorway is
+ // rejected here, not only by the later static Safe()). Always excluded:
+ // the leaf, this door's own frame + sibling leaves (AlsoIgnore), and every
+ // door's frame pieces (jambs/head/sill -- trim, part of the wall assembly).
+ float LeafMotionClearFraction(AActor* Leaf, const FTransform& From, const FTransform& To, const TArray<AActor*>& AlsoIgnore, bool bIncludeWalls, bool bCheckPlayer) const;
+ bool bInteractiveDoorToggle=false; // true only while InteractDoor()'s own ApplyConditions() runs
  bool Restore(const TSharedPtr<FJsonObject>& Candidate);
 };
 

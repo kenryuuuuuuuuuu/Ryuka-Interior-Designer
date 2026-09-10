@@ -179,14 +179,22 @@ def validate_door_bindings(document):
                 # W07-G2 review R1: each leaf's INITIAL pose (this generation's
                 # own render, and what UE actually imports) must now match the
                 # state doorStates given to Blender, not always start closed --
-                # `bakedOpen` records which one generation actually chose, so
-                # every consumer (UE's initial import, and the native
-                # walkthrough's own lazy spawn-baseline capture for a slide
-                # leaf) can recover the true CLOSED baseline regardless of
-                # which doorStates happens to be active when it first looks,
-                # instead of assuming "whatever pose I see now is closed".
+                # `bakedOpen` records which one generation actually chose.
                 if not isinstance(leaf, dict) or not isinstance(leaf.get('bakedOpen'), bool):
                     raise ValueError(f'doors[{door_id}]: each leaf must record bakedOpen (bool)')
+                # W07-G2 review-v2 R1: a sliding leaf's IMMUTABLE closed
+                # world location. Absent in the raw Blender output (Blender
+                # only knows its own coordinate space); import_study.py
+                # captures it once on the fresh imported scene and stamps it
+                # here, and from then on every consumer references THIS fixed
+                # value instead of re-estimating a baseline from a live pose.
+                # So: optional (raw bindings pass), but if present it must be
+                # a 3-number vector.
+                if 'closedLocationCm' in leaf:
+                    v = leaf['closedLocationCm']
+                    if (not isinstance(v, list) or len(v) != 3
+                            or not all(isinstance(c, (int, float)) for c in v)):
+                        raise ValueError(f'doors[{door_id}]: closedLocationCm must be [x, y, z]')
     return document
 
 
@@ -260,6 +268,16 @@ def _swing_delta_deg(connection, sign=1.0):
     # "toward larger coordinate" case).
     hinge_lo = connection.get('hingeSide') != 'R'
     magnitude = base if (toward_positive == hinge_lo) else -base
+    # W07-G2 review-v2 R3: for an H wall the leaf lies along x and swings in
+    # z; for a V wall it lies along z and swings in x. The wall-sweep axis
+    # and the along-wall axis are swapped, and one of the two (Blender/UE Y)
+    # is the reflected one, so the yaw sign that sends a leaf toward
+    # `swingToward` is INVERTED between the two orientations. The formula
+    # above was derived (and verified against door-002, an H wall opening
+    # into the LDK) for H; flip it for V (verified against door-024, the
+    # 洋室/収納 double-swing, which otherwise opened into the closet).
+    if connection.get('orientation') == 'V':
+        magnitude = -magnitude
     return magnitude * sign
 
 
@@ -288,6 +306,35 @@ def double_swing_hinges_and_deltas(connection):
     left = dict(connection, hingeSide='L')
     right = dict(connection, hingeSide='R')
     return [(left_hinge, _swing_delta_deg(left), 'left'), (right_hinge, _swing_delta_deg(right), 'right')]
+
+
+def swing_leaf_free_end_travel(connection, hinge_xy, delta_deg):
+    """The (dx, dz) SOURCE-space displacement of a swing leaf's free end when
+    it opens by `delta_deg` -- used to check the leaf actually swings toward
+    `connection['swingToward']` and not into the wall/closet.
+
+    Model: the leaf lies flat in the wall when closed (its free end one
+    opening-width from the hinge along the wall). build_interior.py applies
+    the open pose in BLENDER as rotation_euler[2] = radians(-delta_deg), and
+    Blender axes are (X = source x, Y = -(source z)); so this reproduces that
+    exact rotation and maps the result back to source space."""
+    import math
+    at = connection['wallAt']
+    lo = connection['center'] - connection['width'] / 2
+    hi = connection['center'] + connection['width'] / 2
+    hx, hz = hinge_xy
+    # free end (closed), source space: the OTHER end of the opening span
+    if connection['orientation'] == 'H':
+        fx, fz = (hi if abs(hx - lo) < abs(hx - hi) else lo), at
+    else:
+        fx, fz = at, (hi if abs(hz - lo) < abs(hz - hi) else lo)
+    # closed free-end offset from hinge, in Blender coords (X=x, Y=-z)
+    bx, by = fx - hx, -(fz - hz)
+    theta = math.radians(-delta_deg)
+    rx = bx * math.cos(theta) - by * math.sin(theta)
+    ry = bx * math.sin(theta) + by * math.cos(theta)
+    # back to source: dx = rx - bx (Blender X == source x); dz = -(ry - by)
+    return (rx - bx, -(ry - by))
 
 
 def slide_open_offset(connection):

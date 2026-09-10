@@ -215,63 +215,78 @@ bool AWalkthroughCharacter::GetDoorOpen(const FString& DoorId) const {
  if(!(*DoorStatesObj)->TryGetObjectField(DoorId,Override)) return false;
  bool bOpen=false; (*Override)->TryGetBoolField(TEXT("open"),bOpen); return bOpen;
 }
-bool AWalkthroughCharacter::LeafMotionClear(AActor* Leaf,const FTransform& From,const FTransform& To,const TArray<AActor*>& AlsoIgnore) const {
- // W07-G2 review R3: a discrete interference check (no physics simulation,
- // no smooth animation -- matches the review's own guidance) along the
- // leaf's own path from From to To. Rather than sweeping the whole leaf as
- // one oriented box (a thin panel hinged at its edge sweeps an OBB whose
- // far corners graze hard against the wall plane it started flush in --
- // constant false positives), this samples a few POINTS spread along the
- // panel's own length (the part that actually sweeps the most), each tested
- // with a small sphere sized to the panel's own thickness plus a person's
- // margin, at several intermediate poses. The check's job is catching
- // FURNITURE / decor / a different door / a placed obstacle in the arc --
- // structural WALLS are excluded (a wall near a doorway just limits how far
- // that door opens, a fixed-geometry property, not a runtime "cannot
- // operate"; operating a door through a wall from the wrong side is a
- // separate concern, handled by FindNearestDoor()'s own line trace).
- // `AlsoIgnore` is this SAME door's own frame pieces and sibling leaf(s).
- // No motion (a door staying closed on the initial restore, or staying at
- // whatever it already is) sweeps through nothing -- and running the check
- // anyway on EVERY ApplyConditions() call, including the first restore
- // before bReady, is what regressed bReady when a leaf's own resting pose
- // happened to trip a probe.
- if(From.Equals(To,0.5f)) return true;
- auto MeshActor=Cast<AStaticMeshActor>(Leaf); if(!MeshActor) return true;
- auto Component=MeshActor->GetStaticMeshComponent(); auto StaticMesh=Component?Component->GetStaticMesh():nullptr;
- if(!StaticMesh) return true;
- const FBoxSphereBounds LocalBounds=StaticMesh->GetBounds();
- // The panel's longest local axis is its width; sample along it. Mid-height,
- // mid-thickness on that axis.
- const FVector Ext=LocalBounds.BoxExtent;
- // Sample along the panel's WIDTH -- the larger of the two HORIZONTAL local
- // extents (X/Y); Z is the door's height, which barely sweeps under a yaw
- // rotation and would sample a useless vertical column.
- const int32 WidthAxis=(Ext.X>=Ext.Y)?0:1;
- const float ProbeRadius=(float)(FMath::Min(Ext.X,Ext.Y)+6.); // panel half-thickness + ~6cm person margin
- FCollisionQueryParams Params(SCENE_QUERY_STAT(WalkthroughDoorMotion),false,this); Params.AddIgnoredActor(Leaf);
- for(AActor* Ignore:AlsoIgnore) Params.AddIgnoredActor(Ignore);
- for(TActorIterator<AActor> It(GetWorld());It;++It)
-  if(It->GetActorLabel().StartsWith(TEXT("wall_"))||It->GetActorLabel().StartsWith(TEXT("Ground_"))) Params.AddIgnoredActor(*It);
- static constexpr int32 PoseSteps=6;
+float AWalkthroughCharacter::LeafMotionClearFraction(AActor* Leaf,const FTransform& From,const FTransform& To,const TArray<AActor*>& AlsoIgnore,bool bIncludeWalls,bool bCheckPlayer) const {
+ // W07-G2 review-v2 R3: a discrete swept check (no physics sim, no smooth
+ // animation -- as the review permits) of how far the leaf can travel from
+ // From to To before it hits a real obstacle. Rather than sweeping the whole
+ // panel as one OBB (whose far corners graze the wall it started flush in --
+ // constant false positives) this samples POINTS along the panel's own
+ // WIDTH axis, each a small sphere sized to the panel's own half-thickness
+ // plus a couple of cm of tolerance -- NOT a person's margin: the leaf is
+ // not a person, a leaf clearing a wall by a few cm is fine. Whether the
+ // RESULTING doorway is wide enough to walk through is decided by the caller
+ // from the returned fraction.
+ //
+ // Obstacles: furniture, OTHER doors' leaves, and (when bIncludeWalls) the
+ // building walls (wall_/Ground_) that cap how far a leaf can open, and
+ // (when bCheckPlayer) the player's own capsule -- so a close that would
+ // sweep through someone standing in the doorway is caught here. Always
+ // excluded: the leaf, this door's own frame + sibling leaves (AlsoIgnore),
+ // and every door's frame pieces (opening_*_left/right/head/sill -- trim,
+ // part of the wall assembly). Other doors' *_leaf* actors stay in.
  LastLeafMotionBlocker.Empty();
+ if(From.Equals(To,0.5f)) return 1.f;
+ auto MeshActor=Cast<AStaticMeshActor>(Leaf); if(!MeshActor) return 1.f;
+ auto Component=MeshActor->GetStaticMeshComponent(); auto StaticMesh=Component?Component->GetStaticMesh():nullptr;
+ if(!StaticMesh) return 1.f;
+ const FBoxSphereBounds LocalBounds=StaticMesh->GetBounds();
+ const FVector Ext=LocalBounds.BoxExtent;
+ const int32 WidthAxis=(Ext.X>=Ext.Y)?0:1; // the larger HORIZONTAL extent; Z is the door height and barely sweeps
+ const float ProbeRadius=(float)(FMath::Min(Ext.X,Ext.Y)+2.); // panel half-thickness + ~2cm tolerance
+ FCollisionQueryParams Params(SCENE_QUERY_STAT(WalkthroughDoorMotion),false); Params.AddIgnoredActor(Leaf);
+ for(AActor* Ignore:AlsoIgnore) Params.AddIgnoredActor(Ignore);
+ if(!bCheckPlayer) Params.AddIgnoredActor(this);
+ for(TActorIterator<AActor> It(GetWorld());It;++It) {
+  const FString L=It->GetActorLabel();
+  if(L.StartsWith(TEXT("opening_"))&&(L.EndsWith(TEXT("_left"))||L.EndsWith(TEXT("_right"))||L.EndsWith(TEXT("_head"))||L.EndsWith(TEXT("_sill"))))
+   {Params.AddIgnoredActor(*It); continue;} // any door's jamb/head/sill: trim, part of the wall assembly
+  if(!bIncludeWalls&&(L.StartsWith(TEXT("wall_"))||L.StartsWith(TEXT("Ground_")))) Params.AddIgnoredActor(*It);
+ }
+ static constexpr int32 PoseSteps=8;
+ const bool bRotating=!From.GetRotation().Equals(To.GetRotation(),0.01f);
+ // A rotating (swing) panel was recentred on its HINGE (blender
+ // _recenter_object): actor origin = hinge (local 0), mesh bounds centre
+ // ~half a panel-width out along WidthAxis. Sample the OUTER half only --
+ // mid-panel to the free edge, on whichever side the geometry lies (sign of
+ // Origin[WidthAxis]). The hinge end barely moves and, sitting in the wall
+ // plane, would only ever graze the frame stubs beside the opening (a
+ // classic false positive). A sliding panel translates uniformly, so sample
+ // symmetrically across its whole width instead.
+ const double OuterEdge=LocalBounds.Origin[WidthAxis]
+  +(LocalBounds.Origin[WidthAxis]>=0.?1.:-1.)*Ext[WidthAxis];
+ float LastClear=0.f;
  for(int32 I=1;I<=PoseSteps;I++) {
   const float T=(float)I/(float)PoseSteps;
   const FVector Loc=FMath::Lerp(From.GetLocation(),To.GetLocation(),T);
   const FQuat Rot=FQuat::Slerp(From.GetRotation(),To.GetRotation(),T);
-  for(float Along:{0.35f,0.6f,0.85f,1.0f}) {
+  bool bPoseClear=true;
+  for(float Along:{0.15f,0.45f,0.75f,1.0f}) {
    FVector LocalProbe=LocalBounds.Origin;
-   LocalProbe[WidthAxis]=LocalBounds.Origin[WidthAxis]+(Along-0.5f)*2.f*Ext[WidthAxis]; // Along=0.5 -> centre, 1.0 -> far edge
+   LocalProbe[WidthAxis]=bRotating
+    ?FMath::Lerp(LocalBounds.Origin[WidthAxis],OuterEdge,Along)          // mid-panel -> free edge
+    :LocalBounds.Origin[WidthAxis]+(Along-0.5f)*1.7f*Ext[WidthAxis];     // across the slide panel's width
    const FVector World=Loc+Rot.RotateVector(LocalProbe);
    if(GetWorld()->OverlapBlockingTestByChannel(World,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeSphere(ProbeRadius),Params)) {
     TArray<FOverlapResult> Hits; GetWorld()->OverlapMultiByChannel(Hits,World,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeSphere(ProbeRadius),Params);
     FString Names; for(auto& H:Hits) if(H.GetActor()) Names+=H.GetActor()->GetActorLabel()+TEXT(" ");
     LastLeafMotionBlocker=FString::Printf(TEXT("t=%.2f along=%.2f {%s}"),T,Along,*Names);
-    return false;
+    bPoseClear=false; break;
    }
   }
+  if(!bPoseClear) break;
+  LastClear=T;
  }
- return true;
+ return LastClear;
 }
 FString AWalkthroughCharacter::CurrentRoomLabel() const {
  if(const FRoomInfo* Info=Rooms.Find(CurrentRoomId)) return Info->Label.IsEmpty()?CurrentRoomId:Info->Label;
@@ -338,6 +353,14 @@ void AWalkthroughCharacter::BeginPlay() {
      if(LObj->TryGetArrayField(TEXT("openOffsetCm"),OffsetArray)&&OffsetArray->Num()==3) {
       Leaf.bHasOffset=true;
       Leaf.OpenOffsetCm=FVector((*OffsetArray)[0]->AsNumber(),(*OffsetArray)[1]->AsNumber(),(*OffsetArray)[2]->AsNumber());
+     }
+     // W07-G2 review-v2 R1: the immutable closed-world location stamped by
+     // import_study.py -- ApplyConditions() anchors an offset leaf on this
+     // fixed value instead of re-deriving a baseline from a live pose.
+     const TArray<TSharedPtr<FJsonValue>>* ClosedArray;
+     if(LObj->TryGetArrayField(TEXT("closedLocationCm"),ClosedArray)&&ClosedArray->Num()==3) {
+      Leaf.bHasClosedLocation=true;
+      Leaf.ClosedLocationCm=FVector((*ClosedArray)[0]->AsNumber(),(*ClosedArray)[1]->AsNumber(),(*ClosedArray)[2]->AsNumber());
      }
      Info.Leaves.Add(Leaf);
     }
@@ -415,6 +438,19 @@ bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
    &&(*WalkthroughObj)->TryGetStringField(TEXT("roomId"),CandidateRoomId)&&(CandidateRoom=Rooms.Find(CandidateRoomId))!=nullptr
    &&(*WalkthroughObj)->TryGetNumberField(TEXT("level"),CandidateLevel)&&CandidateRoom->Level==CandidateLevel;
   if(!bConsistent) {Message=TEXT("保存データの内覧位置が現在のモデルと整合しません"); return false;}
+  // W07-G2 review-v2 R2: not just "roomId/level exist" -- the SAVED VIEWPOINT
+  // (camera XY) must actually stand in that room, not another one. Catches a
+  // stale attribution whose camera has since been moved elsewhere (the exact
+  // "editor switched rooms" case). Tolerant of a viewpoint near the room's
+  // own edge: rejected only when the camera clearly sits inside a DIFFERENT
+  // profile room and not in the attributed one.
+  const FVector CameraXY(P.X,P.Y,CandidateRoom->FloorCm+88.5);
+  if(!InsideRoomPolygon(CandidateRoomId,CameraXY,false)) {
+   for(auto& Pair:Rooms)
+    if(Pair.Key!=CandidateRoomId&&InsideRoomPolygon(Pair.Key,CameraXY,true)) {
+     Message=TEXT("保存データの内覧位置と視点が一致しません"); return false;
+    }
+  }
   TargetRoomId=CandidateRoomId;
  }
  const FRoomInfo* TargetRoom=Rooms.Find(TargetRoomId);
@@ -733,44 +769,56 @@ bool AWalkthroughCharacter::ApplyConditions() {
    for(auto& Field:(*Override)->Values) if(Field.Key!=TEXT("open")) return false;
    if(!(*Override)->TryGetBoolField(TEXT("open"),bOpen)) return false;
   }
-  // This connection's own frame pieces (left/right/head[/sill]) and every
-  // sibling leaf (a double-swing's other half) -- excluded from the
-  // interference check below, see LeafMotionClear()'s own comment.
+  // This connection's own frame pieces and sibling leaves -- excluded from
+  // the interference check (see LeafMotionClearFraction()'s own comment).
   TArray<AActor*> DoorOwnActors;
   for(auto& Pair:Actors) if(Pair.Key.StartsWith(TEXT("opening_")+Connection.Id+TEXT("_"))) DoorOwnActors.Add(Pair.Value);
+  const double DoorwayWidthCm=Connection.HiCm-Connection.LoCm;
   for(auto& Leaf:Connection.Leaves) {
    AActor* LeafActor=Actors.FindRef(Leaf.Actor); if(!LeafActor) return false;
    const FTransform FromXform=LeafActor->GetActorTransform();
-   FTransform ToXform=FromXform;
+   FTransform FullToXform=FromXform;
    if(Leaf.bHasYaw) {
-    ToXform.SetRotation(FQuat(FRotator(0,bOpen?Leaf.OpenYawDeltaDeg:0.,0)));
+    FullToXform.SetRotation(FQuat(FRotator(0,bOpen?Leaf.OpenYawDeltaDeg:0.,0)));
    } else if(Leaf.bHasOffset) {
-    // W07-G2 review R1: recover the TRUE closed baseline from bBakedOpen,
-    // not from "whatever pose this leaf happens to be in the first time
-    // ApplyConditions() looks" -- a save/scenario loaded before generation's
-    // own doorStates matches the baked pose (see FLeafInfo::bBakedOpen and
-    // build_interior.py's own bakedOpen comment).
-    if(!DoorLeafSpawnLocation.Contains(Leaf.Actor)) {
-     const FVector Spawn=LeafActor->GetActorLocation();
-     DoorLeafSpawnLocation.Add(Leaf.Actor,Leaf.bBakedOpen?Spawn-Leaf.OpenOffsetCm:Spawn);
-    }
-    const FVector Base=DoorLeafSpawnLocation[Leaf.Actor];
-    ToXform.SetLocation(bOpen?Base+Leaf.OpenOffsetCm:Base);
+    // W07-G2 review-v2 R1: the closed baseline is the IMMUTABLE
+    // ClosedLocationCm import_study.py captured once and stamped into
+    // door-bindings.json -- never re-estimated here from a live pose.
+    const FVector Base=Leaf.bHasClosedLocation?Leaf.ClosedLocationCm:LeafActor->GetActorLocation();
+    FullToXform.SetLocation(bOpen?Base+Leaf.OpenOffsetCm:Base);
    } else continue;
-   // W07-G2 review R3: reject a toggle whose leaf motion would pass through
-   // an existing obstacle even though the start and end poses are each
-   // individually clear (e.g. furniture placed since generation, or a
-   // second leaf's own swept arc) -- checked here, in the read-only
-   // planning phase, so a rejected toggle leaves everything untouched, same
-   // as every other stop condition in this function. Only the OPENING
-   // direction is checked: closing returns the leaf to its generation-time
-   // baked pose, which was already validated against the rest of the model
-   // when the scene was built, so a "cannot close" verdict would only ever
-   // be a false positive from a probe grazing adjacent fixed geometry (a
-   // neighbouring door frame at a shared corner). The player's own capsule
-   // being in the closing leaf's way is a separate concern, still handled
-   // by InteractDoor()'s Safe(GetActorLocation()) check after this.
-   if(bOpen&&!LeafMotionClear(LeafActor,FromXform,ToXform,DoorOwnActors)) return false;
+   // W07-G2 review-v2 R3: how far can the leaf actually travel? Opening
+   // checks against the building walls too (they cap the swing) and, for an
+   // interactive toggle, the player's capsule; closing ignores the walls
+   // (the closed pose is generation-validated) but still catches furniture
+   // or a person in the leaf's path. A blocked CLOSE is always rejected (a
+   // half-closed leaf across a doorway is worse than leaving it open). A
+   // blocked OPEN is applied at the furthest collision-free pose IF that
+   // still leaves a walkable gap, else rejected -- never forced through.
+   FTransform ToXform=FullToXform;
+   if(!FromXform.Equals(FullToXform,0.5f)) {
+    const float Frac=LeafMotionClearFraction(LeafActor,FromXform,FullToXform,DoorOwnActors,
+     /*bIncludeWalls*/bOpen,/*bCheckPlayer*/bInteractiveDoorToggle);
+    if(Frac<0.999f) {
+     if(!bOpen||Frac<0.05f) return false; // cannot fully close, or cannot move at all -- something is in the way
+     // Partial open: usable only if the leaf(s) have swung far enough that a
+     // person still fits through. Every leaf together spans the doorway when
+     // closed; after swinging Frac*delta the panels' projection back onto the
+     // wall line is span*cos(angle), so the remaining clear opening is
+     // span*(1-cos(angle)) -- correct for one leaf or two.
+     bool bPassable=false;
+     if(Leaf.bHasYaw) {
+      const double Angle=FMath::DegreesToRadians(FMath::Abs(Leaf.OpenYawDeltaDeg)*Frac);
+      bPassable=(DoorwayWidthCm*(1.-FMath::Cos(Angle)))>=48.; // one adult capsule + tolerance
+     } else {
+      bPassable=(FMath::Abs(Leaf.OpenOffsetCm.X)+FMath::Abs(Leaf.OpenOffsetCm.Y))*Frac
+                >=FMath::Max(DoorwayWidthCm-15.,48.); // slid nearly its whole travel
+     }
+     if(!bPassable) return false;
+     ToXform.BlendWith(FromXform,1.f-Frac); // == Lerp(From, FullTo, Frac)
+     LastLeafMotionBlocker=FString::Printf(TEXT("%s (partial open %.0f%%: %s)"),*Connection.Id,Frac*100.f,*LastLeafMotionBlocker);
+    }
+   }
    if(Leaf.bHasYaw) DoorPlan.Add({LeafActor,true,ToXform.Rotator(),FVector::ZeroVector});
    else DoorPlan.Add({LeafActor,false,FRotator::ZeroRotator,ToXform.GetLocation()});
   }
@@ -856,7 +904,14 @@ void AWalkthroughCharacter::InteractDoor() {
   if(bHadEntry) DoorStatesObj->SetObjectField(NearestDoorId,Backup); else DoorStatesObj->RemoveField(NearestDoorId);
   ApplyConditions(); // best-effort: puts the leaf back to bWasOpen
  };
- if(!ApplyConditions()) {Revert(); Message=TEXT("扉を開閉できません"); return;}
+ // W07-G2 review-v2 R3: while THIS ApplyConditions() runs, the leaf-motion
+ // check also treats the player's own capsule as an obstacle along the
+ // leaf's path -- so a close that would sweep through someone standing in
+ // the doorway is rejected here, not only afterwards by the static Safe().
+ bInteractiveDoorToggle=true;
+ const bool bApplied=ApplyConditions();
+ bInteractiveDoorToggle=false;
+ if(!bApplied) {Revert(); Message=TEXT("扉を開閉できません（壁・家具・人が扉の可動範囲にあります）"); return;}
  if(!Safe(GetActorLocation())) {Revert(); Message=TEXT("扉を動かせません（干渉しています）。近づきすぎている可能性があります"); return;}
  Message=(!bWasOpen?TEXT("開けました："):TEXT("閉じました："))+Label;
 }
@@ -1418,54 +1473,108 @@ void AWalkthroughCharacter::Tick(float Delta) {
       &&State->GetObjectField(TEXT("roomStates"))->GetObjectField(TEXT("room-1f-05"))->GetStringField(TEXT("variant"))==TEXT("warm")
       &&State->GetObjectField(TEXT("roomStates"))->GetObjectField(TEXT("room-1f-06"))->GetStringField(TEXT("variant"))==TEXT("natural");
      bRouteOk &= Leg(TEXT("ac4RestoredRoomPositionDoorAndBothRoomStates"),bAc4Restored);
-     // W07-G2 review R3 representative check #1 (両開き1件): door-024, a
-     // double-swing closet door directly off 洋室 (where the route already
-     // is). Confirms the sign fix (both leaves now swing toward the SAME
-     // room -- see circulation.py's own double_swing_hinges_and_deltas()
-     // comment) actually results in a passable opening, not the previous
-     // "one leaf swings into 洋室, the other into 収納" split.
+     // W07-G2 review-v2 R3 verification #1: "葉の終点は空いているが途中に
+     // 施主がいる閉動作の拒否" -- open door-002, stand on its LDK-side
+     // threshold (in the leaf's swing arc, both start and end poses clear of
+     // the player), attempt to close: LeafMotionClearFraction() with the
+     // player capsule included stops it, the door stays OPEN and doorStates
+     // is unchanged. Step off the arc and it closes normally.
+     {
+      CurrentRoomId=Door002->RoomIds[1]; SetActorLocation(P002[1],false,nullptr,ETeleportType::TeleportPhysics);
+      bRouteOk &= Leg(TEXT("r3ReopenDoor002"),SetDoor(Door002,true));
+      CurrentRoomId=Door002->RoomIds[0];
+      SetActorLocation(P002[0],false,nullptr,ETeleportType::TeleportPhysics); // LDK side, inside the closing leaf's sweep
+      const bool bCloseRejected=!SetDoor(Door002,false)&&GetDoorOpen(Door002->Id);
+      Route->SetStringField(TEXT("r3_closeBlocker"),LastLeafMotionBlocker);
+      bRouteOk &= Leg(TEXT("r3CloseRejectedWithPersonInSwing"),bCloseRejected);
+      CurrentRoomId=Door002->RoomIds[1]; SetActorLocation(P002[1],false,nullptr,ETeleportType::TeleportPhysics);
+      bRouteOk &= Leg(TEXT("r3ClosesOnceSwingClear"),SetDoor(Door002,false));
+     }
+     // W07-G2 review-v2 R3 verification #2: door-002's open pose does not
+     // cross the wall and stays walkable. The route already opened it and
+     // walked through (openDoor002 / hallToLdk above); additionally confirm
+     // the leaf reached a real collision-free open pose (full, or a
+     // wall-limited partial that is still passable -- NEVER forced through)
+     // and that re-checking that pose from closed is clear.
+     if(!Door002->Leaves.IsEmpty()) {
+      if(AStaticMeshActor* L2=Cast<AStaticMeshActor>(FindActorByLabel(Door002->Leaves[0].Actor))) {
+       CurrentRoomId=Door002->RoomIds[1]; SetActorLocation(P002[1],false,nullptr,ETeleportType::TeleportPhysics);
+       const bool bOpened=SetDoor(Door002,true);
+       const double Yaw=FMath::Abs(L2->GetActorRotation().Yaw);
+       Route->SetNumberField(TEXT("r3_door002OpenYawDeg"),Yaw);
+       // opened, swung a usable amount, and the walk-through still works
+       bRouteOk &= Leg(TEXT("r3Door002OpenPoseClearAndWalkable"),
+        bOpened&&Yaw>=60.&&WalkTo(P002[0])&&CurrentRoomId==Door002->RoomIds[0]);
+       CurrentRoomId=Door002->RoomIds[1]; SetActorLocation(P002[1],false,nullptr,ETeleportType::TeleportPhysics);
+       SetDoor(Door002,false);
+      }
+     }
+     // W07-G2 review-v2 R3(a) 両開き: door-024's two leaves swing TOGETHER
+     // toward the same room (the geometry-derived swingToward side -- 洋室,
+     // not the tiny closet) -- verified by tests/test_circulation.py's
+     // free-end-travel check. Here: closed door blocks passage; then attempt
+     // to open from the 収納 side -- either it opens far enough to walk into
+     // 洋室 (both leaves moved, opposite yaw), or it is cleanly rejected
+     // (fur-007 / geometry in the arc) with doorStates left closed. Never
+     // forced. 収納 is off the required guest route so this is a focused
+     // check, not a route-walkability claim.
      if(const FConnectionInfo* Door024=FindConnection(TEXT("door-024"))) {
-      const FRoomInfo* Door024SideAInfo=Rooms.Find(Door024->RoomIds[0]);
-      if(Door024SideAInfo&&Rooms.Find(Door024->RoomIds[1])) {
-       const TArray<FVector> P024=ThresholdPositions(Door024,Door024SideAInfo);
-       // 洋室 has furniture between door-005 (where AC4 left the player) and
-       // door-024 across the room, so a single straight sweep to door-024
-       // never gets there. This is a FOCUSED representative door check (the
-       // review scopes it as "両開き1件"), not a route-walkability claim --
-       // set the player at door-024's own 洋室-side threshold, then use the
-       // same short-sweep-across-the-doorway test as everywhere else.
-       CurrentRoomId=Door024->RoomIds[0];
-       SetActorLocation(P024[0],false,nullptr,ETeleportType::TeleportPhysics);
-       bRouteOk &= Leg(TEXT("doubleSwingBlockedWhenClosed"),SetDoor(Door024,false)&&!WalkTo(P024[1]));
-       CurrentRoomId=Door024->RoomIds[0]; SetActorLocation(P024[0],false,nullptr,ETeleportType::TeleportPhysics);
-       // door-024's own swing arc into 洋室 is partly occupied by a piece of
-       // 洋室 furniture (fur-007) -- a REAL fixed-geometry conflict, recorded
-       // as a limitation (収納 is not on the required guest route). The
-       // representative "両開き1件" check the review asks for is the
-       // MECHANISM: with that furniture temporarily out of the way, both
-       // leaves move (opposite yaw, so both swing into the SAME room -- the
-       // R3 sign fix) and the opening becomes passable.
-       // fur-007 is modelled as several sub-actors (body + fridge/freezer
-       // doors + grips); the probe reported furniture_fur-007_fridge-door as
-       // the blocker, so take every fur-007 piece out of the swing arc. Only
-       // its COLLISION is toggled off (not the actor destroyed): the finish
-       // document still lists fur-007's body as a bound surface, and a
-       // destroyed actor would make every later ApplyConditions() fail at the
-       // surface-actor lookup. Collision is restored right after.
-       TArray<AActor*> Fur007Parts;
-       for(TActorIterator<AActor> It(GetWorld());It;++It)
-        for(auto Tag:It->Tags)
-         if(Tag.ToString().StartsWith(TEXT("Ryuka:furniture_fur-007"))) {Fur007Parts.Add(*It); break;}
-       Route->SetBoolField(TEXT("doubleSwingBlockedByFur007InRealScene"),!SetDoor(Door024,true));
-       CurrentRoomId=Door024->RoomIds[0]; SetActorLocation(P024[0],false,nullptr,ETeleportType::TeleportPhysics);
-       for(AActor* Part:Fur007Parts) Part->SetActorEnableCollision(false);
-       bRouteOk &= Leg(TEXT("doubleSwingOpensWithArcClear"),SetDoor(Door024,true));
-       bRouteOk &= Leg(TEXT("doubleSwingReachableWithArcClear"),WalkTo(P024[1])&&CurrentRoomId==Door024->RoomIds[1]);
-       bRouteOk &= Leg(TEXT("doubleSwingCloses"),SetDoor(Door024,false));
-       for(AActor* Part:Fur007Parts) Part->SetActorEnableCollision(true);
-       // put the player back near door-005 (across the furnished room) so the
-       // rest of the continuous route below picks up cleanly.
+      if(const FRoomInfo* D24A=Rooms.Find(Door024->RoomIds[0])) {
+       const TArray<FVector> P024=ThresholdPositions(Door024,D24A); // [洋室側, 収納側]
+       CurrentRoomId=Door024->RoomIds[1]; SetActorLocation(P024[1],false,nullptr,ETeleportType::TeleportPhysics);
+       bRouteOk &= Leg(TEXT("doubleSwingBlockedWhenClosed"),SetDoor(Door024,false)&&!WalkTo(P024[0]));
+       CurrentRoomId=Door024->RoomIds[1]; SetActorLocation(P024[1],false,nullptr,ETeleportType::TeleportPhysics);
+       const bool bOpened=SetDoor(Door024,true);
+       Route->SetStringField(TEXT("doubleSwing_openResult"),bOpened?TEXT("opened"):(TEXT("rejected: ")+LastLeafMotionBlocker));
+       if(Door024->Leaves.Num()>1)
+        if(AStaticMeshActor* LL=Cast<AStaticMeshActor>(FindActorByLabel(Door024->Leaves[0].Actor)))
+         if(AStaticMeshActor* LR=Cast<AStaticMeshActor>(FindActorByLabel(Door024->Leaves[1].Actor)))
+          Route->SetStringField(TEXT("doubleSwing_leafYaws"),
+           FString::Printf(TEXT("L=%.0f R=%.0f"),LL->GetActorRotation().Yaw,LR->GetActorRotation().Yaw));
+       // pass whichever way it went, provided the state is coherent
+       const bool bCoherent=bOpened?(GetDoorOpen(Door024->Id)&&WalkTo(P024[0])&&CurrentRoomId==Door024->RoomIds[0])
+                                   :!GetDoorOpen(Door024->Id);
+       bRouteOk &= Leg(TEXT("doubleSwingOpenOrRejectCoherent"),bCoherent);
+       if(bOpened){CurrentRoomId=Door024->RoomIds[1]; SetActorLocation(P024[1],false,nullptr,ETeleportType::TeleportPhysics); SetDoor(Door024,false);}
        CurrentRoomId=Door005->RoomIds[0]; SetActorLocation(P005[0],false,nullptr,ETeleportType::TeleportPhysics);
+      }
+     }
+     // W07-G2 review-v2 R2: an editor viewpoint save (walkthrough attributed
+     // to 洋室, camera inside 洋室) must restore INTO 洋室, not the profile
+     // entry room (玄関); a stale attribution whose camera is really in
+     // another room is rejected; a state with no attribution at all is a
+     // first launch and still goes to 玄関.
+     {
+      const FString West=Door005->RoomIds[0], Ldk=Door002->RoomIds[0];
+      const FRoomInfo* WestRoom=Rooms.Find(West); const FRoomInfo* LdkRoom=Rooms.Find(Ldk);
+      auto RoomCentre=[](const FRoomInfo* R)->FVector {
+       FVector2D C(0,0); for(auto& V:R->Polygon) C+=V; C/=R->Polygon.Num();
+       return FVector(C.X,C.Y,R->FloorCm+160.);
+      };
+      auto MakeCandidate=[&](bool bWithWalkthrough,const FString& RoomId,const FVector& CamXY)->TSharedPtr<FJsonObject> {
+       auto C=MakeShared<FJsonObject>(*State);
+       auto Cam=MakeShared<FJsonObject>(*State->GetObjectField(TEXT("camera")));
+       TArray<TSharedPtr<FJsonValue>> Loc; for(double D:{CamXY.X,CamXY.Y,CamXY.Z}) Loc.Add(MakeShared<FJsonValueNumber>(D));
+       Cam->SetArrayField(TEXT("locationCm"),Loc); C->SetObjectField(TEXT("camera"),Cam);
+       if(bWithWalkthrough) {
+        auto W=MakeShared<FJsonObject>();
+        W->SetStringField(TEXT("profileId"),ProfileId); W->SetStringField(TEXT("roomId"),RoomId);
+        W->SetNumberField(TEXT("level"),Rooms.Find(RoomId)->Level);
+        C->SetObjectField(TEXT("walkthrough"),W);
+       } else C->RemoveField(TEXT("walkthrough"));
+       return C;
+      };
+      if(WestRoom&&LdkRoom) {
+       auto PrevState=State; const FString PrevRoom=CurrentRoomId;
+       bRouteOk &= Leg(TEXT("r2EditorAttributionRestoresToThatRoom"),
+        Restore(MakeCandidate(true,West,RoomCentre(WestRoom)))&&CurrentRoomId==West);
+       State=PrevState; CurrentRoomId=PrevRoom;
+       const bool bStaleRejected=!Restore(MakeCandidate(true,West,RoomCentre(LdkRoom)));
+       State=PrevState; CurrentRoomId=PrevRoom;
+       bRouteOk &= Leg(TEXT("r2StaleAttributionRejected"),bStaleRejected);
+       bRouteOk &= Leg(TEXT("r2NoAttributionIsFirstLaunchGenkan"),
+        Restore(MakeCandidate(false,West,RoomCentre(WestRoom)))&&CurrentRoomId==EntryRoomId);
+       State=PrevState; CurrentRoomId=PrevRoom;
       }
      }
      // Leg 5: continue to a water-room entry (トイレ) via the hall -- door-005
@@ -1480,17 +1589,6 @@ void AWalkthroughCharacter::Tick(float Delta) {
      // contract; the final RestoreView() below is what actually matters for
      // leaving a clean scene.
      WalkTo(P001[1]); SetDoor(Door001,false);
-     // W07-G2 review R3(b) representative 干渉拒否1件: covered above by the
-     // REAL-scene door-024 sequence -- the closed leaf pose is individually
-     // valid (the door generates), fur-007 sits in the opening arc, the open
-     // toggle is rejected via the SAME ApplyConditions()/LeafMotionClear()
-     // path InteractDoor() uses (doorStates left untouched -- see
-     // doubleSwingBlockedByFur007InRealScene), and once fur-007 is removed
-     // the identical toggle succeeds (doubleSwingOpensWithArcClear). A
-     // synthetic runtime-spawned obstacle was trialled instead but its
-     // collision state was not reliably visible to scene queries within the
-     // same synchronous smoke Tick; the real-furniture case is both stronger
-     // evidence and what the review asks for ("代表").
     } else {
      bRouteOk=Leg(TEXT("roomsResolved"),false);
     }

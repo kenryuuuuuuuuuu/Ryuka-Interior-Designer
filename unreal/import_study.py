@@ -165,10 +165,18 @@ def main():
     # Interchange import unchanged. Absolute sets (rotation to exactly Delta
     # or 0; location to exactly the closed baseline or baseline+offset), so
     # this is correct regardless of whatever pose the mesh actually imported
-    # at. The closed baseline for an offset leaf is recovered from its
-    # CURRENT (just-imported) location using its own bakedOpen flag -- the
-    # same "don't assume whatever pose I see now is closed" fix the native
-    # walkthrough's own lazy spawn-capture needs (see Walkthrough.cpp).
+    # at.
+    #
+    # W07-G2 review-v2 R1: for a sliding leaf, capture its IMMUTABLE closed
+    # world location ONCE, HERE, on the guaranteed-fresh imported scene
+    # (bakedOpen says whether generation itself baked this leaf open), and
+    # record it into the project door-bindings.json as `closedLocationCm`.
+    # Every later consumer -- study_controls.apply_state() and the native
+    # walkthrough -- reads THAT fixed value and never again re-derives a
+    # closed baseline from a live actor pose. So an editor save that persists
+    # an open leaf into the .umap, an Undo, a scene reload, or launching the
+    # walkthrough from a saved level can no longer be mistaken for the closed
+    # position (the v2 review's session-crossing defect).
     door_states = study.get('doorStates', {})
     for door_id, info in door_bindings_raw['doors'].items():
         leaves = []
@@ -179,14 +187,16 @@ def main():
             if actor is None:
                 continue  # should not happen: the earlier bounds check already asserted no meshes were lost on import
             actor.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+            leaf_out = dict(leaf, actor=actor_label)
             if 'openYawDeltaDeg' in leaf:
                 actor.set_actor_rotation(unreal.Rotator(pitch=0, yaw=leaf['openYawDeltaDeg'] if is_open else 0., roll=0), False)
             elif 'openOffsetCm' in leaf:
                 offset = unreal.Vector(*leaf['openOffsetCm'])
                 current = actor.get_actor_location()
                 closed_base = current - offset if leaf['bakedOpen'] else current
+                leaf_out['closedLocationCm'] = [closed_base.x, closed_base.y, closed_base.z]
                 actor.set_actor_location(closed_base + offset if is_open else closed_base, False, False)
-            leaves.append(dict(leaf, actor=actor_label))
+            leaves.append(leaf_out)
         door_bindings[door_id] = dict(info, leaves=leaves)
     write_json(project/'door-bindings.json', dict(schemaVersion=circulation.DOOR_BINDINGS_SCHEMA, doors=door_bindings))
 

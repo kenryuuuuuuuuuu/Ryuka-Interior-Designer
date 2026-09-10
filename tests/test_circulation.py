@@ -74,6 +74,28 @@ class RealDataConnectivityTests(unittest.TestCase):
         self.assertNotEqual(deltas['left'], deltas['right'])
         self.assertEqual(deltas['left'], -deltas['right'])
 
+    def test_every_swing_leaf_actually_travels_toward_its_swingToward_side(self):
+        # W07-G2 review-v2 R3: opposite-signed deltas alone only prove the two
+        # leaves swing the SAME way -- not that it is the RIGHT way. Reproduce
+        # build_interior.py's actual open rotation and check the free end's
+        # perpendicular displacement has the sign of `swingToward` (a door
+        # into the room, never into the wall/closet). Covers both wall
+        # orientations (door-002/003/004 are H, door-024 is V).
+        perp = {'H': 1, 'V': 0}  # index of the wall-normal axis in (dx, dz)
+        for cid in ('door-002', 'door-003', 'door-004'):
+            c = self.by_id[cid]
+            hinge, delta = circ.swing_hinge_and_delta(c, None)
+            travel = circ.swing_leaf_free_end_travel(c, hinge, delta)
+            want = 1.0 if c['swingToward'] == '+' else -1.0
+            self.assertGreater(travel[perp[c['orientation']]] * want, 0.05,
+                               f'{cid} swings the wrong way: travel={travel} swingToward={c["swingToward"]}')
+        c = self.by_id['door-024']
+        want = 1.0 if c['swingToward'] == '+' else -1.0
+        for hinge, delta, kind in circ.double_swing_hinges_and_deltas(c):
+            travel = circ.swing_leaf_free_end_travel(c, hinge, delta)
+            self.assertGreater(travel[perp[c['orientation']]] * want, 0.05,
+                               f'door-024 {kind} leaf swings the wrong way: travel={travel}')
+
 
 class SyntheticGeometryTests(unittest.TestCase):
     """Small synthetic fixtures for edge cases the real data does not cover."""
