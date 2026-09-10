@@ -4,7 +4,7 @@
 - **前段レビュー**：[W07-G1-review-v2.md](W07-G1-review-v2.md)（ACCEPTED）
 - **今ラウンドのレビュー**：[W07-G2-review.md](W07-G2-review.md)（v1、`89d07af`、**CHANGES_REQUESTED**）。R1〜R4を同じG2ラウンドで一括修正した報告です。
 - **BASE**：`60d8cd644d00e57f11708dbbb1a1aa263095b2bc`（W07-G2着手時HEAD、W07-G1-v2のHEADと同じ。**v1から変更していません**）
-- **HEAD**：`__HEAD__`（`W07-G2-v2: fix review R1-R4 (doorStates→real leaves, walkthrough attribution, double-swing + interference, verified route)`）
+- **HEAD**：`d4dba49`（`W07-G2-v2: fix review R1-R4 (doorStates→real leaves, walkthrough attribution, double-swing + interference, verified route)`。本行を記録するdocsコミットがその上に1つ乗ります）
 - **提出**：`build/reviews/W07-G2-v2`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2のみ。G3（残り6室の登録）には着手していません。
