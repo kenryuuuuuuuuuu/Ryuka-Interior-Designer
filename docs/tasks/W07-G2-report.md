@@ -4,7 +4,7 @@
 - **前段レビュー**：[W07-G1-review-v2.md](W07-G1-review-v2.md)（ACCEPTED）
 - **レビュー履歴**：[v1](W07-G2-review.md)（`89d07af`、CHANGES_REQUESTED）→ [v2](W07-G2-review-v2.md)（`e7d6106`、CHANGES_REQUESTED）→ 本報告（v2のR1〜R3に対応）
 - **BASE**：`60d8cd644d00e57f11708dbbb1a1aa263095b2bc`（W07-G2着手時HEAD、W07-G1-v2のHEADと同じ。**v1・v2から変更していません**）
-- **HEAD**：`__HEAD__`（`W07-G2-v3: fix review-v2 R1-R3 (immutable slide baseline, walkthrough re-resolution, walls+close+capsule interference)`。本行を記録するdocsコミットがその上に1つ乗ります）
+- **HEAD**：`03a07e2`（`W07-G2-v3: fix review-v2 R1-R3 (immutable slide baseline, walkthrough re-resolution, walls+close+capsule interference)`。本行を記録するdocsコミットがその上に1つ乗ります）
 - **提出**：`build/reviews/W07-G2-v3`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2のみ。G3（残り6室の登録）には着手していません。
