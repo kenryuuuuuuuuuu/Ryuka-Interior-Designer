@@ -1,5 +1,7 @@
 # 進捗・未解決事項
 
+2026-09-10更新（W07-G3-v2 提出）：**レビュー v1 の R1〜R3 を一括修正**（`f352042`・`ad185f3`）。R1＝`SurfaceBinder` の編集bindingを編集scope内に限定（guest-pilot 実機取込が復旧、16面）、R2＝空室の基本variantを管理状態から取得（全面上書き→解除の往復を修正）、R3＝洗面ボウルの空間確保・洗濯機ドアの前面円化（`kind='disc'`）。pytest 201件、`verify_w07_g3.py` 20/20、`-RyukaSmoke` PASS、完全refresh v2 complete。[報告](tasks/W07-G3-report.md)と `build/reviews/W07-G3-v2` を提出。BASE不変、W08-G未着手。以下の過去の記述よりこの行を優先します。
+
 2026-09-10更新（W07-G3 レビューv1）：**W07-G3-v1（`b255f2f`）は CHANGES_REQUESTED**（[レビュー](tasks/W07-G3-review.md)）。旧scope取込の対象外roomState参照、空室の面上書きと基本variantの混同、洗面/洗濯機の形状の3点を同じG3で修正します。193件のunittestと提出証跡の一致は確認済みです。G1/G2は受入済み、W08-GはG3受入後です。以下の過去の記述よりこの行を優先します。
 
 2026-09-10更新（W07-G3 実装）：**[W07-G3詳細仕様](tasks/W07-G3-guest-interiors.md)（ゲスト全8区画の仕上げ・主要設備・照明）** をClaude Codeが一括実装しました。G1/G2の仕組みへ scopeId=guest（8区画）を展開し、残り6室の壁/床/天井を surface-registry へ登録（合計52面すべて解決・bind）、既存家具23点・照明10灯を1回で解決、便器/洗面台/洗濯機/浴槽に種類が分かる簡易parametric部品を追加。歩行は guest-circulation プロファイルを再利用（scopeId→scopeIds[guest-pilot, guest]）。編集scopeは pilot は2室のまま。[報告](tasks/W07-G3-report.md)とレビュー用差分一式（`build/reviews/W07-G3-v1`）を提出。W08-Gには未着手。
