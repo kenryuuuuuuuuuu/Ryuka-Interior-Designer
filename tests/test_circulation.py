@@ -211,6 +211,27 @@ class ValidateProfilesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             circ.resolve_profile_for_scope(doc, 'unknown-scope')
 
+    def test_scope_ids_list_and_real_data(self):
+        # W07-G3: a profile reused across scopes uses scopeIds (list); the
+        # legacy scopeId (string) still works.
+        doc = dict(schemaVersion='1.0.0', profiles=[
+            dict(profileId='guest-circulation', scopeIds=['guest-pilot', 'guest'],
+                 roomIds=['a', 'b'], entryRoomId='a'),
+            dict(profileId='guest-ldk-solo', scopeId='guest-ldk', roomIds=['a'], entryRoomId='a')])
+        self.assertEqual(circ.resolve_profile_for_scope(doc, 'guest')['profileId'], 'guest-circulation')
+        self.assertEqual(circ.resolve_profile_for_scope(doc, 'guest-pilot')['profileId'], 'guest-circulation')
+        # a scope claimed by two profiles is rejected
+        with self.assertRaises(ValueError):
+            circ.validate_profiles(dict(schemaVersion='1.0.0', profiles=[
+                dict(profileId='p1', scopeIds=['guest'], roomIds=['a'], entryRoomId='a'),
+                dict(profileId='p2', scopeId='guest', roomIds=['a'], entryRoomId='a')]))
+        # the real repo data: guest-circulation now serves guest-pilot AND guest
+        doc = json.loads((ROOT / 'data/visual/walkthrough-profiles.json').read_text(encoding='utf-8'))
+        circ.validate_profiles(doc)
+        for sid in ('guest-pilot', 'guest'):
+            self.assertEqual(circ.resolve_profile_for_scope(doc, sid)['profileId'], 'guest-circulation')
+        self.assertEqual(circ.resolve_profile_for_scope(doc, 'guest-ldk')['profileId'], 'guest-ldk-solo')
+
 
 if __name__ == '__main__':
     unittest.main()

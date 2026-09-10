@@ -3,7 +3,7 @@
 - **仕様書**：[W07-G3-guest-interiors.md](W07-G3-guest-interiors.md)
 - **前段レビュー**：[W07-G2-review-v4.md](W07-G2-review-v4.md)（ACCEPTED）
 - **BASE**：`e9113b94d03f6eaf5c83bede32fc9532bca470c0`（G3着手時HEAD＝G2受入HEAD。G2のBASEは使い回していません）
-- **HEAD**：`__HEAD__`（`W07-G3: guest 8-room interiors (surfaces + water fixtures + 10 lights)`。本行を記録するdocsコミットがその上に1つ乗ります）
+- **HEAD**：`63c8afd`（`W07-G3: guest 8-room interiors (surfaces + water fixtures + 10 lights)`。本行を記録するdocsコミットがその上に1つ乗ります）
 - **提出**：`build/reviews/W07-G3-v1`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2受入済み実装へゲスト8区画のデータ展開。全館化・自宅・階段・新ランチャー・配布導線（W08-G）は含みません。
@@ -70,19 +70,19 @@
 
 | AC | 結果 | 根拠 |
 |---|---|---|
-| 1 | **満たす** | `verify_w07_g3.py`：`scope_is_guest`・`eight_rooms_in_state`・`all_registered_surfaces_bound`（52面）・`six_new_rooms_have_surfaces`。`tests/test_circulation.py`（22件、`scopeIds` 含む）、`tests/test_surface_registry.py`（52面 resolve）。`guest-pilot` 生成が従来どおり成立（軽量確認）。 |
+| 1 | **満たす** | `verify_w07_g3.py`：`scope_is_guest`・`eight_rooms_in_state`・`all_registered_surfaces_bound`（52面）・`six_new_rooms_have_surfaces`。`tests/test_circulation.py`（23件、`scopeIds` の解決テストを含む）、`tests/test_surface_registry.py`（52面 resolve）。`guest-pilot` 生成が従来どおり成立（軽量確認）。 |
 | 2 | **満たす（実シーン）** | `verify_w07_g3.py`：`washroom_variant_change_moved_its_own_wall_material`（洗面脱衣を warm へ → その壁の実 MID 親が `M_Surf_..._warm` へ変化）、`neighbour_ub_wall_material_unchanged`（隣室 UB の壁材質は不変）、`fixture_on_recorded_only_for_its_room`（洗面の器具 on が洗面の fixtures にだけ記録、UB は不変）。 |
 | 3 | **満たす** | `verify_w07_g3.py`：`water_fixture_fur-035/001/002/003_multipart`（便器/洗面台/洗濯機/浴槽が 2 部品以上の Actor 群としてインポート）。要所画像・LDK代表画像は下記「証跡」。設備ID対応は棚卸し表。 |
 | 4 | **満たす** | `verify_w07_g3.py`：`new_room_setting_survives_save_reload`（トイレを reference にして保存→レベル再読込→reference 保持）、`compare_rejects_scenario_without_active_room`（対象室 roomState を持たない旧単室案で A/B 開始 → RuntimeError）。scope拡張の初期化は `--allow-new-rooms` の既存経路。 |
 | 5 | **満たす（実シーン）** | 完全refresh `build/W07-G3-refresh-v1`（`--previous build/W07-G3-ue-v2 --scope guest`、8室 roomStates ＋ door-002 open ＋ 非nullカメラ（洗面脱衣内）＋新旧室で異なる variant/点灯）：`status: complete`、終了コード0、`comparisonState` が 8室 roomStates・doorStates・walkthrough・camera を保持、`validate_study_transfer.py` 成功。 |
 | 6 | **満たす** | 上記 refresh：非null視点・開扉・8室状態を保持。再生成された `door-bindings.json` の `openYawDeltaDeg`（door-002=73°）も一致＝実葉の共通開ポーズ維持。 |
-| 7 | **満たす** | `pytest tests/`：**192 passed**。`validate_house.py`/`validate_furniture.py`/`validate_electrical.py`/`validate_openings.py`・`build-web-data.mjs --check` すべて成功。昼夜代表画像は「証跡」。未指定設備/仮仕上げ/狭所は「不足・未決定一覧」。 |
+| 7 | **満たす** | `pytest tests/`：**193 passed**。`validate_house.py`/`validate_furniture.py`/`validate_electrical.py`/`validate_openings.py`・`build-web-data.mjs --check` すべて成功。昼夜代表画像は「証跡」。未指定設備/仮仕上げ/狭所は「不足・未決定一覧」。 |
 
 ## 実施した検証
 
 ### 単体・軽量確認
 
-- `python -m pytest tests/ -q`：**192 passed, 55 subtests passed**（`tests/test_circulation.py` の `scopeIds` テスト、`test_surface_registry.py` の 52面 resolve を含む）。
+- `python -m pytest tests/ -q`：**193 passed, 55 subtests passed**（`tests/test_circulation.py` の `scopeIds` テスト（23件）、`test_surface_registry.py` の 52面 resolve を含む）。
 - `node scripts/build-web-data.mjs --check`・`validate_house.py`/`validate_furniture.py`/`validate_electrical.py`/`validate_openings.py`：すべて成功。
 
 ### Blender / Unreal Engine（実行）
