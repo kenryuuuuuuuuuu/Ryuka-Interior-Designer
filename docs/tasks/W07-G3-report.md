@@ -3,7 +3,7 @@
 - **仕様書**：[W07-G3-guest-interiors.md](W07-G3-guest-interiors.md)
 - **レビュー**：[W07-G3-review.md](W07-G3-review.md)（v1＝CHANGES_REQUESTED、R1〜R3）。本 v2 で一括対応。
 - **BASE**：`e9113b94d03f6eaf5c83bede32fc9532bca470c0`（G3着手時HEAD＝G2受入HEAD。v1から不変）
-- **HEAD**：`cf0f8ec`（v1: 〜`b255f2f` → `f352042`〔R1〜R3コード修正〕→ `ad185f3`〔水回り視点・報告のID訂正〕→ 本SHA記録docsコミット。BASEは不変）
+- **HEAD**：`1d6a11b`（受入対象。v1: 〜`b255f2f` → `f352042`〔R1〜R3コード修正〕→ `ad185f3`〔水回り視点・報告のID訂正〕→ `cf0f8ec`〔報告/STATUS〕→ `1d6a11b`〔本SHA記録〕。BASEは不変。再レビューv2は [W07-G3-review-v2.md](W07-G3-review-v2.md) でACCEPTED）
 - **提出**：`build/reviews/W07-G3-v2`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2受入済み実装へゲスト8区画のデータ展開。全館化・自宅・階段・新ランチャー・配布導線（W08-G）は含みません。
@@ -84,8 +84,8 @@
 | 2 | **満たす（実シーン）** | `verify_w07_g3.py`：`washroom_variant_change_moved_its_own_wall_material`（洗面脱衣を warm へ → その壁の実 MID 親が `M_Surf_..._warm` へ変化）、`neighbour_ub_wall_material_unchanged`（隣室 UB の壁材質は不変）、`fixture_on_recorded_only_for_its_room`（洗面の器具 on が洗面の fixtures にだけ記録、UB は不変）。 |
 | 3 | **満たす** | `verify_w07_g3.py`：`water_fixture_fur-035/001/002/003_multipart`（便器/洗面台/洗濯機/浴槽が 2 部品以上の Actor 群としてインポート）。要所画像・LDK代表画像は下記「証跡」。設備ID対応は棚卸し表。 |
 | 4 | **満たす** | `verify_w07_g3.py`：`new_room_setting_survives_save_reload`（トイレを reference にして保存→レベル再読込→reference 保持）、`compare_rejects_scenario_without_active_room`（対象室 roomState を持たない旧単室案で A/B 開始 → RuntimeError）。scope拡張の初期化は `--allow-new-rooms` の既存経路。 |
-| 5 | **満たす（実シーン）** | 完全refresh `build/W07-G3-refresh-v2`（`--previous build/W07-G3-ue-v3 --scope guest`、8室 roomStates ＋ door-002 open ＋ 非nullカメラ（洗面脱衣内）＋新旧室で異なる variant/点灯）：`status: complete`、終了コード0、`comparisonState` が 8室 roomStates・doorStates・walkthrough・camera を保持、`validate_study_transfer.py` 成功。 |
-| 6 | **満たす** | 上記 refresh：非null視点・開扉・8室状態を保持。再生成された `door-bindings.json` の `openYawDeltaDeg`（door-002=73°）も一致＝実葉の共通開ポーズ維持。 |
+| 5 | **満たす（実シーン）** | 完全refresh `build/W07-G3-refresh-v2`（`--previous build/W07-G3-ue-v3 --scope guest`）：`status: complete`、終了コード0。**v2の入力状態は基準状態**＝8室すべて natural・`surfaceOverrides`/`fixtures` 空・`doorStates: {}`、`camera` は非null（LDK、`[240,160,225.7]`）、schema 2.1.0。`comparisonState` が 8室 roomStates・camera・schema・scopeId を保持し、`ue/state-transfer-verification.json` の `statePreserved`/`geometryVerified`/`cameraRotationPreserved` すべて true（`validate_study_transfer.py` 成功）。※**開扉・室ごとに異なる variant/点灯の転送は W07-G3-v1（`build/W07-G3-refresh-v1`）で確認済み**。v2 では転送ロジックに変更がなく、完成優先方針により重い再実行はしていません。 |
+| 6 | **満たす** | 上記 refresh：非null視点・8室状態を schema 2.1.0 で保持。再生成された `door-bindings.json` の door-002 は `openYawDeltaDeg: 73.0`（G2の共通開ポーズ）で一致、`bakedOpen: false`（基準状態のため扉は閉）。**開扉状態のベイクと転送は v1 で確認済み**（door-002 `bakedOpen: true`／`openYawDeltaDeg: 73`）。 |
 | 7 | **満たす** | `pytest tests/`：**201 passed**。`validate_house.py`/`validate_furniture.py`/`validate_electrical.py`/`validate_openings.py`・`build-web-data.mjs --check` すべて成功。昼夜代表画像は「証跡」。未指定設備/仮仕上げ/狭所は「不足・未決定一覧」。 |
 
 ## 実施した検証

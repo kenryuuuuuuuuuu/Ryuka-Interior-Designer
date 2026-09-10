@@ -1,5 +1,9 @@
 # 進捗・未解決事項
 
+2026-09-10更新（W08-G 着手指示）：施主指示により [W08-G詳細仕様](tasks/W08-G-guest-delivery.md) をREADYにしました。G3受入HEAD `1d6a11b` を前提に、ゲストの起動入口・家具JSON取込・更新・案/比較記録・試用ガイドをClaude Codeが一括実装します。自宅H1以降はまだ着手しません。
+
+2026-09-10更新（W07-G3 最終判定）：**W07-G3-v2（`1d6a11b`）は [再レビューv2](tasks/W07-G3-review-v2.md) で ACCEPTED**。R1〜R3解消、201件のunittest成功、旧pilot取込・guest実機検証20項目・refresh成功の証跡を確認しました。洗濯機の設置向きは配置レビューの残件です。報告書のv2 refresh条件には転記誤りがあり、実際は全室natural・扉閉の基準状態（詳細はレビュー）。G1/G2/G3受入済み、次はW08-Gの仕様・起動導線です。以下の過去の記述よりこの行を優先します。
+
 2026-09-10更新（W07-G3-v2 提出）：**レビュー v1 の R1〜R3 を一括修正**（`f352042`・`ad185f3`）。R1＝`SurfaceBinder` の編集bindingを編集scope内に限定（guest-pilot 実機取込が復旧、16面）、R2＝空室の基本variantを管理状態から取得（全面上書き→解除の往復を修正）、R3＝洗面ボウルの空間確保・洗濯機ドアの前面円化（`kind='disc'`）。pytest 201件、`verify_w07_g3.py` 20/20、`-RyukaSmoke` PASS、完全refresh v2 complete。[報告](tasks/W07-G3-report.md)と `build/reviews/W07-G3-v2` を提出。BASE不変、W08-G未着手。以下の過去の記述よりこの行を優先します。
 
 2026-09-10更新（W07-G3 レビューv1）：**W07-G3-v1（`b255f2f`）は CHANGES_REQUESTED**（[レビュー](tasks/W07-G3-review.md)）。旧scope取込の対象外roomState参照、空室の面上書きと基本variantの混同、洗面/洗濯機の形状の3点を同じG3で修正します。193件のunittestと提出証跡の一致は確認済みです。G1/G2は受入済み、W08-GはG3受入後です。以下の過去の記述よりこの行を優先します。
