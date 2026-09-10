@@ -3,7 +3,7 @@
 - **仕様書**：[W07-G3-guest-interiors.md](W07-G3-guest-interiors.md)
 - **レビュー**：[W07-G3-review.md](W07-G3-review.md)（v1＝CHANGES_REQUESTED、R1〜R3）。本 v2 で一括対応。
 - **BASE**：`e9113b94d03f6eaf5c83bede32fc9532bca470c0`（G3着手時HEAD＝G2受入HEAD。v1から不変）
-- **HEAD**：`__HEAD__`（v1: 〜`b255f2f` → `f352042`〔R1〜R3コード修正〕→ `ad185f3`〔水回り視点・報告のID訂正〕→ 本SHA記録docsコミット。BASEは不変）
+- **HEAD**：`cf0f8ec`（v1: 〜`b255f2f` → `f352042`〔R1〜R3コード修正〕→ `ad185f3`〔水回り視点・報告のID訂正〕→ 本SHA記録docsコミット。BASEは不変）
 - **提出**：`build/reviews/W07-G3-v2`
 - **作業場所**：`build/worktrees/visual-twin`、ブランチ：`feature/visual-twin-foundation`
 - **範囲**：G2受入済み実装へゲスト8区画のデータ展開。全館化・自宅・階段・新ランチャー・配布導線（W08-G）は含みません。
