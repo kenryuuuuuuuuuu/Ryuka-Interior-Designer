@@ -7,6 +7,8 @@ ddc/
 *.blend1
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.claude/
 
 # Publicリポジトリのためコミット禁止
 docs/*.pdf
