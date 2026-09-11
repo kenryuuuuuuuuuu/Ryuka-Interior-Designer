@@ -1,5 +1,7 @@
 # 進捗・未解決事項
 
+2026-09-11更新（施主指示・日常利用へ統合）：ゲストUE内覧を試用できる段階となり、自宅側へ進む前にフォルダを整理します。トップのmainを日常作業場所とし、受入済みコード・起動修正・保存案・使用中UEモデルを引き継ぎます。過去成果物はbuild/archiveへ保管します。[日常利用](DAILY_USE.md)と[残課題](BACKLOG.md)を最新の案内とし、過去のworktree継続指示より優先します。自宅H1〜H4/W08-Fは未着手、当面はゲストの編集・UE反映・作り込みを優先します。
+
 2026-09-11更新（W08-G 最終判定）：**W08-G-v2（`02a4f07`）は [再レビューv2](tasks/W08-G-review-v2.md) で ACCEPTED**。R1〜R3解消、221件のunittest成功（GUI関連3件を含む）、証跡16点の一致、F5保存からのA/B条件保持と開扉・室別仕上げ/点灯を持つrefresh成功を確認しました。次は `guest-launcher.cmd` と [試用ガイド](GUEST_TRIAL_GUIDE.md) による施主試用です。操作感・画質は施主確認待ち。ゲスト調整か自宅H1への進行かは試用後に判断し、H1以降には自動着手しません。以下の過去の記述よりこの行を優先します。
 
 2026-09-11更新（W08-G-v2 提出）：**レビューv1のR1〜R3を一括修正**（`24e9466`）。R1＝比較撮影が案保存と同じ共通処理で最新F5保存を選び、その状態を固定してA/B（対象室仕上げのみ変更、太陽は保存値のまま、元保存は不変。`capture-unreal-study.py --state` 新設）。R2＝家具の反映前に差分確認時のsource/candidateのsha照合（変わっていれば再確認へ）。R3＝`_drain_queue` を1件ごとに分離し常に再スケジュール、現行モデル切替を `LauncherApp.apply_update_success`（窓非依存）へ、更新中はアプリ終了をブロック。pytest 221件（`test_guest_launcher.py` 20件）。代表：F5保存からのA/B（`selectedSave.source: 内覧のF5保存`、elev55保持、対象室のみ変更、保存sha不変）、変わったF5保存からの更新 `build/W08-G-update-v3`（door-002 `bakedOpen: true`、転送検証true）、02-blenderの一時失敗で前モデル維持。[報告](tasks/W08-G-report.md)と `build/reviews/W08-G-v2` を提出。BASE不変、W07-H1以降未着手。画質・使用感は施主確認待ち。以下の過去の記述よりこの行を優先します。
