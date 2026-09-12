@@ -345,6 +345,45 @@
       "clearance": 0,
       "rotationConvention": "source",
       "note": "壁掛け室内機の仮外形。配管・保守空間・製品未確定。"
+    },
+    {
+      "type": "raised-platform",
+      "label": "小上がり",
+      "category": "furniture",
+      "shape": "raisedPlatform",
+      "rotationConvention": "source",
+      "width": 1.8,
+      "depth": 1.8,
+      "height": 0.3,
+      "clearance": 0,
+      "status": "estimated",
+      "note": "木製の台として表現する仮仕様。畳・収納・施工仕様は未確定。高さは床から天板上端。 製品未選定。寸法・材質は推定で、耐荷重等の保証ではない。"
+    },
+    {
+      "type": "mattress",
+      "label": "マットレス",
+      "category": "furniture",
+      "shape": "mattress",
+      "rotationConvention": "source",
+      "width": 0.97,
+      "depth": 1.95,
+      "height": 0.2,
+      "clearance": 0,
+      "status": "estimated",
+      "note": "フレーム・枕を含まない単体マットレスの仮寸法。小上がりに載せる場合は床上高さを小上がり高さに合わせる。 製品未選定。寸法・材質は推定で、耐荷重等の保証ではない。"
+    },
+    {
+      "type": "sofa-work-table",
+      "label": "ソファテーブル（作業用）",
+      "category": "furniture",
+      "shape": "sofaWorkTable",
+      "rotationConvention": "source",
+      "width": 0.8,
+      "depth": 0.45,
+      "height": 0.65,
+      "clearance": 0,
+      "status": "estimated",
+      "note": "簡単なテレワーク用の仮寸法。片側支柱で足元を空けたコの字型。支柱はローカル-z側。昇降機構は再現せず、高さ編集で検討する。 製品未選定。寸法・材質は推定で、耐荷重等の保証ではない。"
     }
   ]
 }

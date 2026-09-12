@@ -18,7 +18,10 @@ def validate_bindings(document, items, catalog):
         target = binding.get('furnitureId')
         if target in result: raise ValueError(f'Duplicate furniture binding: {target}')
         if target not in by_id: raise ValueError(f'Remove or reassign orphan furniture binding: {target}')
-        registry = {'sofa-timber-v1': ('sofa', sofa_parts),
+        registry = {'raised-platform-v1': ('raisedPlatform', raised_platform_parts),
+                    'mattress-v1': ('mattress', mattress_parts),
+                    'sofa-work-table-v1': ('sofaWorkTable', sofa_work_table_parts),
+                    'sofa-timber-v1': ('sofa', sofa_parts),
                     'round-table-v1': ('roundTable', round_table_parts),
                     'chair-timber-v1': ('timberChair', chair_parts),
                     'toilet-v1': ('toilet', toilet_parts),
@@ -119,7 +122,8 @@ def chair_parts(w,d,h):
 
 
 def asset_parts(asset_id,w,d,h):
-    return {'sofa-timber-v1':sofa_parts,'round-table-v1':round_table_parts,
+    return {'raised-platform-v1':raised_platform_parts, 'mattress-v1':mattress_parts,
+            'sofa-work-table-v1':sofa_work_table_parts, 'sofa-timber-v1':sofa_parts,'round-table-v1':round_table_parts,
             'chair-timber-v1':chair_parts,'range-hood-v1':hood_parts,
             'faucet-v1':faucet_parts,'air-conditioner-v1':air_conditioner_parts,
             'toilet-v1':toilet_parts,'toilet-tankless-v1':tankless_parts,'vanity-v1':vanity_parts,
@@ -263,3 +267,24 @@ def desk_parts(w,d,h):
         for j,z in enumerate((-d/2+.05,d/2-.05)):
             parts.append(solid(f'leg-{i}-{j}',[x-.025,x+.025,z-.025,z+.025,0,h-.04],'frame'))
     return parts
+
+
+def raised_platform_parts(w,d,h):
+    check_dimensions((w,d,h),((.01,100),(.01,100),(.01,100)))
+    return [solid('base',[-w*.48,w*.48,-d*.48,d*.48,0,h*.9]),
+            solid('top',[-w/2,w/2,-d/2,d/2,h*.9,h])]
+
+
+def mattress_parts(w,d,h):
+    check_dimensions((w,d,h),((.01,100),(.01,100),(.01,100)))
+    return [solid('core',[-w/2,w/2,-d/2,d/2,h*.1,h*.9],'fabric',bevel=min(.025,h*.08)),
+            solid('bottom',[-w*.49,w*.49,-d*.49,d*.49,0,h*.1],'fabric',bevel=min(.01,h*.025)),
+            solid('top',[-w*.49,w*.49,-d*.49,d*.49,h*.9,h],'fabric',bevel=min(.01,h*.025))]
+
+
+def sofa_work_table_parts(w,d,h):
+    check_dimensions((w,d,h),((.01,100),(.01,100),(.01,100)))
+    top=min(.035,h*.1);foot=min(.025,h*.08)
+    return [solid('top',[-w/2,w/2,-d/2,d/2,h-top,h]),
+            solid('foot',[-w*.4,w*.4,-d/2,d/2,0,foot],'frame'),
+            solid('support',[-w*.06,w*.06,-d/2,-d*.4,foot,h-top],'frame')]

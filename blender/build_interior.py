@@ -668,7 +668,8 @@ def build_furniture(data,room_ids,mats_by_room):
             return obj
         shape=profile['shape']
         binding=bindings.get(item['id'])
-        native_asset={'roundTable':'round-table-v1','timberChair':'chair-timber-v1',
+        native_asset={'raisedPlatform':'raised-platform-v1','mattress':'mattress-v1',
+                      'sofaWorkTable':'sofa-work-table-v1','roundTable':'round-table-v1','timberChair':'chair-timber-v1',
                       'rangeHood':'range-hood-v1','faucet':'faucet-v1','airConditioner':'air-conditioner-v1'}.get(shape)
         if binding or native_asset:
             binding=binding or dict(furnitureId=item['id'],assetId=native_asset,sizing='parametric',

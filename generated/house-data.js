@@ -234,7 +234,10 @@ const FURNITURE_CATALOG = {
   'refrigerator-guest': { label:'冷蔵庫', category:'furniture', shape:'refrigeratorFront', width:0.69, depth:0.7, height:1.83, clearance:0.7, rotationConvention:'source' },
   'range-hood': { label:'レンジフード', category:'fixture', shape:'rangeHood', width:0.6, depth:0.5, height:0.6, clearance:0, rotationConvention:'source' },
   'kitchen-faucet': { label:'水栓', category:'fixture', shape:'faucet', width:0.1, depth:0.18, height:0.3, clearance:0, rotationConvention:'source' },
-  'air-conditioner': { label:'エアコン', category:'fixture', shape:'airConditioner', width:0.8, depth:0.25, height:0.3, clearance:0, rotationConvention:'source' }
+  'air-conditioner': { label:'エアコン', category:'fixture', shape:'airConditioner', width:0.8, depth:0.25, height:0.3, clearance:0, rotationConvention:'source' },
+  'raised-platform': { label:'小上がり', category:'furniture', shape:'raisedPlatform', width:1.8, depth:1.8, height:0.3, clearance:0, rotationConvention:'source' },
+  'mattress': { label:'マットレス', category:'furniture', shape:'mattress', width:0.97, depth:1.95, height:0.2, clearance:0, rotationConvention:'source' },
+  'sofa-work-table': { label:'ソファテーブル（作業用）', category:'furniture', shape:'sofaWorkTable', width:0.8, depth:0.45, height:0.65, clearance:0, rotationConvention:'source' }
 };
 
 const FURNITURE_ITEMS = [

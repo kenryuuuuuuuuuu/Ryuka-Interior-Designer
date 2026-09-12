@@ -7,9 +7,10 @@ const html = fs.readFileSync(new URL('interior-white-model.html', root), 'utf8')
 const source = (a,b) => html.slice(html.indexOf(a),html.indexOf(b,html.indexOf(a)));
 const nodes = new Map();
 let downloaded;
+const furnitureStorage=new Map();
 const ctx = vm.createContext({console, Number, Math, Blob:class {constructor(parts){downloaded=JSON.parse(parts[0]);}},
   URL:{createObjectURL:()=>'',revokeObjectURL(){}},
-  localStorage:{getItem:()=>null,setItem(){}},
+  localStorage:{getItem:k=>furnitureStorage.get(k)||null,setItem(k,v){furnitureStorage.set(k,v);}},
   document:{getElementById(id){if(!nodes.has(id))nodes.set(id,{style:{}});return nodes.get(id);},
     createElement:()=>({click(){}}),body:{appendChild(){},removeChild(){}}}});
 const run = code=>vm.runInContext(code,ctx);
@@ -21,6 +22,7 @@ run(`const labels=[]; const groups={furniture1:new THREE.Group(),furniture2:new 
   let editMode=true,selectedFurnitureId='fur-045';
   function setSelectedFurniture(id){selectedFurnitureId=id;updateFurniturePanel();}`);
 run(source('const FURNITURE_BOX','// ---- 家具編集パネル'));
+run(source('function pointInPolygon(', 'const ROOM_PROBE_OFFSET'));
 run(source('function updateFurniturePanel()',"document.getElementById('fpClose')"));
 run(source('const furnitureSegmentsByLevel','const PLAYER_RADIUS'));
 for (const rotation of [0,90,180,270]) {
@@ -85,3 +87,27 @@ for(const id of ['fur-006','fur-007']){
   assert.ok(run(`new THREE.Vector3(0,0,1).applyQuaternion(furnitureMeshes.get('${id}').holder.quaternion).x < -.99`));
 }
 console.log('Fixtures: height/bounds in four rotations; guest kitchen and refrigerator face west.');
+
+for (const shape of ['raisedPlatform','mattress','sofaWorkTable']) {
+  for (const [w,d,h] of [[1.8,1.8,.3],[.97,1.95,.2],[.8,.45,.65]]) {
+    const actual=run(`(()=>{const g=new THREE.Group();FURNITURE_SHAPES['${shape}'](g,${w},${d},${h});
+      const b=new THREE.Box3().setFromObject(g);return [b.min.y,b.max.y,b.getSize(new THREE.Vector3()).x,b.getSize(new THREE.Vector3()).z];})()`);
+    [0,h,w,d].forEach((v,i)=>assert.ok(Math.abs(v-actual[i])<1e-6,`${shape}: ${actual}`));
+  }
+}
+console.log('New platform, mattress and work table: editable outer dimensions and floor origin passed.');
+
+for (const type of ['raised-platform','mattress','sofa-work-table']) {
+  const id=run(`addCatalogFurniture('${type}','room-2f-04')`);
+  assert.ok(id);
+  run(`applySizeEdit('elevation','.3');exportFurnitureJSON();`);
+  const item=downloaded.items.find(i=>i.id===id);
+  assert.equal(item.type,type);assert.equal(item.room,'room-2f-04');assert.equal(item.elevation,.3);
+  assert.equal(item.status,'estimated');assert.ok(item.note);
+  assert.ok(JSON.parse(furnitureStorage.get('ryuka-furniture-added-v1')).some(i=>i.id===id));
+  run(`furnitureEdits['${id}']={x:-100,z:-100};`);
+  assert.throws(()=>run('exportFurnitureJSON()'),/部屋の外/);
+  assert.ok(run(`removeAddedFurniture('${id}')`));
+  run('exportFurnitureJSON()');assert.ok(!downloaded.items.some(i=>i.id===id));
+}
+console.log('New furniture: add in concave room, elevation, export/provenance, persistence, invalid placement and removal passed.');

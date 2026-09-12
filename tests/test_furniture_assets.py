@@ -11,6 +11,20 @@ from furniture_assets import (sofa_parts, validate_bindings, round_table_parts, 
 
 
 class FurnitureAssets(unittest.TestCase):
+    def test_platform_mattress_and_work_table(self):
+        from furniture_assets import asset_parts
+        for asset,dims in [('raised-platform-v1',(1.8,1.8,.3)),('mattress-v1',(.97,1.95,.2)),('sofa-work-table-v1',(.8,.45,.65))]:
+            for scale in (1,.5,1.5):
+                w,d,h=[v*scale for v in dims]
+                parts=asset_parts(asset,w,d,h)
+                bounds=[p['bounds'] for p in parts]
+                actual=[min(b[i] for b in bounds) if i%2==0 else max(b[i] for b in bounds) for i in range(6)]
+                for got,expected in zip(actual,[-w/2,w/2,-d/2,d/2,0,h]):self.assertAlmostEqual(got,expected)
+                self.assertTrue(all(b[0]<b[1] and b[2]<b[3] and b[4]<b[5] for b in bounds))
+        table=asset_parts('sofa-work-table-v1',.8,.45,.65)
+        support=next(p for p in table if p['name']=='support')['bounds']
+        self.assertLess(support[3],0)  # room for knees beneath the front of the top
+
     def test_fixture_dimensions(self):
         for factory,dims,count in [(hood_parts,(.6,.5,.6),3),(faucet_parts,(.1,.18,.3),4),(air_conditioner_parts,(.8,.25,.3),3)]:
             self.assertEqual(len(factory(*dims)),count)

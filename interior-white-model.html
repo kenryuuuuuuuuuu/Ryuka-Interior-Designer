@@ -139,7 +139,7 @@
   .fp-dims{display:flex;gap:6px;}
   .fp-dims label{flex:1;font-size:10.5px;color:var(--sub);display:flex;flex-direction:column;gap:3px;}
   .fp-dims input{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:5px 6px;font-size:12px;}
-  #furnitureBar{position:fixed;left:calc(var(--safe-l) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;align-items:center;gap:8px;
+  #furnitureBar{flex-wrap:wrap;max-width:calc(100vw - 300px);position:fixed;left:calc(var(--safe-l) + 12px);bottom:calc(var(--safe-b) + 12px);z-index:22;display:none;align-items:center;gap:8px;
       background:var(--panel-bg);backdrop-filter:blur(6px);border-radius:12px;padding:9px 12px;
       box-shadow:0 8px 24px rgba(20,30,40,.18);font-size:11.5px;color:var(--sub);flex-wrap:wrap;max-width:88vw;}
   #furnitureBar button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px;
@@ -527,6 +527,14 @@
   </div>
 </div>
 <div id="furnitureBar">
+  <select id="fbAddType" aria-label="追加する家具">
+    <option value="raised-platform">小上がり</option>
+    <option value="mattress">マットレス</option>
+    <option value="sofa-work-table">ソファテーブル（作業用）</option>
+  </select>
+  <select id="fbAddRoom" aria-label="家具を追加する部屋"></select>
+  <button id="fbAdd">選んだ部屋へ追加</button>
+  <button id="fbRemoveAdded">選択した追加家具を取り消す</button>
   <span id="fbCount"></span>
   <button id="fbExport">⬇ furniture.jsonを書き出す</button>
   <button id="fbClearAll">編集をすべて取り消す</button>
@@ -1723,6 +1731,21 @@ const FMAT = {
   mirror:    new THREE.MeshStandardMaterial({color:0xaebfc9, roughness:0.2, metalness:0.3})
 };
 const FURNITURE_SHAPES = {
+  raisedPlatform(group,w,d,h){
+    fPart(group,w*.96,h*.9,d*.96,0,0,0,FMAT.wood);
+    fPart(group,w,h*.1,d,0,h*.9,0,FMAT.wood);
+  },
+  mattress(group,w,d,h){
+    fPart(group,w,h*.8,d,0,h*.1,0,FMAT.fabricTan);
+    fPart(group,w*.98,h*.1,d*.98,0,0,0,FMAT.white);
+    fPart(group,w*.98,h*.1,d*.98,0,h*.9,0,FMAT.white);
+  },
+  sofaWorkTable(group,w,d,h){
+    const top=Math.min(.035,h*.1), foot=Math.min(.025,h*.08);
+    fPart(group,w,top,d,0,h-top,0,FMAT.wood);
+    fPart(group,w*.8,foot,d,0,0,0,FMAT.metal);
+    fPart(group,w*.12,h-top-foot,d*.1,0,foot,-d*.45,FMAT.metal);
+  },
   rangeHood(group,w,d,h){
     fPart(group,w,.078,d,0,.012,0,FMAT.metal);
     fPart(group,w*.76,.012,d*.7,0,0,0,FMAT.dark);
@@ -1823,7 +1846,7 @@ const FURNITURE_SHAPES = {
   }
 };
 // ---- 家具の配置編集（第2段階）：ブラウザ上のドラッグ・回転・サイズ変更をlocalStorageに保存する ----
-// FURNITURE_ITEMS（data/furniture.jsonから生成）はこのセッションでは書き換えない。
+// 正本由来の家具に、ブラウザで追加した家具をこのセッションの配列へ合流する。
 // 差分だけを furnitureEdits に持ち、effectiveFurniture() で重ねて見た目に反映する。
 // 「書き出し」ボタンで差分を反映した完全なJSONをダウンロードし、それをfurniture.jsonへ
 // 手動でコミットする運用（Ryuka-Landscape-DesignerがlocalStorageのみで機種間同期されない
@@ -1831,6 +1854,18 @@ const FURNITURE_SHAPES = {
 const FURNITURE_EDITS_KEY = 'ryuka-furniture-edits-v1';
 let furnitureEdits = {};
 try { furnitureEdits = JSON.parse(localStorage.getItem(FURNITURE_EDITS_KEY) || '{}') || {}; } catch(e){ furnitureEdits = {}; }
+const FURNITURE_ADDED_KEY = 'ryuka-furniture-added-v1';
+const sourceFurnitureIds = new Set(FURNITURE_ITEMS.map(i=>i.id));
+let addedFurniture = [];
+try {
+  const saved = JSON.parse(localStorage.getItem(FURNITURE_ADDED_KEY) || '[]');
+  if(Array.isArray(saved)) addedFurniture = saved.filter(i=>i && !sourceFurnitureIds.has(i.id) &&
+    FURNITURE_CATALOG[i.type] && [1,2].includes(i.level) && Number.isFinite(i.x) && Number.isFinite(i.z));
+} catch(e){}
+FURNITURE_ITEMS.push(...addedFurniture);
+function saveAddedFurniture(){
+  try { localStorage.setItem(FURNITURE_ADDED_KEY,JSON.stringify(addedFurniture)); } catch(e){}
+}
 function saveFurnitureEdits(){ try{ localStorage.setItem(FURNITURE_EDITS_KEY, JSON.stringify(furnitureEdits)); } catch(e){} }
 function effectiveFurniture(item){ const e = furnitureEdits[item.id]; return e ? {...item, ...e} : item; }
 function round2(n){ return Math.round(n*100)/100; }
@@ -1886,7 +1921,7 @@ function updateFurniturePanel(){
   panel.style.display = 'block';
 }
 function updateFurnitureBar(){
-  const n = Object.keys(furnitureEdits).length;
+  const n = new Set([...Object.keys(furnitureEdits),...addedFurniture.map(i=>i.id)]).size;
   document.getElementById('fbCount').textContent = n>0 ? `編集済み: ${n}件` : '編集なし';
 }
 function rotateSelected(){
@@ -1918,12 +1953,44 @@ function resetSelected(){
   setSelectedFurniture(selectedFurnitureId);
   updateFurnitureBar();
 }
+function addCatalogFurniture(type,roomId){
+  const cat=FURNITURE_CATALOG[type];
+  const level=[1,2].find(l=>(ROOMS_APPROX[l]||[]).some(r=>r.id===roomId));
+  const room=(ROOMS_APPROX[level]||[]).find(r=>r.id===roomId);
+  if(!cat || !room) return null;
+  // Search inward from the bounding-box centre, including concave rooms.
+  const candidates=[];
+  for(let ix=1;ix<20;ix++) for(let iz=1;iz<20;iz++){
+    const x=round2(room.x0+(room.x1-room.x0)*ix/20),z=round2(room.z0+(room.z1-room.z0)*iz/20);
+    if(findRoomIdAt(x,z,level)===roomId) candidates.push({x,z,score:(ix-10)**2+(iz-10)**2});
+  }
+  candidates.sort((a,b)=>a.score-b.score);
+  if(!candidates.length) return null;
+  const {x,z}=candidates[0];
+  let serial=Date.now();while(FURNITURE_ITEMS.some(i=>i.id===`fur-user-${serial}`)) serial++;
+  const item={id:`fur-user-${serial}`,type,label:cat.label,room:roomId,level,x,z,rotation:0,
+    width:cat.width,depth:cat.depth,height:cat.height,status:'estimated',
+    note:'ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。'};
+  addedFurniture.push(item);FURNITURE_ITEMS.push(item);saveAddedFurniture();
+  placeFurnitureItem(item);setSelectedFurniture(item.id);updateFurnitureBar();rebuildFurnitureSegments();
+  return item.id;
+}
+function removeAddedFurniture(id){
+  if(!addedFurniture.some(i=>i.id===id)) return false;
+  removeFurnitureMesh(id);FURNITURE_ITEMS.splice(FURNITURE_ITEMS.findIndex(i=>i.id===id),1);
+  addedFurniture=addedFurniture.filter(i=>i.id!==id);delete furnitureEdits[id];
+  saveAddedFurniture();saveFurnitureEdits();setSelectedFurniture(null);updateFurnitureBar();rebuildFurnitureSegments();
+  return true;
+}
 function exportFurnitureJSON(){
   const items = FURNITURE_ITEMS.map(base=>{
     const eff = effectiveFurniture(base);
     const cat = FURNITURE_CATALOG[base.type];
     const out = { id: base.id, type: base.type };
-    if(base.room) out.room = base.room;
+    const moved=eff.x!==base.x || eff.z!==base.z || !sourceFurnitureIds.has(base.id);
+    const room=moved ? findRoomIdAt(eff.x,eff.z,base.level) : base.room;
+    if(moved && !room) throw new Error('部屋の外にある家具を室内へ移動してください：'+(base.label||base.id));
+    if(room) out.room = room;
     if(base.label) out.label = base.label;
     out.level = base.level; out.x = round2(eff.x); out.z = round2(eff.z); out.rotation = eff.rotation;
     if(round2(eff.width) !== round2(cat.width)) out.widthOverride = round2(eff.width);
@@ -1953,11 +2020,29 @@ document.getElementById('fpWidth').onchange = e=> applySizeEdit('width', e.targe
 document.getElementById('fpDepth').onchange = e=> applySizeEdit('depth', e.target.value);
 document.getElementById('fpHeight').onchange = e=> applySizeEdit('height', e.target.value);
 document.getElementById('fpElevation').onchange = e=> applySizeEdit('elevation', e.target.value);
-document.getElementById('fbExport').onclick = exportFurnitureJSON;
+document.getElementById('fbExport').onclick = ()=>{
+  try { exportFurnitureJSON(); } catch(e){ alert(e.message); }
+};
+for(const level of [1,2]) for(const room of ROOMS_APPROX[level]){
+  if(!room.id) continue;
+  const option=document.createElement('option');option.value=room.id;option.textContent=`${level}F ${room.name}`;
+  document.getElementById('fbAddRoom').appendChild(option);
+}
+document.getElementById('fbAdd').onclick = ()=>{
+  const room=document.getElementById('fbAddRoom').value;
+  clearFocus();
+  const level=[1,2].find(l=>(ROOMS_APPROX[l]||[]).some(r=>r.id===room));
+  if(level){floorMode=`${level}F`;setActiveBtn(level===1?'btn1F':'btn2F');applyFloorMode();}
+  if(!addCatalogFurniture(document.getElementById('fbAddType').value,room)) alert('追加できる室内位置がありません。');
+};
+document.getElementById('fbRemoveAdded').onclick = ()=>{
+  if(!removeAddedFurniture(selectedFurnitureId)) alert('この操作はブラウザで追加した家具だけが対象です。');
+};
 document.getElementById('fbClearAll').onclick = ()=>{
-  if(Object.keys(furnitureEdits).length===0) return;
+  if(Object.keys(furnitureEdits).length===0 && addedFurniture.length===0) return;
   if(!confirm('家具の編集内容をすべて取り消し、元の配置に戻します。よろしいですか？')) return;
   const ids = Object.keys(furnitureEdits);
+  [...addedFurniture].forEach(i=>removeAddedFurniture(i.id));
   furnitureEdits = {};
   saveFurnitureEdits();
   ids.forEach(id=> rebuildFurnitureItem(id));
