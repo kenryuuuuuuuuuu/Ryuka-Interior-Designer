@@ -468,6 +468,7 @@ void AWalkthroughCharacter::BeginPlay() {
  SurfaceBindings=ReadJSON(TEXT("surface-bindings.json"));
  FinishDocument=ReadJSON(TEXT("finish-settings.json"));
  LightingBindings=ReadJSON(TEXT("lighting-bindings.json"));
+ TimePresets=ReadJSON(TEXT("walkthrough-time-presets.json"));
  if(auto Study=ReadJSON(TEXT("SourcePackage/study.json"))) {
   const TSharedPtr<FJsonObject>* SettingsObj;
   if(Study->TryGetObjectField(TEXT("settings"),SettingsObj)) {
@@ -963,9 +964,123 @@ void AWalkthroughCharacter::SetSun(float Elevation) {
  // the object itself copies its Values map, which is enough to roll back
  // these two top-level fields (SetSun never touches nested objects like camera).
  auto Backup=MakeShared<FJsonObject>(*State);
- State->SetNumberField(TEXT("elevationDeg"),Elevation); State->RemoveField(TEXT("solar"));
+ State->SetNumberField(TEXT("elevationDeg"),Elevation); State->RemoveField(TEXT("solar")); State->RemoveField(TEXT("walkthroughPreview"));
  if(ApplyConditions()) Message=TEXT("手動太陽角度（未校正）");
  else {State=Backup; Message=TEXT("太陽角度を変更できません");}
+}
+void AWalkthroughCharacter::NextPreviewHour(){CyclePreviewTime(false);}
+void AWalkthroughCharacter::NextPreviewSeason(){CyclePreviewTime(true);}
+void AWalkthroughCharacter::CyclePreviewTime(bool bSeason) {
+ if(!bReady||!State.IsValid()) return;
+ const TArray<TSharedPtr<FJsonValue>>* Seasons;
+ const TArray<TSharedPtr<FJsonValue>>* Hours;
+ const TArray<TSharedPtr<FJsonValue>>* Presets;
+ if(!TimePresets.IsValid()||!TimePresets->TryGetArrayField(TEXT("seasons"),Seasons)||
+    !TimePresets->TryGetArrayField(TEXT("hours"),Hours)||
+    !TimePresets->TryGetArrayField(TEXT("presets"),Presets)||Seasons->IsEmpty()||Hours->IsEmpty()) {
+  Message=TEXT("時刻プリセットがありません。モデルを更新してください"); return;
+ }
+ int32 SeasonIndex=0,HourIndex=0;
+ const TSharedPtr<FJsonObject>* CurrentPreview;
+ FString SiteHash,PreviewHash;TimePresets->TryGetStringField(TEXT("siteSHA256"),SiteHash);
+ if(State->TryGetObjectField(TEXT("walkthroughPreview"),CurrentPreview)&&
+    (*CurrentPreview)->TryGetStringField(TEXT("siteSHA256"),PreviewHash)&&PreviewHash==SiteHash) {
+  FString CurrentSeason; int32 CurrentHour=0;
+  (*CurrentPreview)->TryGetStringField(TEXT("seasonId"),CurrentSeason);
+  (*CurrentPreview)->TryGetNumberField(TEXT("hour"),CurrentHour);
+  for(int32 I=0;I<Seasons->Num();I++)
+   if((*Seasons)[I]->AsObject()->GetStringField(TEXT("id"))==CurrentSeason) SeasonIndex=I;
+  for(int32 I=0;I<Hours->Num();I++)
+   if((*Hours)[I]->AsNumber()==CurrentHour) HourIndex=I;
+  if(bSeason) SeasonIndex=(SeasonIndex+1)%Seasons->Num();
+  else HourIndex=(HourIndex+1)%Hours->Num();
+ }
+ const FString SeasonId=(*Seasons)[SeasonIndex]->AsObject()->GetStringField(TEXT("id"));
+ const int32 Hour=FMath::RoundToInt((*Hours)[HourIndex]->AsNumber());
+ TSharedPtr<FJsonObject> Preset;
+ for(const auto& Value:*Presets) {
+  auto Candidate=Value->AsObject(); FString CandidateSeason; int32 CandidateHour=0;
+  if(Candidate.IsValid()&&Candidate->TryGetStringField(TEXT("seasonId"),CandidateSeason)&&
+     Candidate->TryGetNumberField(TEXT("hour"),CandidateHour)&&CandidateSeason==SeasonId&&CandidateHour==Hour) {
+   Preset=Candidate; break;
+  }
+ }
+ if(!Preset.IsValid()) {Message=TEXT("選んだ時刻の設定が見つかりません"); return;}
+ double Az,El,Lux; FString Mode,Stamp,SeasonLabel;
+ if(!Preset->TryGetNumberField(TEXT("azimuthDeg"),Az)||
+    !Preset->TryGetNumberField(TEXT("elevationDeg"),El)||
+    !Preset->TryGetNumberField(TEXT("sunLux"),Lux)||
+    !Preset->TryGetStringField(TEXT("mode"),Mode)||
+    !Preset->TryGetStringField(TEXT("localTimestamp"),Stamp)||
+    !Preset->TryGetStringField(TEXT("seasonLabel"),SeasonLabel)||
+    (Mode!=TEXT("day")&&Mode!=TEXT("night"))) {Message=TEXT("時刻の設定が無効です"); return;}
+ auto Backup=MakeShared<FJsonObject>(*State);
+ State->SetNumberField(TEXT("azimuthDeg"),Az);
+ State->SetNumberField(TEXT("elevationDeg"),El);
+ State->SetNumberField(TEXT("sunLux"),Lux);
+ State->RemoveField(TEXT("solar"));
+ auto OldLighting=State->GetObjectField(TEXT("lighting"));
+ auto NewLighting=MakeShared<FJsonObject>(*OldLighting);
+ NewLighting->SetStringField(TEXT("mode"),Mode);
+ State->SetObjectField(TEXT("lighting"),NewLighting);
+ auto Preview=MakeShared<FJsonObject>();
+ Preview->SetStringField(TEXT("seasonId"),SeasonId);
+ Preview->SetStringField(TEXT("seasonLabel"),SeasonLabel);
+ Preview->SetNumberField(TEXT("hour"),Hour);
+ Preview->SetStringField(TEXT("localTimestamp"),Stamp);
+ Preview->SetStringField(TEXT("siteSHA256"),SiteHash);
+ bool bSynthetic=true; TimePresets->TryGetBoolField(TEXT("synthetic"),bSynthetic);
+ Preview->SetBoolField(TEXT("synthetic"),bSynthetic);
+ State->SetObjectField(TEXT("walkthroughPreview"),Preview);
+ if(!ApplyConditions()) {State=Backup;Message=TEXT("時刻を切り替えられません");return;}
+ Message=FString::Printf(TEXT("%s %02d:00 %s"),*SeasonLabel,Hour,bSynthetic?TEXT("仮敷地・未校正"):TEXT("入力敷地・未校正"));
+}
+void AWalkthroughCharacter::ToggleRoomLights() {
+ if(!bReady||!State.IsValid()) return;
+ const TArray<TSharedPtr<FJsonValue>>* FixtureList;
+ if(!LightingBindings.IsValid()||!LightingBindings->TryGetArrayField(TEXT("fixtures"),FixtureList)) {
+  Message=TEXT("このモデルに操作できる照明がありません"); return;
+ }
+ const TSharedPtr<FJsonObject>* RoomStates;
+ const TSharedPtr<FJsonObject>* RoomState;
+ const TSharedPtr<FJsonObject>* Fixtures;
+ if(!State->TryGetObjectField(TEXT("roomStates"),RoomStates)||
+    !(*RoomStates)->TryGetObjectField(CurrentRoomId,RoomState)||
+    !(*RoomState)->TryGetObjectField(TEXT("fixtures"),Fixtures)) {
+  Message=TEXT("現在の部屋の照明状態を読み取れません"); return;
+ }
+ TArray<FString> Ids; bool bAllOn=true;
+ for(const auto& Value:*FixtureList) {
+  const auto Fixture=Value->AsObject(); FString RoomId,Id;
+  if(!Fixture.IsValid()||!Fixture->TryGetStringField(TEXT("roomId"),RoomId)||
+     !Fixture->TryGetStringField(TEXT("id"),Id)) {Message=TEXT("照明設定が無効です"); return;}
+  if(RoomId!=CurrentRoomId) continue;
+  Ids.Add(Id);
+  const TSharedPtr<FJsonObject>* Override;
+  bool bOn=false;
+  if((*Fixtures)->TryGetObjectField(Id,Override)) (*Override)->TryGetBoolField(TEXT("on"),bOn);
+  bAllOn &= bOn;
+ }
+ if(Ids.IsEmpty()) {Message=TEXT("この部屋に操作できる照明はありません"); return;}
+ // Copy the nested objects before editing; a shallow State copy would also
+ // mutate the backup and make a failed apply impossible to roll back.
+ auto OldRoom=MakeShared<FJsonObject>(**RoomState);
+ auto NewRoom=MakeShared<FJsonObject>(**RoomState);
+ auto NewFixtures=MakeShared<FJsonObject>(**Fixtures);
+ for(const auto& Id:Ids) {
+  const TSharedPtr<FJsonObject>* Existing;
+  auto Override=NewFixtures->TryGetObjectField(Id,Existing)
+   ? MakeShared<FJsonObject>(**Existing) : MakeShared<FJsonObject>();
+  Override->SetBoolField(TEXT("on"),!bAllOn);
+  NewFixtures->SetObjectField(Id,Override);
+ }
+ NewRoom->SetObjectField(TEXT("fixtures"),NewFixtures);
+ (*RoomStates)->SetObjectField(CurrentRoomId,NewRoom);
+ if(!ApplyConditions()) {
+  (*RoomStates)->SetObjectField(CurrentRoomId,OldRoom);
+  Message=TEXT("照明を切り替えられません"); return;
+ }
+ Message=bAllOn?TEXT("この部屋の照明を消しました"):TEXT("この部屋の照明を点けました");
 }
 void AWalkthroughCharacter::InteractDoor() {
  // W07-G2 spec section 2: near a door, facing it (FindNearestDoor(), run
@@ -1026,7 +1141,21 @@ FString AWalkthroughCharacter::CurrentVariantLabel() const {
 FString AWalkthroughCharacter::CurrentSolarLabel() const {
  if(!bReady||!State.IsValid()) return FString();
  const TSharedPtr<FJsonObject>* Solar;
- if(!State->TryGetObjectField(TEXT("solar"),Solar)) return TEXT("手動角度（未校正）");
+ if(!State->TryGetObjectField(TEXT("solar"),Solar)) {
+  const TSharedPtr<FJsonObject>* Preview;
+  if(State->TryGetObjectField(TEXT("walkthroughPreview"),Preview)) {
+   FString Season; int32 Hour=0; bool bSynthetic=true;
+   FString CurrentHash,PreviewHash;
+   if(TimePresets.IsValid()) TimePresets->TryGetStringField(TEXT("siteSHA256"),CurrentHash);
+   (*Preview)->TryGetStringField(TEXT("siteSHA256"),PreviewHash);
+   if(CurrentHash!=PreviewHash) return TEXT("旧敷地の時刻条件（T/Yで再選択してください）");
+   (*Preview)->TryGetStringField(TEXT("seasonLabel"),Season);
+   (*Preview)->TryGetNumberField(TEXT("hour"),Hour);
+   (*Preview)->TryGetBoolField(TEXT("synthetic"),bSynthetic);
+   return FString::Printf(TEXT("%s %02d:00（%s・未校正）"),*Season,Hour,bSynthetic?TEXT("仮敷地"):TEXT("入力敷地"));
+  }
+  return TEXT("手動角度（未校正）");
+ }
  FString Stamp,LocationStatus,NorthStatus;
  (*Solar)->TryGetStringField(TEXT("localTimestamp"),Stamp);
  (*Solar)->TryGetStringField(TEXT("locationStatus"),LocationStatus);
@@ -1043,7 +1172,26 @@ FString AWalkthroughCharacter::CurrentLightingLabel() const {
  if(!bReady||!State.IsValid()) return FString();
  const TSharedPtr<FJsonObject>* Lighting; FString Mode=TEXT("day");
  if(State->TryGetObjectField(TEXT("lighting"),Lighting)) (*Lighting)->TryGetStringField(TEXT("mode"),Mode);
- return Mode==TEXT("night")?TEXT("夜間（仮仕様）"):TEXT("昼間");
+ int32 Count=0,OnCount=0;
+ const TSharedPtr<FJsonObject>* RoomsObj;
+ const TSharedPtr<FJsonObject>* RoomObj;
+ const TSharedPtr<FJsonObject>* Overrides=nullptr;
+ if(State->TryGetObjectField(TEXT("roomStates"),RoomsObj)&&
+    (*RoomsObj)->TryGetObjectField(CurrentRoomId,RoomObj))
+  (*RoomObj)->TryGetObjectField(TEXT("fixtures"),Overrides);
+ const TArray<TSharedPtr<FJsonValue>>* FixtureList;
+ if(LightingBindings.IsValid()&&LightingBindings->TryGetArrayField(TEXT("fixtures"),FixtureList))
+  for(const auto& Value:*FixtureList) {
+   auto Fixture=Value->AsObject(); FString RoomId,Id;
+   if(!Fixture.IsValid()||!Fixture->TryGetStringField(TEXT("roomId"),RoomId)||RoomId!=CurrentRoomId||
+      !Fixture->TryGetStringField(TEXT("id"),Id)) continue;
+   Count++;
+   const TSharedPtr<FJsonObject>* Override;
+   bool bOn=false;
+   if(Overrides&&(*Overrides)->TryGetObjectField(Id,Override)) (*Override)->TryGetBoolField(TEXT("on"),bOn);
+   if(bOn) OnCount++;
+  }
+ return FString::Printf(TEXT("%s・現在室 %d/%d灯 点灯（仮仕様）"),Mode==TEXT("night")?TEXT("夜間"):TEXT("昼間"),OnCount,Count);
 }
 void AWalkthroughCharacter::SaveView() {
  if(!bReady) return;
@@ -1134,6 +1282,9 @@ void AWalkthroughCharacter::SetupPlayerInputComponent(UInputComponent* I) {
  Super::SetupPlayerInputComponent(I);
  I->BindKey(EKeys::One,IE_Pressed,this,&AWalkthroughCharacter::Finish1); I->BindKey(EKeys::Two,IE_Pressed,this,&AWalkthroughCharacter::Finish2); I->BindKey(EKeys::Three,IE_Pressed,this,&AWalkthroughCharacter::Finish3);
  I->BindKey(EKeys::Four,IE_Pressed,this,&AWalkthroughCharacter::SunLow); I->BindKey(EKeys::Five,IE_Pressed,this,&AWalkthroughCharacter::SunHigh);
+ I->BindKey(EKeys::L,IE_Pressed,this,&AWalkthroughCharacter::ToggleRoomLights);
+ I->BindKey(EKeys::T,IE_Pressed,this,&AWalkthroughCharacter::NextPreviewHour);
+ I->BindKey(EKeys::Y,IE_Pressed,this,&AWalkthroughCharacter::NextPreviewSeason);
  I->BindKey(EKeys::F5,IE_Pressed,this,&AWalkthroughCharacter::SaveView); I->BindKey(EKeys::F9,IE_Pressed,this,&AWalkthroughCharacter::RestoreView); I->BindKey(EKeys::Tab,IE_Pressed,this,&AWalkthroughCharacter::ToggleMouse);
  I->BindKey(EKeys::E,IE_Pressed,this,&AWalkthroughCharacter::InteractDoor);
 }
@@ -1466,10 +1617,34 @@ void AWalkthroughCharacter::Tick(float Delta) {
     const bool Rejected=!Restore(Invalid);Result->SetBoolField(TEXT("invalidLevelRejected"),Rejected);Passed &= Rejected;
     for(int32 A=0,B=Route.Num()-1;A<B;A++,B--) Swap(Route[A],Route[B]);
     Returning=true;Index=1;
-   } else if(Passed) {
-    const bool Arrived=CurrentRoomId==TEXT("room-1f-11")&&FMath::Abs(GetActorLocation().Z-Rooms.Find(TEXT("room-1f-11"))->FloorCm-88.5)<5;
-    Result->SetBoolField(TEXT("continuousDescent"),Arrived);Passed &= Arrived&&SavedOnStair;
-    SaveView();bSmokeDone=true;
+  } else if(Passed) {
+   const bool Arrived=CurrentRoomId==TEXT("room-1f-11")&&FMath::Abs(GetActorLocation().Z-Rooms.Find(TEXT("room-1f-11"))->FloorCm-88.5)<5;
+   Result->SetBoolField(TEXT("continuousDescent"),Arrived);Passed &= Arrived&&SavedOnStair;
+   ToggleRoomLights();
+   const auto RoomState=State->GetObjectField(TEXT("roomStates"))->GetObjectField(CurrentRoomId);
+   const auto Fixtures=RoomState->GetObjectField(TEXT("fixtures"));
+   bool bLightsOn=Fixtures->Values.Num()>0;
+   for(const auto& Entry:Fixtures->Values) {
+    bool bOn=false; Entry.Value->AsObject()->TryGetBoolField(TEXT("on"),bOn); bLightsOn &= bOn;
+   }
+   Result->SetBoolField(TEXT("roomLightsToggle"),bLightsOn);Passed &= bLightsOn;
+   NextPreviewHour();
+   const TSharedPtr<FJsonObject>* Preview;
+   bool bNine=State->TryGetObjectField(TEXT("walkthroughPreview"),Preview)&&(*Preview)->GetIntegerField(TEXT("hour"))==9;
+   Result->SetBoolField(TEXT("previewNineOClock"),bNine);Passed &= bNine;
+   NextPreviewSeason();
+   bool bSummer=State->TryGetObjectField(TEXT("walkthroughPreview"),Preview)&&(*Preview)->GetStringField(TEXT("seasonId"))==TEXT("summer");
+   Result->SetBoolField(TEXT("previewSeasonChange"),bSummer);Passed &= bSummer;
+   SaveView();auto PresetSaved=ReadJSON(SavedViewName());
+   for(int32 I=0;I<4;I++) NextPreviewHour(); // 9 -> 21, below the horizon
+   const bool bNight=State->GetObjectField(TEXT("lighting"))->GetStringField(TEXT("mode"))==TEXT("night")&&
+    State->GetObjectField(TEXT("walkthroughPreview"))->GetIntegerField(TEXT("hour"))==21;
+   Result->SetBoolField(TEXT("previewNightMode"),bNight);Passed &= bNight;
+   const bool bRoundTrip=PresetSaved.IsValid()&&Restore(PresetSaved)&&
+    State->GetObjectField(TEXT("walkthroughPreview"))->GetStringField(TEXT("seasonId"))==TEXT("summer")&&
+    State->GetObjectField(TEXT("roomStates"))->GetObjectField(CurrentRoomId)->GetObjectField(TEXT("fixtures"))->Values.Num()==Fixtures->Values.Num();
+   Result->SetBoolField(TEXT("previewAndLightsSaveRestore"),bRoundTrip);Passed &= bRoundTrip;
+   bSmokeDone=true;
    }
    if(!Passed)bSmokeDone=true;
    if(bSmokeDone) {
@@ -1789,7 +1964,7 @@ void AWalkthroughHUD::DrawHUD(){
  Super::DrawHUD();
  DrawRect(FLinearColor(0,0,0,.65),12,12,820,186);
  DrawText(TEXT("WASD：歩行　｜　マウス：視点　｜　Tab：カーソル解放　｜　F5：保存　｜　F9：復元　｜　E：扉の開閉"),FLinearColor::White,24,22);
- DrawText(TEXT("1/2/3：仕上げ切替（対象室のみ）　｜　4/5：太陽高度30/60度　｜　目線高さ1.60m　｜　採光は仮条件です"),FLinearColor::White,24,44);
+ DrawText(TEXT("1/2/3：仕上げ　｜　L：現在室の照明　｜　T：時刻　Y：季節　｜　4/5：手動太陽高度"),FLinearColor::White,24,44);
  if(auto P=Cast<AWalkthroughCharacter>(GetOwningPawn())) {
   // W07-G2: which room the player is standing in, and whether the finish
   // keys currently do anything here at all (spec section 3: "ホール等の

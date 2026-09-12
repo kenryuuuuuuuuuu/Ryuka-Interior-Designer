@@ -14,7 +14,8 @@ public:
  virtual void BeginPlay() override;
  virtual void SetupPlayerInputComponent(UInputComponent* Input) override;
  virtual void Tick(float Delta) override;
- void Finish1(); void Finish2(); void Finish3(); void SunLow(); void SunHigh();
+ void Finish1(); void Finish2(); void Finish3(); void SunLow(); void SunHigh(); void ToggleRoomLights();
+ void NextPreviewHour(); void NextPreviewSeason();
  void SaveView(); void RestoreView(); void ToggleMouse(); void InteractDoor();
  FString CurrentVariantLabel() const;
  FString CurrentSolarLabel() const;
@@ -64,10 +65,12 @@ private:
  // project (no lighting-bindings.json there), in which case ApplyConditions()
  // below just finds no fixtures to apply -- not an error.
  TSharedPtr<class FJsonObject> LightingBindings;
+ TSharedPtr<class FJsonObject> TimePresets;
  FVector LastSafeLocation=FVector::ZeroVector;
  mutable FString LastLeafMotionBlocker;  // W07-G2: diagnostic -- label of whatever last limited/blocked a leaf's motion
  void SetFinish(const FString& Name,const FString& Label);
  void SetSun(float Elevation);
+ void CyclePreviewTime(bool bSeason);
  bool ApplyConditions();
  bool IsCurrentRoomEditable() const;
  bool InsideRoomPolygon(const FString& RoomId, const FVector& Position, bool bStrict) const;

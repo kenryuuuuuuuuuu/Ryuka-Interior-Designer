@@ -344,7 +344,8 @@ def set_variant(name):
 
 def set_elevation(degrees):
     _require_no_active_compare()  # W06-v2 review 必須修正B
-    state=current_state(); state.pop('solar',None); state['elevationDeg']=degrees; apply_state(state)
+    state=current_state(); state.pop('solar',None); state.pop('walkthroughPreview',None)
+    state['elevationDeg']=degrees; apply_state(state)
 
 
 def _verify_case_site(case, label):
@@ -368,7 +369,9 @@ def set_sun_case(index):
         raise ValueError('Invalid solar case index')
     case=cases[index]
     _verify_case_site(case,f"日時ケース「{case['localTimestamp']}」")
-    apply_state(apply_case(current_state(),case))
+    state=apply_case(current_state(),case)
+    state.pop('walkthroughPreview',None)
+    apply_state(state)
 
 
 def fixed_view():
@@ -1206,6 +1209,7 @@ def start_daylight_compare(index_a, index_b):
         raise RuntimeError('日時比較は昼間モードでのみ開始できます。「照明」メニューから昼間へ戻してください。')
     def with_case(case):
         state=copy.deepcopy(base)
+        state.pop('walkthroughPreview',None)
         state['azimuthDeg']=case['azimuthDeg']; state['elevationDeg']=case['elevationDeg']; state['solar']=dict(case)
         return state
     state_a,state_b=with_case(case_a),with_case(case_b)

@@ -7,6 +7,7 @@ sys.path.insert(0,str(ROOT/'blender'))
 from stair_geometry import layout as stair_layout
 import circulation
 import multi_room_state as mrs
+from walkthrough_time_presets import build_presets
 p=argparse.ArgumentParser();p.add_argument('--project',type=Path,required=True);p.add_argument('--engine',type=Path,required=True);p.add_argument('--cache',type=Path,required=True)
 a=p.parse_args();project=a.project.resolve();engine=a.engine.resolve()
 report=json.loads((project/'import-verification.json').read_text(encoding='utf-8'))
@@ -79,6 +80,13 @@ if config['stairs']:
     route.append([last['x1']+dx/length*.5,last['z1']+dz/length*.5])
     config['stairRouteCm']=[[x*100,z*100] for x,z in route]
 (project/'walkthrough.json').write_text(json.dumps(config,ensure_ascii=False),encoding='utf-8')
+clock_config=json.loads((ROOT/'data/visual/walkthrough-time-presets.json').read_text(encoding='utf-8'))
+if clock_config.get('schemaVersion')!='1.0.0': raise ValueError('Invalid walkthrough time config')
+local_site=project/'site.local.json'
+synthetic=not local_site.exists()
+site=json.loads(local_site.read_text(encoding='utf-8')) if local_site.exists() else clock_config['previewSite']
+presets=build_presets(site,clock_config['seasonDates'],clock_config['hours'],clock_config['utcOffset'],synthetic=synthetic)
+(project/'walkthrough-time-presets.json').write_text(json.dumps(presets,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 # Native toolchain response files require a short ASCII path on this Windows setup.
 native=Path(tempfile.mkdtemp(prefix='ryuka-native-'))
 shutil.copytree(project/'Source',native/'Source')

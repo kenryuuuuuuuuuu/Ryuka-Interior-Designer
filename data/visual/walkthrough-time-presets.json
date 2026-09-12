@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "note": "敷地位置・図面の真北は未登録。北緯35度・東経135度・図面上方向を北とした表示確認用の仮敷地であり、実建物の日照予測ではない。",
+  "previewSite": {
+    "schemaVersion": "1.0.0",
+    "latitudeDeg": 35,
+    "longitudeDeg": 135,
+    "planNorthAzimuthDeg": 0,
+    "locationStatus": "estimated",
+    "northStatus": "estimated",
+    "note": "Synthetic preview location and north, unrelated to the actual building site."
+  },
+  "seasonDates": [
+    {"id": "spring", "label": "春", "date": "2026-03-21"},
+    {"id": "summer", "label": "夏", "date": "2026-06-21"},
+    {"id": "autumn", "label": "秋", "date": "2026-09-21"},
+    {"id": "winter", "label": "冬", "date": "2026-12-21"}
+  ],
+  "hours": [9, 12, 15, 18, 21, 24],
+  "utcOffset": "+09:00"
+}
