@@ -71,6 +71,83 @@
       "sizing": "parametric",
       "status": "estimated",
       "note": "浴槽の外殻・エプロン・縁・一段下げた内側の底・水栓を簡易な部品で組んだ自作モデル（内部を固体で埋めない）。特定製品の再現ではない。実寸は正本のまま。"
+    },
+    {
+      "furnitureId": "fur-020",
+      "assetId": "sofa-timber-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: reuse procedural fixture; canonical dimensions/placement unchanged. Product details unconfirmed."
+    },
+    {
+      "furnitureId": "fur-023",
+      "assetId": "vanity-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: reuse procedural fixture; canonical dimensions/placement unchanged. Product details unconfirmed."
+    },
+    {
+      "furnitureId": "fur-024",
+      "assetId": "washer-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: reuse procedural fixture; canonical dimensions/placement unchanged. Product details unconfirmed."
+    },
+    {
+      "furnitureId": "fur-025",
+      "assetId": "bathtub-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: reuse procedural fixture; canonical dimensions/placement unchanged. Product details unconfirmed."
+    },
+    {
+      "furnitureId": "fur-026",
+      "assetId": "toilet-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: reuse procedural fixture; canonical dimensions/placement unchanged. Product details unconfirmed."
+    },
+    {
+      "furnitureId": "fur-022",
+      "assetId": "toilet-tankless-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: tankless procedural body; source placement/dimensions retained. Product unconfirmed."
+    },
+    {
+      "furnitureId": "fur-027",
+      "assetId": "bed-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: simple frame/mattress or tabletop/legs; canonical outer dimensions and placement retained. Product details unconfirmed."
+    },
+    {
+      "furnitureId": "fur-030",
+      "assetId": "bed-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: simple frame/mattress or tabletop/legs; canonical outer dimensions and placement retained. Product details unconfirmed."
+    },
+    {
+      "furnitureId": "fur-032",
+      "assetId": "bed-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: simple frame/mattress or tabletop/legs; canonical outer dimensions and placement retained. Product details unconfirmed."
+    },
+    {
+      "furnitureId": "fur-028",
+      "assetId": "desk-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: simple frame/mattress or tabletop/legs; canonical outer dimensions and placement retained. Product details unconfirmed."
+    },
+    {
+      "furnitureId": "fur-031",
+      "assetId": "desk-v1",
+      "sizing": "parametric",
+      "status": "estimated",
+      "note": "W07-H: simple frame/mattress or tabletop/legs; canonical outer dimensions and placement retained. Product details unconfirmed."
     }
   ]
 }

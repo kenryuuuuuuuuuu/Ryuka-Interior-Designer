@@ -3,6 +3,8 @@ import argparse,json,subprocess,shutil,sys,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'unreal'))
+sys.path.insert(0,str(ROOT/'blender'))
+from stair_geometry import layout as stair_layout
 import circulation
 import multi_room_state as mrs
 p=argparse.ArgumentParser();p.add_argument('--project',type=Path,required=True);p.add_argument('--engine',type=Path,required=True);p.add_argument('--cache',type=Path,required=True)
@@ -50,11 +52,32 @@ for c in connections:
     leaves=door_bindings.get(c['id'],{}).get('leaves',[])
     connection_label='⟷'.join(rooms_by_id[room_id].get('label') or room_id for room_id in c['roomIds'])
     connections_config.append(dict(id=c['id'],roomIds=c['roomIds'],operation=c['operation'],
-        openable=c['operation']!='open',orientation=c['orientation'],
+        openable=c['operation'] in circulation.OPENABLE_OPERATIONS,orientation=c['orientation'],edgeCm=[[x*100,z*100] for x,z in c.get('edge',[])],
         atCm=c['wallAt']*100,loCm=lo*100,hiCm=hi*100,leaves=leaves,label=connection_label))
 config=dict(schemaVersion='2.0.0',profileId=profile['profileId'],entryRoomId=profile['entryRoomId'],
     editRoomIds=edit_scope['roomIds'],cachePath=a.cache.resolve().as_posix(),
-    rooms=rooms_config,connections=connections_config)
+    rooms=rooms_config,connections=connections_config,
+    stairs=[dict(id=t['id'],lowerRoomId='room-1f-10',upperRoomId='room-2f-02',
+        steps=[dict(polygonCm=[[x*100,z*100] for x,z in poly],topCm=step['top']*100,lower=step['top']<(house['levels']['fl1']+house['levels']['fl2'])/2) for step in stair_layout(t,house['levels'])['steps'] for poly in step['polygons']])
+        for t in house.get('stairs',[]) if 'room-1f-10' in profile['roomIds'] and 'room-2f-02' in profile['roomIds']])
+if config['stairs']:
+    # Route samples are derived from the canonical centreline for the native
+    # real CharacterMovement stair test, not used for production movement.
+    import math
+    t=house['stairs'][0]; route=[]
+    first=t['segments'][0];last=t['segments'][-1]
+    dx,dz=first['x1']-first['x0'],first['z1']-first['z0'];length=math.hypot(dx,dz)
+    route.append([first['x0']-dx/length*.5,first['z0']-dz/length*.5])
+    for seg in t['segments']:
+        if seg['type']=='straight':
+            route.extend([[seg['x0']+(seg['x1']-seg['x0'])*i/8,seg['z0']+(seg['z1']-seg['z0'])*i/8] for i in range(9)])
+        else:
+            for i in range(1,17):
+                angle=math.radians(seg['startAngleDeg']+(seg['endAngleDeg']-seg['startAngleDeg'])*i/16)
+                route.append([seg['pivotX']+seg['radius']*math.cos(angle),seg['pivotZ']+seg['radius']*math.sin(angle)])
+    dx,dz=last['x1']-last['x0'],last['z1']-last['z0'];length=math.hypot(dx,dz)
+    route.append([last['x1']+dx/length*.5,last['z1']+dz/length*.5])
+    config['stairRouteCm']=[[x*100,z*100] for x,z in route]
 (project/'walkthrough.json').write_text(json.dumps(config,ensure_ascii=False),encoding='utf-8')
 # Native toolchain response files require a short ASCII path on this Windows setup.
 native=Path(tempfile.mkdtemp(prefix='ryuka-native-'))

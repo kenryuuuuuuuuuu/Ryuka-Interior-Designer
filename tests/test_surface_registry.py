@@ -36,7 +36,7 @@ class SurfaceRegistryTests(unittest.TestCase):
         # 4-vertex rectangles. Every registered surface must still resolve.
         result=sr.resolve_from(ROOT)
         self.assertEqual(result['issues'],[])
-        self.assertEqual(len(result['surfaces']),16+36)
+        self.assertEqual(len(result['surfaces']),216)
         self.assertTrue(all(s['status']=='resolved' for s in result['surfaces']))
 
     # --- acceptance 2: reorder/reversed vertices, shared-wall two rooms ---

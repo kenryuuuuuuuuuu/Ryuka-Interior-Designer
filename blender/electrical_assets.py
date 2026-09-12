@@ -17,7 +17,8 @@ passed in by the caller (build_interior.py) -- same injection pattern
 guest_decor.build() already uses.
 """
 import math
-from interior_geometry import ceiling_y
+from interior_geometry import ceiling_y, point_in_room
+from stair_geometry import layout as stair_layout
 
 LIGHTING_CATEGORY = 'lighting'
 # W06 spec section 1: required this round. light-exterior/light-indirect are
@@ -58,6 +59,17 @@ def ceiling_height_at(data, x, z, room_id):
     room = next((r for r in data['rooms'] if r['id'] == room_id), None)
     if room is None:
         raise ValueError(f'Unknown room for ceiling height resolution: {room_id}')
+    # A first-floor plan label does not create a ceiling across a stair void.
+    # Below the returning flight, use the actual tread underside instead.
+    for stair in data.get('stairs',[]):
+        hole=stair.get('opening',{})
+        if stair['levelFrom']!=room['level'] or not hole:continue
+        if not (hole['x0']<=x<=hole['x1'] and hole['z0']<=z<=hole['z1']):continue
+        below=stair.get('hiddenBelow',{})
+        if below and below['x0']<=x<=below['x1'] and below['z0']<=z<=below['z1']:
+            for step in stair_layout(stair,data['levels'])['steps']:
+                if any(point_in_room(x,z,poly) for poly in step['polygons']):return step['bottom']
+        return data['levels'][f"fl{stair['levelTo']}"]+data['defaults']['ceilingHeight']
     flat_default = data['levels'][f"fl{room['level']}"] + data['defaults']['ceilingHeight']
     if room.get('ceiling') != 'sloped':
         return flat_default

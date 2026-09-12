@@ -18,7 +18,8 @@ from mathutils import Vector
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_house as house_builder
 from surface_finishes import assign_surface_uv, apply_pattern
-from surface_bindings import split_wall_at, wall_cap_for_room, decompose_rectilinear, subtract_rects, intersect_rect
+from stair_geometry import layout as stair_layout, walking_ramps, wall_clearances
+from surface_bindings import partition_room_faces, split_wall_at, wall_cap_for_room, decompose_rectilinear, subtract_rects, intersect_rect
 from electrical_assets import build_lighting_bindings, merged_item, create_fixture_mesh, ceiling_height_at
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
 from finish_settings import details_for_variant
@@ -286,6 +287,7 @@ def build_envelope(data, mats, binder=None):
         at = w['z0'] if horizontal else w['x0']
         cuts = [] if 'guardHeight' in w else [o for o in ops if o['level']==w['level'] and
                 o['orientation']==w['orientation'] and abs(o['at']-at)<1e-6]
+        cuts += wall_clearances(w,data)
         # Registered wall surfaces on this same wall LINE (same orientation +
         # at) whose registered edge overlaps this wall entity's own span.
         # There can be up to two (a wall shared by two registered rooms); a
@@ -296,7 +298,9 @@ def build_envelope(data, mats, binder=None):
         # since a registration's entire range is always on the same cap.
         matches=[]
         for s in wall_registrations:
+            if binder.rooms_by_id[s['roomId']]['level'] != w['level']: continue
             (ex0,ez0),(ex1,ez1) = s['edge']
+            if abs(ex0-ex1)>1e-6 and abs(ez0-ez1)>1e-6: continue
             s_horizontal = abs(ez0-ez1) < 1e-6
             if s_horizontal != horizontal: continue
             s_at = ez0 if s_horizontal else ex0
@@ -347,71 +351,42 @@ def build_envelope(data, mats, binder=None):
                 else:
                     panel(f"wall.{w['id']}.{i}.{j}",w,piece,mats['wall'],dict(wall=w,openings=cuts))
     floor_registrations = binder.floor_surfaces() if binder else []
-    for i,r in enumerate(data['envelope']['slabs']):
-        y = data['levels'][f"fl{r['level']}"]
-        rect=(r['x0'],r['x1'],r['z0'],r['z1'])
-        remainder=[rect]
-        for s in floor_registrations:
-            # W04 review R5: a room's own level must match this slab's level
-            # too, not just its planar (x,z) footprint -- two different
-            # floors can share the same footprint rectangle.
-            if binder.rooms_by_id[s['roomId']]['level'] != r['level']: continue
-            room=binder.room_polygon(s['roomId'])
-            if not _rects_overlap(rect,_room_bbox(room)): continue
-            # Intersect each of the room's own rectangles with THIS slab only
-            # (not the room's full rectangles unconditionally): a room whose
-            # bbox merely brushes a neighbouring slab, without its polygon
-            # actually reaching it, must not get duplicate floor geometry there.
-            for room_rect in decompose_rectilinear(room):
-                overlap=intersect_rect(room_rect,rect)
-                if not overlap: continue
-                # W04 review R5: only the walkable TOP face (cap 1, see
-                # block()) gets the marker material -- the underside and thin
-                # side faces keep the plain floor material.
-                obj=block(f"slab.{r['footprintId']}.{i}.{s['id']}.{len(binder.bound_meshes.get(s['id'],[]))}",
-                    *overlap,y-.12,y,mats.get('floor',mats['wood']),face_materials={1:binder.materials[s['id']]})
-                binder.mark_bound(s['id'],obj.name,1)
-                remainder=subtract_rects(remainder,[overlap])
-        if remainder==[rect]:
-            block(f"slab.{r['footprintId']}.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y-.12,y,mats.get('floor',mats['wood']))
-        else:
-            for j,(x0,x1,z0,z1) in enumerate(remainder):
-                block(f"slab.{r['footprintId']}.{i}.rest.{j}",x0,x1,z0,z1,y-.12,y,mats.get('floor',mats['wood']))
-    for i,r in enumerate(data['envelope']['flatCeilings']):
-        y = data['levels'][f"fl{r['level']}"]+data['defaults']['ceilingHeight']
-        rect=(r['x0'],r['x1'],r['z0'],r['z1'])
-        remainder=[rect]
-        if binder:
-            for room_id in {rid for rid,kind in binder.by_room_kind if kind=='ceiling'}:
-                ceiling_surface=binder.ceiling_surface(room_id)
-                if not ceiling_surface: continue
-                # W04 review R5: level match, same reasoning as the floor loop above.
-                if binder.rooms_by_id[room_id]['level'] != r['level']: continue
-                room=binder.room_polygon(room_id)
-                # The room's floor-plan rectangles minus whatever part of it is
-                # already sloped ceiling (built separately below): only THAT
-                # leftover is genuinely flat-ceiling area for this room. A
-                # fully-sloped room (like room-1f-06) yields none here, so a
-                # flatCeilings rectangle that merely bbox-overlaps its polygon
-                # (e.g. the notch of an L-shaped room) is correctly left alone.
-                sloped_rects=[(p['x0'],p['x1'],p['z0'],p['z1']) for p in data['envelope']['slopedCeilingPieces']
-                              if p['roomId']==room_id and p['sloped']]
-                for flat_rect in subtract_rects(decompose_rectilinear(room),sloped_rects):
-                    overlap=intersect_rect(flat_rect,rect)
-                    if not overlap: continue
-                    # W04 review R5: only the room-facing UNDERSIDE (cap 0,
-                    # see block()) gets the marker material -- the topside
-                    # (above the ceiling void) and thin side faces keep the
-                    # plain ceiling material.
-                    obj=block(f"ceiling.flat.{i}.{ceiling_surface['id']}.{len(binder.bound_meshes.get(ceiling_surface['id'],[]))}",
-                        *overlap,y,y+.025,mats['ceiling'],face_materials={0:binder.materials[ceiling_surface['id']]})
-                    binder.mark_bound(ceiling_surface['id'],obj.name,1)
-                    remainder=subtract_rects(remainder,[overlap])
-        if remainder==[rect]:
-            block(f"ceiling.flat.{i}",r['x0'],r['x1'],r['z0'],r['z1'],y,y+.025,mats['ceiling'])
-        else:
-            for j,(x0,x1,z0,z1) in enumerate(remainder):
-                block(f"ceiling.flat.{i}.rest.{j}",x0,x1,z0,z1,y,y+.025,mats['ceiling'])
+    for kind,key,offset,depth,cap in [('floor','slabs',0,-.12,0),('ceiling','flatCeilings',data['defaults']['ceilingHeight'],.025,0)]:
+        for i,r in enumerate(data['envelope'][key]):
+            y=data['levels'][f"fl{r['level']}"]+offset
+            rect=(r['x0'],r['x1'],r['z0'],r['z1'])
+            registrations={rid:ss[0] for (rid,k),ss in binder.by_room_kind.items()
+                           if k==kind and binder.rooms_by_id[rid]['level']==r['level']} if binder else {}
+            rooms=[binder.rooms_by_id[rid] for rid in registrations]
+            for j,(poly,rid) in enumerate(partition_room_faces(rect,rooms)):
+                registration=registrations.get(rid)
+                fm={cap:binder.materials[registration['id']]} if registration else None
+                vertices=[(x,-z,y) for x,z in poly]
+                obj=prism(f"{'slab' if kind=='floor' else 'ceiling.flat'}.{i}.{j}",vertices,(0,0,depth),mats['wood'] if kind=='floor' else mats['ceiling'],face_materials=fm)
+                if registration: binder.mark_bound(registration['id'],obj.name,1)
+    for stair in data.get('stairs',[]):
+        shape=stair_layout(stair,data['levels'])
+        for i,step in enumerate(shape['steps']):
+            rid='room-1f-10' if step['top']<(data['levels']['fl1']+data['levels']['fl2'])/2 else 'room-2f-02'
+            registrations=binder.by_room_kind.get((rid,'floor'),[]) if binder else []
+            registration=registrations[0] if registrations else None
+            for j,poly in enumerate(step['polygons']):
+                faces={1:binder.materials[registration['id']]} if registration else {}
+                underside=None
+                if binder and 'hiddenBelow' in stair:
+                    hole=stair['hiddenBelow'];cx=sum(p[0] for p in poly)/len(poly);cz=sum(p[1] for p in poly)/len(poly)
+                    if hole['x0']<cx<hole['x1'] and hole['z0']<cz<hole['z1']:
+                        underside=binder.ceiling_surface('room-1f-21')
+                        if underside:faces[0]=binder.materials[underside['id']]
+                obj=prism(f"stair.{stair['id']}.{i:02}.{j}",[(x,-z,step['bottom']) for x,z in poly],
+                      (0,0,step['top']-step['bottom']),mats['wood'],stair,'stairs',faces or None)
+                if registration: binder.mark_bound(registration['id'],obj.name,1)
+                if underside:binder.mark_bound(underside['id'],obj.name,2 if registration else 1)
+    for stair in data.get('stairs',[]):
+        for i,(vertices,faces) in enumerate(walking_ramps(stair,data['levels'])):
+            obj=mesh(f"stair_collision.{stair['id']}.{i}",[(x,-z,y) for x,z,y in vertices],faces,mats['wood'],stair)
+            obj.hide_render=True
+            obj['walkthrough_collision_only']=True
     pieces = data['envelope']['slopedCeilingPieces']
     for i,p in enumerate(pieces):
         if not p['sloped']:
@@ -584,7 +559,33 @@ def build_openings(ops, settings, mats, door_connections_by_id=None, door_states
         # x-component is not).
         is_open=circulation.effective_door_open(o['id'],door_states)
         leaves=[]
-        if connection['operation']=='double-swing':
+        if connection['operation'] in ('fold','double-fold'):
+            # Each pair folds about its jamb; the outer panel follows the
+            # meeting hinge with a translation plus opposite rotation.
+            pairs=[(a,b,connection.get('hingeSide') or 'L')]
+            if connection['operation']=='double-fold': pairs=[(a,(a+b)/2,'L'),((a+b)/2,b,'R')]
+            for pair_index,(pl,ph,side) in enumerate(pairs):
+                sign=1 if side=='L' else -1
+                jamb=pl+fw if side=='L' else ph-fw
+                length=(ph-pl-fw)/2
+                hinge=(jamb,o['at']) if o['orientation']=='H' else (o['at'],jamb)
+                delta=circulation._swing_delta_deg(dict(connection,hingeSide=side,maxSwingDeltaDeg=80))
+                for panel_index in range(2):
+                    start=jamb+sign*length*panel_index; end=start+sign*length
+                    obj=rect(f'fold-{pair_index}-{panel_index}',min(start,end),max(start,end),low+.005,high-fw,mats['cabinet'],.025)
+                    pivot=(start,o['at']) if o['orientation']=='H' else (o['at'],start)
+                    _recenter_object(obj,_hinge_blender_xy(o['orientation'],o['at'],pivot,w['thickness']))
+                    yaw=delta if panel_index==0 else -delta
+                    leaf=dict(actor=obj.name,kind='fold',openYawDeltaDeg=yaw,bakedOpen=is_open)
+                    if panel_index:
+                        angle=math.radians(delta); vx,vz=(sign*length,0) if o['orientation']=='H' else (0,sign*length)
+                        dx=vx*math.cos(angle)-vz*math.sin(angle)-vx
+                        dz=vx*math.sin(angle)+vz*math.cos(angle)-vz
+                        leaf['openOffsetCm']=[dx*100,dz*100,0]
+                        if is_open: obj.location.x+=dx; obj.location.y-=dz
+                    if is_open: obj.rotation_euler[2]=math.radians(-yaw)
+                    leaves.append(leaf)
+        elif connection['operation']=='double-swing':
             mid=(a+b)/2
             spans=dict(left=(a,mid),right=(mid,b))
             for hinge_xz,delta_deg,kind in circulation.double_swing_hinges_and_deltas(connection):
@@ -1022,8 +1023,8 @@ def main():
     # guest-decor.json is fixed to room-1f-06 (LDK) by its own roomId field
     # (see the role_bindings loop below) -- its own room's materials set,
     # same as any other LDK furniture (review R5).
-    decorations=build_decor(read(ROOT/'data/visual/guest-decor.json'),data,items,ops,
-        mats_by_room.get('room-1f-06',mats),block,mesh,read(ROOT/'data/furniture-catalog.json'))
+    decor_document=read(ROOT/'data/visual/guest-decor.json')
+    decorations=build_decor(decor_document,data,items,ops,mats_by_room[decor_document['roomId']],block,mesh,read(ROOT/'data/furniture-catalog.json')) if decor_document['roomId'] in room_ids else []
     # guest-decor.json is fixed to room-1f-06 (LDK) by its own roomId field
     # (unchanged by W07-G1: "新しい小物・画像相当の装飾は不要" for the
     # western room) -- every decoration object it just created belongs there.
@@ -1082,7 +1083,7 @@ def main():
                 limitations=['Furniture is procedural, with approximate details; source placement retained',
                              'Window frames and per-surface shadow transmittance .9 (pane approx .81) are estimated',
                              'No neighbouring buildings or measured site orientation',
-                             'Stair opening and guard walls present; stair treads still absent',
+                             'Canonical stair treads and guard walls; estimated dimensions retained',
                              'Roof/gable details incomplete; source ceiling heights remain estimated',
                              'Procedural materials and glass shadow shader require UE counterparts',
                              'Electrical fixture geometry is a simple placeholder; lumens/colour temperature are estimated profiles, not measured photometry (see data/visual/lighting-settings.json)',

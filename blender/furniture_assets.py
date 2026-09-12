@@ -22,9 +22,11 @@ def validate_bindings(document, items, catalog):
                     'round-table-v1': ('roundTable', round_table_parts),
                     'chair-timber-v1': ('timberChair', chair_parts),
                     'toilet-v1': ('toilet', toilet_parts),
+                    'toilet-tankless-v1': ('toiletTankless', tankless_parts),
                     'vanity-v1': ('vanity', vanity_parts),
                     'washer-v1': ('boxAppliance', washer_parts),
-                    'bathtub-v1': ('bathtub', bathtub_parts)}
+                    'bathtub-v1': ('bathtub', bathtub_parts),
+                    'bed-v1': ('bed', bed_parts), 'desk-v1': ('table', desk_parts)}
         if binding.get('assetId') not in registry or binding.get('sizing') != 'parametric':
             raise ValueError(f'Unsupported asset or sizing policy: {target}')
         if binding.get('status') != 'estimated' or not binding.get('note'):
@@ -120,8 +122,8 @@ def asset_parts(asset_id,w,d,h):
     return {'sofa-timber-v1':sofa_parts,'round-table-v1':round_table_parts,
             'chair-timber-v1':chair_parts,'range-hood-v1':hood_parts,
             'faucet-v1':faucet_parts,'air-conditioner-v1':air_conditioner_parts,
-            'toilet-v1':toilet_parts,'vanity-v1':vanity_parts,
-            'washer-v1':washer_parts,'bathtub-v1':bathtub_parts}[asset_id](w,d,h)
+            'toilet-v1':toilet_parts,'toilet-tankless-v1':tankless_parts,'vanity-v1':vanity_parts,
+            'washer-v1':washer_parts,'bathtub-v1':bathtub_parts,'bed-v1':bed_parts,'desk-v1':desk_parts}[asset_id](w,d,h)
 
 
 # W07-G3: water-room fixtures -- simple parametric parts that read as their
@@ -144,9 +146,9 @@ def toilet_parts(w, d, h):
 
 
 def vanity_parts(w, d, h):
-    check_dimensions((w, d, h), ((.5, 1.3), (.4, .65), (.7, 2.1)))
+    check_dimensions((w, d, h), ((.5, 2.0), (.4, .65), (.7, 2.1)))
     counter = min(.86, h * .5)
-    bx0, bx1, bz0, bz1 = -w * .30, w * .30, -d * .18, d * .30
+    bx0, bx1, bz0, bz1 = -min(w * .30,.39), min(w * .30,.39), -d * .18, d * .30
     inner = counter - .13
     # W07-G3 review R3: the cabinet must leave a real cavity under the basin
     # -- a full-height solid box buried the bowl and its walls, so the
@@ -233,3 +235,31 @@ def air_conditioner_parts(w,d,h):
     return [solid('case',[-w/2,w/2,-d/2,d*.46,0,h],'stone',bevel=.025),
             solid('front',[-w*.48,w*.48,d*.46,d/2,h*.18,h*.94],'stone',bevel=.016),
             solid('outlet',[-w*.43,w*.43,d*.46,d/2,h*.03,h*.15],'black',bevel=.003)]
+
+
+def tankless_parts(w,d,h):
+    check_dimensions((w,d,h),((.34,.65),(.5,.85),(.4,.8)))
+    seat=h-.04
+    return [solid('pedestal',[-w*.32,w*.32,-d*.42,d*.3,0,seat-.1],'stone',kind='ellipse'),
+            solid('bowl',[-w*.48,w*.48,-d/2,d/2,seat-.1,seat],'stone',kind='ellipse'),
+            solid('lid',[-w/2,w/2,-d/2,d/2,seat,h],'stone',kind='ellipse')]
+
+
+def bed_parts(w,d,h):
+    """Source height is mattress top; all detail stays inside that envelope."""
+    check_dimensions((w,d,h),((.8,2.2),(1.7,2.3),(.3,.8)))
+    parts=[solid('frame',[-w/2,w/2,-d/2,d/2,h*.2,h*.58],'wood',bevel=.015),
+           solid('mattress',[-w*.49,w*.49,-d*.49,d*.49,h*.58,h],'fabric',bevel=.035)]
+    for i,x in enumerate((-w*.4,w*.4)):
+        for j,z in enumerate((-d*.4,d*.4)):
+            parts.append(solid(f'foot-{i}-{j}',[x-.025,x+.025,z-.025,z+.025,0,h*.2],'frame'))
+    return parts
+
+
+def desk_parts(w,d,h):
+    check_dimensions((w,d,h),((.7,2.0),(.4,1.0),(.55,.9)))
+    parts=[solid('top',[-w/2,w/2,-d/2,d/2,h-.04,h],'wood',bevel=.012)]
+    for i,x in enumerate((-w/2+.05,w/2-.05)):
+        for j,z in enumerate((-d/2+.05,d/2-.05)):
+            parts.append(solid(f'leg-{i}-{j}',[x-.025,x+.025,z-.025,z+.025,0,h-.04],'frame'))
+    return parts

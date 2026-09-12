@@ -137,6 +137,431 @@
         "note": "収納を両開き戸の開口から見る仮設定。内部には入れない。"
       },
       "defaultVariant": "natural"
+    },
+    "room-1f-07": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          8.19,
+          1.8199999999999998,
+          1.55
+        ],
+        "target": [
+          10.69,
+          3.32,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-08": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          10.01,
+          1.1375,
+          1.55
+        ],
+        "target": [
+          12.51,
+          2.6375,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-19": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          10.01,
+          2.0475,
+          1.55
+        ],
+        "target": [
+          12.51,
+          3.5475,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-09": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          11.685500000000001,
+          1.365,
+          1.55
+        ],
+        "target": [
+          14.185500000000001,
+          2.865,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-20": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          13.051,
+          1.1375,
+          1.55
+        ],
+        "target": [
+          15.551,
+          2.6375,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-10": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          14.561,
+          0.9099999999999999,
+          1.55
+        ],
+        "target": [
+          17.061,
+          2.41,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-21": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          15.016,
+          1.365,
+          1.55
+        ],
+        "target": [
+          17.516,
+          2.865,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-11": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          10.2,
+          3.3,
+          1.6
+        ],
+        "target": [
+          13.4,
+          5.0,
+          1.4
+        ],
+        "lensMm": 18,
+        "note": "自宅LDK北西寄りから食卓・キッチン・混在天井を見渡す仮視点。"
+      }
+    },
+    "room-1f-12": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          17.2905,
+          0.9099999999999999,
+          1.55
+        ],
+        "target": [
+          19.7905,
+          2.41,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-13": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          16.381,
+          2.73,
+          1.55
+        ],
+        "target": [
+          18.881,
+          4.23,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-22": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          16.836,
+          2.275,
+          1.55
+        ],
+        "target": [
+          19.336,
+          3.775,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-14": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          18.200499999999998,
+          2.275,
+          1.55
+        ],
+        "target": [
+          20.700499999999998,
+          3.775,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-15": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          18.19,
+          3.05,
+          1.6
+        ],
+        "target": [
+          18.19,
+          3.85,
+          1.05
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional view adjusted after UE capture to show furniture/fixtures and the hallway; not surveyed."
+      }
+    },
+    "room-1f-16": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          16.381,
+          5.005,
+          1.55
+        ],
+        "target": [
+          18.881,
+          6.505,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-17": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          18.200499999999998,
+          5.2325,
+          1.55
+        ],
+        "target": [
+          20.700499999999998,
+          6.7325,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-1f-18": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          17.744999999999997,
+          7.0525,
+          1.55
+        ],
+        "target": [
+          20.244999999999997,
+          8.5525,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-2f-01": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          13.1955,
+          0.9099999999999999,
+          1.55
+        ],
+        "target": [
+          15.6955,
+          2.41,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-2f-02": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          14.560500000000001,
+          0.9099999999999999,
+          1.55
+        ],
+        "target": [
+          17.0605,
+          2.41,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-2f-03": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          13.15,
+          2.275,
+          1.6
+        ],
+        "target": [
+          15.8,
+          2.275,
+          1.45
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional view adjusted after UE capture to show furniture/fixtures and the hallway; not surveyed."
+      }
+    },
+    "room-2f-04": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          15.0,
+          3.25,
+          1.6
+        ],
+        "target": [
+          13.8,
+          5.5,
+          1.05
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional view adjusted after UE capture to show furniture/fixtures and the hallway; not surveyed."
+      }
+    },
+    "room-2f-07": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          13.65,
+          3.185,
+          1.55
+        ],
+        "target": [
+          16.15,
+          4.6850000000000005,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-2f-05": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          17.744999999999997,
+          1.365,
+          1.55
+        ],
+        "target": [
+          20.244999999999997,
+          2.865,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-2f-08": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          15.925,
+          0.9099999999999999,
+          1.55
+        ],
+        "target": [
+          18.425,
+          2.41,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-2f-06": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          17.29,
+          4.55,
+          1.55
+        ],
+        "target": [
+          19.79,
+          6.05,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
+    },
+    "room-2f-09": {
+      "defaultVariant": "natural",
+      "camera": {
+        "position": [
+          17.744999999999997,
+          3.185,
+          1.55
+        ],
+        "target": [
+          20.244999999999997,
+          4.6850000000000005,
+          1.35
+        ],
+        "lensMm": 18,
+        "note": "W07-H: provisional viewpoint derived from room polygon; not surveyed."
+      }
     }
   }
 }

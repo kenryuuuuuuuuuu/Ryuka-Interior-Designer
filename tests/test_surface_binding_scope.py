@@ -46,7 +46,7 @@ class SurfaceBindingScopeTests(unittest.TestCase):
         return scope, binder.bindings_json()['surfaces']
 
     def test_full_registry_still_resolves(self):
-        self.assertEqual(len(self.resolved), 52)
+        self.assertEqual(len(self.resolved), 216)
         self.assertTrue(all(s['status'] == 'resolved' for s in self.resolved))
 
     def test_pilot_scope_only_binds_its_two_rooms(self):

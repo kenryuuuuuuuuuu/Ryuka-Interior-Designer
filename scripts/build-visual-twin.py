@@ -38,7 +38,7 @@ def inputs():
               'blender/build_house.py', 'blender/wall_geometry.py', 'blender/interior_geometry.py',
               'blender/build_interior.py', 'blender/furniture_assets.py', 'blender/surface_finishes.py',
               'blender/surface_bindings.py', 'blender/guest_decor.py', 'blender/textile_assets.py',
-              'blender/electrical_assets.py',
+              'blender/electrical_assets.py', 'blender/stair_geometry.py',
               'unreal/finish_settings.py', 'unreal/study_state.py', 'unreal/solar_position.py',
               'unreal/surface_finish_overrides.py', 'unreal/lighting.py', 'unreal/multi_room_state.py',
               'unreal/circulation.py',

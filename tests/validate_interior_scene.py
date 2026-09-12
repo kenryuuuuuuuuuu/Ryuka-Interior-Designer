@@ -23,6 +23,15 @@ def main():
         assert all(edge.is_manifold for edge in bm.edges), f'Non-manifold solid: {obj.name}'
         assert bm.calc_volume(signed=True)>1e-10, f'Invalid volume/normals: {obj.name}'
         bm.free()
+    house_source=json.loads((Path(__file__).resolve().parents[1]/'data/house.json').read_text(encoding='utf8'))
+    rooms_by_id={r['id']:r for r in house_source['rooms']}
+    bindings=json.loads((root/'surface-bindings.json').read_text(encoding='utf8'))['surfaces']
+    for surface in bindings.values():
+        for binding in surface['meshes']:
+            obj=bpy.data.objects[binding['name']]
+            source=json.loads(obj.get('source_json','{}'))
+            if surface['kind']=='wall' and 'wall' in source:
+                assert source['wall']['level']==rooms_by_id[surface['roomId']]['level'], 'Surface assigned across floors'
     scene=bpy.context.scene; deps=bpy.context.evaluated_depsgraph_get()
     hits=[]
     for x,z in [(2.2,3.1),(2.2,5.7),(3.5,5.2),(5.3,4.5),(6.5,5.7)]:
@@ -100,7 +109,7 @@ def main():
     # GLB applies the bevel modifier. Compare its expanded bounds within 1mm.
     error=max(abs(a-b) for name in expected for a,b in zip(expected[name],actual[name]))
     assert error<.001, f'GLB axis/scale discrepancy: {error}'
-    result=dict(meshes=len(meshes),closedSolids=True,ceilingCheckpoints=hits,
+    result=dict(meshes=len(meshes),closedSolids=True,surfaceOwnersMatchLevels=True,ceilingCheckpoints=hits,
                 guestWindowUnblocked=True,glbMaxBoundsErrorMetres=error,unrealImportVerified=False,
                 meshBoundsBlenderMetres=actual,furnitureDetails=detail_checks)
     (root/'verification.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')

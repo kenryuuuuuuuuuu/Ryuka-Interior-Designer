@@ -125,6 +125,11 @@ def main():
     blender_bindings = json.loads((package/'surface-bindings.json').read_text(encoding='utf-8'))
     finish_document = json.loads((project/'finish-settings.json').read_text(encoding='utf-8'))
     actor_by_label = {a.get_actor_label(): a for a in meshes}
+    for actor in meshes:
+        if actor.get_actor_label().startswith('stair_collision_'):
+            actor.set_actor_hidden_in_game(True)
+            actor.static_mesh_component.set_visibility(False,True)
+            actor.static_mesh_component.set_cast_shadow(False)
     surface_bindings = {}
     for surface_id, info in blender_bindings['surfaces'].items():
         markers_by_variant = {}
@@ -190,7 +195,7 @@ def main():
             leaf_out = dict(leaf, actor=actor_label)
             if 'openYawDeltaDeg' in leaf:
                 actor.set_actor_rotation(unreal.Rotator(pitch=0, yaw=leaf['openYawDeltaDeg'] if is_open else 0., roll=0), False)
-            elif 'openOffsetCm' in leaf:
+            if 'openOffsetCm' in leaf:
                 offset = unreal.Vector(*leaf['openOffsetCm'])
                 current = actor.get_actor_location()
                 closed_base = current - offset if leaf['bakedOpen'] else current

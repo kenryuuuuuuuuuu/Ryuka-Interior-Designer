@@ -19,11 +19,9 @@ import math
 DOOR_BINDINGS_SCHEMA = '1.0.0'
 PROFILES_SCHEMA = '1.0.0'
 # Only these catalog `operation`s are in scope for W07-G2 (spec section 2:
-# "今回必要なswing/slide/double-swingとopenを対象にします...自宅のfold等まで
-# 今回一般化する必要はありません"). 'open' has no leaf/no door state at all --
-# always passable -- everything else here has a real, closeable leaf.
-SUPPORTED_OPERATIONS = ('swing', 'double-swing', 'slide', 'open')
-OPENABLE_OPERATIONS = ('swing', 'double-swing', 'slide')
+# W07-H includes the home folding doors and leafless arch passages.
+SUPPORTED_OPERATIONS = ('swing', 'double-swing', 'slide', 'open', 'open-arch', 'fold', 'double-fold')
+OPENABLE_OPERATIONS = ('swing', 'double-swing', 'slide', 'fold', 'double-fold')
 
 
 def _room_edges(polygon):
@@ -31,19 +29,19 @@ def _room_edges(polygon):
     return [(polygon[i], polygon[(i + 1) % n]) for i in range(n)]
 
 
-def room_boundary_contains_span(polygon, horizontal, at, lo, hi, eps=1e-6):
+def room_boundary_contains_span(polygon, horizontal, at, lo, hi, eps=0.025):
     """True if `polygon` has an edge lying exactly on the line (z=at for a
     horizontal wall, x=at for vertical) whose own extent covers [lo, hi]
-    (with a small tolerance for floating-point round-trip, not for genuinely
-    mismatched geometry)."""
+    (with 25mm along-edge tolerance for rounded source centres; the wall
+    line itself must still coincide to numerical precision)."""
     for a, b in _room_edges(polygon):
         if horizontal:
-            if abs(a[1] - at) < eps and abs(b[1] - at) < eps:
+            if abs(a[1] - at) < 1e-6 and abs(b[1] - at) < 1e-6:
                 elo, ehi = sorted((a[0], b[0]))
                 if elo - eps <= lo and hi <= ehi + eps:
                     return True
         else:
-            if abs(a[0] - at) < eps and abs(b[0] - at) < eps:
+            if abs(a[0] - at) < 1e-6 and abs(b[0] - at) < 1e-6:
                 elo, ehi = sorted((a[1], b[1]))
                 if elo - eps <= lo and hi <= ehi + eps:
                     return True
@@ -86,8 +84,16 @@ def resolve_connections(rooms_by_id, interior_doors, catalog_by_type, room_ids):
     connections = []
     for item in interior_doors:
         orientation = item.get('orientation')
-        if orientation not in ('H', 'V'):
-            continue  # diagonal frameless openings (orientation 'D') are unrelated self-house fixtures
+        if orientation == 'D':
+            a,b=[item['x0'],item['z0']],[item['x1'],item['z1']]
+            matches=sorted(rid for rid in room_ids if rooms_by_id[rid]['level']==item['floor']
+                and any((p==a and q==b) or (p==b and q==a) for p,q in _room_edges(rooms_by_id[rid]['polygon'])))
+            if len(matches)==2:
+                connections.append(dict(id=item['id'],level=item['floor'],operation='open',roomIds=matches,
+                    orientation='D',edge=[a,b],wallAt=0,center=0,width=math.dist(a,b),height=2,sill=0))
+            elif len(matches)>2: raise ValueError('Ambiguous diagonal opening '+item['id'])
+            continue
+        if orientation not in ('H','V'): continue
         merged = merged_door(item, catalog_by_type)
         operation = merged.get('operation')
         if operation not in SUPPORTED_OPERATIONS:
@@ -97,6 +103,7 @@ def resolve_connections(rooms_by_id, interior_doors, catalog_by_type, room_ids):
         horizontal = orientation == 'H'
         matches = sorted(room_id for room_id in room_ids
                           if room_id in rooms_by_id
+                          and rooms_by_id[room_id].get('level') == item.get('floor')
                           and room_boundary_contains_span(rooms_by_id[room_id]['polygon'], horizontal, at, lo, hi))
         if len(matches) < 2:
             continue

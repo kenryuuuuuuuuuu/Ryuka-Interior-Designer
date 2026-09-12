@@ -37,8 +37,11 @@ private:
  // the old single-room behaviour, not a separate code path.
  struct FRoomInfo {TArray<FVector2D> Polygon; double FloorCm=0; int32 Level=0; FString Label;};
  struct FLeafInfo {FString Actor; FString Kind; bool bHasYaw=false; double OpenYawDeltaDeg=0; bool bHasOffset=false; FVector OpenOffsetCm=FVector::ZeroVector; bool bBakedOpen=false; bool bHasClosedLocation=false; FVector ClosedLocationCm=FVector::ZeroVector;};
- struct FConnectionInfo {FString Id; TArray<FString> RoomIds; FString Operation; bool bOpenable=false; bool bHorizontal=false; double AtCm=0; double LoCm=0; double HiCm=0; TArray<FLeafInfo> Leaves; FString Label;};
- struct FOpeningWindow {bool bHorizontal=false; double At=0; double Lo=0; double Hi=0;};
+ struct FConnectionInfo {FString Id; TArray<FString> RoomIds; FString Operation; bool bOpenable=false; bool bHorizontal=false; double AtCm=0; double LoCm=0; double HiCm=0; TArray<FLeafInfo> Leaves; FString Label; bool bDiagonal=false; FVector2D A,B;};
+ struct FOpeningWindow {bool bDiagonal=false; FVector2D A,B; bool bHorizontal=false; double At=0; double Lo=0; double Hi=0;};
+ struct FStairStep {TArray<FVector2D> Polygon; double TopCm=0; FString RoomId;};
+ TArray<FStairStep> StairSteps;
+ FString StairRoomAt(const FVector& P) const;
  TMap<FString,FRoomInfo> Rooms;
  TArray<FConnectionInfo> Connections;
  TMap<FString,TArray<FOpeningWindow>> RoomOpenings;
@@ -68,6 +71,7 @@ private:
  bool ApplyConditions();
  bool IsCurrentRoomEditable() const;
  bool InsideRoomPolygon(const FString& RoomId, const FVector& Position, bool bStrict) const;
+ bool SafeDuringMovement(const FVector& Position) const;
  bool Safe(const FVector& Position) const;
  bool Safe(const FVector& Position, const FString& RoomId) const;
  void UpdateCurrentRoom();

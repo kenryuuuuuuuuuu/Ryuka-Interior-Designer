@@ -116,8 +116,8 @@ class SyntheticGeometryTests(unittest.TestCase):
     """Small synthetic fixtures for edge cases the real data does not cover."""
 
     def test_span_wider_than_room_edge_is_not_a_match(self):
-        rooms = {'a': dict(polygon=[[0, 0], [2, 0], [2, 2], [0, 2]]),
-                 'b': dict(polygon=[[2, 0], [4, 0], [4, 2], [2, 2]])}
+        rooms = {'a': dict(level=1, polygon=[[0, 0], [2, 0], [2, 2], [0, 2]]),
+                 'b': dict(level=1, polygon=[[2, 0], [4, 0], [4, 2], [2, 2]])}
         # A door whose span exceeds the room edge's own extent must not match.
         self.assertFalse(circ.room_boundary_contains_span(rooms['a']['polygon'], False, 2, 1.5, 2.5))
         self.assertTrue(circ.room_boundary_contains_span(rooms['a']['polygon'], False, 2, 0.5, 1.5))
@@ -127,8 +127,8 @@ class SyntheticGeometryTests(unittest.TestCase):
         self.assertTrue(circ.room_boundary_contains_span(polygon, False, 2, 0.5, 1.5))
 
     def test_door_touching_only_one_room_in_scope_is_skipped(self):
-        rooms_by_id = {'a': dict(polygon=[[0, 0], [2, 0], [2, 2], [0, 2]]),
-                       'b': dict(polygon=[[2, 0], [4, 0], [4, 2], [2, 2]])}
+        rooms_by_id = {'a': dict(level=1, polygon=[[0, 0], [2, 0], [2, 2], [0, 2]]),
+                       'b': dict(level=1, polygon=[[2, 0], [4, 0], [4, 2], [2, 2]])}
         catalog = {'door-hinged': dict(type='door-hinged', operation='swing', width=0.8, height=2, sill=0)}
         doors = [dict(id='door-x', type='door-hinged', orientation='V', wallAt=2, center=1, floor=1)]
         self.assertEqual(circ.resolve_connections(rooms_by_id, doors, catalog, ['a']), [])
@@ -136,9 +136,9 @@ class SyntheticGeometryTests(unittest.TestCase):
     def test_door_matching_three_rooms_raises(self):
         # A degenerate/malformed layout where three room polygons all share
         # the same edge span -- a door cannot physically connect three rooms.
-        rooms_by_id = {'a': dict(polygon=[[0, 0], [2, 0], [2, 2], [0, 2]]),
-                       'b': dict(polygon=[[2, 0], [4, 0], [4, 2], [2, 2]]),
-                       'c': dict(polygon=[[2, 0], [4, 0], [4, 2], [2, 2]])}
+        rooms_by_id = {'a': dict(level=1, polygon=[[0, 0], [2, 0], [2, 2], [0, 2]]),
+                       'b': dict(level=1, polygon=[[2, 0], [4, 0], [4, 2], [2, 2]]),
+                       'c': dict(level=1, polygon=[[2, 0], [4, 0], [4, 2], [2, 2]])}
         catalog = {'door-hinged': dict(type='door-hinged', operation='swing', width=0.8, height=2, sill=0)}
         doors = [dict(id='door-x', type='door-hinged', orientation='V', wallAt=2, center=1, floor=1)]
         with self.assertRaises(ValueError):

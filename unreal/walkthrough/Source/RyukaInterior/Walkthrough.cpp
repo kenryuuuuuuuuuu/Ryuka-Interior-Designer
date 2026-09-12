@@ -97,6 +97,22 @@ AWalkthroughCharacter::AWalkthroughCharacter() {
  GetCharacterMovement()->bCanWalkOffLedges=false;
  bUseControllerRotationYaw=true;
 }
+static bool PointInPlan(const TArray<FVector2D>& Poly,const FVector& P) {
+ bool Inside=false;
+ for(int32 I=0,J=Poly.Num()-1;I<Poly.Num();J=I++) {
+  const FVector2D A=Poly[I],B=Poly[J];
+  if((A.Y>P.Y)!=(B.Y>P.Y)&&P.X<(B.X-A.X)*(P.Y-A.Y)/(B.Y-A.Y)+A.X) Inside=!Inside;
+ }
+ return Inside;
+}
+FString AWalkthroughCharacter::StairRoomAt(const FVector& P) const {
+ FString Result; double Best=45.;
+ for(auto& Step:StairSteps) {
+  const double Difference=FMath::Abs(P.Z-88.5-Step.TopCm);
+  if(Difference<Best&&PointInPlan(Step.Polygon,P)) {Best=Difference;Result=Step.RoomId;}
+ }
+ return Result;
+}
 bool AWalkthroughCharacter::InsideRoomPolygon(const FString& RoomId,const FVector& P,bool bStrict) const {
  // Interior and (unless bStrict) 25cm clearance from the room boundary;
  // handles concave outlines. This is the invisible boundary (openings/
@@ -117,6 +133,9 @@ bool AWalkthroughCharacter::InsideRoomPolygon(const FString& RoomId,const FVecto
  // blocking collision, same as furniture) is what actually stops the
  // player there, not this soft boundary.
  const FRoomInfo* Info=Rooms.Find(RoomId); if(!Info) return false;
+ const FString StairRoom=StairRoomAt(P);
+ if(!StairRoom.IsEmpty()) return StairRoom==RoomId;
+ if(FMath::Abs(P.Z-88.5-Info->FloorCm)>45.) return false;
  const TArray<FOpeningWindow>* Openings=bStrict?nullptr:RoomOpenings.Find(RoomId);
  bool Inside=false; FVector2D Q(P.X,P.Y);
  for(int32 I=0,J=Info->Polygon.Num()-1;I<Info->Polygon.Num();J=I++) {
@@ -131,6 +150,12 @@ bool AWalkthroughCharacter::InsideRoomPolygon(const FString& RoomId,const FVecto
     const bool bEdgeHorizontal=FMath::Abs(A.Y-B.Y)<1.;
     const double EdgeAt=bEdgeHorizontal?A.Y:A.X, EdgeU=bEdgeHorizontal?Q.X:Q.Y;
     for(auto& W:*Openings) {
+     if(W.bDiagonal) {
+      const FVector2D V=W.B-W.A;
+      const double U=FMath::Clamp(FVector2D::DotProduct(Q-W.A,V)/FMath::Max(V.SizeSquared(),.001),0.,1.);
+      if((Q-(W.A+U*V)).Size()<27) {bRelaxed=true;break;}
+      continue;
+     }
      if(W.bHorizontal!=bEdgeHorizontal) continue;
      if(FMath::Abs(EdgeAt-W.At)<1.&&EdgeU>=W.Lo-1.&&EdgeU<=W.Hi+1.) {bRelaxed=true;break;}
     }
@@ -140,9 +165,43 @@ bool AWalkthroughCharacter::InsideRoomPolygon(const FString& RoomId,const FVecto
  }
  return Inside;
 }
+bool AWalkthroughCharacter::SafeDuringMovement(const FVector& P) const {
+ // Live movement has already swept the real capsule. A smaller overlap
+ // probe can still touch the ramp behind its rounded foot at either end.
+ // Restore and arbitrary candidates retain the strict Safe() check.
+ auto Movement=GetCharacterMovement();
+ if(Movement->IsMovingOnGround()&&Movement->CurrentFloor.IsWalkableFloor()) {
+  auto IsStair=[](const AActor* Actor) {
+   if(Actor) for(const FName& Tag:Actor->Tags)
+    if(Tag.ToString().StartsWith(TEXT("Ryuka:stair_collision_"))) return true;
+   return false;
+  };
+  if(IsStair(Movement->CurrentFloor.HitResult.GetActor())) {
+   if(!StairRoomAt(P).IsEmpty()) return true;
+   if(const FRoomInfo* Info=Rooms.Find(CurrentRoomId))
+    if(PointInPlan(Info->Polygon,P)&&FMath::Abs(P.Z-88.5-Info->FloorCm)<45.) return true;
+  }
+  if(!StairSteps.IsEmpty()&&InsideRoomPolygon(CurrentRoomId,P,false)) {
+   TArray<FOverlapResult> Hits;
+   FCollisionQueryParams Params(SCENE_QUERY_STAT(WalkthroughRampExit),false,this);
+   GetWorld()->OverlapMultiByChannel(Hits,P,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(25,87),Params);
+   bool TouchedRamp=false,OtherBlocker=false;
+   for(const auto& Hit:Hits) if(Hit.bBlockingHit) {
+    if(IsStair(Hit.GetActor())) TouchedRamp=true; else OtherBlocker=true;
+   }
+   if(TouchedRamp&&!OtherBlocker) return true;
+  }
+ }
+ return Safe(P);
+}
 bool AWalkthroughCharacter::Safe(const FVector& P,const FString& RoomId) const {
  if(!InsideRoomPolygon(RoomId,P,false)) return false;
  FCollisionQueryParams Params(SCENE_QUERY_STAT(WalkthroughSpawn),false,this);
+ if(!StairSteps.IsEmpty()) {
+  FHitResult Support;
+  const FVector Feet=P-FVector(0,0,88.5);
+  if(!GetWorld()->LineTraceSingleByChannel(Support,Feet+FVector(0,0,5),Feet-FVector(0,0,30),ECC_WorldStatic,Params)) return false;
+ }
  return !GetWorld()->OverlapBlockingTestByChannel(P,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(25,87),Params);
 }
 bool AWalkthroughCharacter::Safe(const FVector& P) const {return Safe(P,CurrentRoomId);}
@@ -158,6 +217,12 @@ void AWalkthroughCharacter::UpdateCurrentRoom() {
  // is continuous and real wall collision elsewhere prevents ever reaching a
  // non-adjacent room's polygon in a single tick anyway.
  const FVector P=GetActorLocation();
+ const FString StairRoom=StairRoomAt(P);
+ if(!StairRoom.IsEmpty()) {
+  CurrentRoomId=StairRoom;
+  if(bReady&&State.IsValid()&&IsCurrentRoomEditable()) {State->SetStringField(TEXT("activeRoomId"),CurrentRoomId); if(const FRoomInfo* Active=Rooms.Find(CurrentRoomId)) State->SetNumberField(TEXT("activeLevel"),Active->Level);}
+  return;
+ }
  if(InsideRoomPolygon(CurrentRoomId,P,true)) return;
  for(auto& Connection:Connections) {
   if(!Connection.RoomIds.Contains(CurrentRoomId)) continue;
@@ -170,7 +235,7 @@ void AWalkthroughCharacter::UpdateCurrentRoom() {
     // finish keys affect THIS room; leaving it (into e.g. the hall) leaves
     // activeRoomId (and therefore the LDK/western-room finish) untouched,
     // never guessed at from a non-edit room.
-    if(bReady&&State.IsValid()&&IsCurrentRoomEditable()) State->SetStringField(TEXT("activeRoomId"),CurrentRoomId);
+    if(bReady&&State.IsValid()&&IsCurrentRoomEditable()) {State->SetStringField(TEXT("activeRoomId"),CurrentRoomId); if(const FRoomInfo* Active=Rooms.Find(CurrentRoomId)) State->SetNumberField(TEXT("activeLevel"),Active->Level);}
     return;
    }
   }
@@ -358,14 +423,36 @@ void AWalkthroughCharacter::BeginPlay() {
      Info.Leaves.Add(Leaf);
     }
    }
+   Info.bDiagonal=(Orientation==TEXT("D"));
+   const TArray<TSharedPtr<FJsonValue>>* Edge;
+   if(Info.bDiagonal&&CObj->TryGetArrayField(TEXT("edgeCm"),Edge)&&Edge->Num()==2) {
+    auto A=(*Edge)[0]->AsArray();auto B=(*Edge)[1]->AsArray();
+    Info.A=FVector2D(A[0]->AsNumber(),A[1]->AsNumber());Info.B=FVector2D(B[0]->AsNumber(),B[1]->AsNumber());
+   }
    Connections.Add(Info);
   }
  }
+ const TArray<TSharedPtr<FJsonValue>>* Stairs;
+ if(Config->TryGetArrayField(TEXT("stairs"),Stairs)) for(auto& V:*Stairs) {
+  auto Stair=V->AsObject();FString Lower,Upper;
+  Stair->TryGetStringField(TEXT("lowerRoomId"),Lower);Stair->TryGetStringField(TEXT("upperRoomId"),Upper);
+  const TArray<TSharedPtr<FJsonValue>>* Steps;
+  if(Stair->TryGetArrayField(TEXT("steps"),Steps)) for(int32 I=0;I<Steps->Num();I++) {
+   auto Obj=(*Steps)[I]->AsObject();FStairStep Step;
+   Obj->TryGetNumberField(TEXT("topCm"),Step.TopCm);bool IsLower=false;Obj->TryGetBoolField(TEXT("lower"),IsLower);Step.RoomId=IsLower?Lower:Upper;
+   const TArray<TSharedPtr<FJsonValue>>* Poly;
+   if(Obj->TryGetArrayField(TEXT("polygonCm"),Poly)) for(auto& Point:*Poly) {
+    auto A=Point->AsArray();Step.Polygon.Add(FVector2D(A[0]->AsNumber(),A[1]->AsNumber()));
+   }
+   StairSteps.Add(Step);
+  }
+ }
+ if(!StairSteps.IsEmpty()) GetCharacterMovement()->MaxStepHeight=24.;
  // Every room's own opening windows, from every connection touching it,
  // regardless of open/closed state -- see InsideRoomPolygon()'s own comment
  // for why this relaxation does not need to be conditional on door state.
  for(auto& C:Connections) for(auto& RoomId:C.RoomIds) {
-  FOpeningWindow W; W.bHorizontal=C.bHorizontal; W.At=C.AtCm; W.Lo=C.LoCm; W.Hi=C.HiCm;
+  FOpeningWindow W; W.bDiagonal=C.bDiagonal; W.A=C.A; W.B=C.B; W.bHorizontal=C.bHorizontal; W.At=C.AtCm; W.Lo=C.LoCm; W.Hi=C.HiCm;
   RoomOpenings.FindOrAdd(RoomId).Add(W);
  }
  // W04: optional -- absent for a project generated before this feature, in
@@ -437,7 +524,7 @@ bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
   // "editor switched rooms" case). Tolerant of a viewpoint near the room's
   // own edge: rejected only when the camera clearly sits inside a DIFFERENT
   // profile room and not in the attributed one.
-  const FVector CameraXY(P.X,P.Y,CandidateRoom->FloorCm+88.5);
+  const FVector CameraXY(P.X,P.Y,P.Z-72.);
   if(!InsideRoomPolygon(CandidateRoomId,CameraXY,false)) {
    for(auto& Pair:Rooms)
     if(Pair.Key!=CandidateRoomId&&InsideRoomPolygon(Pair.Key,CameraXY,true)) {
@@ -455,12 +542,13 @@ bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
  // before the safety search runs against them.
  State=Candidate; CurrentRoomId=TargetRoomId;
  if(!ApplyConditions()) {State=Previous; CurrentRoomId=PreviousRoomId; Message=TEXT("保存データの仕上げ・太陽条件を適用できません"); return false;}
- P.Z=TargetRoom->FloorCm+88.5;
+ if(!StairSteps.IsEmpty()&&Candidate->HasTypedField<EJson::Object>(TEXT("walkthrough"))) P.Z-=72.;
+ else P.Z=TargetRoom->FloorCm+88.5;
  bool Adjusted=false;
  if(!Safe(P,CurrentRoomId)) {
   double Best=TNumericLimits<double>::Max(); FVector Found;
   for(int32 X=0;X<100;X++) for(int32 Y=0;Y<100;Y++) {
-   FVector Test(TargetRoom->Polygon[0].X-500+X*15,TargetRoom->Polygon[0].Y-500+Y*15,P.Z);
+   FVector Test(TargetRoom->Polygon[0].X-500+X*15,TargetRoom->Polygon[0].Y-500+Y*15,TargetRoom->FloorCm+88.5);
    double Distance=FVector::DistSquared2D(P,Test);
    if(Distance<Best&&Safe(Test,CurrentRoomId)) {Best=Distance; Found=Test;}
   }
@@ -777,13 +865,15 @@ bool AWalkthroughCharacter::ApplyConditions() {
     // (Blender bake, UE import, editor apply_state, here) applies this same
     // value. No runtime re-limiting: this pose is wall-safe by construction.
     ToXform.SetRotation(FQuat(FRotator(0,bOpen?Leaf.OpenYawDeltaDeg:0.,0)));
-   } else if(Leaf.bHasOffset) {
+   }
+   if(Leaf.bHasOffset) {
     // W07-G2 review-v2 R1: the closed baseline is the IMMUTABLE
     // ClosedLocationCm import_study.py captured once and stamped into
     // door-bindings.json -- never re-estimated here from a live pose.
     const FVector Base=Leaf.bHasClosedLocation?Leaf.ClosedLocationCm:LeafActor->GetActorLocation();
     ToXform.SetLocation(bOpen?Base+Leaf.OpenOffsetCm:Base);
-   } else continue;
+   }
+   if(!Leaf.bHasYaw&&!Leaf.bHasOffset) continue;
    // W07-G2 review-v3 R1: the interference check runs ONLY when this leaf
    // actually moves (an open<->closed transition). SetFinish()/SetSun()/a
    // re-Restore of the same doorStates leave From == To and never re-check
@@ -797,7 +887,7 @@ bool AWalkthroughCharacter::ApplyConditions() {
       &&LeafMotionClearFraction(LeafActor,FromXform,ToXform,DoorOwnActors,bInteractiveDoorToggle)<0.999f)
     return false;
    if(Leaf.bHasYaw) DoorPlan.Add({LeafActor,true,ToXform.Rotator(),FVector::ZeroVector});
-   else DoorPlan.Add({LeafActor,false,FRotator::ZeroRotator,ToXform.GetLocation()});
+   if(Leaf.bHasOffset) DoorPlan.Add({LeafActor,false,FRotator::ZeroRotator,ToXform.GetLocation()});
   }
  }
  // Any doorStates key never consumed above names something that is not an
@@ -1065,7 +1155,7 @@ void AWalkthroughCharacter::Tick(float Delta) {
   UpdateCurrentRoom();
   FindNearestDoor();
   const FVector Current=GetActorLocation();
-  if(!Safe(Current)) {
+  if(!SafeDuringMovement(Current)) {
    // Safe(), not InsideRoom(): the normal branch below records Current as
    // LastSafeLocation, so it must confirm no furniture overlap too, or a
    // sweep that (rarely) ends up embedded in geometry would be recorded as
@@ -1286,6 +1376,72 @@ void AWalkthroughCharacter::Tick(float Delta) {
    Phase=9;
   }
   if(Phase==9) {FPlatformMisc::RequestExit(false); return;}
+ }
+#endif
+#if !UE_BUILD_SHIPPING
+ if(FParse::Param(FCommandLine::Get(),TEXT("RyukaHomeSmoke"))) {
+  static TArray<FVector> Route;static int32 Index=-1;static bool Returning=false,SavedOnStair=false,Passed=true;
+  static double Started=0,FrameSeconds=0;static int32 FrameCount=0;static auto Result=MakeShared<FJsonObject>();
+  if(Index==-1&&GetWorld()->GetTimeSeconds()>3) {
+   Started=GetWorld()->GetTimeSeconds();Passed=bReady;
+   auto Config=ReadJSON(TEXT("walkthrough.json"));const TArray<TSharedPtr<FJsonValue>>* Points;
+   if(Config.IsValid()&&Config->TryGetArrayField(TEXT("stairRouteCm"),Points)) for(auto& V:*Points) {
+    auto A=V->AsArray();Route.Add(FVector(A[0]->AsNumber(),A[1]->AsNumber(),Rooms.Find(TEXT("room-1f-11"))->FloorCm+88.5));
+   }
+   Result->SetBoolField(TEXT("entryReady"),bReady);
+   if(Route.Num()<2) Passed=false;
+   if(Passed) {
+    CurrentRoomId=TEXT("room-1f-11");{State->SetStringField(TEXT("activeRoomId"),CurrentRoomId); if(const FRoomInfo* Active=Rooms.Find(CurrentRoomId)) State->SetNumberField(TEXT("activeLevel"),Active->Level);}
+    GetCharacterMovement()->StopMovementImmediately();SetActorLocation(Route[0],false,nullptr,ETeleportType::TeleportPhysics);
+    LastSafeLocation=Route[0];GetCharacterMovement()->MaxWalkSpeed=60;
+    Passed=Safe(Route[0]);Index=1;
+   } else Index=0;
+  }
+  if(Index>=0&&!bSmokeDone) {
+   FrameSeconds+=Delta;FrameCount++;
+   if(!bReady||GetWorld()->GetTimeSeconds()-Started>35) Passed=false;
+   if(Passed&&Index<Route.Num()) {
+    const FVector P=GetActorLocation();const FVector Direction=FVector(Route[Index].X-P.X,Route[Index].Y-P.Y,0);
+    if(Direction.Size2D()<7) Index++;
+    else AddMovementInput(Direction.GetSafeNormal());
+    if(!Returning&&!SavedOnStair&&!StairRoomAt(P).IsEmpty()&&P.Z>Rooms.Find(TEXT("room-1f-11"))->FloorCm+190) {
+     SavedOnStair=true;GetCharacterMovement()->StopMovementImmediately();
+     SaveView();auto Saved=ReadJSON(SavedViewName());const FString BeforeRoom=CurrentRoomId;
+     const bool Restored=Restore(Saved)&&FVector::Dist(P,GetActorLocation())<2&&CurrentRoomId==BeforeRoom;
+     Result->SetBoolField(TEXT("stairSaveRestoreHeight"),Restored);Passed &= Restored;
+    }
+   } else if(Passed&&!Returning) {
+    const bool Arrived=CurrentRoomId==TEXT("room-2f-03")&&FMath::Abs(GetActorLocation().Z-Rooms.Find(TEXT("room-2f-03"))->FloorCm-88.5)<5;
+    Result->SetBoolField(TEXT("continuousAscent"),Arrived);Passed &= Arrived;
+    Finish2();SaveView();auto Saved=ReadJSON(SavedViewName());
+    const bool Restored=Restore(Saved)&&CurrentRoomId==TEXT("room-2f-03");
+    Result->SetBoolField(TEXT("upperSaveRestore"),Restored);Passed &= Restored;
+    const bool LevelMatches=State->GetIntegerField(TEXT("activeLevel"))==2;
+    Result->SetBoolField(TEXT("upperActiveLevel"),LevelMatches);Passed &= LevelMatches;
+    auto Invalid=MakeShared<FJsonObject>(*Saved);auto Wrong=MakeShared<FJsonObject>(*Saved->GetObjectField(TEXT("walkthrough")));
+    Wrong->SetNumberField(TEXT("level"),1);Invalid->SetObjectField(TEXT("walkthrough"),Wrong);
+    const bool Rejected=!Restore(Invalid);Result->SetBoolField(TEXT("invalidLevelRejected"),Rejected);Passed &= Rejected;
+    for(int32 A=0,B=Route.Num()-1;A<B;A++,B--) Swap(Route[A],Route[B]);
+    Returning=true;Index=1;
+   } else if(Passed) {
+    const bool Arrived=CurrentRoomId==TEXT("room-1f-11")&&FMath::Abs(GetActorLocation().Z-Rooms.Find(TEXT("room-1f-11"))->FloorCm-88.5)<5;
+    Result->SetBoolField(TEXT("continuousDescent"),Arrived);Passed &= Arrived&&SavedOnStair;
+    SaveView();bSmokeDone=true;
+   }
+   if(!Passed)bSmokeDone=true;
+   if(bSmokeDone) {
+    Result->SetNumberField(TEXT("averageTickFps"),FrameSeconds>0?FrameCount/FrameSeconds:0);
+    Result->SetBoolField(TEXT("passed"),Passed);Result->SetStringField(TEXT("roomId"),CurrentRoomId);
+    Result->SetStringField(TEXT("message"),Message);Result->SetArrayField(TEXT("positionCm"),Numbers(GetActorLocation()));Result->SetNumberField(TEXT("waypoint"),Index);
+    FString Out;FJsonSerializer::Serialize(Result,TJsonWriterFactory<>::Create(&Out));
+    FFileHelper::SaveStringToFile(Out,*(FPaths::ProjectSavedDir()/TEXT("walkthrough-home-smoke.json")));
+    FFileHelper::SaveStringToFile(Passed?TEXT("PASS"):TEXT("FAIL"),*(FPaths::ProjectSavedDir()/TEXT("walkthrough-smoke.txt")));
+    FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("walkthrough-smoke.png"),false,false);
+    Started=GetWorld()->GetTimeSeconds();
+   }
+  }
+  if(bSmokeDone&&GetWorld()->GetTimeSeconds()-Started>2) FPlatformMisc::RequestExit(false);
+  return;
  }
 #endif
  if(FParse::Param(FCommandLine::Get(),TEXT("RyukaSmoke"))&&GetWorld()->GetTimeSeconds()>3&&!bSmokeDone) {
@@ -1542,16 +1698,16 @@ void AWalkthroughCharacter::Tick(float Delta) {
        return C;
       };
       if(WestRoom&&LdkRoom) {
-       auto PrevState=State; const FString PrevRoom=CurrentRoomId;
+       auto PrevState=State; const FString PrevRoom=CurrentRoomId; const FVector PrevLocation=GetActorLocation();
        bRouteOk &= Leg(TEXT("r2EditorAttributionRestoresToThatRoom"),
         Restore(MakeCandidate(true,West,RoomCentre(WestRoom)))&&CurrentRoomId==West);
-       State=PrevState; CurrentRoomId=PrevRoom;
+       State=PrevState; CurrentRoomId=PrevRoom; SetActorLocation(PrevLocation,false,nullptr,ETeleportType::TeleportPhysics);
        const bool bStaleRejected=!Restore(MakeCandidate(true,West,RoomCentre(LdkRoom)));
-       State=PrevState; CurrentRoomId=PrevRoom;
+       State=PrevState; CurrentRoomId=PrevRoom; SetActorLocation(PrevLocation,false,nullptr,ETeleportType::TeleportPhysics);
        bRouteOk &= Leg(TEXT("r2StaleAttributionRejected"),bStaleRejected);
        bRouteOk &= Leg(TEXT("r2NoAttributionIsFirstLaunchGenkan"),
         Restore(MakeCandidate(false,West,RoomCentre(WestRoom)))&&CurrentRoomId==EntryRoomId);
-       State=PrevState; CurrentRoomId=PrevRoom;
+       State=PrevState; CurrentRoomId=PrevRoom; SetActorLocation(PrevLocation,false,nullptr,ETeleportType::TeleportPhysics);
       }
      }
      // Leg 5: continue to a water-room entry (トイレ) via the hall -- door-005
@@ -1614,7 +1770,10 @@ int32 UWalkthroughLibrary::Prepare(UWorld* World) {
 #if WITH_EDITOR
   FString Label=It->GetActorLabel(); It->Tags.AddUnique(FName(TEXT("Ryuka:")+Label));
   if(auto Mesh=Cast<AStaticMeshActor>(*It)) {
-   auto C=Mesh->GetStaticMeshComponent(); bool Block=!Label.StartsWith(TEXT("decoration_"))&&!Label.StartsWith(TEXT("Ground_"));
+   auto C=Mesh->GetStaticMeshComponent(); const bool bRamp=Label.StartsWith(TEXT("stair_collision_"));
+   const bool bVisibleStair=Label.StartsWith(TEXT("stair_"))&&!bRamp;
+   bool Block=!bVisibleStair&&!Label.StartsWith(TEXT("decoration_"))&&!Label.StartsWith(TEXT("Ground_"));
+   if(bRamp) {It->SetActorHiddenInGame(true);C->SetVisibility(false,true);C->SetCastShadow(false);}
    if(Block&&C->GetStaticMesh()&&C->GetStaticMesh()->GetBodySetup()) {
     auto Body=C->GetStaticMesh()->GetBodySetup(); Body->CollisionTraceFlag=CTF_UseComplexAsSimple;
     C->GetStaticMesh()->MarkPackageDirty(); C->SetCollisionProfileName(TEXT("BlockAll")); C->RecreatePhysicsState(); Count++;

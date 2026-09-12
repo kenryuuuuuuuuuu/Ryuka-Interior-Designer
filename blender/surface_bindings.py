@@ -124,3 +124,39 @@ def subtract_rects(rects, cuts):
     for cut in cuts:
         remaining = [piece for rect in remaining for piece in subtract_rect(rect, cut)]
     return remaining
+
+
+def partition_room_faces(rect, rooms):
+    """Tile a slab without approximating diagonal room boundaries by boxes.
+
+    Split convex cells along nearby room edges, then assign the owner by
+    containment. Exterior/unregistered portions retain their base material.
+    """
+    x0,x1,z0,z1=rect
+    nearby=[r for r in rooms if max(p[0] for p in r['polygon'])>x0 and min(p[0] for p in r['polygon'])<x1
+            and max(p[1] for p in r['polygon'])>z0 and min(p[1] for p in r['polygon'])<z1]
+    cells=[[(x0,z0),(x1,z0),(x1,z1),(x0,z1)]]
+    lines=set()
+    for r in nearby:
+        poly=r['polygon']
+        for a,b in zip(poly,poly[1:]+poly[:1]):
+            dx,dz=b[0]-a[0],b[1]-a[1]
+            length=(dx*dx+dz*dz)**.5
+            aa,bb,cc=-dz/length,dx/length,(dz*a[0]-dx*a[1])/length
+            if aa<0 or (abs(aa)<1e-9 and bb<0): aa,bb,cc=-aa,-bb,-cc
+            key=tuple(round(v,8) for v in (aa,bb,cc))
+            if key in lines: continue
+            lines.add(key); out=[]
+            for cell in cells:
+                distances=[aa*p[0]+bb*p[1]+cc for p in cell]
+                if min(distances)<-1e-7 and max(distances)>1e-7:
+                    out.extend(p for p in (clip(cell,lambda p:aa*p[0]+bb*p[1]+cc),clip(cell,lambda p:-aa*p[0]-bb*p[1]-cc)) if p)
+                else: out.append(cell)
+            cells=out
+    result=[]
+    for cell in cells:
+        x=sum(p[0] for p in cell)/len(cell);z=sum(p[1] for p in cell)/len(cell)
+        owners=[r['id'] for r in nearby if point_in_room(x,z,r['polygon'])]
+        if len(owners)>1: raise ValueError('Overlapping room surfaces: '+str(owners))
+        result.append((cell,owners[0] if owners else None))
+    return result

@@ -244,7 +244,7 @@ def apply_state(state):
             if actor is None: raise RuntimeError('Missing generated actor: '+leaf['actor'])
             if 'openYawDeltaDeg' in leaf:
                 door_plan.append((actor,'rotate',leaf['openYawDeltaDeg'] if is_open else 0.))
-            elif 'openOffsetCm' in leaf:
+            if 'openOffsetCm' in leaf:
                 if 'closedLocationCm' not in leaf:
                     raise RuntimeError('door-bindings.json leaf missing closedLocationCm (re-run import_study.py): '+leaf['actor'])
                 base=unreal.Vector(*leaf['closedLocationCm'])
