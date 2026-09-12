@@ -18,8 +18,8 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from . import comparison, config as _config, furniture, models, paths, runner, scenarios, update, walkthrough
 
-GUIDE_PATH = paths.ROOT / "docs" / "GUEST_TRIAL_GUIDE.md"
-APP_TITLE = "ゲスト内覧ランチャー"
+GUIDE_PATH = paths.ROOT / "docs" / "DAILY_USE.md"
+APP_TITLE = "住まいの内覧ランチャー"
 
 
 class LauncherApp:
@@ -45,6 +45,7 @@ class LauncherApp:
         bar = ttk.Frame(self.root, padding=(12, 0))
         bar.pack(fill="x")
         buttons = [
+            ("家具を編集する", lambda: _open_path(paths.ROOT / "interior-white-model.html")),
             ("内覧を開く", self.on_open_walkthrough),
             ("編集・比較を開く", self.on_open_editor),
             ("家具JSON取込", self.on_import_furniture),
@@ -58,6 +59,14 @@ class LauncherApp:
             ttk.Button(bar, text=label, command=cmd, width=16).grid(row=i // 4, column=i % 4, padx=4, pady=4, sticky="ew")
         for c in range(4):
             bar.columnconfigure(c, weight=1)
+
+        entry = ttk.Frame(self.root, padding=(12, 8))
+        entry.pack(fill="x")
+        ttk.Label(entry, text="内覧の開始位置：").pack(side="left")
+        self.entry_var = tk.StringVar(value=walkthrough.ENTRY_LABELS.get(self.cfg.entryMode, "前回の続き"))
+        self.entry_box = ttk.Combobox(entry, textvariable=self.entry_var, state="readonly", width=22)
+        self.entry_box.pack(side="left")
+        ttk.Label(entry, text="入口を選んでも仕上げ・照明・扉の保存内容は保ちます。").pack(side="left", padx=8)
 
         steps = ttk.LabelFrame(self.root, text="実行中の工程", padding=8)
         steps.pack(fill="x", padx=12, pady=(8, 0))
@@ -120,8 +129,8 @@ class LauncherApp:
         # A running model-update owns a UE subprocess; closing the app would
         # orphan it and lose the post-run model switch. Block until it ends
         # (or the user can keep working). Other short jobs are fine to leave.
-        if runner.BackgroundJob.is_running("model-update"):
-            messagebox.showwarning(APP_TITLE, "モデル更新の実行中です。完了までランチャーを閉じないでください。\n"
+        if any(runner.BackgroundJob.is_running(k) for k in ("model-update", "walkthrough", "editor", "furniture-apply", "comparison-record", "scenario-save")):
+            messagebox.showwarning(APP_TITLE, "内覧・編集または処理が実行中です。終了後にランチャーを閉じてください。\n"
                                               "結果はメインのログと状態表示に出ます。")
             return
         self.root.destroy()
@@ -146,7 +155,7 @@ class LauncherApp:
         else:
             info = models.inspect_project(model)
             mark = "有効" if info.valid else "要確認"
-            lines.append(f"現在のモデル：{info.label}  [{mark}]")
+            lines.append(f"現在のモデル：{models.SCOPE_LABELS.get(info.scopeId, info.scopeId)} ／ {info.label}  [{mark}]")
             lines.append(f"　更新日時：{info.updatedAt or '不明'}　メッシュ：{info.meshCount or '?'}")
             if info.savedStateMtime:
                 lines.append(f"　保存状態：schema {info.savedStateSchema or '?'} / {info.savedStateMtime}")
@@ -160,17 +169,27 @@ class LauncherApp:
             lines.extend("　- " + m for m in missing)
         else:
             lines.append(f"エンジン：{self.cfg.enginePath}　Blender：{self.cfg.blenderPath}　cache：{self.cfg.cachePath}")
+        if hasattr(self, "entry_box"):
+            options = walkthrough.entry_options(model) if model else ["resume"]
+            labels = [walkthrough.ENTRY_LABELS[k] for k in options]
+            self.entry_box.configure(values=labels)
+            if self.entry_var.get() not in labels:self.entry_var.set(labels[0])
         self.status_var.set("\n".join(lines))
 
     def _require_model(self):
         model = self.cfg.current_model_path()
         if model is None:
-            messagebox.showinfo(APP_TITLE, "先に「モデルを選ぶ」でゲストモデルを登録してください。")
+            messagebox.showinfo(APP_TITLE, "先に「モデルを選ぶ」でモデルを登録してください。")
+            return None
+        info = models.inspect_project(model)
+        if not info.valid:
+            messagebox.showwarning(APP_TITLE, "；".join(info.reasons))
             return None
         return model
 
     def _run_bg(self, key: str, target, on_done=None):
-        if runner.BackgroundJob.is_running(key):
+        exclusive = {"walkthrough", "editor", "model-update", "furniture-apply", "comparison-record", "scenario-save"}
+        if any(runner.BackgroundJob.is_running(k) for k in (exclusive if key in exclusive else {key})):
             messagebox.showinfo(APP_TITLE, "同じ処理が実行中です。完了までお待ちください。")
             return None
         job = runner.BackgroundJob(key, target, on_done=lambda j: self._on_main(lambda: self._job_done(j, on_done)))
@@ -203,6 +222,8 @@ class LauncherApp:
             return
         self._log("内覧を起動します。ウィンドウが開きます。操作キーは「使い方」を参照してください。")
         self._log("　" + " ／ ".join(walkthrough.WALKTHROUGH_KEYS[:5]))
+        self.cfg.entryMode = next(k for k, v in walkthrough.ENTRY_LABELS.items() if v == self.entry_var.get())
+        _config.save(self.cfg)
         self._run_bg("walkthrough", lambda: walkthrough.launch_walkthrough(self.cfg, model, on_line=self._log),
                      on_done=lambda j: self._log("内覧を終了しました。" if not j.error else ""))
 
@@ -241,6 +262,9 @@ class LauncherApp:
         ScenarioWindow(self, model)
 
     def on_choose_model(self):
+        if runner.BackgroundJob.is_running("model-update"):
+            messagebox.showinfo(APP_TITLE, "更新完了後にモデルを切り替えてください。")
+            return
         ChooseModelWindow(self)
 
     def on_settings(self):
@@ -250,7 +274,7 @@ class LauncherApp:
         if GUIDE_PATH.is_file():
             _open_path(GUIDE_PATH)
         else:
-            messagebox.showinfo(APP_TITLE, "docs/GUEST_TRIAL_GUIDE.md を参照してください。")
+            messagebox.showinfo(APP_TITLE, "docs/DAILY_USE.md を参照してください。")
 
 
 # ============ sub-windows ============
@@ -268,7 +292,7 @@ class FurnitureImportWindow(tk.Toplevel):
         c = report.counts
         summary = (f"候補：{candidate_path.name}　全{report.totalItems}件\n"
                    f"追加 {c.get('added', 0)} ／ 削除 {c.get('removed', 0)} ／ 変更 {c.get('modified', 0)}"
-                   f"（ゲスト対象 {c.get('guestScope', 0)} ／ ゲスト外 {c.get('otherScope', 0)}）")
+                   f"（ゲスト対象 {c.get('guestScope', 0)} ／ 自宅等 {c.get('otherScope', 0)}）")
         if c.get("provenanceLoss"):
             summary += f"\n注意：note/status が失われる項目が {c['provenanceLoss']} 件あります。"
         ttk.Label(head, text=summary, justify="left").pack(anchor="w")
@@ -289,7 +313,7 @@ class FurnitureImportWindow(tk.Toplevel):
             if ch.provenanceLoss:
                 detail += f"　（{'/'.join(ch.provenanceLoss)} が消えます）"
             tree.insert("", "end", values=({"added": "追加", "removed": "削除", "modified": "変更"}[ch.kind],
-                                           "ゲスト" if ch.inGuestScope else "ゲスト外",
+                                           "ゲスト" if ch.inGuestScope else "自宅等",
                                            ch.room or "-", f"{ch.id} {detail}"))
         if not report.changes:
             tree.insert("", "end", values=("-", "-", "-", "現在の正本と差分はありません。"))
@@ -410,6 +434,9 @@ class UpdateWindow(tk.Toplevel):
             pass
 
     def _start(self):
+        if any(runner.BackgroundJob.is_running(k) for k in ("walkthrough", "editor", "model-update", "furniture-apply", "comparison-record", "scenario-save")):
+            messagebox.showinfo(self.title(), "内覧・編集・処理が終了してから更新してください。")
+            return
         if not messagebox.askyesno(self.title(), "内覧・エディタは保存して閉じてから更新してください。開始しますか？"):
             return
         self.run_btn.configure(state="disabled")
@@ -612,7 +639,7 @@ class ChooseModelWindow(tk.Toplevel):
         self.app = app
         self.title("モデルを選ぶ")
         self.geometry("820x480")
-        ttk.Label(self, text="生成済みの guest プロジェクトを検出しました。scope・取込成功・内覧構築を確認しています。\n"
+        ttk.Label(self, text="生成済みのゲスト・自宅・全館プロジェクトを検出しました。scope・取込成功・内覧構築を確認しています。\n"
                              "日付やフォルダ名だけで最新版を決めません。",
                   padding=10, justify="left").pack(fill="x")
         self.tree = ttk.Treeview(self, columns=("valid", "path", "updated", "note"), show="headings", height=14)
@@ -620,24 +647,23 @@ class ChooseModelWindow(tk.Toplevel):
             self.tree.heading(col, text=txt)
             self.tree.column(col, width=w)
         self.tree.pack(fill="both", expand=True, padx=10)
-        self._infos = models.detect_candidates()
+        self._infos = models.detect_candidates(app.cfg.registered_model_paths())
         for info in self._infos:
             self.tree.insert("", "end", values=("有効" if info.valid else "要確認", info.label,
-                                                info.updatedAt or "?", " / ".join(info.reasons) or "問題なし"))
+                                                info.updatedAt or "?", models.SCOPE_LABELS.get(info.scopeId, "不明") + " / " + (" / ".join(info.reasons) or "問題なし")))
         bar = ttk.Frame(self, padding=10)
         bar.pack(fill="x")
         ttk.Button(bar, text="別のフォルダを選ぶ…", command=self._browse).pack(side="left")
-        ttk.Button(bar, text="選択を登録して現行にする", command=self._register).pack(side="right")
+        ttk.Button(bar, text="選択を登録して現行にする", command=self._register_model).pack(side="right")
 
-    def _register(self):
+    def _register_model(self):
         sel = self.tree.selection()
         if not sel:
             messagebox.showinfo(self.title(), "モデルを選んでください。")
             return
         info = self._infos[self.tree.index(sel[0])]
-        if not info.valid and not messagebox.askyesno(self.title(),
-                                                      "このモデルは要確認です：\n" + "\n".join(info.reasons) +
-                                                      "\n\nそれでも登録しますか？"):
+        if not info.valid:
+            messagebox.showwarning(self.title(), "このモデルは選択できません：\n" + "\n".join(info.reasons))
             return
         self.app.cfg.set_current_model(info.path)
         _config.save(self.app.cfg)
@@ -650,8 +676,8 @@ class ChooseModelWindow(tk.Toplevel):
         if not d:
             return
         info = models.inspect_project(Path(d))
-        if not info.valid and not messagebox.askyesno(self.title(),
-                                                      "要確認：\n" + "\n".join(info.reasons) + "\n\n登録しますか？"):
+        if not info.valid:
+            messagebox.showwarning(self.title(), "このモデルは選択できません：\n" + "\n".join(info.reasons))
             return
         self.app.cfg.set_current_model(info.path)
         _config.save(self.app.cfg)

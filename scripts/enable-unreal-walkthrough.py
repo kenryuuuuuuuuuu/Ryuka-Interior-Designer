@@ -54,7 +54,7 @@ for c in connections:
     connections_config.append(dict(id=c['id'],roomIds=c['roomIds'],operation=c['operation'],
         openable=c['operation'] in circulation.OPENABLE_OPERATIONS,orientation=c['orientation'],edgeCm=[[x*100,z*100] for x,z in c.get('edge',[])],
         atCm=c['wallAt']*100,loCm=lo*100,hiCm=hi*100,leaves=leaves,label=connection_label))
-config=dict(schemaVersion='2.0.0',profileId=profile['profileId'],entryRoomId=profile['entryRoomId'],
+config=dict(schemaVersion='2.0.0',launcherEntrySelection=True,profileId=profile['profileId'],entryRoomId=profile['entryRoomId'],
     editRoomIds=edit_scope['roomIds'],cachePath=a.cache.resolve().as_posix(),
     rooms=rooms_config,connections=connections_config,
     stairs=[dict(id=t['id'],lowerRoomId='room-1f-10',upperRoomId='room-2f-02',

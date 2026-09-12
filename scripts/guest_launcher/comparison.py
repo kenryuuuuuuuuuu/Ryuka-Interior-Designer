@@ -157,7 +157,7 @@ def record_finish_ab(cfg: _config.LauncherConfig, model_dir: Path, name: str, no
 def _verify_ab(capture_dir: Path, selected_state: dict, images: list) -> Optional[str]:
     """撮影した条件が、選んだ保存に対して 対象室 variant 以外 一致するか確認する。"""
     active = selected_state.get("activeRoomId")
-    fixed = {k: selected_state.get(k) for k in ("scopeId", "activeRoomId", "camera", "azimuthDeg",
+    fixed = {k: selected_state.get(k) for k in ("scopeId", "activeRoomId", "activeLevel", "solar", "sunLux", "camera", "azimuthDeg",
                                                 "elevationDeg", "exposureEV100", "doorStates")}
     fixed["lightingMode"] = (selected_state.get("lighting") or {}).get("mode")
     for img in images:
@@ -171,14 +171,10 @@ def _verify_ab(capture_dir: Path, selected_state: dict, images: list) -> Optiona
                 return f"{img['variant']} の {k} が保存と違います（{got!r} ≠ {v!r}）"
         for room_id, rs in (selected_state.get("roomStates") or {}).items():
             got_rs = (cond.get("roomStates") or {}).get(room_id, {})
-            if room_id == active:
-                if got_rs.get("variant") != img["variant"]:
-                    return f"{img['variant']} の対象室 variant が {got_rs.get('variant')!r}"
-                if got_rs.get("surfaceOverrides") != rs.get("surfaceOverrides"):
-                    return f"{img['variant']} の対象室 surfaceOverrides が変わっています"
-            else:
-                if got_rs.get("variant") != rs.get("variant") or got_rs.get("fixtures") != rs.get("fixtures"):
-                    return f"{img['variant']} で他室 {room_id} の設定が変わっています"
+            expected = dict(rs)
+            if room_id == active:expected["variant"] = img["variant"]
+            if got_rs != expected:
+                return f"{img['variant']} で {room_id} の仕上げ以外の条件が変わっています"
     return None
 
 

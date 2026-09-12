@@ -1130,7 +1130,32 @@ void AWalkthroughCharacter::Tick(float Delta) {
   // range is the standard place this limit belongs; it is enforced as part
   // of that same update, so it actually catches every frame's input.
   if(PC->PlayerCameraManager) {PC->PlayerCameraManager->ViewPitchMin=-80.; PC->PlayerCameraManager->ViewPitchMax=80.;}
-  RestoreView(); PC->bShowMouseCursor=false; PC->SetInputMode(FInputModeGameOnly());
+  RestoreView();
+  FString RequestedEntry;
+  if(bReady&&FParse::Value(FCommandLine::Get(),TEXT("RyukaEntryRoom="),RequestedEntry)) {
+   if(const FRoomInfo* Room=Rooms.Find(RequestedEntry)) {
+    auto Candidate=MakeShared<FJsonObject>(*State);
+    Candidate->RemoveField(TEXT("walkthrough"));
+    Candidate->SetStringField(TEXT("activeRoomId"),RequestedEntry);
+    Candidate->SetNumberField(TEXT("activeLevel"),Room->Level);
+    FVector2D Centre(0,0);for(auto& V:Room->Polygon)Centre+=V;Centre/=Room->Polygon.Num();
+    auto Camera=MakeShared<FJsonObject>(*State->GetObjectField(TEXT("camera")));
+    Camera->SetArrayField(TEXT("locationCm"),Numbers(FVector(Centre.X,Centre.Y,Room->FloorCm+160.5)));
+    Camera->SetArrayField(TEXT("rotationDeg"),Numbers(FVector(0,RequestedEntry==TEXT("room-1f-19")?90:0,0)));
+    Candidate->SetObjectField(TEXT("camera"),Camera);
+    const FString PreviousEntry=EntryRoomId;EntryRoomId=RequestedEntry;
+    const bool Entered=Restore(Candidate);EntryRoomId=PreviousEntry;
+    if(!Entered)Message=TEXT("入口へ移動できません。前回の位置を維持します。");
+    if(FParse::Param(FCommandLine::Get(),TEXT("RyukaSmoke"))) {
+     auto Evidence=MakeShared<FJsonObject>();Evidence->SetStringField(TEXT("requested"),RequestedEntry);
+     Evidence->SetStringField(TEXT("actual"),CurrentRoomId);Evidence->SetBoolField(TEXT("safe"),Entered&&Safe(GetActorLocation()));
+     Evidence->SetObjectField(TEXT("state"),State);
+     FString Text;FJsonSerializer::Serialize(Evidence,TJsonWriterFactory<>::Create(&Text));
+     FFileHelper::SaveStringToFile(Text,*(FPaths::ProjectSavedDir()/TEXT("launcher-entry-verification.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    }
+   } else {bReady=false;GetCharacterMovement()->DisableMovement();Message=TEXT("このモデルには指定された入口がありません。");}
+  }
+  PC->bShowMouseCursor=false; PC->SetInputMode(FInputModeGameOnly());
  }
  // Furniture/wall collision is left to CharacterMovement's own sweep/slide
  // (below, AddMovementInput is always called for a non-zero direction) so

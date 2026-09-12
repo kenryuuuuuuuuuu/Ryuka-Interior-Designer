@@ -25,6 +25,8 @@ def _mini_repo(tmp: Path) -> Path:
     for rel in ("data/furniture.json", "data/furniture-catalog.json", "data/house.json",
                 "data/visual/asset-bindings.json", "scripts/build-web-data.mjs"):
         shutil.copy2(ROOT / rel, root / rel)
+    for source in (ROOT / "data").glob("*.json"):
+        shutil.copy2(source, root / "data" / source.name)
     return root
 
 

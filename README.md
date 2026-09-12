@@ -1,6 +1,6 @@
 # 日常利用の入口
 
-家具編集はこのフォルダの **interior-white-model.html**、UE内覧・更新は **guest-launcher.cmd** を開きます。旧build/worktrees配下は使いません。[フォルダと手順](docs/DAILY_USE.md)／[残課題・自宅側の未実装](docs/BACKLOG.md)。
+家具編集はこのフォルダの **interior-white-model.html**、UE内覧・更新は **interior-launcher.cmd** を開きます。旧build/worktrees配下は使いません。[フォルダと手順](docs/DAILY_USE.md)／[残課題・確認待ち事項](docs/BACKLOG.md)。
 
 # Ryuka Interior Designer
 
@@ -12,7 +12,7 @@
 
 保存した内装検討をまとめて更新する場合は[一括更新の手順](docs/REFRESH_WORKFLOW.md)を参照してください。
 
-Blender＋Unrealで進める内装・採光検討の方針と再生成手順は [docs/VISUAL_TWIN_PLAN.md](docs/VISUAL_TWIN_PLAN.md) を参照してください。ゲストLDKのBlender比較画像、UE 5.8.2への検証付き取り込み、エディタの「ツール → 内装比較」から仕上げ・日時による太陽位置・視点を切り替え、条件を次回生成へ引き継ぐ機能を実装しています。所在地と真北はローカル設定で管理します。実敷地の条件確定、照度の校正、専用の歩行UIは未完了です。
+Blender＋Unrealで進める内装・採光検討の方針と再生成手順は [docs/VISUAL_TWIN_PLAN.md](docs/VISUAL_TWIN_PLAN.md) を参照してください。ゲストLDKのBlender比較画像、UE 5.8.2への検証付き取り込み、エディタの「ツール → 内装比較」から仕上げ・日時による太陽位置・視点を切り替え、条件を次回生成へ引き継ぐ機能を実装しています。所在地と真北はローカル設定で管理します。全館の歩行UIはW07/W08-Fで実装済みです。実敷地の条件確定と照度の校正は確認待ちです。
 
 - `interior-white-model.html` — Three.js製の内装白模型。単体でブラウザに開ける。`generated/house-data.js` を読み込んで表示する
 - `index.html` — GitHub PagesのルートURL用リダイレクト（`interior-white-model.html`へ転送するだけ）

@@ -278,4 +278,11 @@ def apply_candidate(candidate_path: Path, root: Path = paths.ROOT,
 
 def restore_backup(backup_path: Path, root: Path = paths.ROOT) -> None:
     """apply_candidate() が残した復元用コピーで data/furniture.json を戻す。"""
+    root = Path(root)
+    report = build_report(Path(backup_path), root=root)
+    if not report.ok:raise ValueError(report.validationError)
     shutil.copy2(Path(backup_path), root / "data" / "furniture.json")
+    result = subprocess.run(["node", str(root / "scripts/build-web-data.mjs")], cwd=root,
+                            capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if result.returncode:
+        raise ValueError("家具正本は復元しましたがWeb再生成に失敗しました。node scripts/build-web-data.mjs を再実行してください。")

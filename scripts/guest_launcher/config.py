@@ -22,6 +22,7 @@ class LauncherConfig:
     enginePath: str = str(paths.DEFAULT_ENGINE)
     blenderPath: str = str(paths.DEFAULT_BLENDER)
     cachePath: str = str(paths.DEFAULT_CACHE)
+    entryMode: str = "resume"
     currentModel: Optional[str] = None          # repo-relative or absolute path to a UE project dir
     registeredModels: list = field(default_factory=list)   # list[{"path": str, "label": str, "registeredAt": str}]
     lastUpdateOutput: Optional[str] = None       # repo-relative path of the newest refresh output dir

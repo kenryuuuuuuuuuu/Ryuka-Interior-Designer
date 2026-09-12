@@ -14,6 +14,8 @@ from typing import Optional
 
 from . import paths
 
+SCOPE_LABELS = {"guest": "ゲスト", "home": "自宅", "whole": "全館"}
+
 
 @dataclass
 class ModelInfo:
@@ -68,8 +70,8 @@ def inspect_project(project_dir: Path) -> ModelInfo:
     info.meshCount = iv.get("meshes")
     if not info.importVerified:
         reasons.append("取込が成功として記録されていません（unrealImportVerified が真ではありません）。")
-    if info.scopeId != "guest":
-        reasons.append(f"scope が guest ではありません（{info.scopeId}）。ゲスト試用版の対象は guest です。")
+    if info.scopeId not in SCOPE_LABELS:
+        reasons.append(f"未対応の対象範囲です（{info.scopeId}）。guest / home / whole を選んでください。")
 
     wv_path = project_dir / "walkthrough-verification.json"
     if wv_path.is_file():
@@ -94,7 +96,7 @@ def inspect_project(project_dir: Path) -> ModelInfo:
     if newest:
         info.updatedAt = datetime.fromtimestamp(newest).astimezone().isoformat()
 
-    info.valid = (info.importVerified and info.scopeId == "guest" and info.walkthroughConfigured)
+    info.valid = (info.importVerified and info.scopeId in SCOPE_LABELS and info.walkthroughConfigured)
     return info
 
 

@@ -3,7 +3,7 @@ import argparse,json,subprocess,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'unreal'))
 import multi_room_state as mrs
-p=argparse.ArgumentParser();p.add_argument('--project',type=Path,required=True);p.add_argument('--engine',type=Path,required=True);p.add_argument('--cache',type=Path,required=True);p.add_argument('--rhi',choices=('d3d12','d3d11'),default='d3d12');p.add_argument('--smoke',action='store_true');p.add_argument('--logic-only',action='store_true');p.add_argument('--home-smoke',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--project',type=Path,required=True);p.add_argument('--engine',type=Path,required=True);p.add_argument('--cache',type=Path,required=True);p.add_argument('--rhi',choices=('d3d12','d3d11'),default='d3d12');p.add_argument('--smoke',action='store_true');p.add_argument('--logic-only',action='store_true');p.add_argument('--home-smoke',action='store_true');p.add_argument('--entry',choices=('resume','home','guest'),default='resume');a=p.parse_args()
 if a.home_smoke:a.smoke=True
 project=a.project.resolve();report=project/'walkthrough-verification.json'
 if not json.loads(report.read_text(encoding='utf-8')).get('configured'):p.error('Enable walkthrough first')
@@ -17,6 +17,11 @@ cmd=[str(a.engine.resolve()/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe'),(proje
 if a.logic_only and not a.smoke:p.error('--logic-only requires --smoke')
 if a.smoke:cmd+=[('-NullRHI' if a.logic_only else '-RenderOffscreen'),'-unattended','-RyukaSmoke']
 if a.home_smoke:cmd+=['-RyukaHomeSmoke']
+if a.entry!='resume':
+ config=json.loads((project/'walkthrough.json').read_text(encoding='utf-8'))
+ rid={'home':'room-1f-19','guest':'room-1f-02'}[a.entry]
+ if not config.get('launcherEntrySelection') or rid not in set(config['rooms']):p.error('Update the model to enable this entry')
+ cmd+=['-RyukaEntryRoom='+rid]
 print('WASD / mouse: walk and look. 1-3: finishes. 4-5: sun. F5: save. F9: restore. Tab: cursor.',flush=True)
 with (project/('walkthrough-smoke.log' if a.smoke else 'walkthrough-run.log')).open('w',encoding='utf-8') as log:
  r=subprocess.run(cmd,cwd=project,stdout=log,stderr=subprocess.STDOUT,timeout=180 if a.smoke else None)

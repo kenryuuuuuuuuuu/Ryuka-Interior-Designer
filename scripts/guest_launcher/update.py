@@ -1,7 +1,7 @@
 """モデル更新（既存 refresh-visual-study.py を工程表示付きで実行）。
 
 - 正本取込 ≠ UE反映。取込後は「モデル更新が必要」と区別する。
-- 更新は 選択モデルを previous、scope=guest、新しい出力ディレクトリで実行。
+- 更新は 選択モデルを previous、選択モデルと同じscope、新しい出力ディレクトリで実行。
 - 既定で重い全案ギャラリー（--gallery）は付けない。前モデル・案を上書き/削除しない。
 - 工程名・実行中/成功/失敗・ログ・経過時間を表示。根拠のない進捗率は出さない。
 - 終了コード0 かつ refresh の status: complete かつ 取込/転送/内覧構築の成功を
@@ -81,7 +81,7 @@ class UpdateOutcome:
 
 def update_output_dir() -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    return paths.ROOT / "build" / f"W08-G-update-{stamp}"
+    return paths.ROOT / "build" / f"W08-F-update-{stamp}"
 
 
 def run_update(cfg: _config.LauncherConfig, model_dir: Path, output_dir: Path,
@@ -93,11 +93,15 @@ def run_update(cfg: _config.LauncherConfig, model_dir: Path, output_dir: Path,
     started = time.monotonic()
     log_path = paths.LOG_DIR / f"{output_dir.name}.log"
 
+    info = models.inspect_project(model_dir)
+    if not info.valid:
+        return UpdateOutcome(False, str(output_dir), None, "invalid-model", "pre-check", "；".join(info.reasons), None)
+    scope_id = info.scopeId
     argv = runner.python_argv(
         _SCRIPTS / "refresh-visual-study.py",
         "--previous", model_dir,
         "--output", output_dir,
-        "--scope", "guest",
+        "--scope", scope_id,
         "--blender", cfg.blender,
         "--engine", cfg.engine,
         "--cache", cfg.cache,
@@ -143,9 +147,9 @@ def run_update(cfg: _config.LauncherConfig, model_dir: Path, output_dir: Path,
     # status: complete でも、切替の前に実機の成功記録を独立に確認する。
     new_model = output_dir / "ue"
     info = models.inspect_project(new_model)
-    if not info.valid:
+    if not info.valid or info.scopeId != scope_id:
         return UpdateOutcome(ok=False, outputDir=str(output_dir), newModelDir=None, status="incomplete",
-                             failedStep="post-check", reason="；".join(info.reasons) or "更新後モデルの検証に失敗しました。",
+                             failedStep="post-check", reason="；".join(info.reasons) or "更新後モデルの対象範囲が一致しません。",
                              refreshJson=str(refresh_json), elapsedSec=elapsed, steps=steps)
     transfer = output_dir / "ue" / "state-transfer-verification.json"
     try:

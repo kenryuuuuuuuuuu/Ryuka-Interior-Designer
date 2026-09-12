@@ -18,7 +18,7 @@ from . import paths
 
 def python_argv(script: Path, *args) -> list:
     """`python <repo script> ...` の引数配列。sys.executable を使う。"""
-    return [sys.executable, str(Path(script))] + [str(a) for a in args]
+    return [sys.executable, "-X", "utf8", str(Path(script))] + [str(a) for a in args]
 
 
 def run_logged(argv: Sequence, log_path: Path, cwd: Optional[Path] = None,

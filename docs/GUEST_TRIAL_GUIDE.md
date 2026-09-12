@@ -1,5 +1,7 @@
 > 2026-09-11：日常入口はプロジェクトのトップへ統一しました。旧build/worktrees/visual-twinではなくトップのguest-launcher.cmdを開きます。[保存先と移行](DAILY_USE.md)。
 
+W08-F以降の共通入口は `interior-launcher.cmd` です。ゲスト・自宅・全館を選択できます。最新手順は[日常利用ガイド](DAILY_USE.md)を参照してください。旧 `guest-launcher.cmd` も互換入口として使用できます。
+
 # ゲスト試用ガイド（最短）
 
 ゲスト8区画（玄関・ホール・LDK・洋室・トイレ・洗面脱衣・UB・収納）の内装を、
