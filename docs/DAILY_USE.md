@@ -24,6 +24,7 @@
 | build/launcher/ | ローカル設定、比較記録、ログ、取込前バックアップ |
 | build/scenarios/ | 名前付き保存案 |
 | build/W08-F-delivery/ue/ | W08-Fの全館モデル。次の更新では新しい出力ができます |
+| build/entry-tile-step-final/ue/ | 4区画のタイルと10cmの床段差を反映した全館モデル。ランチャーの現行モデルです |
 | build/W08-G-update-v3/ue/ | 既存のゲストモデル。選択を戻して使用できます |
 | build/archive/ | 過去の生成物・検証証跡・旧作業場所のローカル資料。日常編集には使いません |
 | docs/tasks/ | Claudeへの仕様、実装報告、レビュー履歴 |

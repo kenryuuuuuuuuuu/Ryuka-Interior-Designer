@@ -253,7 +253,7 @@ def apply_state(state):
     surface_planned=[]
     for surface_id,info in surfaces.items():
         if info['status']!='bound': continue
-        finish=resolve_finish(finish_document,study['settings']['variants'],info['kind'],room_variant(info['roomId']),usable.get(surface_id))
+        finish=resolve_finish(finish_document,study['settings']['variants'],info['kind'],room_variant(info['roomId']),usable.get(surface_id),room_id=info['roomId'])
         # W04 review v2 R1: load the parent by (surface, EFFECTIVE variant) --
         # finish['variant'] -- instead of reusing whatever's currently in the
         # slot. Each variant's own pattern (planks/tile/plain noise) is baked
@@ -547,7 +547,7 @@ def scene_state(base):
         for surface_id,info in bound_surfaces.items():
             surface_room=info['roomId']
             finish=resolve_finish(finish_document,variants,info['kind'],
-                room_variant.get(surface_room,mrs.BASE_VARIANT),room_overrides.get(surface_room,{}).get(surface_id))
+                room_variant.get(surface_room,mrs.BASE_VARIANT),room_overrides.get(surface_room,{}).get(surface_id),room_id=surface_room)
             expected_color=rgb(finish['colorHex'])
             expected_parent=f"/Game/Generated/Finishes/M_Surf_{surface_id}_{finish['variant']}"
             for mesh_ref in info['meshes']:

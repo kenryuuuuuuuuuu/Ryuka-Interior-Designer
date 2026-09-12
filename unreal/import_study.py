@@ -134,7 +134,7 @@ def main():
     for surface_id, info in blender_bindings['surfaces'].items():
         markers_by_variant = {}
         for variant in study['settings']['variants']:
-            finish = resolve_finish(finish_document, study['settings']['variants'], info['kind'], variant)
+            finish = resolve_finish(finish_document, study['settings']['variants'], info['kind'], variant, room_id=info['roomId'])
             markers_by_variant[variant] = marker_material(
                 f'Surf_{surface_id}_{variant}', finish['colorHex'], finish['roughness'], detail=finish['detail'])
         marker = markers_by_variant[study['roomStates'][info['roomId']]['variant']]

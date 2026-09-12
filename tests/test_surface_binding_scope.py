@@ -42,7 +42,8 @@ class SurfaceBindingScopeTests(unittest.TestCase):
     def _bindings_for(self, scope_id):
         scope = mrs.resolve_scope(self.scopes, scope_id)
         variant_by_room = {r: mrs.BASE_VARIANT for r in scope['roomIds']}
-        binder = bi.SurfaceBinder(self.house, self.resolved, {}, self.finish_doc, self.variants, variant_by_room)
+        with mock.patch.object(bi, 'apply_pattern'):
+            binder = bi.SurfaceBinder(self.house, self.resolved, {}, self.finish_doc, self.variants, variant_by_room)
         return scope, binder.bindings_json()['surfaces']
 
     def test_full_registry_still_resolves(self):

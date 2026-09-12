@@ -11,7 +11,7 @@ from finish_settings import details_for_variant
 KINDS = ('wall', 'floor', 'ceiling')
 
 
-def resolve_finish(finish_document, study_variants, kind, base_variant, override=None):
+def resolve_finish(finish_document, study_variants, kind, base_variant, override=None, room_id=None):
     """dict(variant, colorHex, roughness, pattern, paletteRole, detail) for
     `kind` under `base_variant`, with `override` (any subset of variant/
     colorHex/roughness) layered on top. No override -> identical to the
@@ -24,8 +24,10 @@ def resolve_finish(finish_document, study_variants, kind, base_variant, override
     override = override or {}
     variant = override.get('variant', base_variant)
     detail = dict(details_for_variant(finish_document, variant)[kind])
+    if kind == 'floor' and room_id in finish_document.get('roomFloorFinishes', {}):
+        detail = dict(finish_document['roomFloorFinishes'][room_id])
     palette_role = detail.get('paletteRole', kind)
-    color_hex = override.get('colorHex', study_variants[variant][palette_role])
+    color_hex = override.get('colorHex') or detail.get('colorHex') or study_variants[variant][palette_role]
     roughness = override.get('roughness', detail['roughness'])
     return dict(variant=variant, colorHex=color_hex, roughness=roughness,
         pattern=detail.get('pattern'), paletteRole=palette_role, detail=detail)

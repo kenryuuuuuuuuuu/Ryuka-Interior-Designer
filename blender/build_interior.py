@@ -209,7 +209,7 @@ class SurfaceBinder:
             self.by_room_kind.setdefault((s['roomId'], s['kind']), []).append(s)
             self.status[s['id']] = dict(roomId=s['roomId'], kind=s['kind'], label=s.get('label'), state='no-surface')
             base_variant = variant_by_room.get(s['roomId'], mrs.BASE_VARIANT)
-            finish = resolve_finish(finish_document, study_variants, s['kind'], base_variant, overrides.get(s['id']))
+            finish = resolve_finish(finish_document, study_variants, s['kind'], base_variant, overrides.get(s['id']), room_id=s['roomId'])
             self.detail[s['id']] = finish
             # W04 review v2 R1: give this marker the SAME base texture as the
             # whole-scene material it stands in for -- e.g. a registered
@@ -351,6 +351,7 @@ def build_envelope(data, mats, binder=None):
                 else:
                     panel(f"wall.{w['id']}.{i}.{j}",w,piece,mats['wall'],dict(wall=w,openings=cuts))
     floor_registrations = binder.floor_surfaces() if binder else []
+    tile_edge_mat = material('Entry_tile_edge', 'aaa59b', .78)
     for kind,key,offset,depth,cap in [('floor','slabs',0,-.12,0),('ceiling','flatCeilings',data['defaults']['ceilingHeight'],.025,0)]:
         for i,r in enumerate(data['envelope'][key]):
             y=data['levels'][f"fl{r['level']}"]+offset
@@ -359,10 +360,15 @@ def build_envelope(data, mats, binder=None):
                            if k==kind and binder.rooms_by_id[rid]['level']==r['level']} if binder else {}
             rooms=[binder.rooms_by_id[rid] for rid in registrations]
             for j,(poly,rid) in enumerate(partition_room_faces(rect,rooms)):
+                floor_offset = binder.rooms_by_id[rid].get('floorOffsetM', 0) if kind=='floor' and rid and binder else 0
+                piece_y = y + floor_offset
                 registration=registrations.get(rid)
                 fm={cap:binder.materials[registration['id']]} if registration else None
-                vertices=[(x,-z,y) for x,z in poly]
-                obj=prism(f"{'slab' if kind=='floor' else 'ceiling.flat'}.{i}.{j}",vertices,(0,0,depth),mats['wood'] if kind=='floor' else mats['ceiling'],face_materials=fm)
+                vertices=[(x,-z,piece_y) for x,z in poly]
+                # Keep the edge material distinct from the top marker. GLB
+                # coalesces identical slots, invalidating the bound slot 1.
+                base_mat = (tile_edge_mat if floor_offset else mats['wood']) if kind=='floor' else mats['ceiling']
+                obj=prism(f"{'slab' if kind=='floor' else 'ceiling.flat'}.{i}.{j}",vertices,(0,0,depth),base_mat,face_materials=fm)
                 if registration: binder.mark_bound(registration['id'],obj.name,1)
     for stair in data.get('stairs',[]):
         shape=stair_layout(stair,data['levels'])
@@ -779,7 +785,7 @@ def build_furniture(data,room_ids,mats_by_room):
         for obj in created:
             for vertex in obj.data.vertices:
                 x,y,z=vertex.co
-                vertex.co=(c*x-s*y+item['x'],s*x+c*y-item['z'],z+data['levels'][f"fl{item['level']}"]+item.get('elevation',0))
+                vertex.co=(c*x-s*y+item['x'],s*x+c*y-item['z'],z+data['levels'][f"fl{item['level']}"]+room.get('floorOffsetM',0)+item.get('elevation',0))
             # W07-G1: this object's whole-scene role-slot material must
             # follow ITS OWN room's active variant, never a single global
             # one -- both here (review R5: `mats` above is now this item's

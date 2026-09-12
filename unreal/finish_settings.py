@@ -34,6 +34,18 @@ def validate_finishes(document):
             if pattern.get('kind') not in ('tile','boards'): raise ValueError('Invalid surface pattern')
             for key,low,high in [('widthCm',3,200),('lengthCm',10,600),('seamCm',.01,1),('rotationDeg',0,360)]:
                 if not number(pattern.get(key),low,high): raise ValueError('Invalid surface '+key)
+    for room_id,detail in document.get('roomFloorFinishes',{}).items():
+        if not isinstance(room_id,str) or not room_id or not isinstance(detail,dict):
+            raise ValueError('Invalid room floor finish')
+        if detail.get('paletteRole')!='floor' or detail.get('status')!='estimated' or not detail.get('note'):
+            raise ValueError('Room floor finish needs estimated provenance')
+        if not isinstance(detail.get('colorHex'),str) or len(detail['colorHex'])!=6 or any(c not in '0123456789abcdefABCDEF' for c in detail['colorHex']):
+            raise ValueError('Invalid room floor color')
+        if not number(detail.get('roughness'),0,1): raise ValueError('Invalid room floor roughness')
+        pattern=detail.get('pattern',{})
+        if pattern.get('kind')!='tile': raise ValueError('Room floor requires tile pattern')
+        for key,low,high in [('widthCm',3,200),('lengthCm',10,600),('seamCm',.01,1),('rotationDeg',0,360)]:
+            if not number(pattern.get(key),low,high): raise ValueError('Invalid room floor tile '+key)
     return document
 
 

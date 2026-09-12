@@ -1,4 +1,4 @@
-const CACHE = 'ryuka-interior-pwa-20260912-furniture';
+const CACHE = 'ryuka-interior-pwa-20260913-entry-tile';
 const ASSETS = ['./', './index.html', './interior-white-model.html', './manifest.webmanifest', './icon.svg', './vendor/three.min.js', './generated/house-data.js'];
 
 self.addEventListener('install', event => {

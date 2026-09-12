@@ -1608,15 +1608,64 @@ scene.add(walkCharacterGroup);
 // FLOOR1は求積図の計算ゾーン(A1〜A4)であり実在する壁ではないため、表示上は
 // 床面の参照プレーンだけを描画する（house.json側のfootprintsデータは
 // Blenderの外壁生成・開口部の所属ゾーン判定に使うので保持する）。
+// A convex polygon subtraction keeps the lower rooms out of the normal-height
+// footprint plane, including the diagonal edge of the private entrance.
+function clipFloorPolygon(poly,a,b,inside){
+  const cross=p=>(b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]);
+  const result=[];
+  for(let i=0;i<poly.length;i++){
+    const p=poly[i],q=poly[(i+1)%poly.length],cp=cross(p),cq=cross(q);
+    const keep=inside ? cp>=-1e-9 : cp<=1e-9;
+    if(keep) result.push(p);
+    if((cp>1e-9&&cq< -1e-9)||(cp< -1e-9&&cq>1e-9)){
+      const t=cp/(cp-cq);result.push([p[0]+t*(q[0]-p[0]),p[1]+t*(q[1]-p[1])]);
+    }
+  }
+  return result;
+}
+function subtractFloorPolygon(poly,hole){
+  let remaining=poly,outer=[];
+  for(let i=0;i<hole.length;i++){
+    if(remaining.length<3) break;
+    const a=hole[i],b=hole[(i+1)%hole.length];
+    const outside=clipFloorPolygon(remaining,a,b,false);
+    if(outside.length>=3) outer.push(outside);
+    remaining=clipFloorPolygon(remaining,a,b,true);
+  }
+  return outer;
+}
+function floorPolygonMesh(poly,y,material,group){
+  const shape=new THREE.Shape();
+  poly.forEach(([x,z],i)=>{const [sx,sz]=toScene(x,z);if(i===0)shape.moveTo(sx,-sz);else shape.lineTo(sx,-sz);});
+  shape.closePath();
+  const mesh=new THREE.Mesh(new THREE.ShapeGeometry(shape),material);
+  mesh.rotation.x=-Math.PI/2;mesh.position.y=y;mesh.renderOrder=0;group.add(mesh);
+}
+const loweredRooms=(ROOMS_APPROX[1]||[]).filter(r=>r.floorOffsetM<0);
+const tileCanvas=document.createElement('canvas');tileCanvas.width=256;tileCanvas.height=256;
+const tileCtx=tileCanvas.getContext('2d');
+tileCtx.fillStyle='#c9c4ba';tileCtx.fillRect(0,0,256,256);
+tileCtx.strokeStyle='#938f87';tileCtx.lineWidth=2;tileCtx.strokeRect(1,1,254,254);
+const tileMap=new THREE.CanvasTexture(tileCanvas);
+tileMap.wrapS=tileMap.wrapT=THREE.RepeatWrapping;tileMap.repeat.set(1/.3,1/.3);
+const tileFloorMat=new THREE.MeshBasicMaterial({map:tileMap,side:THREE.DoubleSide});
+const stepSideMat=new THREE.MeshBasicMaterial({color:0x8c8379,side:THREE.DoubleSide});
 FLOOR1.forEach(seg=>{
-  const [sx0,sz0]=toScene(seg.x0,seg.z0), [sx1,sz1]=toScene(seg.x1,seg.z1);
-  const fgeo = new THREE.PlaneGeometry(sx1-sx0, sz1-sz0);
-  const fmesh = new THREE.Mesh(fgeo, M1.floorSlab);
-  fmesh.renderOrder = 0;
-  fmesh.rotation.x = -Math.PI/2;
-  fmesh.position.set(sx0+(sx1-sx0)/2, LEVELS.fl1+0.005, sz0+(sz1-sz0)/2);
-  groups.floor1.add(fmesh);
+  let pieces=[[[seg.x0,seg.z0],[seg.x1,seg.z0],[seg.x1,seg.z1],[seg.x0,seg.z1]]];
+  for(const room of loweredRooms) pieces=pieces.flatMap(poly=>subtractFloorPolygon(poly,roomPolygonPoints(room)));
+  pieces.forEach(poly=>floorPolygonMesh(poly,LEVELS.fl1+.005,M1.floorSlab,groups.floor1));
 });
+for(const room of loweredRooms){
+  const poly=roomPolygonPoints(room),lo=LEVELS.fl1+room.floorOffsetM+.005,hi=LEVELS.fl1+.005;
+  floorPolygonMesh(poly,lo,tileFloorMat,groups.floor1);
+  for(let i=0;i<poly.length;i++){
+    const [ax,az]=toScene(...poly[i]),[bx,bz]=toScene(...poly[(i+1)%poly.length]);
+    const geom=new THREE.BufferGeometry();
+    geom.setAttribute('position',new THREE.Float32BufferAttribute([ax,lo,az,bx,lo,bz,bx,hi,bz,ax,hi,az],3));
+    geom.setIndex([0,1,2,0,2,3]);geom.computeVertexNormals();
+    groups.floor1.add(new THREE.Mesh(geom,stepSideMat));
+  }
+}
 
 // ---- 2F床スラブ（階段の吹き抜け部分は穴を開ける） ----
 {
@@ -1879,7 +1928,7 @@ function placeFurnitureItem(item){
   const holder = new THREE.Group();
   holder.userData.furnitureId = item.id;
   shapeFn(holder, item.width, item.depth, item.height);
-  const baseY = item.level===1 ? LEVELS.fl1 : LEVELS.fl2;
+  const baseY = (item.level===1 ? LEVELS.fl1 : LEVELS.fl2) + (ROOMS_APPROX[item.level].find(r=>r.id===item.room)?.floorOffsetM ?? 0);
   const [sx,sz] = toScene(item.x, item.z);
   holder.position.set(sx, baseY + (item.elevation ?? 0), sz);
   holder.rotation.y = (profile.rotationConvention==='source' ? 1 : -1) * item.rotation * Math.PI/180; // TVは正本の+zを正面とする。既存家具の向きは維持。
@@ -4600,7 +4649,9 @@ function stairProgressAt(x, z, currentLevel){
 }
 function currentWalkY(){
   const sp = stairProgressAt(walkPos.x, walkPos.z, walkLevel);
-  return sp ? sp.y : (walkLevel===1 ? LEVELS.fl1 : LEVELS.fl2);
+  if(sp) return sp.y;
+  const room=(ROOMS_APPROX[walkLevel]||[]).find(r=>r.id && pointInPolygon(walkPos.x,walkPos.z,roomPolygonPoints(r)));
+  return (walkLevel===1 ? LEVELS.fl1 : LEVELS.fl2) + (room?.floorOffsetM ?? 0);
 }
 
 function updateWalkCamera(){

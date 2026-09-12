@@ -44,7 +44,7 @@ door_bindings=json.loads((project/'door-bindings.json').read_text(encoding='utf-
 rooms_config={}
 for room_id in profile['roomIds']:
     room=rooms_by_id[room_id]
-    rooms_config[room_id]=dict(level=room['level'],floorCm=house['levels'][f"fl{room['level']}"]*100,
+    rooms_config[room_id]=dict(level=room['level'],floorCm=(house['levels'][f"fl{room['level']}"]+room.get('floorOffsetM',0))*100,
         polygonCm=[[x*100,z*100] for x,z in room['polygon']],label=room.get('label') or room_id)
 connections_config=[]
 for c in connections:

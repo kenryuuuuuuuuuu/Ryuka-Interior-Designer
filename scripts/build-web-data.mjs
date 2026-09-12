@@ -189,6 +189,7 @@ function buildRoomsApprox() {
           const pts = r.polygon.map(([x, z]) => `[${num(x)},${num(z)}]`).join(",");
           fields.push(`poly:[${pts}]`);
         }
+        if (r.floorOffsetM !== undefined) fields.push(`floorOffsetM:${num(r.floorOffsetM)}`);
         fields.push(`conf:${str(CONF_FROM_STATUS[r.status])}`);
         if (r.note) fields.push(`note:${str(r.note)}`);
         return `    { ${fields.join(", ")} }`;

@@ -96,5 +96,63 @@
         "note": "参考画像の木板天井。幅100mm・長さ3600mm・目地1.2mmの仮設定。板の長手は図面東西方向。勾配面に沿った実寸で表示。"
       }
     }
+  },
+  "roomFloorFinishes": {
+    "room-1f-02": {
+      "paletteRole": "floor",
+      "colorHex": "c9c4ba",
+      "roughness": 0.78,
+      "pattern": {
+        "kind": "tile",
+        "widthCm": 30,
+        "lengthCm": 30,
+        "seamCm": 0.2,
+        "rotationDeg": 0
+      },
+      "status": "estimated",
+      "note": "玄関・土間の仮タイル。300mm角・目地2mm・色は仮設定。製品未選定。"
+    },
+    "room-1f-08": {
+      "paletteRole": "floor",
+      "colorHex": "c9c4ba",
+      "roughness": 0.78,
+      "pattern": {
+        "kind": "tile",
+        "widthCm": 30,
+        "lengthCm": 30,
+        "seamCm": 0.2,
+        "rotationDeg": 0
+      },
+      "status": "estimated",
+      "note": "玄関・土間の仮タイル。300mm角・目地2mm・色は仮設定。製品未選定。"
+    },
+    "room-1f-09": {
+      "paletteRole": "floor",
+      "colorHex": "c9c4ba",
+      "roughness": 0.78,
+      "pattern": {
+        "kind": "tile",
+        "widthCm": 30,
+        "lengthCm": 30,
+        "seamCm": 0.2,
+        "rotationDeg": 0
+      },
+      "status": "estimated",
+      "note": "玄関・土間の仮タイル。300mm角・目地2mm・色は仮設定。製品未選定。"
+    },
+    "room-1f-18": {
+      "paletteRole": "floor",
+      "colorHex": "c9c4ba",
+      "roughness": 0.78,
+      "pattern": {
+        "kind": "tile",
+        "widthCm": 30,
+        "lengthCm": 30,
+        "seamCm": 0.2,
+        "rotationDeg": 0
+      },
+      "status": "estimated",
+      "note": "玄関・土間の仮タイル。300mm角・目地2mm・色は仮設定。製品未選定。"
+    }
   }
 }

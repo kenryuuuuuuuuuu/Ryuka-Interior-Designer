@@ -447,7 +447,15 @@ void AWalkthroughCharacter::BeginPlay() {
    StairSteps.Add(Step);
   }
  }
+ // A lowered entry floor has a 10 cm threshold even in the guest-only
+ // profile (which has no stairs). Keep the former 2 cm limit for profiles
+ // without a floor transition.
+ bool bRoomFloorStep=false;
+ for(const auto& A:Rooms) for(const auto& B:Rooms)
+  if(A.Value.Level==B.Value.Level&&FMath::Abs(A.Value.FloorCm-B.Value.FloorCm)>2.)
+   bRoomFloorStep=true;
  if(!StairSteps.IsEmpty()) GetCharacterMovement()->MaxStepHeight=24.;
+ else if(bRoomFloorStep) GetCharacterMovement()->MaxStepHeight=12.;
  // Every room's own opening windows, from every connection touching it,
  // regardless of open/closed state -- see InsideRoomPolygon()'s own comment
  // for why this relaxation does not need to be conditional on door state.
@@ -783,10 +791,20 @@ bool AWalkthroughCharacter::ApplyConditions() {
     if(!(*RolesObj)->TryGetObjectField(Kind,Base)) return false;
     Detail=*Base;
    }
+   // Fixed room finish wins over a room-wide A/B palette change; only a
+   // deliberate per-surface color/roughness override may alter it.
+   if(Kind==TEXT("floor")) {
+    const TSharedPtr<FJsonObject>* RoomFloors;
+    const TSharedPtr<FJsonObject>* RoomDetail;
+    if(FinishDocument->TryGetObjectField(TEXT("roomFloorFinishes"),RoomFloors)&&
+       (*RoomFloors)->TryGetObjectField(SurfaceRoomId,RoomDetail)) Detail=*RoomDetail;
+   }
    FString PaletteRole=Kind; Detail->TryGetStringField(TEXT("paletteRole"),PaletteRole);
    const TSharedPtr<FJsonObject>* PaletteForVariant;
    if(!StudyVariants->TryGetObjectField(EffectiveVariant,PaletteForVariant)) return false;
-   FString ColorHex; if(!(*PaletteForVariant)->TryGetStringField(PaletteRole,ColorHex)) return false;
+   FString ColorHex;
+   if(!Detail->TryGetStringField(TEXT("colorHex"),ColorHex)&&
+      !(*PaletteForVariant)->TryGetStringField(PaletteRole,ColorHex)) return false;
    double Roughness=.6; Detail->TryGetNumberField(TEXT("roughness"),Roughness);
    if(Override) {
     FString OverrideColor; if((*Override)->TryGetStringField(TEXT("colorHex"),OverrideColor)) ColorHex=OverrideColor;

@@ -1,6 +1,7 @@
 """W04: surfaceOverrides structural validation (study_state.py) and finish
 resolution / bound-target checking (surface_finish_overrides.py)."""
 from pathlib import Path
+import json
 import sys
 import unittest
 
@@ -35,6 +36,17 @@ def base_state(overrides=None):
 
 
 class SurfaceOverrideValidationTests(unittest.TestCase):
+
+    def test_lowered_entry_floor_uses_tile_in_every_variant(self):
+        finish_doc=json.loads((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8'))
+        for room_id in ('room-1f-02','room-1f-08','room-1f-09','room-1f-18'):
+            for variant in ('natural','warm','reference'):
+                floor=sfo.resolve_finish(finish_doc,STUDY['settings']['variants'],'floor',variant,room_id=room_id)
+                self.assertEqual(floor['pattern']['kind'],'tile')
+                self.assertEqual(floor['colorHex'],'c9c4ba')
+                self.assertEqual(floor['pattern']['widthCm'],30)
+        ordinary=sfo.resolve_finish(finish_doc,STUDY['settings']['variants'],'floor','natural',room_id='room-1f-19')
+        self.assertEqual(ordinary['paletteRole'],'wood')
     def test_1_0_0_state_normalizes_to_empty_overrides(self):
         state=dict(schemaVersion='1.0.0',roomId='room-1f-06',variant='natural',
             azimuthDeg=180,elevationDeg=30,sunLux=50000,exposureEV100=7.5,camera=None)
