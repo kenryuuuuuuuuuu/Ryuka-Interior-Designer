@@ -25,7 +25,8 @@
 | build/scenarios/ | 名前付き保存案 |
 | build/W08-F-delivery/ue/ | W08-Fの全館モデル。次の更新では新しい出力ができます |
 | build/entry-tile-step-final/ue/ | 4区画のタイルと10cmの床段差を反映した前回の全館モデル。切り戻して使用できます |
-| build/walkthrough-controls-v2/ue/ | 照明・季節時刻操作を追加した全館モデル。ランチャーの現行モデルです |
+| build/walkthrough-controls-v2/ue/ | 照明・季節時刻操作を追加した前回の全館モデル。切り戻して使用できます |
+| build/walkthrough-hita-sun-v1/ue/ | 施主指定の地域代表座標と真北条件を使った全館モデル。ランチャーの現行モデルです。詳細な所在地はローカル設定のみ |
 | build/W08-G-update-v3/ue/ | 既存のゲストモデル。選択を戻して使用できます |
 | build/archive/ | 過去の生成物・検証証跡・旧作業場所のローカル資料。日常編集には使いません |
 | docs/tasks/ | Claudeへの仕様、実装報告、レビュー履歴 |
