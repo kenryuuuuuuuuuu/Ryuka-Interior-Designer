@@ -517,7 +517,8 @@ function buildFurnitureCatalog() {
   const rows = furnitureCatalog.types
     .map((t) => `  ${str(t.type)}: { label:${str(t.label)}, category:${str(t.category)}, shape:${str(t.shape)}, width:${num(t.width)}, depth:${num(t.depth)}, height:${num(t.height)}, clearance:${num(t.clearance)}${t.rotationConvention ? ', rotationConvention:'+str(t.rotationConvention) : ''} }`)
     .join(",\n");
-  return `const FURNITURE_CATALOG = {\n${rows}\n};`;
+  const categories = JSON.stringify(furnitureCatalog.categories);
+  return `const FURNITURE_CATEGORIES = ${categories};\nconst FURNITURE_CATALOG = {\n${rows}\n};`;
 }
 
 function buildFurnitureItems() {

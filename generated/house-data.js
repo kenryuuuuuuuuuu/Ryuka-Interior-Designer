@@ -204,6 +204,7 @@ const STAIRS = [
   ] }, // 新規(2026-08-15)：施主指摘により、平面図・俯瞰・内覧すべてで階段の実体（段差ジオメトリ・2F床の吹き抜け・平面図記号・内覧での歩行）を表現するために新設。room-1f-10（西側柱状部分＋北東の曲がり部分）に沿う直進1.82マス分＋室-1f-10の凹角(x14.561,z0.91)を中心とした180度の廻り階段＋南への短い直進で2F(room-2f-02、パントリーの真上を含む)へ着地する。修正(2026-08-15)：施主指摘により、廻りは90度ではなく180度（パントリーの真上を回り込む）が正しいと判明し訂正。最後の直進部分はroom-1f-21パントリーの直上（1Fからは見えない、階段下収納の表現）を通るため、hiddenBelowで1F平面図では破線表示にする。再訂正(2026-08-16)：施主指摘により、最後の直進部分がパントリーの南端(z=1.82、room-1f-21の南側境界かつ2F開口の南端)まで届いていなかったのを、z=1.82まで延長。段数13・蹴上約210mmは施工図未確認のため推測値。totalStepsぶんの均等な蹴上でlevelFromのFLからlevelToのFLまで積み上げる
 ];
 
+const FURNITURE_CATEGORIES = {"fixture":"造作・設備（施工会社が設置する。位置は図面で決まり自由に動かせない）","furniture":"置き家具（後から購入する。自由に配置を検討する対象）"};
 const FURNITURE_CATALOG = {
   'dining-table-round': { label:'円形ダイニングテーブル', category:'furniture', shape:'roundTable', width:0.9, depth:0.9, height:0.72, clearance:0.75, rotationConvention:'source' },
   'chair-timber': { label:'木製チェア', category:'furniture', shape:'timberChair', width:0.45, depth:0.48, height:0.85, clearance:0.3, rotationConvention:'source' },

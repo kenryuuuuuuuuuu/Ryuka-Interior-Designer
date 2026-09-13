@@ -8,11 +8,19 @@ const source = (a,b) => html.slice(html.indexOf(a),html.indexOf(b,html.indexOf(a
 const nodes = new Map();
 let downloaded;
 const furnitureStorage=new Map();
+function fakeElement(tag='DIV'){
+  return {tagName:tag.toUpperCase(),style:{},children:[],_value:'',
+    appendChild(child){this.children.push(child);return child;},
+    replaceChildren(...children){this.children=[...children];this._value='';},
+    get options(){return this.children.flatMap(child=>child.tagName==='OPTGROUP'?child.children:[child]);},
+    get value(){return this._value||this.options[0]?.value||'';},set value(value){this._value=value;},
+    click(){},remove(){}};
+}
 const ctx = vm.createContext({console, Number, Math, Blob:class {constructor(parts){downloaded=JSON.parse(parts[0]);}},
   URL:{createObjectURL:()=>'',revokeObjectURL(){}},
   localStorage:{getItem:k=>furnitureStorage.get(k)||null,setItem(k,v){furnitureStorage.set(k,v);}},
-  document:{getElementById(id){if(!nodes.has(id))nodes.set(id,{style:{}});return nodes.get(id);},
-    createElement:()=>({click(){}}),body:{appendChild(){},removeChild(){}}}});
+  document:{getElementById(id){if(!nodes.has(id))nodes.set(id,fakeElement(id==='fbAddType'||id==='fbDeleted'?'SELECT':'DIV'));return nodes.get(id);},
+    createElement:tag=>fakeElement(tag),body:{appendChild(){},removeChild(){}}}});
 const run = code=>vm.runInContext(code,ctx);
 run(fs.readFileSync(new URL('vendor/three.min.js',root),'utf8'));
 run(fs.readFileSync(new URL('generated/house-data.js',root),'utf8'));
@@ -111,3 +119,42 @@ for (const type of ['raised-platform','mattress','sofa-work-table']) {
   run('exportFurnitureJSON()');assert.ok(!downloaded.items.some(i=>i.id===id));
 }
 console.log('New furniture: add in concave room, elevation, export/provenance, persistence, invalid placement and removal passed.');
+
+const catalog=JSON.parse(fs.readFileSync(new URL('data/furniture-catalog.json',root),'utf8'));
+run('populateFurnitureTypeOptions()');
+const picker=nodes.get('fbAddType');
+assert.deepEqual([...picker.options.map(option=>option.value)].sort(),catalog.types.map(type=>type.type).sort());
+for(const group of picker.children){
+  assert.equal(group.tagName,'OPTGROUP');
+  const category=catalog.types.find(type=>type.type===group.children[0].value).category;
+  assert.equal(group.label,catalog.categories[category].split('（')[0]);
+  assert.ok(group.children.every(option=>catalog.types.find(type=>type.type===option.value).category===category));
+}
+run("populateFurnitureTypeOptions('sofa-work-table')");
+assert.deepEqual(picker.options.map(option=>option.value),['sofa-work-table']);
+run("populateFurnitureTypeOptions('見つからない家具')");
+assert.equal(nodes.get('fbAdd').disabled,true);
+run('populateFurnitureTypeOptions()');
+assert.equal(nodes.get('fbAdd').disabled,false);
+console.log('Catalog picker: every type once, category groups, search and empty results passed.');
+
+run("setSelectedFurniture('fur-045');rebuildFurnitureSegments()");
+const segmentsBefore=run('furnitureSegmentsByLevel[1].length');
+assert.equal(run('deleteSelectedFurniture()'),true);
+assert.equal(run("furnitureMeshes.has('fur-045')"),false);
+assert.ok(JSON.parse(furnitureStorage.get('ryuka-furniture-deleted-v1')).includes('fur-045'));
+run('exportFurnitureJSON();rebuildFurnitureSegments()');
+assert.equal(downloaded.items.some(item=>item.id==='fur-045'),false);
+assert.equal(run('furnitureSegmentsByLevel[1].length'),segmentsBefore-4);
+assert.equal(nodes.get('fbDeleted').value,'fur-045');
+assert.equal(run("restoreDeletedFurniture('fur-045')"),true);
+run('exportFurnitureJSON()');
+assert.equal(downloaded.items.some(item=>item.id==='fur-045'),true);
+assert.equal(run('furnitureSegmentsByLevel[1].length'),segmentsBefore);
+
+const addedId=run("addCatalogFurniture('chair-timber','room-2f-04')");
+assert.ok(addedId);
+assert.equal(run('deleteSelectedFurniture()'),true);
+run('exportFurnitureJSON()');
+assert.equal(downloaded.items.some(item=>item.id===addedId),false);
+console.log('Deletion: source and added furniture, export, collision, persistence and restore passed.');
