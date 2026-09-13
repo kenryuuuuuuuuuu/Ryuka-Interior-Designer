@@ -26,6 +26,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "UnrealClient.h"
+#include "Engine/Canvas.h"
 #include "HAL/PlatformMisc.h"
 IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl,RyukaInterior,"RyukaInterior");
 
@@ -271,6 +272,66 @@ void AWalkthroughCharacter::FindNearestDoor() {
   if(GetWorld()->LineTraceSingleByChannel(Hit,EyeLoc,DoorPos,ECC_WorldStatic,Params)&&Hit.Distance<Dist-30.) continue; // something (a wall) blocks well short of the door itself
   Best=Dist; NearestDoorId=C.Id;
  }
+}
+FTransform AWalkthroughCharacter::DoorLeafTargetTransform(const FLeafInfo& Leaf,AActor* LeafActor,bool bOpen) const {
+ FTransform Target=LeafActor->GetActorTransform();
+ if(Leaf.bHasYaw) Target.SetRotation(FQuat(FRotator(0,bOpen?Leaf.OpenYawDeltaDeg:0.,0)));
+ if(Leaf.bHasOffset) {
+  const FVector Base=Leaf.bHasClosedLocation?Leaf.ClosedLocationCm:LeafActor->GetActorLocation();
+  Target.SetLocation(bOpen?Base+Leaf.OpenOffsetCm:Base);
+ }
+ return Target;
+}
+TMap<FString,AActor*> AWalkthroughCharacter::FindDoorActors(const FConnectionInfo& Connection) const {
+ TMap<FString,AActor*> Result;
+ if(!bDoorActorsCached) {
+  for(TActorIterator<AActor> It(GetWorld());It;++It) for(const auto& Tag:It->Tags) {
+   const FString Name=Tag.ToString();
+   if(Name.StartsWith(TEXT("Ryuka:opening_"))) DoorActorCache.Add(Name.Mid(6),*It);
+  }
+  bDoorActorsCached=true;
+ }
+ const FString Prefix=TEXT("opening_")+Connection.Id+TEXT("_");
+ for(const auto& Pair:DoorActorCache)
+  if(Pair.Key.StartsWith(Prefix)&&Pair.Value.IsValid()) Result.Add(Pair.Key,Pair.Value.Get());
+ return Result;
+}
+bool AWalkthroughCharacter::CheckFocusedDoorMotion() const {
+ if(!bReady||NearestDoorId.IsEmpty()) return false;
+ for(const auto& Connection:Connections) if(Connection.Id==NearestDoorId) {
+  if(!Connection.bOpenable||Connection.Leaves.IsEmpty()) return false;
+  const auto Actors=FindDoorActors(Connection);
+  TArray<AActor*> DoorOwnActors;
+  for(const auto& Pair:Actors)
+   if(Pair.Key.StartsWith(TEXT("opening_")+Connection.Id+TEXT("_"))) DoorOwnActors.Add(Pair.Value);
+  const bool bWantOpen=!GetDoorOpen(Connection.Id);
+  for(const auto& Leaf:Connection.Leaves) {
+   AActor* LeafActor=Actors.FindRef(Leaf.Actor);
+   if(!LeafActor) return false;
+   const FTransform From=LeafActor->GetActorTransform();
+   const FTransform To=DoorLeafTargetTransform(Leaf,LeafActor,bWantOpen);
+   if(!From.Equals(To,0.5f)&&LeafMotionClearFraction(LeafActor,From,To,DoorOwnActors,true)<0.999f) return false;
+  }
+  return true;
+ }
+ return false;
+}
+bool AWalkthroughCharacter::DoorFocusPoint(FVector& WorldPoint) const {
+ if(!bReady||NearestDoorId.IsEmpty()) return false;
+ for(const auto& Connection:Connections) if(Connection.Id==NearestDoorId) {
+  if(!Connection.Leaves.IsEmpty()) {
+   const auto Actors=FindDoorActors(Connection);
+   if(AActor* Leaf=Actors.FindRef(Connection.Leaves[0].Actor)) {
+    FVector Extent;Leaf->GetActorBounds(false,WorldPoint,Extent);
+    return true;
+   }
+  }
+  const double Mid=(Connection.LoCm+Connection.HiCm)/2.;
+  const double Height=Eye->GetComponentLocation().Z;
+  WorldPoint=Connection.bHorizontal?FVector(Mid,Connection.AtCm,Height):FVector(Connection.AtCm,Mid,Height);
+  return true;
+ }
+ return false;
 }
 bool AWalkthroughCharacter::GetDoorOpen(const FString& DoorId) const {
  if(!State.IsValid()) return false;
@@ -876,22 +937,10 @@ bool AWalkthroughCharacter::ApplyConditions() {
   for(auto& Leaf:Connection.Leaves) {
    AActor* LeafActor=Actors.FindRef(Leaf.Actor); if(!LeafActor) return false;
    const FTransform FromXform=LeafActor->GetActorTransform();
-   FTransform ToXform=FromXform;
-   if(Leaf.bHasYaw) {
-    // W07-G2 review-v3 R1: OpenYawDeltaDeg IS the safe open angle already --
-    // circulation.py resolved it once against the fixed building walls
-    // (door-002 is capped by the LDK's west wall) and every consumer
-    // (Blender bake, UE import, editor apply_state, here) applies this same
-    // value. No runtime re-limiting: this pose is wall-safe by construction.
-    ToXform.SetRotation(FQuat(FRotator(0,bOpen?Leaf.OpenYawDeltaDeg:0.,0)));
-   }
-   if(Leaf.bHasOffset) {
-    // W07-G2 review-v2 R1: the closed baseline is the IMMUTABLE
-    // ClosedLocationCm import_study.py captured once and stamped into
-    // door-bindings.json -- never re-estimated here from a live pose.
-    const FVector Base=Leaf.bHasClosedLocation?Leaf.ClosedLocationCm:LeafActor->GetActorLocation();
-    ToXform.SetLocation(bOpen?Base+Leaf.OpenOffsetCm:Base);
-   }
+   // The HUD's availability check uses this exact same target transform.
+   // OpenYawDeltaDeg is the prevalidated wall-safe angle, and sliding leaves
+   // use the immutable imported closed location when available.
+   const FTransform ToXform=DoorLeafTargetTransform(Leaf,LeafActor,bOpen);
    if(!Leaf.bHasYaw&&!Leaf.bHasOffset) continue;
    // W07-G2 review-v3 R1: the interference check runs ONLY when this leaf
    // actually moves (an open<->closed transition). SetFinish()/SetSun()/a
@@ -1093,6 +1142,7 @@ void AWalkthroughCharacter::InteractDoor() {
  // occupy where I am standing". A rejected toggle leaves the door and
  // State exactly as they were (spec: "元状態を維持して理由を表示").
  if(!bReady||NearestDoorId.IsEmpty()) return;
+ DoorFocusCheckRemaining=0.f; // refresh the marker after either an accepted or rejected E press
  const FString Label=DoorPromptLabel();
  const bool bWasOpen=GetDoorOpen(NearestDoorId);
  auto DoorStatesObj=State->GetObjectField(TEXT("doorStates"));
@@ -1347,7 +1397,13 @@ void AWalkthroughCharacter::Tick(float Delta) {
   // resolved BEFORE the safety correction, from wherever the player already
   // is -- not re-derived from the (possibly-corrected) position afterward.
   UpdateCurrentRoom();
+  const FString PreviousDoorId=NearestDoorId;
   FindNearestDoor();
+  DoorFocusCheckRemaining-=Delta;
+  if(NearestDoorId!=PreviousDoorId||DoorFocusCheckRemaining<=0.f) {
+   bNearestDoorCanToggle=CheckFocusedDoorMotion();
+   DoorFocusCheckRemaining=0.12f;
+  }
   const FVector Current=GetActorLocation();
   if(!SafeDuringMovement(Current)) {
    // Safe(), not InsideRoom(): the normal branch below records Current as
@@ -1835,10 +1891,14 @@ void AWalkthroughCharacter::Tick(float Delta) {
       bRouteOk &= Leg(TEXT("r3ReopenDoor002"),SetDoor(Door002,true));
       CurrentRoomId=Door002->RoomIds[0];
       SetActorLocation(P002[0],false,nullptr,ETeleportType::TeleportPhysics); // LDK side, inside the closing leaf's sweep
+      FaceDoor(Door002); FindNearestDoor();
+      bRouteOk &= Leg(TEXT("doorFocusRedWhenSwingBlocked"),NearestDoorId==Door002->Id&&!CheckFocusedDoorMotion());
       const bool bCloseRejected=!SetDoor(Door002,false)&&GetDoorOpen(Door002->Id);
       Route->SetStringField(TEXT("r3_closeBlocker"),LastLeafMotionBlocker);
       bRouteOk &= Leg(TEXT("r3CloseRejectedWithPersonInSwing"),bCloseRejected);
       CurrentRoomId=Door002->RoomIds[1]; SetActorLocation(P002[1],false,nullptr,ETeleportType::TeleportPhysics);
+      FaceDoor(Door002); FindNearestDoor();
+      bRouteOk &= Leg(TEXT("doorFocusGreenWhenSwingClear"),NearestDoorId==Door002->Id&&CheckFocusedDoorMotion());
       bRouteOk &= Leg(TEXT("r3ClosesOnceSwingClear"),SetDoor(Door002,false));
      }
      // W07-G2 review-v2 R3 verification #2: door-002's open pose does not
@@ -1976,9 +2036,23 @@ void AWalkthroughHUD::DrawHUD(){
   DrawText(TEXT("太陽条件：")+P->CurrentSolarLabel(),FLinearColor::White,24,110);
   // W06: 昼夜モードと、明るさ・色温度が仮仕様であることを常設表示する。
   DrawText(TEXT("照明：")+P->CurrentLightingLabel(),FLinearColor::White,24,132);
-  // W07-G2: only shown when actually near and facing an openable door.
+  // The same focused door that E will toggle gets a small marker on its
+  // visible leaf. Green means the sampled leaf motion is clear; red means
+  // furniture, another leaf or the player's capsule blocks that motion.
   const FString DoorPrompt=P->DoorPromptLabel();
-  if(!DoorPrompt.IsEmpty()) DrawText(DoorPrompt,FLinearColor::Green,24,154);
+  if(!DoorPrompt.IsEmpty()) {
+   const bool bCanToggle=P->CanToggleFocusedDoor();
+   const FLinearColor Tint=bCanToggle?FLinearColor(.24f,.8f,.4f,1.f):FLinearColor(.9f,.32f,.3f,1.f);
+   DrawText(DoorPrompt+(bCanToggle?TEXT(""):TEXT("（動かせません）")),Tint,24,154);
+   FVector Focus;FVector2D Screen;
+   if(P->DoorFocusPoint(Focus)&&GetOwningPlayerController()&&
+      GetOwningPlayerController()->ProjectWorldLocationToScreen(Focus,Screen)&&
+      Screen.X>=16&&Screen.Y>=16&&Screen.X<=Canvas->SizeX-32&&Screen.Y<=Canvas->SizeY-16) {
+    DrawRect(FLinearColor(0,0,0,.45f),Screen.X-7,Screen.Y-7,14,14);
+    DrawRect(Tint,Screen.X-4,Screen.Y-4,8,8);
+    DrawText(TEXT("E"),Tint,Screen.X+10,Screen.Y-8);
+   }
+  }
   DrawText(P->Message,FLinearColor::Yellow,24,176);
  }
 }

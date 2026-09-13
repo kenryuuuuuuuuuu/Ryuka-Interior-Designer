@@ -22,6 +22,8 @@ public:
  FString CurrentLightingLabel() const;
  FString CurrentRoomLabel() const;
  FString DoorPromptLabel() const;
+ bool DoorFocusPoint(FVector& WorldPoint) const;
+ bool CanToggleFocusedDoor() const {return bNearestDoorCanToggle;}
  FString Message;
  bool bReady=false;
  bool bInitialized=false;
@@ -48,6 +50,10 @@ private:
  TMap<FString,TArray<FOpeningWindow>> RoomOpenings;
  TArray<FString> EditRoomIds;
  FString ProfileId, EntryRoomId, CurrentRoomId, NearestDoorId;
+ bool bNearestDoorCanToggle=false;
+ float DoorFocusCheckRemaining=0.f;
+ mutable bool bDoorActorsCached=false;
+ mutable TMap<FString,TWeakObjectPtr<AActor>> DoorActorCache;
  // W07-G2 review-v2 R1: a slide leaf's CLOSED world location is no longer
  // guessed at runtime from a live actor pose (an editor .umap save, an Undo
  // or a reload could persist the leaf OPEN and be mistaken for closed).
@@ -79,6 +85,9 @@ private:
  bool Safe(const FVector& Position, const FString& RoomId) const;
  void UpdateCurrentRoom();
  void FindNearestDoor();
+ bool CheckFocusedDoorMotion() const;
+ TMap<FString,AActor*> FindDoorActors(const FConnectionInfo& Connection) const;
+ FTransform DoorLeafTargetTransform(const FLeafInfo& Leaf,AActor* LeafActor,bool bOpen) const;
  bool GetDoorOpen(const FString& DoorId) const;
  // W07-G2 review-v3 R3: fraction [0,1] of the From->To leaf motion that is
  // clear. 1.0 == the whole motion is clear. Both end poses are already
