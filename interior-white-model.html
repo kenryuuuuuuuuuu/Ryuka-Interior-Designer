@@ -1163,15 +1163,15 @@ function doorGapsForLevel(level){
 // 窓(OPENINGS、category!=='door')は壁を全高では切り欠かず、sill(下端高さ)〜sill+h(上端高さ)の
 // 帯だけを内覧モードの壁メッシュ生成時に切り欠く（当たり判定用のwallSegmentsByLevelには含めない＝
 // 窓は通り抜けられない、という現状の挙動は維持する）
-function windowGapsForLevel(level){
+function windowGapsForLevel(level, useEdits=false){
   const gaps = [];
-  OPENINGS.forEach(o=>{
+  OPENINGS.forEach(base=>{
+    const o = useEdits ? effectiveOpening(base) : base;
     if(o.category==='door' || o.level!==level) return;
     gaps.push({ ...openingWallGeom(o, level), sill:o.sill, h:o.h });
   });
   return gaps;
 }
-const windowGapsByLevel = { 1: windowGapsForLevel(1), 2: windowGapsForLevel(2) };
 const wallSegmentsByLevel = {};
 [1,2].forEach(level=>{
   const rects = level===1 ? FLOOR1 : [FLOOR2];
@@ -1361,9 +1361,11 @@ const walkWindowMat = new THREE.MeshStandardMaterial({color:0x6fb3e0, transparen
 const walkWindowFrameMat = new THREE.LineBasicMaterial({color:0x2a2a2a});
 const WINDOW_GLASS_THICK = 0.04; // 窓ガラス面の厚み(m、壁の中心に配置する見た目上の値)
 const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一致判定の許容誤差(m)
-[1,2].forEach(level=>{
+const walkWallGroups = {1:null, 2:null};
+function rebuildWalkWalls(level, useEdits=true){
+  const firstChild = walkGroup.children.length;
   const baseY = level===1 ? LEVELS.fl1 : LEVELS.fl2;
-  const winGaps = windowGapsByLevel[level];
+  const winGaps = windowGapsForLevel(level, useEdits);
   wallSegmentsByLevel[level].forEach(s=>{
     const t = s.thick/2;
     if(s.guardHeight!==undefined){
@@ -1425,6 +1427,18 @@ const WALL_WINDOW_TOL = 0.05; // 壁セグメントと窓の壁座標(at)の一�
       else boxWire(s.at-gt, s.at+gt, baseY+w.sill, baseY+w.sill+w.h, w.from, w.to, walkWindowMat, walkWindowFrameMat, walkGroup);
     });
   });
+  const nextGroup = new THREE.Group();
+  walkGroup.children.slice(firstChild).forEach(child=> nextGroup.add(child));
+  if(walkWallGroups[level]){
+    const previous = walkWallGroups[level];
+    walkGroup.remove(previous);
+    previous.traverse(obj=>{ if(obj.geometry) obj.geometry.dispose(); });
+  }
+  walkWallGroups[level] = nextGroup;
+  walkGroup.add(nextGroup);
+}
+[1,2].forEach(level=>{
+  rebuildWalkWalls(level, false);
   // 階段の吹き抜け：このlevelから上の階へ上る階段があれば、その真上のlevel+1側の
   // 床（＝このlevelから見た天井）に開口の穴を開ける（内覧モードで見上げたときに素通しになる）
   const stairHoles = STAIRS.filter(s=>s.levelFrom===level && s.opening).map(s=>s.opening);
@@ -2495,6 +2509,10 @@ function cleanupHandFields(eff){
 }
 function effectiveOpening(item){ const e = doorWindowEdits[item.id]; return cleanupHandFields(e ? {...item, ...e} : {...item}); }
 function effectiveInteriorDoor(item){ const e = doorWindowEdits[item.id]; return cleanupHandFields(e ? {...item, ...e} : {...item}); }
+// 保存済みの窓編集も、最初の内覧から壁の穴とガラスに反映する。
+if(OPENINGS.some(o=>o.category!=='door' && doorWindowEdits[o.id])){
+  [1,2].forEach(level=> rebuildWalkWalls(level));
+}
 function findDoorWindowBase(id){
   const o = OPENINGS.find(x=>x.id===id);
   if(o) return { base:o, isExterior:true };
@@ -2694,7 +2712,10 @@ function rebuildDoorWindow(id, isExterior){
   const sel = findDoorWindowBase(id);
   if(!sel) return;
   removeDoorWindowMesh(id);
-  if(isExterior) placeOpening(effectiveOpening(sel.base));
+  if(isExterior){
+    placeOpening(effectiveOpening(sel.base));
+    if(sel.base.category!=='door') rebuildWalkWalls(sel.base.level);
+  }
   else placeInteriorDoor(effectiveInteriorDoor(sel.base));
 }
 INTERIOR_DOORS.forEach(d=> placeInteriorDoor(effectiveInteriorDoor(d)));
