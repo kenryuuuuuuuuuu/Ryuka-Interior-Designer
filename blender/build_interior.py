@@ -628,6 +628,14 @@ def build_openings(ops, settings, mats, door_connections_by_id=None, door_states
             if o['orientation']=='H': obj.location.y-=outset   # Blender Y = -(source z): -Y is +source z
             else: obj.location.x+=outset                       # Blender X = source x
             dx,dz=circulation.slide_open_offset(connection)
+            # A fixed, dark top rail extends in the actual slide direction.
+            # It distinguishes a sliding panel from a hinged one while the
+            # moving leaf remains a single actor for UE's translation binding.
+            rail_start=min(a+fw,a+fw+(dx if o['orientation']=='H' else dz))
+            rail_end=max(b-fw,b-fw+(dx if o['orientation']=='H' else dz))
+            rail=rect('slide-rail',rail_start,rail_end,high-fw-.012,high-fw-.004,mats['frame'],.018)
+            if o['orientation']=='H': rail.location.y-=outset
+            else: rail.location.x+=outset
             if is_open: obj.location.x+=dx; obj.location.y+=-dz
             leaves.append(dict(actor=obj.name,kind='single',openOffsetCm=[dx*100,dz*100,0],bakedOpen=is_open))
         else:
@@ -782,9 +790,11 @@ def build_furniture(data,room_ids,mats_by_room):
             part('cabinet',-w/2,w/2,-d/2,d/2,.06,h,mats['wood'])
         else:
             part('body',-w/2,w/2,-d/2,d/2,0,h,mats['metal'] if 'refrigerator' in item['type'] else mats['cabinet'],.018)
-        # Three R_y maps source +z to +x at +90deg; with Blender Y=-z,
-        # this is positive R_Z (local -Y maps to +X), not negative R_Z.
-        theta=math.radians(item['rotation']); c,s=math.cos(theta),math.sin(theta)
+        # Match placeFurnitureItem() in Three: legacy catalog shapes use the
+        # opposite yaw sign; only rotationConvention=source keeps +rotation.
+        # Blender's Y=-source z mapping makes Three's yaw sign equal to R_Z.
+        rotation_sign=1 if profile.get('rotationConvention')=='source' else -1
+        theta=math.radians(rotation_sign*item['rotation']); c,s=math.cos(theta),math.sin(theta)
         for obj in created:
             for vertex in obj.data.vertices:
                 x,y,z=vertex.co

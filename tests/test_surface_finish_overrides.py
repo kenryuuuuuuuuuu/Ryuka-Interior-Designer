@@ -37,6 +37,15 @@ def base_state(overrides=None):
 
 class SurfaceOverrideValidationTests(unittest.TestCase):
 
+    def test_both_bathrooms_keep_water_room_tile_in_every_variant(self):
+        finish_doc=json.loads((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8'))
+        for room_id in ('room-1f-04','room-1f-17'):
+            for variant in ('natural','warm','reference'):
+                floor=sfo.resolve_finish(finish_doc,STUDY['settings']['variants'],'floor',variant,room_id=room_id)
+                self.assertEqual(floor['pattern']['kind'],'tile')
+                self.assertEqual(floor['pattern']['widthCm'],20)
+                self.assertEqual(floor['colorHex'],'b8c6c9')
+
     def test_lowered_entry_floor_uses_tile_in_every_variant(self):
         finish_doc=json.loads((ROOT/'data/visual/unreal-finishes.json').read_text(encoding='utf-8'))
         for room_id in ('room-1f-02','room-1f-08','room-1f-09','room-1f-18'):

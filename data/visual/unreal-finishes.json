@@ -98,6 +98,34 @@
     }
   },
   "roomFloorFinishes": {
+    "room-1f-04": {
+      "paletteRole": "floor",
+      "colorHex": "b8c6c9",
+      "roughness": 0.82,
+      "pattern": {
+        "kind": "tile",
+        "widthCm": 20,
+        "lengthCm": 20,
+        "seamCm": 0.2,
+        "rotationDeg": 0
+      },
+      "status": "estimated",
+      "note": "Guest bathroom floor: provisional 200 mm square water-room tile. Product, waterproofing, slip resistance and drainage slope are unconfirmed."
+    },
+    "room-1f-17": {
+      "paletteRole": "floor",
+      "colorHex": "b8c6c9",
+      "roughness": 0.82,
+      "pattern": {
+        "kind": "tile",
+        "widthCm": 20,
+        "lengthCm": 20,
+        "seamCm": 0.2,
+        "rotationDeg": 0
+      },
+      "status": "estimated",
+      "note": "Home bathroom floor: provisional 200 mm square water-room tile. Product, waterproofing, slip resistance and drainage slope are unconfirmed."
+    },
     "room-1f-02": {
       "paletteRole": "floor",
       "colorHex": "c9c4ba",
