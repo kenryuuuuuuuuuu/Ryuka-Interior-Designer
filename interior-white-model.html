@@ -1438,6 +1438,7 @@ function rebuildWalkWalls(level, useEdits=true){
   walkGroup.add(nextGroup);
 }
 [1,2].forEach(level=>{
+  const baseY = level===1 ? LEVELS.fl1 : LEVELS.fl2;
   rebuildWalkWalls(level, false);
   // 階段の吹き抜け：このlevelから上の階へ上る階段があれば、その真上のlevel+1側の
   // 床（＝このlevelから見た天井）に開口の穴を開ける（内覧モードで見上げたときに素通しになる）
