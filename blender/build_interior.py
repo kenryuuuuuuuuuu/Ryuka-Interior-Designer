@@ -34,6 +34,7 @@ from surface_finish_overrides import resolve_finish, marker_material_name
 from lighting import validate_lighting_settings, effective_fixture, kelvin_to_rgb
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from surface_registry import resolve_from as resolve_surface_registry
+from furniture_dependents import resolve as resolve_furniture_dependents
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -644,8 +645,10 @@ def build_furniture(data,room_ids,mats_by_room):
     # coordinates to move the item into a different (possibly out-of-scope)
     # room, or generating it twice.
     catalog={t['type']:t for t in read(ROOT/'data/furniture-catalog.json')['types']}
-    bindings=validate_bindings(read(ROOT/'data/visual/asset-bindings.json'),
-        read(ROOT/'data/furniture.json')['items'],read(ROOT/'data/furniture-catalog.json'))
+    all_furniture=read(ROOT/'data/furniture.json')['items']
+    active_binding_doc, _, _ = resolve_furniture_dependents(all_furniture,
+        read(ROOT/'data/visual/asset-bindings.json'),read(ROOT/'data/visual/guest-decor.json'))
+    bindings=validate_bindings(active_binding_doc,all_furniture,read(ROOT/'data/furniture-catalog.json'))
     rooms_by_id={r['id']:r for r in data['rooms']}
     items=[]
     for i in read(ROOT/'data/furniture.json')['items']:
@@ -1030,7 +1033,8 @@ def main():
     # guest-decor.json is fixed to room-1f-06 (LDK) by its own roomId field
     # (see the role_bindings loop below) -- its own room's materials set,
     # same as any other LDK furniture (review R5).
-    decor_document=read(ROOT/'data/visual/guest-decor.json')
+    _,decor_document,_=resolve_furniture_dependents(items,
+        read(ROOT/'data/visual/asset-bindings.json'),read(ROOT/'data/visual/guest-decor.json'))
     decorations=build_decor(decor_document,data,items,ops,mats_by_room[decor_document['roomId']],block,mesh,read(ROOT/'data/furniture-catalog.json')) if decor_document['roomId'] in room_ids else []
     # guest-decor.json is fixed to room-1f-06 (LDK) by its own roomId field
     # (unchanged by W07-G1: "新しい小物・画像相当の装飾は不要" for the

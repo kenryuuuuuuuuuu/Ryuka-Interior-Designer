@@ -175,8 +175,8 @@ class RefreshTests(unittest.TestCase):
         write('data/visual/guest-ldk-study.json',dict(roomId='room-a'))
         self._write_scope_files(root)
         write('data/visual/asset-bindings.json',dict(bindings=[]))
-        write('data/visual/guest-decor.json',dict(roomId='room-a',items=[dict(id='decor-1',kind='rug',
-            furnitureId='fur-MISSING',width=1,depth=1,status='estimated',note='')]))
+        write('data/visual/guest-decor.json',dict(roomId='room-a',items=[dict(id='decor-1',kind='blind',
+            openingId='op-MISSING',dropFraction=.2,status='estimated',note='')]))
         write('data/openings.json',dict(items=[]))
         engine=root/'engine'; (engine/'Engine/Binaries/Win64').mkdir(parents=True)
         (engine/'Engine/Binaries/Win64/UnrealEditor-Cmd.exe').touch()
@@ -200,7 +200,7 @@ class RefreshTests(unittest.TestCase):
             self.assertIn('build-web-data.mjs',str(run.call_args))
         result=m.read(output/'refresh.json')
         self.assertEqual(result['status'],'failed')
-        self.assertTrue(any('fur-MISSING' in i['message'] for i in m.read(output/'source-changes.json')['issues']))
+        self.assertTrue(any('op-MISSING' in i['message'] for i in m.read(output/'source-changes.json')['issues']))
         self.assertFalse((output/'index.html').exists())
 
     def test_full_coverage_scenario_ignores_corrupted_previous_state(self):

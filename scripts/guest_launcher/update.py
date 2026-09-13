@@ -32,7 +32,7 @@ def plan_update(model_dir: Path, root: Path = paths.ROOT) -> dict:
     `source_changes.compare` はゲスト向け refresh が使うのと同じ仕組み
     （rooms/furniture/catalog/照明設定の追加・削除・変更＋参照切れ）。"""
     model_dir = Path(model_dir)
-    result = dict(updateNeeded=False, changedSourceFiles=[], summary=None, issues=[], baselineStatus=None)
+    result = dict(updateNeeded=False, changedSourceFiles=[], summary=None, issues=[], inactiveDependents=[], baselineStatus=None)
     manifest_path = model_dir / "SourcePackage/manifest.json"
     try:
         old_hashes = json.loads(manifest_path.read_text(encoding="utf-8-sig")).get("sourceHashes", {})
@@ -45,6 +45,7 @@ def plan_update(model_dir: Path, root: Path = paths.ROOT) -> dict:
         changes = source_changes.compare(model_dir, root)
         result["summary"] = source_changes.summarize(changes)
         result["issues"] = changes["issues"]
+        result["inactiveDependents"] = changes["inactiveDependents"]
         result["baselineStatus"] = changes["baselineStatus"]
     except Exception as e:  # noqa: BLE001
         result["summary"] = dict(error=str(e))

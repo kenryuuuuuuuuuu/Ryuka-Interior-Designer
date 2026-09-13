@@ -25,6 +25,10 @@ _TESTS = paths.ROOT / "tests"
 if str(_TESTS) not in sys.path:
     sys.path.insert(0, str(_TESTS))
 import validate_furniture as _vf  # noqa: E402  (repo validator, refactored to expose validate())
+_SCRIPTS = paths.ROOT / "scripts"
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+from furniture_dependents import resolve as resolve_furniture_dependents  # noqa: E402
 
 FURNITURE_JSON = paths.ROOT / "data" / "furniture.json"
 CATALOG_JSON = paths.ROOT / "data" / "furniture-catalog.json"
@@ -184,6 +188,12 @@ def _asset_binding_warnings(candidate: dict, root: Path) -> list:
     except (json.JSONDecodeError, OSError):
         return warnings
     by_id = {i["id"]: i for i in candidate["items"]}
+    decor_path = root / "data" / "visual" / "guest-decor.json"
+    decor = _read(decor_path) if decor_path.is_file() else {"items": []}
+    _, _, inactive = resolve_furniture_dependents(candidate["items"],
+        {"bindings": bindings}, decor)
+    warnings.extend(f"{i['sourceId']} は家具 {i['furnitureId']} がないためUEでは生成しません（設定は保持）。"
+                    for i in inactive)
     catalog = _read(root / "data" / "furniture-catalog.json")
     shape_by_type = {t["type"]: t["shape"] for t in catalog["types"]}
     # assetId -> expected catalog shape (from furniture_assets.validate_bindings' registry)
@@ -193,7 +203,6 @@ def _asset_binding_warnings(candidate: dict, root: Path) -> list:
         fid = b.get("furnitureId")
         aid = b.get("assetId")
         if fid not in by_id:
-            warnings.append(f"asset-bindings.json の {aid} が参照する家具 {fid} が候補にありません（取込後は不整合になります）。")
             continue
         want = expected_shape.get(aid)
         got = shape_by_type.get(by_id[fid].get("type"))

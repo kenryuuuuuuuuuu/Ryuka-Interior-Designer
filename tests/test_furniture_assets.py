@@ -6,8 +6,10 @@ import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'blender'))
+sys.path.insert(0,str(ROOT/'scripts'))
 from furniture_assets import (sofa_parts, validate_bindings, round_table_parts, chair_parts, hood_parts,
                               faucet_parts, air_conditioner_parts, toilet_parts, vanity_parts, washer_parts, bathtub_parts)
+from furniture_dependents import resolve as resolve_furniture_dependents
 
 
 class FurnitureAssets(unittest.TestCase):
@@ -40,6 +42,7 @@ class FurnitureAssets(unittest.TestCase):
     def setUp(self):
         self.bindings=json.loads((ROOT/'data/visual/asset-bindings.json').read_text(encoding='utf-8'))
         self.items=json.loads((ROOT/'data/furniture.json').read_text(encoding='utf-8'))['items']
+        self.bindings,_,_=resolve_furniture_dependents(self.items,self.bindings,{'items':[]})
         self.catalog=json.loads((ROOT/'data/furniture-catalog.json').read_text(encoding='utf-8'))
 
     def test_dimensions_and_fixed_joinery(self):

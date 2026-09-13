@@ -120,14 +120,18 @@ class SourceChangesTests(unittest.TestCase):
         changes=sc.compare(self.previous,self.current)
         self.assertEqual(changes['rooms'],dict(added=[],removed=[],modified=[]))
 
-    # --- reference issues stop before generation; fixing them clears the issue ---
+    # --- optional furniture attachments follow their anchor's lifecycle ---
 
-    def test_removed_furniture_with_dangling_decor_reference_is_an_issue(self):
+    def test_removed_furniture_deactivates_attachments_without_blocking_update(self):
         self.furniture['items']=[item('fur-2',room='room-b')]  # fur-1 removed, decor still points at it
         self.write_current()
         changes=sc.compare(self.previous,self.current)
-        self.assertTrue(any(i['targetId']=='fur-1' and i['sourceFile']=='data/visual/guest-decor.json' for i in changes['issues']))
-        self.assertTrue(any('decor-1' in i['message'] and 'fur-1' in i['message'] for i in changes['issues']))
+        self.assertEqual(changes['issues'],[])
+        self.assertEqual({i['sourceId'] for i in changes['inactiveDependents']},{'chair-v1','decor-1'})
+        self.assertIn('decor-1',sc.render_html(changes))
+        self.furniture['items'].append(item('fur-1',room='room-a'))
+        self.write_current()
+        self.assertEqual(sc.compare(self.previous,self.current)['inactiveDependents'],[])
 
     def test_removing_the_dangling_reference_too_clears_the_issue(self):
         self.furniture['items']=[item('fur-2',room='room-b')]

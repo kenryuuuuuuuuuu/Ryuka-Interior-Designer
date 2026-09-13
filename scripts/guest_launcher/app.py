@@ -386,7 +386,10 @@ class UpdateWindow(tk.Toplevel):
         if plan["issues"]:
             text += "参照切れ・重複（更新は失敗します。先に修正）：\n"
             text += "\n".join("　- " + i["message"] for i in plan["issues"])
-        elif not plan["changedSourceFiles"]:
+        if plan.get("inactiveDependents"):
+            text += "\n削除家具に付属するため生成しない形状・装飾（設定は保持）：\n"
+            text += "\n".join(f"　- {i['sourceId']}（家具 {i['furnitureId']}）" for i in plan["inactiveDependents"])
+        if not plan["changedSourceFiles"]:
             text += "\n入力に変更はありません。更新しても内容は同じになります。"
         plan_box.insert("end", text)
         plan_box.configure(state="disabled")

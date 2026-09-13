@@ -12,6 +12,7 @@ import hashlib
 import html
 import json
 from pathlib import Path
+from furniture_dependents import resolve as resolve_furniture_dependents
 
 SCHEMA='1.0.0'
 ROOT=Path(__file__).resolve().parents[1]
@@ -104,6 +105,7 @@ def check_references(root):
     study=read(root/'data/visual/guest-ldk-study.json')
     bindings=read(root/'data/visual/asset-bindings.json')
     decor=read(root/'data/visual/guest-decor.json')
+    bindings, decor, _ = resolve_furniture_dependents(furniture.get('items',[]), bindings, decor)
     openings=read(root/'data/openings.json')
 
     issues=[]
@@ -196,6 +198,10 @@ def compare(previous, root=None):
         warnings.append(result['baselineReason']+'（詳細比較できません。現在の全件を追加扱いにはしていません。）')
 
     result['issues']=check_references(root)
+    _, _, result['inactiveDependents'] = resolve_furniture_dependents(
+        read(root/'data/furniture.json')['items'],
+        read(root/'data/visual/asset-bindings.json'),
+        read(root/'data/visual/guest-decor.json'))
     result['warnings']=warnings
     return result
 
@@ -234,6 +240,9 @@ def render_html(changes):
         issues_html='<h2>参照切れ・重複（要修正）</h2><ul>'+''.join(f'<li>{esc(i["message"])}</li>' for i in changes['issues'])+'</ul>'
     else:
         issues_html='<h2>参照切れ・重複</h2><p>現在のところありません。</p>'
+    inactive=changes.get('inactiveDependents',[])
+    inactive_html=('<h2>削除家具に伴い生成しない付属物</h2><ul>'+
+        ''.join(f'<li>{esc(i["sourceId"])}（家具 {esc(i["furnitureId"])}）</li>' for i in inactive)+'</ul>') if inactive else ''
     baseline_html=''
     if changes['baselineStatus']!='available':
         baseline_html=f'<p><b>前回モデルとの詳細比較：</b>{esc(changes.get("baselineReason",""))}</p>'
@@ -241,7 +250,7 @@ def render_html(changes):
     return ('<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         '<title>前回モデルからの変更</title><style>body{font:16px/1.8 system-ui;max-width:960px;margin:40px auto;padding:0 20px;background:#f5f3ef;color:#292722}'
         'details{margin:6px 0}summary{cursor:pointer}</style>'
-        '<h1>前回モデルからの変更</h1>'+baseline_html+issues_html
+        '<h1>前回モデルからの変更</h1>'+baseline_html+issues_html+inactive_html
         +entity_section('部屋',changes.get('rooms'))+entity_section('家具',changes.get('furniture'))+entity_section('家具カタログ',changes.get('catalog'))
         +entity_section('照明プロファイル',changes.get('lightingProfiles'))+entity_section('照明グループ',changes.get('lightingGroups'))
         +'<h2>注意</h2>'+warnings_html+'</html>')
