@@ -866,6 +866,95 @@ def build_electrical_lighting(data, room_ids, room_states, mats):
     return bindings
 
 
+def build_electrical_devices(data, room_ids):
+    """Create visible, non-interactive placeholders for non-light devices.
+
+    Exterior light housings are included here, but remain unpowered because
+    the current lighting profiles explicitly exclude light-exterior.
+    Meshes use the decoration prefix so tiny wall plates do not obstruct the
+    walkthrough capsule or door-leaf collision probes.
+    """
+    catalog={t['type']:t for t in read(ROOT/'data/electrical-catalog.json')['types']}
+    items=read(ROOT/'data/electrical.json')['items']
+    all_room_ids={r['id'] for r in data['rooms']}
+    whole=set(room_ids)==all_room_ids
+    rooms=[r for r in data['rooms'] if r['id'] in room_ids]
+    palette={
+        'outlet':material('Device.outlet.estimated','d5d7d3'),
+        'switch':material('Device.switch.estimated','c5cbc9'),
+        'data':material('Device.data.estimated','8ea5ae'),
+        'equipment':material('Device.equipment.estimated','aab3ae'),
+        'lighting':material('Device.exterior-light.estimated','b2aaa0'),
+    }
+    inset=material('Device.inset.estimated','5e6768')
+    generated=[]
+    for item in items:
+        profile=catalog[item['type']]
+        category=profile['category']
+        if category=='lighting' and item['type']!='light-exterior':
+            continue  # Existing lighting path builds both housing and lamp.
+        merged=merged_item(item,catalog)
+        mount=merged['mount']
+        if mount=='exterior' and not whole:
+            continue
+        if item.get('room') and item['room'] not in room_ids:
+            continue
+        base=data['levels'][f"fl{item['level']}"]
+        w,d,h=merged['width'],merged['depth'],merged['height']
+        if mount=='wall':
+            side=item['side']
+            orientation=item['orientation']
+            if item['orientation']=='H':
+                x=item['center']; z=item['wallAt']+side*(data['defaults']['wallThickness']/2+d/2+.002)
+                sx,sz=w,d
+            else:
+                x=item['wallAt']+side*(data['defaults']['wallThickness']/2+d/2+.002); z=item['center']
+                sx,sz=d,w
+            if not whole and not item.get('room'):
+                probe_x=x+side*.04 if item['orientation']=='V' else x
+                probe_z=z+side*.04 if item['orientation']=='H' else z
+                if not any(r['level']==item['level'] and point_in_room(probe_x,probe_z,r['polygon']) for r in rooms):
+                    continue
+            y=base+merged['mountHeight']
+        elif mount=='exterior':
+            orientation,at=opening_plane(data,dict(item,width=w))
+            along=item['offset']+w/2
+            side={'N':-1,'S':1,'E':1,'W':-1}[item['face']]
+            if orientation=='H':
+                x=along; z=at+side*(data['defaults']['wallThickness']/2+d/2+.002); sx,sz=w,d
+            else:
+                x=at+side*(data['defaults']['wallThickness']/2+d/2+.002); z=along; sx,sz=d,w
+            y=base+merged['mountHeight']
+        elif mount=='floor':
+            x,z=item['x'],item['z']; sx,sz=w,d
+            y=base+merged['mountHeight']+h/2
+        elif mount=='ceiling':
+            x,z=item['x'],item['z']; sx,sz=w,d
+            y=ceiling_height_at(data,x,z,item['room'])-merged['mountHeight']-h/2
+        else:
+            raise ValueError(f"Unsupported electrical mount: {mount} ({item['id']})")
+        name=f"decoration.electrical.{item['id']}"
+        body=block(name+'.body',x-sx/2,x+sx/2,z-sz/2,z+sz/2,y-h/2,y+h/2,palette[category],.002,item)
+        body['detail_status']='estimated'
+        body['detail_note']='Provisional visible device envelope, not a selected product.'
+        # A small dark centre marks a faceplate as electrical equipment even
+        # against a similarly coloured wall. It stays inside the housing.
+        if mount in ('wall','exterior'):
+            ih=min(h*.35,.05)
+            if orientation=='H':
+                iw=min(sx*.35,.04); face_z=z+side*(sz/2+.001)
+                block(name+'.face',x-iw/2,x+iw/2,face_z-.001,face_z+.001,
+                      y-ih/2,y+ih/2,inset,0,item)
+            else:
+                iz=min(sz*.35,.04); face_x=x+side*(sx/2+.001)
+                block(name+'.face',face_x-.001,face_x+.001,z-iz/2,z+iz/2,
+                      y-ih/2,y+ih/2,inset,0,item)
+        generated.append(dict(id=item['id'],type=item['type'],category=category,
+                              mount=mount,positionM=[x,y,z],mesh=body.name,
+                              emitsLight=False,status=item.get('status','estimated')))
+    return generated
+
+
 def setup_lighting(settings, args, state=None):
     light=dict(settings['lighting'])
     # W05: state.azimuthDeg/elevationDeg (already plan-relative, same
@@ -1058,6 +1147,9 @@ def main():
     light=setup_lighting(legacy_study,args,state)
     lighting_bindings=build_electrical_lighting(data,room_ids,room_states,mats)
     (args.output/'lighting-bindings.json').write_text(json.dumps(lighting_bindings,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    device_bindings=build_electrical_devices(data,room_ids)
+    (args.output/'electrical-device-bindings.json').write_text(json.dumps(
+        dict(schemaVersion='1.0.0',devices=device_bindings),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     (args.output/'role-bindings.json').write_text(json.dumps(
         dict(schemaVersion='1.0.0',actors=role_bindings),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     active_render=mrs.room_render(room_render_settings,active_room_id,legacy_study)

@@ -120,6 +120,11 @@ def main():
     # このスクリプトの実行前に必ず再生成しておくこと。
     interior_walls = json.loads(INTERIOR_WALLS.read_text(encoding="utf-8"))["walls"]
     exterior_walls = json.loads(EXTERIOR_WALLS.read_text(encoding="utf-8"))["walls"]
+    validate(catalog, electrical, estimate, house, interior_walls, exterior_walls)
+
+
+def validate(catalog, electrical, estimate, house, interior_walls, exterior_walls):
+    """Validate a candidate electrical document against current geometry."""
     # mount:'wall'は間仕切り壁・外壁の室内側のどちらにも付けられるため、突合せ先は結合リストにする
     walls = interior_walls + exterior_walls
     footprints = house["footprints"]

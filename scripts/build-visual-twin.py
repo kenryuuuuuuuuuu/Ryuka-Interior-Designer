@@ -208,7 +208,7 @@ def main():
                                      'Generated wall sequence IDs are not stable finish bindings'],
                         artifacts={name: dict(bytes=(staging / name).stat().st_size,
                                    sha256=hashlib.sha256((staging / name).read_bytes()).hexdigest())
-                                   for name in (('interior.blend','interior.glb','interior.png','study.json','surface-bindings.json','lighting-bindings.json','role-bindings.json','door-bindings.json')
+                                   for name in (('interior.blend','interior.glb','interior.png','study.json','surface-bindings.json','lighting-bindings.json','electrical-device-bindings.json','role-bindings.json','door-bindings.json')
                                                 if args.interior else ('house.blend', 'house.glb'))})
         if args.interior:
             manifest['stage'] = 'guest-ldk-visual-study'

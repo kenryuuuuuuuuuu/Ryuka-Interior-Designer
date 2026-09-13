@@ -255,6 +255,19 @@ def main():
                 light_actor.light_component.set_editor_property('outer_cone_angle',fixture['spotAngleDeg']/2)
         lighting_report=dict(sha256=hashlib.sha256(lighting_path.read_bytes()).hexdigest(),
             fixtureIds=[f['id'] for f in lighting_bindings['fixtures']])
+    device_report=None
+    device_path=package/'electrical-device-bindings.json'
+    if device_path.exists():
+        devices=json.loads(device_path.read_text(encoding='utf-8'))
+        if devices.get('schemaVersion')!='1.0.0':
+            raise ValueError('Unsupported electrical device bindings schema')
+        for device in devices['devices']:
+            actor_label=device['mesh'].replace('.', '_')
+            if actor_label not in actor_by_label:
+                raise ValueError(f"Electrical device mesh was not imported: {device['id']}")
+        write_json(project/'electrical-device-bindings.json',devices)
+        device_report=dict(count=len(devices['devices']),ids=[d['id'] for d in devices['devices']],
+                           status='estimated-visible-housings')
     lighting = study['lighting']
     az = math.radians(lighting['azimuthDeg'])
     el = math.radians(lighting['elevationDeg'])
@@ -310,7 +323,7 @@ def main():
                 maxBoundsErrorCm=max(errors),unrealImportVerified=True,siteDaylightCalibrated=False,
                 sourceManifestSHA256=hashlib.sha256((package/'manifest.json').read_bytes()).hexdigest(),
                 siteContext=context_report,
-                lighting=lighting_report,
+                lighting=lighting_report,electricalDevices=device_report,
                 surfaceShaderSHA256=hashlib.sha256((project/'surface_finish.hlsl').read_bytes()).hexdigest(),
                 floorShaderSHA256=hashlib.sha256((project/'floor_finish.hlsl').read_bytes()).hexdigest(),
                 coordinates='UE centimetres: X=source x, Y=source z, Z=source y',

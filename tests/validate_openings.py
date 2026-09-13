@@ -88,6 +88,12 @@ def main():
     openings = json.loads(OPENINGS.read_text(encoding="utf-8"))
     interior_doors = json.loads(INTERIOR_DOORS.read_text(encoding="utf-8"))
     house = json.loads(HOUSE.read_text(encoding="utf-8"))
+    walls = json.loads(INTERIOR_WALLS.read_text(encoding="utf-8"))["walls"]
+    validate(door_catalog, window_catalog, openings, interior_doors, house, walls)
+
+
+def validate(door_catalog, window_catalog, openings, interior_doors, house, walls):
+    """Validate candidate documents before replacing either source JSON."""
 
     assert door_catalog["schemaVersion"] == "1.0.0" and window_catalog["schemaVersion"] == "1.0.0"
     assert door_catalog["units"] == "m" and window_catalog["units"] == "m"
@@ -113,7 +119,6 @@ def main():
     footprints = house["footprints"]
     # 内壁は data/house.json の rooms から自動導出したもの（node scripts/build-web-data.mjs で
     # generated/interior-walls.json に書き出される）。このスクリプトの実行前に必ず再生成しておくこと。
-    walls = json.loads(INTERIOR_WALLS.read_text(encoding="utf-8"))["walls"]
 
     assert openings["schemaVersion"] == "1.0.0"
     o_items = openings["items"]

@@ -277,6 +277,24 @@ def main():
             step['status']='failed'; save(output,report)
             raise RuntimeError('Current surface registry has unresolved entries; inspect '+str(output/'surface-resolution.json'))
         step['status']='complete'; save(output,report)
+        # A fixture deleted or moved in electrical.json cannot retain a
+        # saved on/dimming override under its old room. The original save is
+        # preserved under retained/; only the new model state drops the
+        # orphaned keys, with an explicit audit record in refresh.json.
+        electrical=read(ROOT/'data/electrical.json')
+        catalog={t['type']:t for t in read(ROOT/'data/electrical-catalog.json')['types']}
+        live_fixture_room={i['id']:i.get('room') for i in electrical['items']
+            if catalog[i['type']]['category']=='lighting' and i.get('room') in room_ids}
+        retired=[]
+        for room_id,room_state in merged['roomStates'].items():
+            for fixture_id in list(room_state.get('fixtures',{})):
+                if live_fixture_room.get(fixture_id)!=room_id:
+                    retired.append(dict(roomId=room_id,fixtureId=fixture_id))
+                    del room_state['fixtures'][fixture_id]
+        report['retiredFixtureOverrides']=retired
+        merged_path.write_text(json.dumps(merged,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+        merged_hash=sha(merged_path)
+        save(output,report)
         # --state (the MERGED, full-scope state -- not the raw retained copy)
         # so Blender also reflects per-room surfaceOverrides (W04); --variant
         # here is only a readable fallback/log value, unused whenever --state

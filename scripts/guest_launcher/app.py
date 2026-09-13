@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -16,7 +17,7 @@ import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
-from . import comparison, config as _config, furniture, models, paths, runner, scenarios, update, walkthrough
+from . import comparison, config as _config, furniture, models, paths, runner, scenarios, source_import, update, walkthrough
 
 GUIDE_PATH = paths.ROOT / "docs" / "DAILY_USE.md"
 APP_TITLE = "住まいの内覧ランチャー"
@@ -49,6 +50,7 @@ class LauncherApp:
             ("内覧を開く", self.on_open_walkthrough),
             ("編集・比較を開く", self.on_open_editor),
             ("家具JSON取込", self.on_import_furniture),
+            ("窓・ドア・電気JSON取込", self.on_import_building_json),
             ("モデル更新", self.on_update_model),
             ("案と比較記録", self.on_scenarios_window),
             ("モデルを選ぶ", self.on_choose_model),
@@ -246,6 +248,22 @@ class LauncherApp:
             return
         FurnitureImportWindow(self, Path(path), report)
 
+    def on_import_building_json(self):
+        path = filedialog.askopenfilename(title="Three.jsで書き出した openings / interior-doors / electrical.json を選択",
+                                          filetypes=[("JSON", "*.json")])
+        if not path:
+            return
+        kind = re.sub(r" \(\d+\)$", "", Path(path).stem)
+        if kind not in source_import.KINDS:
+            messagebox.showerror(APP_TITLE, "書き出した openings.json / interior-doors.json / electrical.json を選んでください。")
+            return
+        try:
+            report = source_import.build_report(kind, Path(path))
+        except (ValueError, OSError) as exc:
+            messagebox.showerror(APP_TITLE, str(exc))
+            return
+        BuildingJSONImportWindow(self, report)
+
     def on_update_model(self):
         model = self._require_model()
         if not model:
@@ -354,6 +372,60 @@ class FurnitureImportWindow(tk.Toplevel):
             self.destroy()
 
         self.app._run_bg("furniture-apply", work, on_done=done)
+
+
+class BuildingJSONImportWindow(tk.Toplevel):
+    def __init__(self, app: LauncherApp, report: source_import.Report):
+        super().__init__(app.root)
+        self.app = app
+        self.report = report
+        self.title(report.kind + ".json の取込（差分確認）")
+        self.geometry("780x560")
+        c = report.counts
+        ttk.Label(self, text=(f"全{sum(c.values())}件の差分：追加{c['追加']}・削除{c['削除']}・変更{c['変更']}\n"
+                              "取込後はThree.jsを再読込してください。UEには別途「モデル更新」が必要です。"),
+                  justify="left", padding=10).pack(anchor="w")
+        if report.error:
+            ttk.Label(self, text="検証エラー: " + report.error, foreground="#b00",
+                      wraplength=740, padding=10).pack(anchor="w")
+        for warning in report.warnings:
+            ttk.Label(self, text="注意: " + warning, foreground="#a60",
+                      wraplength=740, padding=5).pack(anchor="w")
+        tree = ttk.Treeview(self, columns=("kind", "id", "type", "detail"), show="headings")
+        for key, width in (("kind", 60), ("id", 90), ("type", 145), ("detail", 450)):
+            tree.heading(key, text={"kind":"変更", "id":"ID", "type":"種類", "detail":"内容"}[key])
+            tree.column(key, width=width, anchor="w")
+        tree.pack(fill="both", expand=True, padx=10)
+        for change in report.changes:
+            detail = ", ".join(f"{f}: {before}→{after}" for f, before, after in change["fields"])
+            if change["provenanceLoss"]:
+                detail += "　note/status消失: " + ", ".join(change["provenanceLoss"])
+            tree.insert("", "end", values=(change["kind"], change["id"], change["category"], detail))
+        if not report.changes:
+            tree.insert("", "end", values=("-", "-", "-", "差分なし"))
+        bar = ttk.Frame(self, padding=10)
+        bar.pack(fill="x")
+        ttk.Button(bar, text="正本へ反映", command=self._apply,
+                   state="normal" if report.ok and report.changes else "disabled").pack(side="right")
+        ttk.Button(bar, text="閉じる", command=self.destroy).pack(side="right", padx=6)
+        ttk.Label(bar, text="反映前に build/launcher/backups/ へ保存します。\n"
+                            "ブラウザに古い編集下書きが残る場合は、反映後に『編集をすべて取り消す』を使ってください。",
+                  justify="left").pack(side="left")
+
+    def _apply(self):
+        if not messagebox.askyesno(self.title(), "表示した差分を正本へ反映しますか？"):
+            return
+
+        def done(job):
+            if job.error:
+                messagebox.showerror(self.title(), str(job.error))
+                self.destroy()
+                return
+            self.app._log(f"{self.report.kind}.json を正本へ反映しました。バックアップ: {job.result}")
+            messagebox.showinfo(self.title(), "正本とThree.js用データを更新しました。ブラウザを再読込し、UEには『モデル更新』を実行してください。")
+            self.destroy()
+
+        self.app._run_bg("building-json-apply", lambda: source_import.apply(self.report), on_done=done)
 
 
 class UpdateWindow(tk.Toplevel):
