@@ -109,15 +109,11 @@ def resolve_connections(rooms_by_id, interior_doors, catalog_by_type, room_ids):
             continue
         if len(matches) > 2:
             raise ValueError(f"door {item['id']!r} matches more than two rooms in scope: {matches}")
-        # W07-G2 review R3: which way a SWING leaf opens is derived from
-        # GEOMETRY, not the door instance's own swingDir/hingeSide fields
-        # (authored for exterior openings, and -- like several guest door
-        # LABELS -- not reliable for interior use). A swing leaf opens TOWARD
-        # whichever of the two rooms reaches FURTHER from the shared wall (a
-        # door into a room, never into a narrow hall). `swingToward`: '+' =
-        # toward the larger-perpendicular-coordinate side of the wall.
-        # (A slide leaf's along-wall tuck direction is separate --
-        # slide_open_offset() keeps using slideDir.)
+        # Three.js draws interior swingDir with outSign=+1 for BOTH wall
+        # orientations: 'out' opens toward the larger perpendicular
+        # coordinate, 'in' toward the smaller. Use the same authored direction
+        # here. Room reach is only a fallback for older doors without one.
+        # The wall-safe angle below must be measured on that SAME side.
         perp_index = 1 if horizontal else 0
         def _reach(room_id):
             coords = [p[perp_index] for p in rooms_by_id[room_id]['polygon']]
@@ -125,7 +121,9 @@ def resolve_connections(rooms_by_id, interior_doors, catalog_by_type, room_ids):
         reach_a, reach_b = _reach(matches[0]), _reach(matches[1])
         reach_plus = max(reach_a[0], reach_b[0])
         reach_minus = max(reach_a[1], reach_b[1])
-        swing_toward = '+' if reach_plus >= reach_minus else '-'
+        authored_dir = merged.get('swingDir')
+        swing_toward = ('+' if authored_dir == 'out' else '-') if authored_dir in ('in', 'out') \
+            else ('+' if reach_plus >= reach_minus else '-')
         conn = dict(id=item['id'], level=item.get('floor'), operation=operation, roomIds=matches,
             orientation=orientation, wallAt=at, center=center, width=width, height=merged['height'],
             sill=merged.get('sill', 0), hingeSide=merged.get('hingeSide'), swingDir=merged.get('swingDir'),
@@ -392,10 +390,9 @@ def _swing_delta_deg(connection, sign=1.0):
     """Signed yaw delta (Blender-space, source degrees about +Y-equivalent)
     applied when opening. The leaf swings toward `swingToward` -- the side of
     the wall (larger perpendicular coord = '+') that resolve_connections()
-    derived from GEOMETRY as the room reaching furthest from the wall (a door
-    into a room, not into a narrow hall). Never into the wall itself; falls
-    back to the door instance's own swingDir only for a connection that
-    predates swingToward."""
+    resolved from the Three.js door instance's swingDir (or from room reach
+    for legacy instances lacking that field). The angle is separately limited
+    against walls on the selected side."""
     # W07-G2 review-v3 R1: the magnitude is the SAFE open angle resolved once
     # in resolve_connections() against the fixed building walls -- 85 unless a
     # wall of the room the leaf opens into cuts the arc short (e.g. door-002,

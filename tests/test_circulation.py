@@ -51,6 +51,27 @@ class RealDataConnectivityTests(unittest.TestCase):
         self.assertEqual(self.by_id['door-024']['operation'], 'double-swing')
         self.assertEqual(self.by_id['door-025']['operation'], 'open')
 
+    def test_whole_house_swing_poses_follow_three_authored_side(self):
+        # Three.js fixes interior outSign=+1 for H and V walls. Check the
+        # generated leaf travel, not only the stored swingToward label.
+        whole = circ.resolve_connections(self.rooms_by_id, self.doors,
+            self.catalog, self.rooms_by_id)
+        by_id = {d['id']: d for d in self.doors}
+        checked = 0
+        for connection in whole:
+            if connection['operation'] != 'swing':
+                continue
+            door = by_id[connection['id']]
+            expected = 1 if door['swingDir'] == 'out' else -1
+            hinge, delta = circ.swing_hinge_and_delta(connection, None)
+            travel = circ.swing_leaf_free_end_travel(connection, hinge, delta)
+            perpendicular = travel[1 if connection['orientation'] == 'H' else 0]
+            self.assertGreater(perpendicular * expected, 0.05, door['id'])
+            self.assertEqual(connection['swingToward'], '+' if expected > 0 else '-')
+            self.assertGreater(connection['maxSwingDeltaDeg'], 0, door['id'])
+            checked += 1
+        self.assertEqual(checked, 12)
+
     def test_a_door_entirely_outside_the_profile_is_skipped_not_an_error(self):
         # door-009 ("SC⟷LDK") sits far outside this profile's room set.
         self.assertNotIn('door-009', self.by_id)
