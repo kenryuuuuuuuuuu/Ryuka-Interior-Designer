@@ -4347,10 +4347,15 @@ function wallsForRoom(roomId, level){
 // 編集差分を反映した実効値）と重ならない空きcenter座標を探す。同じ壁に複数追加すると全て
 // wall.mid（壁区間の中点）に重なって配置されてしまう不具合があったため新設（2026-08-20、
 // 施主指摘：重なった状態だと常に手前の1つしかクリックで選択できず、削除しても見た目上
-// 消えたように見えなかった）。scripts/seed-electrical.mjsのplaceWallItems()と同じく、
-// 設備どうしの間隔はgap=0.4m（40cm）を最低限確保する
+// 消えたように見えなかった）。当初は誤クリック防止の余裕を持たせてgap=0.4m（40cm、
+// scripts/seed-electrical.mjsのplaceWallItems()が最初に採用した値を踏襲）だったが、
+// 実際の住宅では3連スイッチ等、設備同士が数cm間隔で並ぶのが普通で、既にそのように密集
+// 配置された壁（例：data/electrical.jsonの3連スイッチ群）に対してこの機能から1つ追加しよ
+// うとすると、既存設備群の0.4m占有ゾーンが重なり合って壁のほぼ全域を覆ってしまい、実際には
+// 見た目上まだ余裕がある壁でも「空きがありません」と拒否される問題があった。施主指摘により
+// gap=0.03m（3cm、クリックで個別選択できる最低限の隙間）へ縮小（2026-09-14）
 function findFreeWallSlot(wall, width, level, excludeId){
-  const halfW = width/2, margin = 0.05, gap = 0.4;
+  const halfW = width/2, margin = 0.05, gap = 0.03;
   const occ = allElectricalItems()
     .filter(base => base.id !== excludeId)
     .map(base => effectiveElectrical(base))
