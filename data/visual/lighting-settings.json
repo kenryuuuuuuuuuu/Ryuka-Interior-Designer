@@ -11,6 +11,15 @@
       "status": "estimated",
       "note": "一般的なLEDダウンライト(6W相当)の概算光束。実採用品番未確認。"
     },
+    "light-downlight-sensor": {
+      "source": "spot",
+      "lumens": 650,
+      "temperatureK": 2700,
+      "spotAngleDeg": 90,
+      "directionLocal": [0, -1, 0],
+      "status": "estimated",
+      "note": "人感センサー一体型ダウンライト。光学特性はlight-downlightと同一（センサーは点灯要否の判定のみで発光自体には影響しない）。実採用品番未確認。"
+    },
     "light-ceiling": {
       "source": "point",
       "lumens": 3800,

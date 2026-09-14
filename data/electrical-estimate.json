@@ -4,7 +4,7 @@
   "note": "電気設備の削除・追加（Web UI編集）を始めると、施工会社の見積数量と現在の配置数がどれだけ乖離しているか追いにくくなるため、見積の明細単位で現在数と比較するための正本。1明細＝複数のdata/electrical-catalog.jsonの型をまとめたもの（見積書自体が型ではなく用途の単位で数量を計上しているため）。typesに列挙した型のいずれかを追加・削除すると、対応する明細の現在数がその場で増減する。見積のどの明細にも属さない型（LANコンセント・エアコンスリーブ・換気扇など）は一覧側で「見積外」としてまとめて表示する。",
   "lines": [
     { "id": "est-lighting", "label": "電灯配線", "quantity": 41,
-      "types": ["light-downlight", "light-ceiling", "light-pendant", "light-bracket", "light-indirect", "light-exterior"] },
+      "types": ["light-downlight", "light-downlight-sensor", "light-ceiling", "light-pendant", "light-bracket", "light-indirect", "light-exterior"] },
     { "id": "est-outlet-general", "label": "コンセント", "quantity": 25,
       "types": ["outlet-double", "outlet-triple", "outlet-floor"] },
     { "id": "est-outlet-dedicated", "label": "専用コンセント", "quantity": 25,

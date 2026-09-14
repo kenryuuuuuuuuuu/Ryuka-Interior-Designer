@@ -167,6 +167,19 @@
       "note": "天井埋め込み。mountHeight:0=天井面フラッシュ（器具本体は天井裏に隠れるため見た目は化粧枠のみの薄い円盤で表現）"
     },
     {
+      "type": "light-downlight-sensor",
+      "label": "ダウンライト（人感）",
+      "category": "lighting",
+      "mount": "ceiling",
+      "heightRef": "ceiling",
+      "shape": "downlight",
+      "width": 0.1,
+      "depth": 0.1,
+      "height": 0.02,
+      "mountHeight": 0,
+      "note": "人感センサー一体型ダウンライト。寸法・取付けはlight-downlightと同じ（見た目の差は無し）。玄関・土間等、スイッチ操作なしで自動点灯させたい箇所向け。UE内覧では対象室に入ると自動点灯する（unreal/walkthrough/Source/RyukaInterior/Walkthrough.cppのApplySensorLights()）。自動消灯は未実装"
+    },
+    {
       "type": "light-ceiling",
       "label": "シーリングライト",
       "category": "lighting",

@@ -222,6 +222,7 @@ void AWalkthroughCharacter::UpdateCurrentRoom() {
  if(!StairRoom.IsEmpty()) {
   CurrentRoomId=StairRoom;
   if(bReady&&State.IsValid()&&IsCurrentRoomEditable()) {State->SetStringField(TEXT("activeRoomId"),CurrentRoomId); if(const FRoomInfo* Active=Rooms.Find(CurrentRoomId)) State->SetNumberField(TEXT("activeLevel"),Active->Level);}
+  ApplySensorLights(CurrentRoomId); // 2026-09-14追加：人感ダウンライトの自動点灯（既にonなら無変更）
   return;
  }
  if(InsideRoomPolygon(CurrentRoomId,P,true)) return;
@@ -237,6 +238,11 @@ void AWalkthroughCharacter::UpdateCurrentRoom() {
     // activeRoomId (and therefore the LDK/western-room finish) untouched,
     // never guessed at from a non-edit room.
     if(bReady&&State.IsValid()&&IsCurrentRoomEditable()) {State->SetStringField(TEXT("activeRoomId"),CurrentRoomId); if(const FRoomInfo* Active=Rooms.Find(CurrentRoomId)) State->SetNumberField(TEXT("activeLevel"),Active->Level);}
+    // 2026-09-14追加：この部屋に人感ダウンライトがあれば自動点灯する。
+    // IsCurrentRoomEditable()とは独立（仕上げ編集scope外の玄関・土間でも
+    // 動く必要があるため、上のactiveRoomId同期とは意図的にガード条件を
+    // 揃えていない）。
+    ApplySensorLights(CurrentRoomId);
     return;
    }
   }
@@ -636,7 +642,13 @@ bool AWalkthroughCharacter::Restore(const TSharedPtr<FJsonObject>& Candidate) {
  Controller->SetControlRotation(FRotator(FMath::Clamp(R.X,-80.,80.),R.Y,0));
  Eye->FieldOfView=FMath::RadiansToDegrees(2.*atan(18./LensMm));
  LastSafeLocation=P;
- bReady=true; Message=Adjusted?TEXT("空いている最も近い位置へ移動しました"):TEXT("視点を復元しました"); return true;
+ bReady=true; Message=Adjusted?TEXT("空いている最も近い位置へ移動しました"):TEXT("視点を復元しました");
+ // 2026-09-14追加：初回スポーン・F9復元・案読込等、Restore()でこの部屋に
+ // 「到着」するあらゆる経路をUpdateCurrentRoom()の歩行遷移と同じ「入室」
+ // として扱う。人感ダウンライトが実際に点灯すればMessageを上書きする
+ // （それ以外はこの直前の復元メッセージのまま）。
+ ApplySensorLights(CurrentRoomId);
+ return true;
 }
 void AWalkthroughCharacter::RestoreView() {
  FString RecoveryMessage;
@@ -1130,6 +1142,65 @@ void AWalkthroughCharacter::ToggleRoomLights() {
   Message=TEXT("照明を切り替えられません"); return;
  }
  Message=bAllOn?TEXT("この部屋の照明を消しました"):TEXT("この部屋の照明を点けました");
+}
+void AWalkthroughCharacter::ApplySensorLights(const FString& RoomId) {
+ // 2026-09-14追加：人感ダウンライト（light-downlight-sensor）の自動点灯。
+ // ToggleRoomLights()（Lキー、その部屋の全器具を一括トグル）と同じ
+ // 「roomStates[room].fixtures[id].onを書き換えてApplyConditions()を通す」
+ // 経路を再利用するが、対象はRoomId内のセンサー型器具のみ、かつ既にon
+ // のものは触らない（この関数はUpdateCurrentRoom()の室遷移時とRestore()の
+ // 成功時にだけ呼ばれるため毎フレームではないが、念のため無変更ならApply
+ // Conditions()自体を呼ばない）。呼び出し元でのbReady/State検証は行わない
+ // （このガードを含めて自己完結させ、UpdateCurrentRoom()のように毎フレーム
+ // bReady=falseの間も安全に呼べるようにする）。
+ if(!bReady||!State.IsValid()||!LightingBindings.IsValid()) return;
+ const TArray<TSharedPtr<FJsonValue>>* FixtureList;
+ if(!LightingBindings->TryGetArrayField(TEXT("fixtures"),FixtureList)) return;
+ TArray<FString> SensorIds;
+ for(const auto& Value:*FixtureList) {
+  const auto Fixture=Value->AsObject(); FString FixtureRoomId,Id,Type;
+  if(!Fixture.IsValid()||!Fixture->TryGetStringField(TEXT("roomId"),FixtureRoomId)||FixtureRoomId!=RoomId
+     ||!Fixture->TryGetStringField(TEXT("id"),Id)) continue;
+  // typeはW06のblender/electrical_assets.py::build_lighting_bindings()が
+  // 常に書き出すフィールド（unreal/lighting.pyのvalidate_lighting_bindings()
+  // は現状これを検証していないが、生成物には必ず含まれる）。古い生成物
+  // （このフィールドが無い版）ではTryGetStringFieldが失敗し、その器具は
+  // センサー対象から静かに除外されるだけで、他の照明機能には影響しない。
+  if(!Fixture->TryGetStringField(TEXT("type"),Type)||Type!=TEXT("light-downlight-sensor")) continue;
+  SensorIds.Add(Id);
+ }
+ if(SensorIds.IsEmpty()) return;
+ const TSharedPtr<FJsonObject>* RoomStates;
+ const TSharedPtr<FJsonObject>* RoomState;
+ const TSharedPtr<FJsonObject>* Fixtures;
+ if(!State->TryGetObjectField(TEXT("roomStates"),RoomStates)||
+    !(*RoomStates)->TryGetObjectField(RoomId,RoomState)||
+    !(*RoomState)->TryGetObjectField(TEXT("fixtures"),Fixtures)) return;
+ TArray<FString> NeedsOn;
+ for(const auto& Id:SensorIds) {
+  const TSharedPtr<FJsonObject>* Override; bool bOn=false;
+  if((*Fixtures)->TryGetObjectField(Id,Override)) (*Override)->TryGetBoolField(TEXT("on"),bOn);
+  if(!bOn) NeedsOn.Add(Id);
+ }
+ if(NeedsOn.IsEmpty()) return; // 全て既に点灯中なら何もしない（Messageも上書きしない）
+ auto OldRoom=MakeShared<FJsonObject>(**RoomState);
+ auto NewRoom=MakeShared<FJsonObject>(**RoomState);
+ auto NewFixtures=MakeShared<FJsonObject>(**Fixtures);
+ for(const auto& Id:NeedsOn) {
+  const TSharedPtr<FJsonObject>* Existing;
+  auto Override=NewFixtures->TryGetObjectField(Id,Existing)
+   ? MakeShared<FJsonObject>(**Existing) : MakeShared<FJsonObject>();
+  Override->SetBoolField(TEXT("on"),true);
+  NewFixtures->SetObjectField(Id,Override);
+ }
+ NewRoom->SetObjectField(TEXT("fixtures"),NewFixtures);
+ (*RoomStates)->SetObjectField(RoomId,NewRoom);
+ if(!ApplyConditions()) {(*RoomStates)->SetObjectField(RoomId,OldRoom); return;}
+ // 補助機能のため、失敗時はHUDメッセージを出さず静かに元へ戻すだけにする
+ // （ApplyConditions()は成功するまでシーンを一切変更しないため、直前の
+ // ApplyConditions()適用済み状態のまま矛盾なく残る）。成功時のみ、直前に
+ // Restore()/UpdateCurrentRoom()が設定したメッセージを上書きする。
+ Message=TEXT("人感センサー：照明を自動点灯しました");
 }
 void AWalkthroughCharacter::InteractDoor() {
  // W07-G2 spec section 2: near a door, facing it (FindNearestDoor(), run

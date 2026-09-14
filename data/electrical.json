@@ -53,14 +53,14 @@
     },
     {
       "id": "elec-002",
-      "type": "light-downlight",
+      "type": "light-downlight-sensor",
       "level": 1,
       "x": 1.82,
       "z": 1.4,
       "room": "room-1f-02",
-      "label": "ダウンライト",
+      "label": "ダウンライト（人感）",
       "status": "estimated",
-      "note": "玄関中央"
+      "note": "玄関中央。施主指示（2026-09-14）によりlight-downlightから変更。人感センサー内蔵、UE内覧では入室で自動点灯。既存の壁スイッチはそのまま残置（このダウンライトの操作対象ではなくなるが、同室の他設備用に維持）。"
     },
     {
       "id": "elec-303",
@@ -767,14 +767,14 @@
     },
     {
       "id": "elec-011",
-      "type": "light-downlight",
+      "type": "light-downlight-sensor",
       "level": 1,
       "x": 10.0,
       "z": 1.0,
       "room": "room-1f-08",
-      "label": "ダウンライト",
+      "label": "ダウンライト（人感）",
       "status": "estimated",
-      "note": "玄関中央"
+      "note": "玄関中央。施主指示（2026-09-14）によりlight-downlightから変更。人感センサー内蔵、UE内覧では入室で自動点灯。既存の壁スイッチはそのまま残置（このダウンライトの操作対象ではなくなるが、同室の他設備用に維持）。"
     },
     {
       "id": "elec-012",
@@ -828,14 +828,14 @@
     },
     {
       "id": "elec-013",
-      "type": "light-downlight",
+      "type": "light-downlight-sensor",
       "level": 1,
       "x": 11.7,
       "z": 1.4,
       "room": "room-1f-09",
-      "label": "ダウンライト",
+      "label": "ダウンライト（人感）",
       "status": "estimated",
-      "note": "土間中央"
+      "note": "土間中央。施主指示（2026-09-14）によりlight-downlightから変更。人感センサー内蔵、UE内覧では入室で自動点灯。既存の壁スイッチはそのまま残置（このダウンライトの操作対象ではなくなるが、同室の他設備用に維持）。"
     },
     {
       "id": "elec-353",
@@ -1788,14 +1788,14 @@
     },
     {
       "id": "elec-029",
-      "type": "light-downlight",
+      "type": "light-downlight-sensor",
       "level": 1,
       "x": 17.75,
       "z": 7.05,
       "room": "room-1f-18",
-      "label": "ダウンライト",
+      "label": "ダウンライト（人感）",
       "status": "estimated",
-      "note": "スイッチは脱衣室側"
+      "note": "スイッチは脱衣室側。施主指示（2026-09-14）によりlight-downlightから変更。人感センサー内蔵、UE内覧では入室で自動点灯。既存の壁スイッチはそのまま残置（このダウンライトの操作対象ではなくなるが、同室の他設備用に維持）。"
     },
     {
       "id": "elec-419",

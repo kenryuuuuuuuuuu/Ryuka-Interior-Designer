@@ -84,6 +84,16 @@ private:
  bool Safe(const FVector& Position) const;
  bool Safe(const FVector& Position, const FString& RoomId) const;
  void UpdateCurrentRoom();
+ // 2026-09-14追加：人感ダウンライト（light-downlight-sensor、
+ // data/electrical-catalog.json）の自動点灯。lighting-bindings.jsonの
+ // fixture.type（W06のbuild_lighting_bindings()が常に含めている）でこの
+ // 型の器具だけを対象に、`RoomId`内で既にonのものは変更せず、offのものだけ
+ // ToggleRoomLights()と同じ「roomStates[room].fixtures[id].onを書き換えて
+ // ApplyConditions()を通す」経路で点灯させる。IsCurrentRoomEditable()（仕
+ // 上げ編集対象＝LDK・洋室のみ）とは無関係に、対象範囲内のどの部屋でも動く
+ // （ToggleRoomLights()のLキー操作が既にそうであるのと同じ扱い）。自動消灯
+ // は施主指示（2026-09-14「入ったら自動で点く」）の範囲外のため未実装。
+ void ApplySensorLights(const FString& RoomId);
  void FindNearestDoor();
  bool CheckFocusedDoorMotion() const;
  TMap<FString,AActor*> FindDoorActors(const FConnectionInfo& Connection) const;
