@@ -24,6 +24,14 @@ class ElectricalAssetsTests(unittest.TestCase):
         self.catalog_by_type={t['type']:t for t in self.catalog['types']}
         self.settings=json.loads((ROOT/'data/visual/lighting-settings.json').read_text(encoding='utf-8'))
 
+    def _light_ids(self,*room_ids):
+        # Expected fixture ids derived from the data itself (ceiling-mounted
+        # lighting whose room is in room_ids), so a re-plan of
+        # data/electrical.json does not silently invalidate these tests.
+        return sorted(i['id'] for i in self.electrical['items']
+                      if i.get('room') in room_ids and self.catalog_by_type[i['type']]['category']=='lighting'
+                      and self.catalog_by_type[i['type']]['mount']=='ceiling')
+
     def test_merged_item_applies_catalog_defaults_and_overrides(self):
         item=next(i for i in self.electrical['items'] if i['id']=='elec-008')  # no overrides
         merged=merged_item(item,self.catalog_by_type)
@@ -110,7 +118,8 @@ class ElectricalAssetsTests(unittest.TestCase):
         bindings=build_lighting_bindings(self.data,self.electrical,self.catalog,self.settings,['room-1f-06'])
         self.assertEqual(bindings['schemaVersion'],'1.1.0')
         self.assertEqual(bindings['roomIds'],['room-1f-06'])
-        self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),['elec-008','elec-200','elec-201'])
+        self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),self._light_ids('room-1f-06'))
+        self.assertIn('elec-008',self._light_ids('room-1f-06'))  # referenced by lighting-settings.json groups
         for fixture in bindings['fixtures']:
             # W06 spec: ceiling fixtures' light direction is always straight
             # down (source convention: x east/y UP/z south, so "down" is a
@@ -125,9 +134,9 @@ class ElectricalAssetsTests(unittest.TestCase):
 
     def test_build_lighting_bindings_multiple_rooms(self):
         # W07-G1: one shared resolution across a whole scope's rooms --
-        # room-1f-05's elec-006 joins room-1f-06's 3 fixtures.
+        # room-1f-05's elec-006 joins room-1f-06's fixtures.
         bindings=build_lighting_bindings(self.data,self.electrical,self.catalog,self.settings,['room-1f-06','room-1f-05'])
-        self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),['elec-006','elec-008','elec-200','elec-201'])
+        self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),self._light_ids('room-1f-06','room-1f-05'))
         by_id={f['id']:f for f in bindings['fixtures']}
         self.assertEqual(by_id['elec-006']['roomId'],'room-1f-05')
 
@@ -172,7 +181,7 @@ class ElectricalAssetsTests(unittest.TestCase):
         settings['groups']=settings['groups']+[dict(id='test-out-of-scope-group',label='x',
             fixtureIds=['elec-006'])]  # elec-006 is real, but belongs to room-1f-05
         bindings=build_lighting_bindings(self.data,self.electrical,self.catalog,settings,['room-1f-06'])
-        self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),['elec-008','elec-200','elec-201'])
+        self.assertEqual(sorted(f['id'] for f in bindings['fixtures']),self._light_ids('room-1f-06'))
 
 
 if __name__=='__main__': unittest.main()
