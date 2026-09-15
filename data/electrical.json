@@ -1,13 +1,13 @@
 {
   "schemaVersion": "1.0.0",
   "units": "m",
-  "note": "電気設備の配置インスタンス。typeはdata/electrical-catalog.jsonのtypeを参照する。mount:wallの型はwallAt+orientation+center+side（wallAt=壁の固定座標、centerは壁沿いの位置、side=+1/-1で壁のどちら側を向くか）、mount:ceiling/floorの型はx+z（footprint内の自由座標、furniture.jsonと同じ）で位置を表す。ブラウザの配置編集機能から書き出したファイル。data/electrical.json に上書きしてコミットすること。 2026-09-14：見積数量の機械配置（154→145件）を全面的に置き換え、一般的な住宅電気設計の慣行に基づく草案（199件、全件estimated）とした。根拠は各itemのnoteとdocs/tasks/electrical-audit-report.mdを参照。施主が俯瞰モードの部屋フォーカスで手動調整する前提。",
+  "note": "電気設備の配置インスタンス。typeはdata/electrical-catalog.jsonのtypeを参照する。mount:wallの型はwallAt+orientation+center+side（wallAt=壁の固定座標、centerは壁沿いの位置、side=+1/-1で壁のどちら側を向くか）、mount:ceiling/floorの型はx+z（footprint内の自由座標、furniture.jsonと同じ）で位置を表す。ブラウザの配置編集機能から書き出したファイル。data/electrical.json に上書きしてコミットすること。",
   "items": [
     {
       "id": "elec-001",
       "type": "light-downlight",
       "level": 1,
-      "x": 0.455,
+      "x": 0.46,
       "z": 1.9,
       "room": "room-1f-01",
       "label": "ダウンライト",
@@ -18,7 +18,7 @@
       "id": "elec-300",
       "type": "equip-vent-fan",
       "level": 1,
-      "x": 0.455,
+      "x": 0.46,
       "z": 1.2,
       "room": "room-1f-01",
       "label": "換気扇",
@@ -34,7 +34,6 @@
       "center": 1.75,
       "side": -1,
       "label": "スイッチ（トイレ灯・換気）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "引戸(1.93-2.73)の北側、室内側。人感センサーへの変更も可"
     },
@@ -42,12 +41,11 @@
       "id": "elec-302",
       "type": "outlet-grounded",
       "level": 1,
-      "wallAt": 0.0,
+      "wallAt": 0,
       "orientation": "V",
       "center": 1.4,
       "side": 1,
       "label": "コンセント（温水洗浄便座）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "西壁・便器脇 FL+250"
     },
@@ -66,12 +64,11 @@
       "id": "elec-303",
       "type": "switch-1p",
       "level": 1,
-      "wallAt": 2.73,
+      "wallAt": 0.91,
       "orientation": "V",
-      "center": 1.25,
-      "side": -1,
+      "center": 1.48,
+      "side": 1,
       "label": "スイッチ（玄関灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "東壁・框付近。3連の1"
     },
@@ -79,12 +76,11 @@
       "id": "elec-304",
       "type": "switch-1p",
       "level": 1,
-      "wallAt": 2.73,
+      "wallAt": 0.91,
       "orientation": "V",
-      "center": 1.35,
-      "side": -1,
+      "center": 1.59,
+      "side": 1,
       "label": "スイッチ（ホール灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "3連の2。ホールは四方が建具で壁が無いため玄関側に置く"
     },
@@ -92,12 +88,11 @@
       "id": "elec-305",
       "type": "switch-1p",
       "level": 1,
-      "wallAt": 2.73,
+      "wallAt": 0.91,
       "orientation": "V",
-      "center": 1.45,
-      "side": -1,
+      "center": 1.7,
+      "side": 1,
       "label": "スイッチ（外灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "3連の3。タイマー/人感の外灯なら不要"
     },
@@ -107,10 +102,9 @@
       "level": 1,
       "wallAt": 2.73,
       "orientation": "V",
-      "center": 1.0,
+      "center": 1,
       "side": -1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "玄関土間側。掃除機・靴乾燥等"
     },
@@ -156,7 +150,6 @@
       "center": 0.85,
       "side": 1,
       "label": "スイッチ（洗面脱衣室灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "北ドア(0.98-1.78)西側・室内側"
     },
@@ -169,7 +162,6 @@
       "center": 0.85,
       "side": -1,
       "label": "スイッチ（UB灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "UBドア(0.97-1.77)西側。洗濯機(x≦0.66)上部を避ける"
     },
@@ -177,12 +169,12 @@
       "id": "elec-310",
       "type": "outlet-grounded",
       "level": 1,
-      "wallAt": 0.0,
+      "wallAt": 0,
       "orientation": "V",
       "center": 4.2,
       "side": 1,
-      "label": "コンセント（洗濯機）",
       "mountHeightOverride": 1.2,
+      "label": "コンセント（洗濯機）",
       "status": "estimated",
       "note": "洗濯機上方 FL+1200 アース付"
     },
@@ -190,12 +182,12 @@
       "id": "elec-311",
       "type": "outlet-grounded",
       "level": 1,
-      "wallAt": 0.0,
+      "wallAt": 0,
       "orientation": "V",
       "center": 3.25,
       "side": 1,
+      "mountHeightOverride": 1,
       "label": "コンセント（洗面化粧台）",
-      "mountHeightOverride": 1.0,
       "status": "estimated",
       "note": "化粧台裏 FL+1000（化粧台内蔵コンセントの電源）"
     },
@@ -207,8 +199,8 @@
       "orientation": "H",
       "center": 0.5,
       "side": 1,
-      "label": "コンセント（ドライヤー）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（ドライヤー）",
       "status": "estimated",
       "note": "北壁・化粧台脇 FL+1050"
     },
@@ -243,7 +235,6 @@
       "center": 1.72,
       "side": 1,
       "label": "スイッチ（3路・入口）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "引戸(1.87-2.67)北側。組7-A"
     },
@@ -255,8 +246,8 @@
       "orientation": "H",
       "center": 4.45,
       "side": -1,
-      "label": "スイッチ（3路・枕元）",
       "mountHeightOverride": 0.7,
+      "label": "スイッチ（3路・枕元）",
       "status": "estimated",
       "note": "2台のベッド間(4.33-4.56)。組7-B FL+700"
     },
@@ -269,7 +260,6 @@
       "center": 4.45,
       "side": -1,
       "label": "コンセント（枕元）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "ベッド間。スマホ充電"
     },
@@ -282,7 +272,6 @@
       "center": 1.3,
       "side": 1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "西壁・引戸北側。掃除機・加湿器"
     },
@@ -295,7 +284,6 @@
       "center": 1.5,
       "side": -1,
       "label": "コンセント（デスク）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "デスク裏。防音壁(x=7.28)への埋込は遮音上の注意点、代替は北壁x=6.9"
     },
@@ -308,7 +296,6 @@
       "center": 1.7,
       "side": -1,
       "label": "LANコンセント",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "デスク用。見積外"
     },
@@ -321,7 +308,6 @@
       "center": 5.7,
       "side": 1,
       "label": "コンセント（AC専用）",
-      "mountHeightOverride": 2.0,
       "status": "estimated",
       "note": "北壁(外壁)・窓(3.50-5.26)東側。エアコン本体はx≒6.1"
     },
@@ -333,30 +319,17 @@
       "orientation": "H",
       "center": 6.4,
       "side": 1,
-      "label": "エアコンスリーブ",
       "mountHeightOverride": 2.1,
+      "label": "エアコンスリーブ",
       "status": "estimated",
       "note": "本体東側"
-    },
-    {
-      "id": "elec-321",
-      "type": "data-tv",
-      "level": 1,
-      "wallAt": 2.73,
-      "orientation": "V",
-      "center": 1.4,
-      "side": 1,
-      "label": "TV端子",
-      "mountHeightOverride": 0.3,
-      "status": "estimated",
-      "note": "西壁・引戸北側。ベッドから見える壁が限られるため配置壁は要検討"
     },
     {
       "id": "elec-007",
       "type": "light-downlight",
       "level": 1,
-      "x": 6.825,
-      "z": 3.0,
+      "x": 6.83,
+      "z": 3,
       "room": "room-1f-23",
       "label": "ダウンライト",
       "status": "estimated",
@@ -371,7 +344,6 @@
       "center": 6.55,
       "side": -1,
       "label": "スイッチ（収納灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "洋室デスク側の壁(z=2.326)北面。東壁は両開き戸で壁が無い"
     },
@@ -404,8 +376,8 @@
       "x": 5.45,
       "z": 5.02,
       "room": "room-1f-06",
-      "label": "ペンダントライト（ダイニング）",
       "mountHeightOverride": 1.9,
+      "label": "ペンダントライト（ダイニング）",
       "status": "estimated",
       "note": "丸卓中心。既存elec-201のID維持、mountHeightOverride=1.9は勾配天井のため維持"
     },
@@ -425,7 +397,7 @@
       "type": "light-downlight",
       "level": 1,
       "x": 6.15,
-      "z": 6.0,
+      "z": 6,
       "room": "room-1f-06",
       "label": "ダウンライト（キッチン2）",
       "status": "estimated",
@@ -448,10 +420,9 @@
       "level": 1,
       "wallAt": 1.82,
       "orientation": "V",
-      "center": 3.0,
+      "center": 3,
       "side": 1,
       "label": "スイッチ（3路・入口）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "張り出し西壁。リビング主照明 組6-A"
     },
@@ -464,7 +435,6 @@
       "center": 3.1,
       "side": 1,
       "label": "スイッチ（張り出し灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "3連"
     },
@@ -477,7 +447,6 @@
       "center": 3.2,
       "side": 1,
       "label": "スイッチ（ダイニング）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "3連"
     },
@@ -490,7 +459,6 @@
       "center": 6.3,
       "side": 1,
       "label": "スイッチ（3路・キッチン側）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "北壁・冷蔵庫(6.51-)西側。組6-B"
     },
@@ -503,7 +471,6 @@
       "center": 6.4,
       "side": 1,
       "label": "スイッチ（キッチン灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "2連"
     },
@@ -515,8 +482,8 @@
       "orientation": "V",
       "center": 5.2,
       "side": 1,
-      "label": "コンセント（壁掛けTV裏）",
       "mountHeightOverride": 1.1,
+      "label": "コンセント（壁掛けTV裏）",
       "status": "estimated",
       "note": "TV(z4.66-5.78, 底面FL+1.0)裏 FL+1100"
     },
@@ -528,8 +495,8 @@
       "orientation": "V",
       "center": 5.35,
       "side": 1,
-      "label": "TV端子",
       "mountHeightOverride": 1.1,
+      "label": "TV端子",
       "status": "estimated",
       "note": "TV裏"
     },
@@ -541,8 +508,8 @@
       "orientation": "V",
       "center": 5.5,
       "side": 1,
-      "label": "LANコンセント",
       "mountHeightOverride": 1.1,
+      "label": "LANコンセント",
       "status": "estimated",
       "note": "TV裏（ネット動画）。見積外"
     },
@@ -555,7 +522,6 @@
       "center": 6.1,
       "side": 1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "西壁南端。掃除機・間接照明"
     },
@@ -568,7 +534,6 @@
       "center": 2.87,
       "side": 1,
       "label": "コンセント（ソファ西）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "ソファ(3.01-)西側の隙間"
     },
@@ -578,25 +543,11 @@
       "level": 1,
       "wallAt": 3.691,
       "orientation": "H",
-      "center": 5.0,
+      "center": 5,
       "side": 1,
       "label": "コンセント（ソファ東）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "ソファ東側・作業テーブル用"
-    },
-    {
-      "id": "elec-337",
-      "type": "data-intercom",
-      "level": 1,
-      "wallAt": 3.691,
-      "orientation": "H",
-      "center": 2.87,
-      "side": 1,
-      "label": "インターホン（民泊）",
-      "mountHeightOverride": 1.4,
-      "status": "estimated",
-      "note": "室内モニター。玄関子機は屋外のためカタログ外"
     },
     {
       "id": "elec-338",
@@ -607,7 +558,6 @@
       "center": 5.1,
       "side": -1,
       "label": "コンセント（ダイニング）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "南壁・窓間(4.56-5.66)。ホットプレート"
     },
@@ -619,8 +569,8 @@
       "orientation": "V",
       "center": 4.05,
       "side": -1,
-      "label": "コンセント（冷蔵庫）",
       "mountHeightOverride": 1.9,
+      "label": "コンセント（冷蔵庫）",
       "status": "estimated",
       "note": "冷蔵庫(z3.71-4.40)上部 FL+1900"
     },
@@ -632,8 +582,8 @@
       "orientation": "V",
       "center": 4.75,
       "side": -1,
-      "label": "コンセント（電子レンジ）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（電子レンジ）",
       "status": "estimated",
       "note": "カウンター上 FL+1050 アース付"
     },
@@ -643,10 +593,10 @@
       "level": 1,
       "wallAt": 7.28,
       "orientation": "V",
-      "center": 5.0,
+      "center": 5,
       "side": -1,
-      "label": "コンセント（キッチン手元）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（キッチン手元）",
       "status": "estimated",
       "note": "カウンター上 FL+1050。ケトル等"
     },
@@ -659,7 +609,6 @@
       "center": 5.98,
       "side": -1,
       "label": "コンセント（IH専用）",
-      "mountHeightOverride": 0.2,
       "status": "estimated",
       "note": "コンロ(レンジフード直下z5.68-6.28)下部 200V"
     },
@@ -671,8 +620,8 @@
       "orientation": "V",
       "center": 5.98,
       "side": -1,
+      "mountHeightOverride": 2,
       "label": "コンセント（レンジフード）",
-      "mountHeightOverride": 2.0,
       "status": "estimated",
       "note": "フード(elev1.65)上部 FL+2000"
     },
@@ -682,10 +631,9 @@
       "level": 1,
       "wallAt": 6.37,
       "orientation": "H",
-      "center": 2.0,
+      "center": 2,
       "side": -1,
       "label": "コンセント（AC専用）",
-      "mountHeightOverride": 2.0,
       "status": "estimated",
       "note": "南壁(外壁)西端(1.82-2.79)。現家具のエアコン(西壁)は内壁でドレン不可のため南壁へ。南側天井高≒2.3mのため器具高さ要確認"
     },
@@ -697,8 +645,8 @@
       "orientation": "H",
       "center": 2.6,
       "side": -1,
-      "label": "エアコンスリーブ",
       "mountHeightOverride": 2.1,
+      "label": "エアコンスリーブ",
       "status": "estimated",
       "note": "本体東側"
     },
@@ -721,8 +669,8 @@
       "orientation": "H",
       "center": 7.5,
       "side": -1,
-      "label": "スイッチ（ヌック灯）",
       "mountHeightOverride": 1.5,
+      "label": "スイッチ（ヌック灯）",
       "status": "estimated",
       "note": "アーチ西側。小上がり床+0.3のためFL+1500"
     },
@@ -734,8 +682,8 @@
       "orientation": "V",
       "center": 1.8,
       "side": -1,
-      "label": "コンセント（2口）",
       "mountHeightOverride": 0.55,
+      "label": "コンセント（2口）",
       "status": "estimated",
       "note": "東壁。小上がり床基準+250"
     },
@@ -747,8 +695,8 @@
       "orientation": "H",
       "center": 8.2,
       "side": 1,
-      "label": "コンセント（2口）",
       "mountHeightOverride": 0.55,
+      "label": "コンセント（2口）",
       "status": "estimated",
       "note": "北壁。防音壁(西)は避ける"
     },
@@ -758,10 +706,10 @@
       "level": 1,
       "wallAt": 9.1,
       "orientation": "V",
-      "center": 2.0,
+      "center": 2,
       "side": -1,
-      "label": "LANコンセント",
       "mountHeightOverride": 0.55,
+      "label": "LANコンセント",
       "status": "estimated",
       "note": "作業スペース想定。見積外"
     },
@@ -769,8 +717,8 @@
       "id": "elec-011",
       "type": "light-downlight-sensor",
       "level": 1,
-      "x": 10.0,
-      "z": 1.0,
+      "x": 10,
+      "z": 1,
       "room": "room-1f-08",
       "label": "ダウンライト（人感）",
       "status": "estimated",
@@ -780,7 +728,7 @@
       "id": "elec-012",
       "type": "light-downlight",
       "level": 1,
-      "x": 10.0,
+      "x": 10,
       "z": 2.2,
       "room": "room-1f-19",
       "label": "ダウンライト",
@@ -796,7 +744,6 @@
       "center": 1.6,
       "side": 1,
       "label": "スイッチ（3路・玄関/ホール灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "ホール西壁・框脇。組5-A。玄関灯とホール灯を同時点滅"
     },
@@ -809,7 +756,6 @@
       "center": 1.7,
       "side": 1,
       "label": "スイッチ（外灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "2連"
     },
@@ -822,7 +768,6 @@
       "center": 2.3,
       "side": 1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "ホール西壁。掃除機・飾り棚"
     },
@@ -846,7 +791,6 @@
       "center": 1.8,
       "side": 1,
       "label": "スイッチ（人感・土間/SC灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "西壁・ドア(0.48-1.40)南側。荷物で手が塞がる動線のため人感"
     },
@@ -858,8 +802,8 @@
       "orientation": "H",
       "center": 12.1,
       "side": 1,
-      "label": "コンセント（2口）",
       "mountHeightOverride": 0.35,
+      "label": "コンセント（2口）",
       "status": "estimated",
       "note": "北壁・窓東側。電動自転車充電等。床-0.1のためFL+350"
     },
@@ -883,7 +827,6 @@
       "center": 0.5,
       "side": -1,
       "label": "分電盤",
-      "mountHeightOverride": 1.8,
       "status": "estimated",
       "note": "SC東壁(階段側)。現状位置を踏襲"
     },
@@ -895,8 +838,8 @@
       "orientation": "V",
       "center": 0.95,
       "side": -1,
-      "label": "コンセント（ルーター）",
       "mountHeightOverride": 1.8,
+      "label": "コンセント（ルーター）",
       "status": "estimated",
       "note": "分電盤脇。情報機器・ルーター置場 FL+1800"
     },
@@ -908,8 +851,8 @@
       "orientation": "V",
       "center": 1.1,
       "side": -1,
-      "label": "LANコンセント（幹線）",
       "mountHeightOverride": 1.8,
+      "label": "LANコンセント（幹線）",
       "status": "estimated",
       "note": "ルーター集約点。見積外"
     },
@@ -917,12 +860,11 @@
       "id": "elec-358",
       "type": "outlet-double",
       "level": 1,
-      "wallAt": 0.0,
+      "wallAt": 0,
       "orientation": "H",
       "center": 13.2,
       "side": 1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "北壁。工具充電・掃除機"
     },
@@ -946,7 +888,6 @@
       "center": 1.5,
       "side": 1,
       "label": "スイッチ（3路・階段1F）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "階段室西壁・入口脇。組1-A"
     },
@@ -954,7 +895,7 @@
       "id": "elec-017",
       "type": "light-downlight",
       "level": 1,
-      "x": 15.0,
+      "x": 15,
       "z": 1.35,
       "room": "room-1f-21",
       "label": "ダウンライト",
@@ -970,7 +911,6 @@
       "center": 1.6,
       "side": 1,
       "label": "スイッチ（パントリー灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "西壁・入口脇"
     },
@@ -982,8 +922,8 @@
       "orientation": "V",
       "center": 1.4,
       "side": -1,
-      "label": "コンセント（冷凍庫等）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（冷凍庫等）",
       "status": "estimated",
       "note": "東壁 FL+1050 アース付"
     },
@@ -995,8 +935,8 @@
       "orientation": "V",
       "center": 1.15,
       "side": -1,
-      "label": "コンセント（2口）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（2口）",
       "status": "estimated",
       "note": "東壁 FL+1050。ストック家電"
     },
@@ -1134,7 +1074,6 @@
       "center": 10.15,
       "side": 1,
       "label": "スイッチ（3路・リビング）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "玄関ホールドア(9.16-9.96)東側。組4-A"
     },
@@ -1147,7 +1086,6 @@
       "center": 10.25,
       "side": 1,
       "label": "スイッチ（3路・玄関/ホール灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "組5-B（LDKからホールを点灯して外出）"
     },
@@ -1160,7 +1098,6 @@
       "center": 12.65,
       "side": 1,
       "label": "スイッチ（3路・リビング）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "SC引戸(12.80-13.60)西側。組4-B。土間→SC→LDKの日常動線"
     },
@@ -1173,7 +1110,6 @@
       "center": 12.55,
       "side": 1,
       "label": "スイッチ（ダイニング）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "2連"
     },
@@ -1186,7 +1122,6 @@
       "center": 2.85,
       "side": -1,
       "label": "スイッチ（キッチン灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "東壁・廊下引戸(1.88-2.68)南側"
     },
@@ -1199,7 +1134,6 @@
       "center": 2.95,
       "side": -1,
       "label": "スイッチ（階段前通路灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "2連"
     },
@@ -1212,7 +1146,6 @@
       "center": 4.3,
       "side": 1,
       "label": "コンセント（TVボード裏）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "防音壁側。裏側(民泊)と背中合わせにしない"
     },
@@ -1225,7 +1158,6 @@
       "center": 4.5,
       "side": 1,
       "label": "TV端子",
-      "mountHeightOverride": 0.3,
       "status": "estimated",
       "note": "TVボード裏"
     },
@@ -1238,7 +1170,6 @@
       "center": 4.7,
       "side": 1,
       "label": "LANコンセント",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "TV裏。見積外"
     },
@@ -1248,10 +1179,9 @@
       "level": 1,
       "wallAt": 7.28,
       "orientation": "V",
-      "center": 6.0,
+      "center": 6,
       "side": 1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "西壁南端。フロアランプ・ロボット掃除機"
     },
@@ -1264,7 +1194,6 @@
       "center": 8.92,
       "side": 1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "北壁・アーチ(−8.68)とドア(9.16−)の間"
     },
@@ -1277,7 +1206,6 @@
       "center": 7.75,
       "side": -1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "南壁西端・ソファ脇"
     },
@@ -1290,7 +1218,6 @@
       "center": 11.5,
       "side": 1,
       "label": "コンセント（ダイニング北）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "PC・掃除機"
     },
@@ -1303,7 +1230,6 @@
       "center": 11.65,
       "side": 1,
       "label": "LANコンセント",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "ダイニングPC用。見積外"
     },
@@ -1316,7 +1242,6 @@
       "center": 12.95,
       "side": -1,
       "label": "コンセント（ダイニング南）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "掃き出し窓(−12.74)東側。ホットプレート"
     },
@@ -1328,8 +1253,8 @@
       "orientation": "V",
       "center": 5.3,
       "side": -1,
-      "label": "コンセント（カップボード脇）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（カップボード脇）",
       "status": "estimated",
       "note": "カップボード(3.74-4.94)と冷蔵庫(5.64-)の間 FL+1050"
     },
@@ -1339,10 +1264,10 @@
       "level": 1,
       "wallAt": 15.471,
       "orientation": "V",
-      "center": 4.0,
+      "center": 4,
       "side": -1,
-      "label": "コンセント（電子レンジ）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（電子レンジ）",
       "status": "estimated",
       "note": "カップボードカウンター上 FL+1050"
     },
@@ -1354,8 +1279,8 @@
       "orientation": "V",
       "center": 4.7,
       "side": -1,
-      "label": "コンセント（炊飯器/トースター）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（炊飯器/トースター）",
       "status": "estimated",
       "note": "同上"
     },
@@ -1365,10 +1290,10 @@
       "level": 1,
       "wallAt": 15.471,
       "orientation": "V",
-      "center": 6.0,
+      "center": 6,
       "side": -1,
-      "label": "コンセント（冷蔵庫）",
       "mountHeightOverride": 1.9,
+      "label": "コンセント（冷蔵庫）",
       "status": "estimated",
       "note": "冷蔵庫(z5.64-6.34)上部 FL+1900"
     },
@@ -1381,7 +1306,6 @@
       "center": 13.5,
       "side": -1,
       "label": "コンセント（IH専用）",
-      "mountHeightOverride": 0.2,
       "status": "estimated",
       "note": "キッチン南端(13.31-13.96)キャビネット内 200V"
     },
@@ -1393,8 +1317,8 @@
       "orientation": "H",
       "center": 13.8,
       "side": -1,
-      "label": "コンセント（食洗機）",
       "mountHeightOverride": 0.2,
+      "label": "コンセント（食洗機）",
       "status": "estimated",
       "note": "同キャビネット内"
     },
@@ -1407,7 +1331,6 @@
       "center": 6.1,
       "side": 1,
       "label": "コンセント（AC専用）",
-      "mountHeightOverride": 2.0,
       "status": "estimated",
       "note": "エアコン本体は南壁西端(7.3-8.1)、電源は隣接する西壁。20畳に1台は能力不安、2台目候補は南壁x≒13.2"
     },
@@ -1419,8 +1342,8 @@
       "orientation": "H",
       "center": 7.5,
       "side": -1,
-      "label": "エアコンスリーブ",
       "mountHeightOverride": 2.1,
+      "label": "エアコンスリーブ",
       "status": "estimated",
       "note": "南壁(外壁)"
     },
@@ -1433,7 +1356,6 @@
       "center": 10.55,
       "side": 1,
       "label": "インターホン（自宅）",
-      "mountHeightOverride": 1.4,
       "status": "estimated",
       "note": "玄関ホールドア脇。玄関子機はカタログ外"
     },
@@ -1466,7 +1388,6 @@
       "center": 16.55,
       "side": -1,
       "label": "スイッチ（クローク灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "引戸東側・室内側"
     },
@@ -1474,12 +1395,11 @@
       "id": "elec-399",
       "type": "outlet-double",
       "level": 1,
-      "wallAt": 0.0,
+      "wallAt": 0,
       "orientation": "H",
       "center": 17.3,
       "side": 1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "北壁。除湿機・掃除機充電"
     },
@@ -1491,8 +1411,8 @@
       "orientation": "V",
       "center": 0.9,
       "side": -1,
-      "label": "コンセント（2口）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（2口）",
       "status": "estimated",
       "note": "東壁 FL+1050。アイロン等"
     },
@@ -1500,7 +1420,7 @@
       "id": "elec-023",
       "type": "light-downlight",
       "level": 1,
-      "x": 16.0,
+      "x": 16,
       "z": 2.7,
       "room": "room-1f-13",
       "label": "ダウンライト1",
@@ -1527,7 +1447,6 @@
       "center": 2.85,
       "side": 1,
       "label": "スイッチ（3路・廊下）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "LDK引戸(1.88-2.68)南側。組2-A"
     },
@@ -1540,7 +1459,6 @@
       "center": 16.3,
       "side": -1,
       "label": "スイッチ（3路・廊下）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "脱衣室引戸(16.44-)西側。組2-B"
     },
@@ -1553,7 +1471,6 @@
       "center": 2.5,
       "side": -1,
       "label": "スイッチ（収納灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "収納折戸は壁全幅のため隣接する廊下の壁へ"
     },
@@ -1566,7 +1483,6 @@
       "center": 15.7,
       "side": -1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "掃除機"
     },
@@ -1574,7 +1490,7 @@
       "id": "elec-024",
       "type": "light-downlight",
       "level": 1,
-      "x": 16.836,
+      "x": 16.84,
       "z": 2.28,
       "room": "room-1f-22",
       "label": "ダウンライト",
@@ -1611,7 +1527,6 @@
       "center": 18.35,
       "side": -1,
       "label": "スイッチ（トイレ灯・換気）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "ドア東側・室内側"
     },
@@ -1624,7 +1539,6 @@
       "center": 18.4,
       "side": 1,
       "label": "コンセント（温水洗浄便座）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "北壁・便器脇"
     },
@@ -1648,7 +1562,6 @@
       "center": 3.85,
       "side": 1,
       "label": "スイッチ（洗面灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "西壁・開口(2.73-3.64)南側の残り壁"
     },
@@ -1660,8 +1573,8 @@
       "orientation": "V",
       "center": 3.9,
       "side": -1,
-      "label": "コンセント（ドライヤー）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（ドライヤー）",
       "status": "estimated",
       "note": "東壁・化粧台東脇 FL+1050"
     },
@@ -1673,8 +1586,8 @@
       "orientation": "H",
       "center": 18.2,
       "side": -1,
+      "mountHeightOverride": 1,
       "label": "コンセント（洗面化粧台）",
-      "mountHeightOverride": 1.0,
       "status": "estimated",
       "note": "化粧台裏 FL+1000"
     },
@@ -1719,7 +1632,6 @@
       "center": 16.3,
       "side": 1,
       "label": "スイッチ（脱衣室灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "北引戸西側・室内側"
     },
@@ -1732,7 +1644,6 @@
       "center": 5.2,
       "side": -1,
       "label": "スイッチ（UB灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "UBドア(4.12-5.04)南側"
     },
@@ -1745,7 +1656,6 @@
       "center": 16.25,
       "side": -1,
       "label": "スイッチ（南土間灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "南土間ドア(16.38-)西側。洗濯機(x≦16.12)上部を避ける"
     },
@@ -1757,8 +1667,8 @@
       "orientation": "V",
       "center": 5.9,
       "side": 1,
-      "label": "コンセント（洗濯機）",
       "mountHeightOverride": 1.2,
+      "label": "コンセント（洗濯機）",
       "status": "estimated",
       "note": "洗濯機上部 FL+1200"
     },
@@ -1770,8 +1680,8 @@
       "orientation": "V",
       "center": 4.2,
       "side": 1,
-      "label": "コンセント（2口）",
       "mountHeightOverride": 1.05,
+      "label": "コンセント（2口）",
       "status": "estimated",
       "note": "西壁 FL+1050。除湿機・扇風機・アイロン"
     },
@@ -1780,7 +1690,7 @@
       "type": "light-downlight",
       "level": 1,
       "x": 18.2,
-      "z": 5.0,
+      "z": 5,
       "room": "room-1f-17",
       "label": "浴室灯",
       "status": "estimated",
@@ -1803,10 +1713,10 @@
       "level": 1,
       "wallAt": 6.37,
       "orientation": "H",
-      "center": 18.0,
+      "center": 18,
       "side": 1,
-      "label": "コンセント（2口）",
       "mountHeightOverride": 0.35,
+      "label": "コンセント（2口）",
       "status": "estimated",
       "note": "北壁 FL+350（床-0.1）。掃除機・工具充電"
     },
@@ -1815,7 +1725,7 @@
       "type": "light-downlight",
       "level": 2,
       "x": 13.2,
-      "z": 1.0,
+      "z": 1,
       "room": "room-2f-01",
       "label": "ダウンライト",
       "status": "estimated"
@@ -1840,7 +1750,6 @@
       "center": 1.5,
       "side": -1,
       "label": "スイッチ（トイレ灯・換気）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "東壁・ドア脇。南壁はドア西側0.18mのみで狭い"
     },
@@ -1853,7 +1762,6 @@
       "center": 0.6,
       "side": 1,
       "label": "コンセント（温水洗浄便座）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "西壁・便器脇"
     },
@@ -1877,7 +1785,6 @@
       "center": 1.5,
       "side": 1,
       "label": "スイッチ（3路・階段2F）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "上り口西壁。組1-B"
     },
@@ -1890,7 +1797,6 @@
       "center": 1.6,
       "side": 1,
       "label": "スイッチ（3路・2F廊下）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "2連。組8-A"
     },
@@ -1925,7 +1831,6 @@
       "center": 16.2,
       "side": 1,
       "label": "スイッチ（3路・2F廊下）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "北壁東端（階段開口15.47-の東）。組8-B"
     },
@@ -1938,7 +1843,6 @@
       "center": 15.9,
       "side": 1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "掃除機"
     },
@@ -1947,7 +1851,7 @@
       "type": "light-ceiling",
       "level": 2,
       "x": 14.1,
-      "z": 5.0,
+      "z": 5,
       "room": "room-2f-04",
       "label": "シーリングライト",
       "status": "estimated",
@@ -1962,7 +1866,6 @@
       "center": 2.9,
       "side": 1,
       "label": "スイッチ（部屋灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "入口脇のくびれ壁(x=14.56)室内側"
     },
@@ -1975,7 +1878,6 @@
       "center": 3.05,
       "side": 1,
       "label": "スイッチ（クローゼット灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "2連"
     },
@@ -1988,7 +1890,6 @@
       "center": 4.8,
       "side": 1,
       "label": "コンセント（デスク）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "デスク裏"
     },
@@ -1998,10 +1899,9 @@
       "level": 2,
       "wallAt": 12.74,
       "orientation": "V",
-      "center": 5.0,
+      "center": 5,
       "side": 1,
       "label": "LANコンセント",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "デスク用。見積外"
     },
@@ -2014,7 +1914,6 @@
       "center": 4.9,
       "side": -1,
       "label": "コンセント（枕元）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "ベッド(z5.38-)北側"
     },
@@ -2027,7 +1926,6 @@
       "center": 4.55,
       "side": 1,
       "label": "コンセント（AC専用）",
-      "mountHeightOverride": 2.0,
       "status": "estimated",
       "note": "西壁(外壁)デスク上方。本体z3.6-4.4"
     },
@@ -2039,8 +1937,8 @@
       "orientation": "V",
       "center": 3.75,
       "side": 1,
-      "label": "エアコンスリーブ",
       "mountHeightOverride": 2.1,
+      "label": "エアコンスリーブ",
       "status": "estimated"
     },
     {
@@ -2072,7 +1970,6 @@
       "center": 16.6,
       "side": -1,
       "label": "スイッチ（部屋灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "南壁・ドア脇（西壁は全面建具）"
     },
@@ -2085,7 +1982,6 @@
       "center": 16.7,
       "side": -1,
       "label": "スイッチ（クローゼット灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "2連"
     },
@@ -2093,12 +1989,11 @@
       "id": "elec-436",
       "type": "outlet-double",
       "level": 2,
-      "wallAt": 0.0,
+      "wallAt": 0,
       "orientation": "H",
       "center": 17.4,
       "side": 1,
       "label": "コンセント（デスク）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "デスク裏"
     },
@@ -2106,12 +2001,11 @@
       "id": "elec-437",
       "type": "data-lan",
       "level": 2,
-      "wallAt": 0.0,
+      "wallAt": 0,
       "orientation": "H",
       "center": 17.6,
       "side": 1,
       "label": "LANコンセント",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "見積外"
     },
@@ -2124,7 +2018,6 @@
       "center": 0.5,
       "side": -1,
       "label": "コンセント（枕元）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "東壁・窓(0.92-)北側・ベッド端"
     },
@@ -2132,12 +2025,11 @@
       "id": "elec-439",
       "type": "outlet-ac",
       "level": 2,
-      "wallAt": 0.0,
+      "wallAt": 0,
       "orientation": "H",
       "center": 18.9,
       "side": 1,
       "label": "コンセント（AC専用）",
-      "mountHeightOverride": 2.0,
       "status": "estimated",
       "note": "北壁(外壁)東寄り。本体x18.0-18.8"
     },
@@ -2145,19 +2037,19 @@
       "id": "elec-440",
       "type": "equip-ac-sleeve",
       "level": 2,
-      "wallAt": 0.0,
+      "wallAt": 0,
       "orientation": "H",
       "center": 18.05,
       "side": 1,
-      "label": "エアコンスリーブ",
       "mountHeightOverride": 2.1,
+      "label": "エアコンスリーブ",
       "status": "estimated"
     },
     {
       "id": "elec-441",
       "type": "light-downlight",
       "level": 2,
-      "x": 15.925,
+      "x": 15.93,
       "z": 0.91,
       "room": "room-2f-08",
       "label": "ダウンライト",
@@ -2168,7 +2060,7 @@
       "type": "light-ceiling",
       "level": 2,
       "x": 17.29,
-      "z": 5.0,
+      "z": 5,
       "room": "room-2f-06",
       "label": "シーリングライト",
       "status": "estimated",
@@ -2183,7 +2075,6 @@
       "center": 3.1,
       "side": -1,
       "label": "スイッチ（3路・入口）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "くびれ部東壁(書斎側の壁)。組3-A"
     },
@@ -2195,8 +2086,8 @@
       "orientation": "V",
       "center": 5.5,
       "side": -1,
-      "label": "スイッチ（3路・枕元）",
       "mountHeightOverride": 0.7,
+      "label": "スイッチ（3路・枕元）",
       "status": "estimated",
       "note": "東壁・窓(−5.21)南側 FL+700。組3-B"
     },
@@ -2209,7 +2100,6 @@
       "center": 5.95,
       "side": -1,
       "label": "コンセント（枕元南）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "ベッド(−5.77)南側の脇"
     },
@@ -2222,7 +2112,6 @@
       "center": 4.2,
       "side": -1,
       "label": "コンセント（枕元北）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "窓下"
     },
@@ -2234,8 +2123,8 @@
       "orientation": "V",
       "center": 5.1,
       "side": 1,
-      "label": "コンセント（壁掛けTV裏）",
       "mountHeightOverride": 1.1,
+      "label": "コンセント（壁掛けTV裏）",
       "status": "estimated",
       "note": "TV底面FL+1.0 → FL+1100"
     },
@@ -2247,8 +2136,8 @@
       "orientation": "V",
       "center": 5.3,
       "side": 1,
-      "label": "TV端子",
       "mountHeightOverride": 1.1,
+      "label": "TV端子",
       "status": "estimated"
     },
     {
@@ -2259,8 +2148,8 @@
       "orientation": "V",
       "center": 5.45,
       "side": 1,
-      "label": "LANコンセント",
       "mountHeightOverride": 1.1,
+      "label": "LANコンセント",
       "status": "estimated",
       "note": "見積外"
     },
@@ -2273,7 +2162,6 @@
       "center": 6.1,
       "side": -1,
       "label": "コンセント（AC専用）",
-      "mountHeightOverride": 2.0,
       "status": "estimated",
       "note": "本体は南壁東端(18.2-19.0)、電源は隣接する東壁。ベッド頭上(東壁)は避けた"
     },
@@ -2285,8 +2173,8 @@
       "orientation": "H",
       "center": 18.3,
       "side": -1,
-      "label": "エアコンスリーブ",
       "mountHeightOverride": 2.1,
+      "label": "エアコンスリーブ",
       "status": "estimated",
       "note": "南壁(外壁)"
     },
@@ -2320,7 +2208,6 @@
       "center": 3.2,
       "side": 1,
       "label": "スイッチ（書斎灯）",
-      "mountHeightOverride": 1.2,
       "status": "estimated",
       "note": "西壁（寝室くびれとの間仕切り）書斎側"
     },
@@ -2332,8 +2219,8 @@
       "orientation": "H",
       "center": 17.2,
       "side": 1,
-      "label": "コンセント（机上1）",
       "mountHeightOverride": 0.8,
+      "label": "コンセント（机上1）",
       "status": "estimated",
       "note": "北壁 FL+800（机上）"
     },
@@ -2345,8 +2232,8 @@
       "orientation": "H",
       "center": 18.3,
       "side": 1,
-      "label": "コンセント（机上2）",
       "mountHeightOverride": 0.8,
+      "label": "コンセント（机上2）",
       "status": "estimated"
     },
     {
@@ -2357,8 +2244,8 @@
       "orientation": "H",
       "center": 17.5,
       "side": 1,
-      "label": "LANコンセント",
       "mountHeightOverride": 0.8,
+      "label": "LANコンセント",
       "status": "estimated",
       "note": "見積外"
     },
@@ -2371,7 +2258,6 @@
       "center": 3.2,
       "side": -1,
       "label": "コンセント（2口）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "東壁 FL+250。プリンタ"
     },
@@ -2380,9 +2266,8 @@
       "type": "light-exterior",
       "level": 1,
       "face": "N",
-      "offset": 2.0,
+      "offset": 2,
       "label": "外灯（民泊玄関）",
-      "mountHeightOverride": 1.8,
       "status": "estimated",
       "note": "玄関ドア(0.91-1.86)東側"
     },
@@ -2393,7 +2278,6 @@
       "face": "N",
       "offset": 10.65,
       "label": "外灯（自宅玄関）",
-      "mountHeightOverride": 1.8,
       "status": "estimated",
       "note": "玄関ドア(9.54-10.49)東側"
     },
@@ -2404,7 +2288,6 @@
       "face": "E",
       "offset": 7.5,
       "label": "外灯（南土間勝手口）",
-      "mountHeightOverride": 1.8,
       "status": "estimated",
       "note": "ルーバー戸(6.41-7.26)南側。見積2箇所に対し+1"
     },
@@ -2413,9 +2296,8 @@
       "type": "outlet-waterproof",
       "level": 1,
       "face": "S",
-      "offset": 5.0,
+      "offset": 5,
       "label": "防水コンセント（民泊南）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "窓間(4.56-5.66)。高圧洗浄機・庭"
     },
@@ -2426,7 +2308,6 @@
       "face": "S",
       "offset": 13.3,
       "label": "防水コンセント（自宅南）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "掃き出し窓(−12.74)と小窓(14.04−)の間"
     },
@@ -2435,11 +2316,35 @@
       "type": "outlet-waterproof",
       "level": 1,
       "face": "N",
-      "offset": 11.0,
+      "offset": 11,
       "label": "防水コンセント（駐車場側）",
-      "mountHeightOverride": 0.25,
       "status": "estimated",
       "note": "土間窓(11.05-)西側。将来EV充電は専用回路で別途"
+    },
+    {
+      "id": "elec-m07",
+      "type": "outlet-double",
+      "level": 1,
+      "wallAt": 3.691,
+      "orientation": "H",
+      "center": 6.83,
+      "side": -1,
+      "room": "room-1f-23",
+      "label": "コンセント（2口）",
+      "status": "estimated"
+    },
+    {
+      "id": "elec-m09",
+      "type": "outlet-double",
+      "level": 1,
+      "wallAt": 7.28,
+      "orientation": "V",
+      "center": 4.1,
+      "side": -1,
+      "room": "room-1f-06",
+      "mountHeightOverride": 1.64,
+      "label": "コンセント（2口） 4",
+      "status": "estimated"
     }
   ]
 }

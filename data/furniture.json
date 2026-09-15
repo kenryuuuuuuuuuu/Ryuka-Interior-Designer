@@ -12,7 +12,7 @@
       "x": 1.95,
       "z": 5.22,
       "rotation": 90,
-      "elevation": 1.0,
+      "elevation": 1,
       "status": "estimated",
       "note": "参考画像の壁掛け案として追加。既存テレビボードfur-012の上方、西壁の室内側で東向き。底面は1階床上1.00m、外形は仮寸法で施工・購入仕様ではない。既存ボードは維持。金具・配線・視聴高さは今後確認。"
     },
@@ -104,8 +104,8 @@
       "room": "room-1f-05",
       "label": "椅子",
       "level": 1,
-      "x": 6.46,
-      "z": 1.49,
+      "x": 6.3,
+      "z": 1.35,
       "rotation": 270,
       "status": "estimated"
     },
@@ -185,58 +185,6 @@
       "heightOverride": 0.78,
       "status": "estimated",
       "note": "参考画像の木枠ソファに合わせた検討案。施主より既存家具の寸法・配置変更可の指示。旧案は中心(3.74,4.05)、1.40×0.70×0.70m。新案は北壁室内側に収まるよう中心(3.76,4.13)、1.70×0.78×0.78mへ変更。製品未選定。"
-    },
-    {
-      "id": "fur-012",
-      "type": "tv-board",
-      "room": "room-1f-06",
-      "label": "テレビボード",
-      "level": 1,
-      "x": 2.05,
-      "z": 5.22,
-      "rotation": 90,
-      "status": "estimated"
-    },
-    {
-      "id": "fur-038",
-      "type": "coffee-table",
-      "room": "room-1f-06",
-      "label": "ローテーブル",
-      "level": 1,
-      "x": 3.65,
-      "z": 5.0,
-      "rotation": 0,
-      "widthOverride": 0.85,
-      "depthOverride": 0.4,
-      "status": "estimated",
-      "note": " 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{\"x\":3.66,\"z\":4.9,\"widthOverride\":0.5,\"depthOverride\":0.4}。仮寸法・仮配置、製品未選定。"
-    },
-    {
-      "id": "fur-043",
-      "type": "counter-table",
-      "room": "room-1f-06",
-      "label": "カウンターテーブル",
-      "level": 1,
-      "x": 3.7,
-      "z": 6.1,
-      "rotation": 180,
-      "widthOverride": 1.9,
-      "status": "estimated",
-      "depthOverride": 0.42,
-      "heightOverride": 0.74,
-      "note": " 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{\"x\":3.67,\"z\":6.11,\"widthOverride\":1.7,\"depthOverride\":null,\"heightOverride\":null}。仮寸法・仮配置、製品未選定。"
-    },
-    {
-      "id": "fur-044",
-      "type": "chair-timber",
-      "room": "room-1f-06",
-      "label": "椅子（カウンター1）",
-      "level": 1,
-      "x": 3.15,
-      "z": 5.67,
-      "rotation": 0,
-      "status": "estimated",
-      "note": " 参考画像に沿った配置検討として施主の許可に基づき変更。旧値:{\"type\":\"chair\",\"x\":3.7,\"z\":6.01,\"depthOverride\":0.7,\"label\":\"椅子（カウンター）\"}。仮寸法・仮配置、製品未選定。"
     },
     {
       "id": "fur-013",
@@ -322,8 +270,8 @@
       "room": "room-1f-11",
       "label": "ソファ",
       "level": 1,
-      "x": 9.38,
-      "z": 4.87,
+      "x": 9.53,
+      "z": 4.9,
       "rotation": 90,
       "widthOverride": 2,
       "status": "estimated"
@@ -479,33 +427,10 @@
       "status": "estimated"
     },
     {
-      "id": "fur-040",
-      "type": "tv-board",
-      "room": "room-2f-06",
-      "label": "テレビボード",
-      "level": 2,
-      "x": 15.72,
-      "z": 5,
-      "rotation": 90,
-      "status": "estimated"
-    },
-    {
-      "id": "fur-046",
-      "type": "chair-timber",
-      "room": "room-1f-06",
-      "label": "椅子（カウンター2）",
-      "level": 1,
-      "x": 4.05,
-      "z": 5.67,
-      "rotation": 0,
-      "status": "estimated",
-      "note": "窓際カウンターを2席とする参考案。高さ740mmの天板と座面約450mmを組み合わせる。仮配置・製品未選定。"
-    },
-    {
       "id": "fur-047",
       "type": "range-hood",
-      "label": "レンジフード",
       "room": "room-1f-06",
+      "label": "レンジフード",
       "level": 1,
       "x": 6.94,
       "z": 5.98,
@@ -517,8 +442,8 @@
     {
       "id": "fur-048",
       "type": "kitchen-faucet",
-      "label": "水栓",
       "room": "room-1f-06",
+      "label": "水栓",
       "level": 1,
       "x": 7.1,
       "z": 5.23,
@@ -530,8 +455,8 @@
     {
       "id": "fur-049",
       "type": "air-conditioner",
-      "label": "エアコン",
       "room": "room-1f-06",
+      "label": "エアコン",
       "level": 1,
       "x": 2.07,
       "z": 5.22,
@@ -539,6 +464,71 @@
       "elevation": 2.1,
       "status": "estimated",
       "note": "ゲストLDK西壁のテレビ上方に置く参考案。底面床上2.10m。コンセント・配管・保守空間は別途照合。"
+    },
+    {
+      "id": "fur-user-1789293694764",
+      "type": "sofa-work-table",
+      "room": "room-1f-06",
+      "label": "ソファテーブル（作業用）",
+      "level": 1,
+      "x": 3.29,
+      "z": 4.78,
+      "rotation": 180,
+      "status": "estimated",
+      "note": "ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。"
+    },
+    {
+      "id": "fur-user-1789293822216",
+      "type": "raised-platform",
+      "room": "room-1f-07",
+      "label": "小上がり",
+      "level": 1,
+      "x": 8.19,
+      "z": 1.82,
+      "rotation": 0,
+      "heightOverride": 0.45,
+      "status": "estimated",
+      "note": "ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。"
+    },
+    {
+      "id": "fur-user-1789257348217",
+      "type": "raised-platform",
+      "room": "room-1f-07",
+      "label": "小上がり",
+      "level": 1,
+      "x": 8.19,
+      "z": 1.82,
+      "rotation": 0,
+      "status": "estimated",
+      "note": "ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。"
+    },
+    {
+      "id": "fur-user-1789299634930",
+      "type": "television",
+      "room": "room-1f-11",
+      "label": "テレビ",
+      "level": 1,
+      "x": 7.55,
+      "z": 4.8,
+      "rotation": 90,
+      "widthOverride": 1.43,
+      "heightOverride": 0.8,
+      "elevation": 0.5,
+      "status": "estimated",
+      "note": "ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。"
+    },
+    {
+      "id": "fur-user-1789299839363",
+      "type": "television",
+      "room": "room-2f-06",
+      "label": "テレビ",
+      "level": 2,
+      "x": 15.56,
+      "z": 5.11,
+      "rotation": 90,
+      "elevation": 1,
+      "status": "estimated",
+      "note": "ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。"
     }
   ]
 }

@@ -22,7 +22,7 @@
       "level": 1,
       "widthOverride": 1.76,
       "heightOverride": 1.03,
-      "sillOverride": 1.33,
+      "sillOverride": 1.2,
       "label": "民泊 北窓",
       "status": "verified"
     },
@@ -182,7 +182,7 @@
       "level": 1,
       "widthOverride": 0.81,
       "heightOverride": 0.36,
-      "sillOverride": 2.23,
+      "sillOverride": 1.8,
       "label": "1階 東の細長窓",
       "status": "verified"
     },
