@@ -111,6 +111,7 @@ function buildOpenings() {
     if (o.swingDir) parts.push(`swingDir:${str(o.swingDir)}`);
     if (o.slideDir) parts.push(`slideDir:${str(o.slideDir)}`);
     parts.push(`label:${str(o.label)}`, `status:${str(o.status)}`);
+    if (o.note) parts.push(`note:${str(o.note)}`);
     return withNote(`  { ${parts.join(", ")} },`, o.note);
   });
   return `const OPENINGS = [\n${rows.join("\n")}\n];`;
@@ -157,6 +158,7 @@ function buildInteriorDoors() {
     if (d.swingDir) parts.push(`swingDir:${str(d.swingDir)}`);
     if (d.slideDir) parts.push(`slideDir:${str(d.slideDir)}`);
     parts.push(`status:${str(d.status)}`);
+    if (d.note) parts.push(`note:${str(d.note)}`);
     return withNote(`  { ${parts.join(", ")} },`, d.note);
   });
   return `const INTERIOR_DOORS = [\n${rows.join("\n")}\n];`;
@@ -589,6 +591,7 @@ function buildElectricalItems() {
       `status:${str(item.status)}`,
     );
     if (item.room) fields.push(`room:${str(item.room)}`);
+    if (item.note) fields.push(`note:${str(item.note)}`);
     return withNote(`  { ${fields.join(", ")} },`, item.note);
   });
   return `const ELECTRICAL_ITEMS = [\n${rows.join("\n")}\n];`;
