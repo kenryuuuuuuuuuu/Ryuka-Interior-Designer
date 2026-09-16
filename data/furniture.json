@@ -529,6 +529,110 @@
       "elevation": 1,
       "status": "estimated",
       "note": "ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。"
+    },
+    {
+      "id": "fur-cloak-01",
+      "type": "closet-single",
+      "room": "room-1f-12",
+      "label": "夫婦・長物収納",
+      "level": 1,
+      "x": 16.04,
+      "z": 0.37,
+      "rotation": 0,
+      "status": "estimated",
+      "note": "施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。",
+      "storage": {
+        "railHeights": [
+          1.8
+        ],
+        "contents": true
+      }
+    },
+    {
+      "id": "fur-cloak-02",
+      "type": "closet-double",
+      "room": "room-1f-12",
+      "label": "夫婦・日常着収納",
+      "level": 1,
+      "x": 17.04,
+      "z": 0.37,
+      "rotation": 0,
+      "status": "estimated",
+      "note": "施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。",
+      "storage": {
+        "railHeights": [
+          1,
+          1.95
+        ],
+        "contents": true
+      }
+    },
+    {
+      "id": "fur-cloak-03",
+      "type": "closet-double",
+      "room": "room-1f-12",
+      "label": "子供2人・成長対応収納",
+      "level": 1,
+      "x": 18.04,
+      "z": 0.37,
+      "rotation": 0,
+      "status": "estimated",
+      "note": "施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。",
+      "storage": {
+        "railHeights": [
+          0.85,
+          1.65
+        ],
+        "contents": true
+      }
+    },
+    {
+      "id": "fur-cloak-04",
+      "type": "closet-box-shelf",
+      "room": "room-1f-12",
+      "label": "東側・家族ボックス収納8箱",
+      "level": 1,
+      "x": 18.81,
+      "z": 1.23,
+      "rotation": 270,
+      "status": "estimated",
+      "note": "施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。",
+      "storage": {
+        "shelfHeights": [
+          0.1,
+          0.49,
+          0.88,
+          1.27,
+          1.66,
+          2.05
+        ],
+        "contents": true
+      }
+    },
+    {
+      "id": "fur-cloak-05",
+      "type": "closet-drawers",
+      "room": "room-1f-12",
+      "label": "南側・下着と小物",
+      "level": 1,
+      "x": 17.6,
+      "z": 1.62,
+      "rotation": 180,
+      "status": "estimated",
+      "note": "施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。"
+    },
+    {
+      "id": "fur-cloak-07",
+      "type": "closet-mirror",
+      "room": "room-1f-12",
+      "label": "西壁・薄型姿見",
+      "level": 1,
+      "x": 15.53,
+      "z": 1.09,
+      "rotation": 90,
+      "status": "estimated",
+      "note": "施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。",
+      "elevation": 0.2
     }
   ]
 }

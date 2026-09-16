@@ -22,7 +22,7 @@ SCOPE_NOTE=('この比較はrooms/furniture/furniture-catalogの追加・削除�
 
 # (relative path, extractor(doc)->list[dict], key field, field->category groups, label field)
 ROOM_GROUPS=[('形状・階・天井',{'polygon','level','ceiling'}),('名称・注記',{'label','note','status'})]
-FURNITURE_GROUPS=[('配置',{'x','z','rotation','elevation','room','level'}),('型・寸法',{'type'}),('名称・注記',{'label','note','status'})]
+FURNITURE_GROUPS=[('配置',{'x','z','rotation','elevation','room','level'}),('型・寸法',{'type'}),('収納構成',{'storage'}),('名称・注記',{'label','note','status'})]
 CATALOG_GROUPS=[('型・寸法',{'width','depth','height','shape','category','rotationConvention','clearance'}),('名称・注記',{'label','note'})]
 # W06-v1 review R4: track data/visual/lighting-settings.json's profiles/groups
 # too (the settings an operator actually edits), same shallow keyed-diff

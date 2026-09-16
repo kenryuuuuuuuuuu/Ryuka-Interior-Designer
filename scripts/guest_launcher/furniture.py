@@ -39,7 +39,7 @@ GUEST_SCOPE_ROOMS = {
     "room-1f-05", "room-1f-06", "room-1f-23", "room-1f-24",
 }
 _TRACKED_FIELDS = ("type", "room", "label", "level", "x", "z", "rotation",
-                   "widthOverride", "depthOverride", "heightOverride", "elevation", "status", "note")
+                   "widthOverride", "depthOverride", "heightOverride", "elevation", "storage", "status", "note")
 
 
 def _read(path: Path):

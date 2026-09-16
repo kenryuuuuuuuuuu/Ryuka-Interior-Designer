@@ -238,7 +238,13 @@ const FURNITURE_CATALOG = {
   'air-conditioner': { label:'エアコン', category:'fixture', shape:'airConditioner', width:0.8, depth:0.25, height:0.3, clearance:0, rotationConvention:'source' },
   'raised-platform': { label:'小上がり', category:'furniture', shape:'raisedPlatform', width:1.8, depth:1.8, height:0.3, clearance:0, rotationConvention:'source' },
   'mattress': { label:'マットレス', category:'furniture', shape:'mattress', width:0.97, depth:1.95, height:0.2, clearance:0, rotationConvention:'source' },
-  'sofa-work-table': { label:'ソファテーブル（作業用）', category:'furniture', shape:'sofaWorkTable', width:0.8, depth:0.45, height:0.65, clearance:0, rotationConvention:'source' }
+  'sofa-work-table': { label:'ソファテーブル（作業用）', category:'furniture', shape:'sofaWorkTable', width:0.8, depth:0.45, height:0.65, clearance:0, rotationConvention:'source' },
+  'closet-single': { label:'クローク・長物ハンガー収納', category:'fixture', shape:'closetSingle', width:1, depth:0.6, height:2.2, clearance:0.8, rotationConvention:'source' },
+  'closet-double': { label:'クローク・2段ハンガー収納', category:'fixture', shape:'closetDouble', width:1, depth:0.6, height:2.2, clearance:0.8, rotationConvention:'source' },
+  'closet-box-shelf': { label:'クローク・ボックス可動棚', category:'fixture', shape:'closetShelves', width:1.1, depth:0.45, height:2.2, clearance:0.8, rotationConvention:'source' },
+  'closet-drawers': { label:'クローク・浅型引き出し', category:'furniture', shape:'closetDrawers', width:0.6, depth:0.3, height:0.85, clearance:0.8, rotationConvention:'source' },
+  'closet-mirror': { label:'クローク・薄型壁掛け姿見', category:'fixture', shape:'closetMirror', width:0.38, depth:0.03, height:1.6, clearance:0, rotationConvention:'source' },
+  'storage-box': { label:'収納・蓋付きボックス', category:'furniture', shape:'storageBox', width:0.35, depth:0.4, height:0.25, clearance:0.8, rotationConvention:'source' }
 };
 
 const FURNITURE_ITEMS = [
@@ -286,6 +292,12 @@ const FURNITURE_ITEMS = [
   { id:'fur-user-1789257348217', type:'raised-platform', level:1, x:8.19, z:1.82, rotation:0, width:1.8, depth:1.8, height:0.3, label:'小上がり', status:'estimated', note:'ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。', room:'room-1f-07' }, // ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。
   { id:'fur-user-1789299634930', type:'television', level:1, x:7.55, z:4.8, rotation:90, width:1.43, depth:0.06, height:0.8, label:'テレビ', status:'estimated', elevation:0.5, note:'ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。', room:'room-1f-11' }, // ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。
   { id:'fur-user-1789299839363', type:'television', level:2, x:15.56, z:5.11, rotation:90, width:1.12, depth:0.06, height:0.65, label:'テレビ', status:'estimated', elevation:1, note:'ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。', room:'room-2f-06' }, // ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。
+  { id:'fur-cloak-01', type:'closet-single', level:1, x:16.04, z:0.37, rotation:0, width:1, depth:0.6, height:2.2, label:'夫婦・長物収納', status:'estimated', note:'施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。', storage:{"railHeights":[1.8],"contents":true}, room:'room-1f-12' }, // 施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。
+  { id:'fur-cloak-02', type:'closet-double', level:1, x:17.04, z:0.37, rotation:0, width:1, depth:0.6, height:2.2, label:'夫婦・日常着収納', status:'estimated', note:'施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。', storage:{"railHeights":[1,1.95],"contents":true}, room:'room-1f-12' }, // 施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。
+  { id:'fur-cloak-03', type:'closet-double', level:1, x:18.04, z:0.37, rotation:0, width:1, depth:0.6, height:2.2, label:'子供2人・成長対応収納', status:'estimated', note:'施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。', storage:{"railHeights":[0.85,1.65],"contents":true}, room:'room-1f-12' }, // 施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。
+  { id:'fur-cloak-04', type:'closet-box-shelf', level:1, x:18.81, z:1.23, rotation:270, width:1.1, depth:0.45, height:2.2, label:'東側・家族ボックス収納8箱', status:'estimated', note:'施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。', storage:{"shelfHeights":[0.1,0.49,0.88,1.27,1.66,2.05],"contents":true}, room:'room-1f-12' }, // 施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。
+  { id:'fur-cloak-05', type:'closet-drawers', level:1, x:17.6, z:1.62, rotation:180, width:0.6, depth:0.3, height:0.85, label:'南側・下着と小物', status:'estimated', note:'施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。', room:'room-1f-12' }, // 施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。
+  { id:'fur-cloak-07', type:'closet-mirror', level:1, x:15.53, z:1.09, rotation:90, width:0.38, depth:0.03, height:1.6, label:'西壁・薄型姿見', status:'estimated', elevation:0.2, note:'施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。', room:'room-1f-12' }, // 施主承認の夫婦＋子供最大2人向け収納案。北ハンガー・東ボックス棚・南浅型収納・西薄型姿見。主通路800mm。内装モデル上の検討値で施工寸法ではない。
 ];
 
 const ELECTRICAL_CATALOG = {

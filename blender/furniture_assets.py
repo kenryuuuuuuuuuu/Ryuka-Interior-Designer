@@ -3,6 +3,9 @@
 Plans use source local x/z/y metres. Placement belongs exclusively to furniture.json.
 """
 import math
+from storage_assets import storage_parts, SHAPES as STORAGE_SHAPES
+
+STORAGE_ASSETS = {shape: 'storage-'+shape+'-v1' for shape in STORAGE_SHAPES}
 
 ASSET_ID = 'sofa-timber-v1'
 DIMENSIONS = {'width': (1.2, 2.4), 'depth': (.7, 1.05), 'height': (.65, 1.0)}
@@ -30,6 +33,7 @@ def validate_bindings(document, items, catalog):
                     'washer-v1': ('boxAppliance', washer_parts),
                     'bathtub-v1': ('bathtub', bathtub_parts),
                     'bed-v1': ('bed', bed_parts), 'desk-v1': ('table', desk_parts)}
+        registry.update({asset: (shape, lambda w,d,h,s=shape: storage_parts(s,w,d,h)) for shape,asset in STORAGE_ASSETS.items()})
         if binding.get('assetId') not in registry or binding.get('sizing') != 'parametric':
             raise ValueError(f'Unsupported asset or sizing policy: {target}')
         if binding.get('status') != 'estimated' or not binding.get('note'):
@@ -121,7 +125,10 @@ def chair_parts(w,d,h):
     return parts
 
 
-def asset_parts(asset_id,w,d,h):
+def asset_parts(asset_id,w,d,h,options=None):
+    for shape,asset in STORAGE_ASSETS.items():
+        if asset_id == asset:
+            return storage_parts(shape,w,d,h,options)
     return {'raised-platform-v1':raised_platform_parts, 'mattress-v1':mattress_parts,
             'sofa-work-table-v1':sofa_work_table_parts, 'sofa-timber-v1':sofa_parts,'round-table-v1':round_table_parts,
             'chair-timber-v1':chair_parts,'range-hood-v1':hood_parts,

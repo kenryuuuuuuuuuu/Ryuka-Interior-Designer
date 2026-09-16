@@ -542,6 +542,7 @@ function buildFurnitureItems() {
       fields.push(`elevation:${num(item.elevation)}`);
     }
     if (item.note) fields.push(`note:${str(item.note)}`);
+    if (item.storage !== undefined) fields.push(`storage:${JSON.stringify(item.storage)}`);
     if (item.room) fields.push(`room:${str(item.room)}`);
     return withNote(`  { ${fields.join(", ")} },`, item.note);
   });

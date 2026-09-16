@@ -527,6 +527,12 @@
   <div class="fp-row">
     <label>底面の床上高さ<input type="number" id="fpElevation" step="0.05" min="0"></label>
   </div>
+  <div id="fpStorage" style="display:none">
+    <label id="fpRailsLabel">パイプ高さ（m・低い順にカンマ区切り）<input id="fpRails" type="text" placeholder="1.00, 1.95"></label>
+    <label id="fpShelvesLabel">棚板高さ（m・カンマ区切り）<input id="fpShelves" type="text"></label>
+    <label id="fpContentsLabel"><input id="fpContents" type="checkbox">収納物の見本を表示</label>
+    <div id="fpStorageError" role="alert" style="color:#a22;font-size:12px"></div>
+  </div>
   <div class="fp-row">
     <button id="fpReset">この家具をリセット</button>
   </div>
@@ -1791,6 +1797,8 @@ function fPart(group, w,h,d, x,y,z, mat, cylinder){
   return mesh;
 }
 const FMAT = {
+  storageWood:new THREE.MeshStandardMaterial({color:0xd1b38a,roughness:.65}),
+  storageFabric:new THREE.MeshStandardMaterial({color:0xc8c0b0,roughness:.9}),
   wood:      new THREE.MeshStandardMaterial({color:0xb98d5e, roughness:0.8}),
   fabricBlue:new THREE.MeshStandardMaterial({color:0x5c7d9e, roughness:0.9}),
   fabricTan: new THREE.MeshStandardMaterial({color:0xd8c39a, roughness:0.9}),
@@ -1800,7 +1808,97 @@ const FMAT = {
   dark:      new THREE.MeshStandardMaterial({color:0x3a3f45, roughness:0.5}),
   mirror:    new THREE.MeshStandardMaterial({color:0xaebfc9, roughness:0.2, metalness:0.3})
 };
+const STORAGE_SHAPES=['closetSingle','closetDouble','closetShelves','closetDrawers','closetMirror','storageBox'];
+function storageSettings(shape,w,d,h,options={}){
+  const limits={closetSingle:[[.6,1.5],[.5,.7],[1.8,2.35]],closetDouble:[[.6,1.5],[.5,.7],[1.8,2.35]],
+    closetShelves:[[.4,1.3],[.25,.6],[1.5,2.35]],closetDrawers:[[.4,1.3],[.25,.6],[.6,1.1]],
+    closetMirror:[[.25,.6],[.02,.06],[1,1.9]],storageBox:[[.2,.5],[.2,.5],[.15,.4]]};
+  if(!limits[shape] || [w,d,h].some((v,i)=>!Number.isFinite(v)||v<limits[shape][i][0]||v>limits[shape][i][1])) throw Error('収納家具の寸法が対応範囲外です');
+  if(!options || typeof options!=='object' || Array.isArray(options) || Object.keys(options).some(k=>!['railHeights','shelfHeights','contents'].includes(k))) throw Error('収納設定の項目が不正です');
+  const round=v=>Math.round(v*1000)/1000;
+  const rails=options.railHeights ?? (shape==='closetSingle'?[round(h-.35)]:shape==='closetDouble'?[round(h*.45),round(h-.25)]:[]);
+  const count=Math.min(6,Math.floor((h-.15)/.28)+1);
+  const shelves=options.shelfHeights ?? (shape==='closetShelves'?Array.from({length:count},(_,j)=>round(.10+j*(h-.15)/(count-1))):[]);
+  const contents=options.contents ?? true;
+  if(typeof contents!=='boolean') throw Error('収納物表示は真偽値で指定してください');
+  for(const [values,lo,hi,gap] of [[rails,.45,h-.12,.65],[shelves,.04,h-.025,.28]]){
+    if(!Array.isArray(values)||values.some(v=>!Number.isFinite(v)||v<lo||v>hi)) throw Error('パイプ・棚板の高さが範囲外です');
+    if(values.some((v,i)=>i>0 && v-values[i-1]<gap-1e-6)) throw Error('高さは低い順に、パイプ65cm・棚板28cm以上の間隔で指定してください');
+  }
+  const expected=shape==='closetSingle'?1:shape==='closetDouble'?2:0;
+  if(rails.length!==expected || (shape==='closetShelves'?(shelves.length<2||shelves.length>8):shelves.length>0)) throw Error('収納種類に合わないパイプ・棚板の数です');
+  return {railHeights:rails,shelfHeights:shelves,contents};
+}
+function storageParts(shape,w,d,h,options){
+  const cfg=storageSettings(shape,w,d,h,options),parts=[];
+  const box=(name,x0,x1,z0,z1,y0,y1,material='cabinet',kind='box')=>parts.push({name,bounds:[x0,x1,z0,z1,y0,y1],material,kind,bevel:Math.min(.003,(x1-x0)/4,(z1-z0)/4,(y1-y0)/4)});
+  function container(prefix,x,z,bottom,bw,bd,bh){
+    box(prefix+'-body',x-bw/2,x+bw/2,z-bd/2,z+bd/2,bottom,bottom+bh-.012,'fabric');
+    box(prefix+'-lid',x-bw/2,x+bw/2,z-bd/2,z+bd/2,bottom+bh-.012,bottom+bh,'cabinet');
+    box(prefix+'-label',x-bw*.18,x+bw*.18,z+bd/2,z+bd/2+.001,bottom+bh*.5,bottom+bh*.7,'metal');
+  }
+  if(shape==='storageBox'){container('box',0,-.001,0,w,d-.002,h);return parts;}
+  if(shape==='closetMirror'){
+    box('back',-w/2,w/2,-d/2,d/2-.008,0,h,'wood');
+    box('mirror',-w/2+.016,w/2-.016,d/2-.008,d/2,.016,h-.016,'mirror');return parts;
+  }
+  const t=.024;
+  box('left',-w/2,-w/2+t,-d/2,d/2,0,h);box('right',w/2-t,w/2,-d/2,d/2,0,h);
+  if(shape!=='closetSingle'&&shape!=='closetDouble') box('top',-w/2+t,w/2-t,-d/2,d/2,h-t,h,'wood');
+  box('back',-w/2+t,w/2-t,-d/2,-d/2+.012,0,h-t);
+  if(shape==='closetSingle'||shape==='closetDouble'){
+    box('upper-shelf',-w/2+t,w/2-t,-d/2,d/2,h-.1,h-.076,'wood');
+    cfg.railHeights.forEach((y,j)=>{
+      box(`pipe-${j}`,-w/2+t,w/2-t,-.014,.014,y-.014,y+.014,'metal','cylinderX');
+      if(cfg.contents){
+        const length=Math.min(shape==='closetSingle'?1.3:.72,y-.12);
+        for(let k=0;k<5;k++){
+          const x=-w*.32+k*w*.16;
+          box(`hanger-${j}-${k}`,x-.006,x+.006,-d*.38,d*.38,y-.06,y-.052,'metal');
+          box(`garment-${j}-${k}`,x-.018,x+.018,-d*.28,d*.28,y-.06-length,y-.09,'fabric');
+          box(`shoulder-${j}-${k}`,x-.018,x+.018,-d*.38,d*.38,y-.22,y-.09,'fabric');
+        }
+      }
+    });
+  }else if(shape==='closetShelves'){
+    box('divider',-.012,.012,-d/2,d/2,0,h-t);
+    cfg.shelfHeights.forEach((y,j)=>{
+      box(`shelf-${j}`,-w/2+t,w/2-t,-d/2,d/2,y,y+t,'wood');
+      if(cfg.contents && j<Math.min(4,cfg.shelfHeights.length-1)){
+        const bw=Math.min(.35,(w-3*t)/2-.025),bd=Math.min(.4,d-.04),bh=Math.min(.25,cfg.shelfHeights[j+1]-y-t-.015);
+        [-w/4,w/4].forEach((x,k)=>container(`box-${j}-${k}`,x,.002,y+t,bw,bd,bh));
+      }
+    });
+  }else if(shape==='closetDrawers'){
+    box('plinth',-w/2+t,w/2-t,-d/2+.025,d/2-.025,0,.06,'wood');
+    for(let j=0;j<3;j++){
+      const bottom=.07+j*(h-.10)/3,top=.07+(j+1)*(h-.10)/3-.008;
+      box(`drawer-${j}`,-w/2+t+.003,w/2-t-.003,-d/2+.02,d/2-.008,bottom,top);
+      box(`pull-${j}`,-w*.18,w*.18,d/2-.008,d/2,top-.024,top-.014,'metal');
+    }
+  }
+  return parts;
+}
+function drawStorage(group,shape,w,d,h,options){
+  const materials={wood:FMAT.storageWood,cabinet:FMAT.white,fabric:FMAT.storageFabric,metal:FMAT.metal,mirror:FMAT.mirror};
+  for(const spec of storageParts(shape,w,d,h,options)){
+    const [x0,x1,z0,z1,y0,y1]=spec.bounds;
+    let mesh;
+    if(spec.kind==='cylinderX'){
+      mesh=new THREE.Mesh(FURNITURE_CYL,materials[spec.material]);
+      mesh.scale.set(y1-y0,x1-x0,z1-z0);mesh.rotation.z=Math.PI/2;
+      mesh.position.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2);group.add(mesh);
+    }else mesh=fPart(group,x1-x0,y1-y0,z1-z0,(x0+x1)/2,y0,(z0+z1)/2,materials[spec.material]);
+    mesh.name=spec.name;
+  }
+}
 const FURNITURE_SHAPES = {
+  closetSingle(g,w,d,h,o){drawStorage(g,'closetSingle',w,d,h,o);},
+  closetDouble(g,w,d,h,o){drawStorage(g,'closetDouble',w,d,h,o);},
+  closetShelves(g,w,d,h,o){drawStorage(g,'closetShelves',w,d,h,o);},
+  closetDrawers(g,w,d,h,o){drawStorage(g,'closetDrawers',w,d,h,o);},
+  closetMirror(g,w,d,h,o){drawStorage(g,'closetMirror',w,d,h,o);},
+  storageBox(g,w,d,h,o){drawStorage(g,'storageBox',w,d,h,o);},
   raisedPlatform(group,w,d,h){
     fPart(group,w*.96,h*.9,d*.96,0,0,0,FMAT.wood);
     fPart(group,w,h*.1,d,0,h*.9,0,FMAT.wood);
@@ -1958,7 +2056,7 @@ function placeFurnitureItem(item){
   if(!shapeFn) return;
   const holder = new THREE.Group();
   holder.userData.furnitureId = item.id;
-  shapeFn(holder, item.width, item.depth, item.height);
+  shapeFn(holder, item.width, item.depth, item.height, item.storage);
   const baseY = (item.level===1 ? LEVELS.fl1 : LEVELS.fl2) + (ROOMS_APPROX[item.level].find(r=>r.id===item.room)?.floorOffsetM ?? 0);
   const [sx,sz] = toScene(item.x, item.z);
   holder.position.set(sx, baseY + (item.elevation ?? 0), sz);
@@ -1999,6 +2097,18 @@ function updateFurniturePanel(){
   document.getElementById('fpDepth').value = eff.depth;
   document.getElementById('fpHeight').value = eff.height;
   document.getElementById('fpElevation').value = eff.elevation ?? 0;
+  const shape=FURNITURE_CATALOG[eff.type].shape;
+  const isStorage=STORAGE_SHAPES.includes(shape);
+  document.getElementById('fpStorage').style.display=isStorage ? '' : 'none';
+  if(isStorage){
+    const cfg=storageSettings(shape,eff.width,eff.depth,eff.height,eff.storage);
+    document.getElementById('fpRailsLabel').style.display=cfg.railHeights.length ? '' : 'none';
+    document.getElementById('fpShelvesLabel').style.display=cfg.shelfHeights.length ? '' : 'none';
+    document.getElementById('fpRails').value=cfg.railHeights.join(', ');
+    document.getElementById('fpShelves').value=cfg.shelfHeights.join(', ');
+    document.getElementById('fpContents').checked=cfg.contents;
+    document.getElementById('fpContentsLabel').style.display=(cfg.railHeights.length||cfg.shelfHeights.length) ? '' : 'none';
+  }
   panel.style.display = 'block';
 }
 function updateFurnitureBar(){
@@ -2059,6 +2169,14 @@ function applySizeEdit(field, value){
   if(!selectedFurnitureId) return;
   const v = parseFloat(value);
   if(!Number.isFinite(v) || (field==='elevation' ? v<0 : v<=0) || (field!=='elevation' && round2(v)<=0)){ updateFurniturePanel(); return; }
+  const base=FURNITURE_ITEMS.find(f=>f.id===selectedFurnitureId);
+  const eff={...effectiveFurniture(base),[field]:round2(v)};
+  const shape=FURNITURE_CATALOG[eff.type].shape;
+  if(STORAGE_SHAPES.includes(shape)){
+    try{storageSettings(shape,eff.width,eff.depth,eff.height,eff.storage);}
+    catch(e){document.getElementById('fpStorageError').textContent=e.message;updateFurniturePanel();return;}
+    document.getElementById('fpStorageError').textContent='';
+  }
   furnitureEdits[selectedFurnitureId] = {...(furnitureEdits[selectedFurnitureId]||{}), [field]: round2(v)};
   saveFurnitureEdits();
   rebuildFurnitureItem(selectedFurnitureId);
@@ -2072,6 +2190,21 @@ function resetSelected(){
   rebuildFurnitureItem(selectedFurnitureId);
   setSelectedFurniture(selectedFurnitureId);
   updateFurnitureBar();
+}
+function applyStorageEdit(){
+  if(!selectedFurnitureId) return;
+  const base=FURNITURE_ITEMS.find(f=>f.id===selectedFurnitureId),eff=effectiveFurniture(base);
+  const shape=FURNITURE_CATALOG[eff.type].shape;
+  if(!STORAGE_SHAPES.includes(shape)) return;
+  const list=id=>document.getElementById(id).value.trim().split(/[,、\s]+/).filter(Boolean).map(Number);
+  const options={contents:document.getElementById('fpContents').checked};
+  if(shape==='closetSingle'||shape==='closetDouble') options.railHeights=list('fpRails');
+  if(shape==='closetShelves') options.shelfHeights=list('fpShelves');
+  try{storageSettings(shape,eff.width,eff.depth,eff.height,options);}
+  catch(e){document.getElementById('fpStorageError').textContent=e.message;return;}
+  document.getElementById('fpStorageError').textContent='';
+  furnitureEdits[base.id]={...(furnitureEdits[base.id]||{}),storage:options};
+  saveFurnitureEdits();rebuildFurnitureItem(base.id);setSelectedFurniture(base.id);updateFurnitureBar();
 }
 function addCatalogFurniture(type,roomId){
   const cat=FURNITURE_CATALOG[type];
@@ -2137,6 +2270,7 @@ function exportFurnitureJSON(){
     if(round2(eff.depth) !== round2(cat.depth)) out.depthOverride = round2(eff.depth);
     if(round2(eff.height) !== round2(cat.height)) out.heightOverride = round2(eff.height);
     if((eff.elevation ?? 0)!==0) out.elevation = eff.elevation;
+    if(eff.storage) out.storage = eff.storage;
     out.status = base.status;
     if(base.note) out.note = base.note;
     return out;
@@ -2161,6 +2295,7 @@ document.getElementById('fpWidth').onchange = e=> applySizeEdit('width', e.targe
 document.getElementById('fpDepth').onchange = e=> applySizeEdit('depth', e.target.value);
 document.getElementById('fpHeight').onchange = e=> applySizeEdit('height', e.target.value);
 document.getElementById('fpElevation').onchange = e=> applySizeEdit('elevation', e.target.value);
+for(const id of ['fpRails','fpShelves','fpContents']) document.getElementById(id).onchange=applyStorageEdit;
 document.getElementById('fbExport').onclick = ()=>{
   try { exportFurnitureJSON(); } catch(e){ alert(e.message); }
 };

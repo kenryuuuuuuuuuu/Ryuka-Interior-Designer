@@ -10,10 +10,13 @@ house.json 側の rooms/levels と整合しているかも確認する（部屋�
 
 import json
 import math
+import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'blender'))
+from storage_assets import settings as storage_settings, SHAPES as STORAGE_SHAPES
 CATALOG = ROOT / "data" / "furniture-catalog.json"
 FURNITURE = ROOT / "data" / "furniture.json"
 HOUSE = ROOT / "data" / "house.json"
@@ -61,6 +64,14 @@ def validate(catalog, furniture, house):
         elevation = item.get('elevation', 0)
         assert type(elevation) in (int, float) and math.isfinite(elevation) and elevation >= 0, f"{item['id']}: invalid elevation"
         assert item["type"] in by_type, f"{item['id']}: 未知のtype「{item['type']}」（furniture-catalog.jsonに存在しない）"
+        profile = by_type[item['type']]
+        if profile['shape'] in STORAGE_SHAPES:
+            try:
+                storage_settings(profile['shape'], *[item.get(k+'Override',profile[k]) for k in ('width','depth','height')], item.get('storage'))
+            except ValueError as error:
+                raise AssertionError(f"{item['id']}: {error}") from error
+        else:
+            assert 'storage' not in item, f"{item['id']}: この種類では収納設定を使えません"
         assert item["rotation"] in VALID_ROTATION, f"{item['id']}: rotationは0/90/180/270のいずれか"
         assert item["status"] in VALID_STATUS, f"{item['id']}: 不正なstatus"
         assert item["level"] in valid_levels, f"{item['id']}: 存在しないlevel {item['level']}"

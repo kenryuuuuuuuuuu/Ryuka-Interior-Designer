@@ -384,6 +384,78 @@
       "clearance": 0,
       "status": "estimated",
       "note": "簡単なテレワーク用の仮寸法。片側支柱で足元を空けたコの字型。支柱はローカル-z側。昇降機構は再現せず、高さ編集で検討する。 製品未選定。寸法・材質は推定で、耐荷重等の保証ではない。"
+    },
+    {
+      "type": "closet-single",
+      "label": "クローク・長物ハンガー収納",
+      "category": "fixture",
+      "shape": "closetSingle",
+      "width": 1,
+      "depth": 0.6,
+      "height": 2.2,
+      "clearance": 0.8,
+      "rotationConvention": "source",
+      "note": "2026-09-16：ファミリークローク案。寸法・材質・金物は製品未選定の推定。収納物は任意の見本表示で収納本体に追従。耐荷重・固定方法は施工仕様決定時に確認。"
+    },
+    {
+      "type": "closet-double",
+      "label": "クローク・2段ハンガー収納",
+      "category": "fixture",
+      "shape": "closetDouble",
+      "width": 1,
+      "depth": 0.6,
+      "height": 2.2,
+      "clearance": 0.8,
+      "rotationConvention": "source",
+      "note": "2026-09-16：ファミリークローク案。寸法・材質・金物は製品未選定の推定。収納物は任意の見本表示で収納本体に追従。耐荷重・固定方法は施工仕様決定時に確認。"
+    },
+    {
+      "type": "closet-box-shelf",
+      "label": "クローク・ボックス可動棚",
+      "category": "fixture",
+      "shape": "closetShelves",
+      "width": 1.1,
+      "depth": 0.45,
+      "height": 2.2,
+      "clearance": 0.8,
+      "rotationConvention": "source",
+      "note": "2026-09-16：ファミリークローク案。寸法・材質・金物は製品未選定の推定。収納物は任意の見本表示で収納本体に追従。耐荷重・固定方法は施工仕様決定時に確認。"
+    },
+    {
+      "type": "closet-drawers",
+      "label": "クローク・浅型引き出し",
+      "category": "furniture",
+      "shape": "closetDrawers",
+      "width": 0.6,
+      "depth": 0.3,
+      "height": 0.85,
+      "clearance": 0.8,
+      "rotationConvention": "source",
+      "note": "2026-09-16：ファミリークローク案。寸法・材質・金物は製品未選定の推定。収納物は任意の見本表示で収納本体に追従。耐荷重・固定方法は施工仕様決定時に確認。"
+    },
+    {
+      "type": "closet-mirror",
+      "label": "クローク・薄型壁掛け姿見",
+      "category": "fixture",
+      "shape": "closetMirror",
+      "width": 0.38,
+      "depth": 0.03,
+      "height": 1.6,
+      "clearance": 0,
+      "rotationConvention": "source",
+      "note": "2026-09-16：ファミリークローク案。寸法・材質・金物は製品未選定の推定。収納物は任意の見本表示で収納本体に追従。耐荷重・固定方法は施工仕様決定時に確認。"
+    },
+    {
+      "type": "storage-box",
+      "label": "収納・蓋付きボックス",
+      "category": "furniture",
+      "shape": "storageBox",
+      "width": 0.35,
+      "depth": 0.4,
+      "height": 0.25,
+      "clearance": 0.8,
+      "rotationConvention": "source",
+      "note": "2026-09-16：ファミリークローク案。寸法・材質・金物は製品未選定の推定。収納物は任意の見本表示で収納本体に追従。耐荷重・固定方法は施工仕様決定時に確認。"
     }
   ]
 }

@@ -158,3 +158,40 @@ assert.equal(run('deleteSelectedFurniture()'),true);
 run('exportFurnitureJSON()');
 assert.equal(downloaded.items.some(item=>item.id===addedId),false);
 console.log('Deletion: source and added furniture, export, collision, persistence and restore passed.');
+
+// New closet types must also work when added later, without per-ID asset bindings.
+for(const type of ['closet-single','closet-double','closet-box-shelf','closet-drawers','closet-mirror','storage-box']){
+  const cat=catalog.types.find(t=>t.type===type);
+  for(const rotation of [0,90,180,270]){
+    const actual=run(`(()=>{const g=new THREE.Group();FURNITURE_SHAPES[${JSON.stringify(cat.shape)}](g,${cat.width},${cat.depth},${cat.height});
+      g.rotation.y=${rotation}*Math.PI/180;g.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(g);return [b.getSize(new THREE.Vector3()).x,b.getSize(new THREE.Vector3()).y,b.getSize(new THREE.Vector3()).z];})()`);
+    const expected=[rotation%180?cat.depth:cat.width,cat.height,rotation%180?cat.width:cat.depth];
+    actual.forEach((v,i)=>assert.ok(Math.abs(v-expected[i])<.004,`${type} ${rotation}: ${actual}`));
+  }
+}
+run(`setSelectedFurniture('fur-cloak-03');`);
+nodes.get('fpRails').value='0.9, 1.8';nodes.get('fpContents').checked=false;
+run('applyStorageEdit();exportFurnitureJSON()');
+assert.deepEqual(downloaded.items.find(i=>i.id==='fur-cloak-03').storage,{railHeights:[.9,1.8],contents:false});
+nodes.get('fpRails').value='1.8, 0.9';run('applyStorageEdit();exportFurnitureJSON()');
+assert.deepEqual(downloaded.items.find(i=>i.id==='fur-cloak-03').storage.railHeights,[.9,1.8]);
+assert.ok(nodes.get('fpStorageError').textContent);
+run('resetSelected();exportFurnitureJSON()');
+assert.deepEqual(downloaded.items.find(i=>i.id==='fur-cloak-03').storage.railHeights,[.85,1.65]);
+
+// Compare actual part recipes from both renderers (including edited rail/shelf heights).
+const {spawnSync}=await import('node:child_process');
+const cases=catalog.types.filter(t=>run('STORAGE_SHAPES').includes(t.shape)).map(t=>[t.shape,t.width,t.depth,t.height,{}]);
+cases.push(['closetDouble',1,.6,2.2,{railHeights:[.9,1.8],contents:false}],['closetShelves',1.1,.45,2.2,{shelfHeights:[.1,.49,.88,1.27,1.66,2.05],contents:true}]);
+const py=spawnSync('python',['-c',`import sys,json;sys.path.insert(0,'blender');from storage_assets import storage_parts;print(json.dumps([storage_parts(*a) for a in json.load(sys.stdin)]))`],{cwd:new URL('..',import.meta.url),input:JSON.stringify(cases),encoding:'utf8'});
+assert.equal(py.status,0,py.stderr);
+const pythonParts=JSON.parse(py.stdout);
+cases.forEach((args,i)=>{
+  const actual=run(`storageParts(...${JSON.stringify(args)})`);
+  assert.equal(actual.length,pythonParts[i].length);
+  actual.forEach((part,j)=>{
+    assert.equal(part.name,pythonParts[i][j].name);assert.equal(part.kind,pythonParts[i][j].kind);
+    part.bounds.forEach((v,k)=>assert.ok(Math.abs(v-pythonParts[i][j].bounds[k])<1e-9));
+  });
+});
+console.log('Closet: six types/four rotations, configuration edit/export/reset/rejection, JS-Python part parity passed.');

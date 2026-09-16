@@ -23,7 +23,7 @@ from surface_bindings import partition_room_faces, split_wall_at, wall_cap_for_r
 from electrical_assets import build_lighting_bindings, merged_item, create_fixture_mesh, ceiling_height_at
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
 from finish_settings import details_for_variant
-from furniture_assets import validate_bindings, asset_parts
+from furniture_assets import validate_bindings, asset_parts, STORAGE_ASSETS
 from guest_decor import build as build_decor
 from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
@@ -668,6 +668,12 @@ def build_furniture(data,room_ids,mats_by_room):
                 "do not actually fall inside that room's current polygon/level.")
         items.append(i)
     role_bindings={}
+    storage_materials={}
+    if any(catalog[i['type']]['shape'] in STORAGE_ASSETS for i in items):
+        # Fixed joinery finishes, independent of the room's wall/floor variant.
+        storage_materials=dict(wood=material('CloakOak','d1b38a',.65,texture='wood'),
+            cabinet=material('CloakWhite','f2efe9',.6),fabric=material('CloakLinen','c8c0b0',.9),
+            metal=material('CloakMetal','9aa2a8',.32,.75),mirror=material('StorageMirror','d8dfe3',.035,1.0))
     for item in items:
         # W07-G1 review R5: each item's OWN room's materials set -- every
         # `mats[...]` reference below now resolves against that room's
@@ -685,17 +691,23 @@ def build_furniture(data,room_ids,mats_by_room):
             return obj
         shape=profile['shape']
         binding=bindings.get(item['id'])
-        native_asset={'raisedPlatform':'raised-platform-v1','mattress':'mattress-v1',
+        native_asset={**STORAGE_ASSETS,'raisedPlatform':'raised-platform-v1','mattress':'mattress-v1',
                       'sofaWorkTable':'sofa-work-table-v1','roundTable':'round-table-v1','timberChair':'chair-timber-v1',
                       'rangeHood':'range-hood-v1','faucet':'faucet-v1','airConditioner':'air-conditioner-v1'}.get(shape)
         if binding or native_asset:
             binding=binding or dict(furnitureId=item['id'],assetId=native_asset,sizing='parametric',
                                     status='estimated',note='Default renderer for catalog shape; no explicit override.')
-            for spec in asset_parts(binding['assetId'],w,d,h):
+            if shape in STORAGE_ASSETS:
+                mats=dict(mats,**storage_materials)
+            for spec in asset_parts(binding['assetId'],w,d,h,item.get('storage')):
                 kind=spec.get('kind','box')
                 if kind!='box':
                     x0,x1,z0,z1,y0,y1=spec['bounds']
-                    if kind=='disc':
+                    if kind=='cylinderX':
+                        cy,cz=(y0+y1)/2,(z0+z1)/2
+                        ring=[(x0,-(cz+(z1-z0)/2*math.cos(j*2*math.pi/32)),cy+(y1-y0)/2*math.sin(j*2*math.pi/32)) for j in range(32)]
+                        obj=prism(f"furniture.{item['id']}.{spec['name']}",ring,(x1-x0,0,0),mats[spec['material']],item)
+                    elif kind=='disc':
                         # W07-G3 review R3: a circle standing in the VERTICAL
                         # x/height plane, thin along depth -- for a front-load
                         # washer door the round opening actually reads as
