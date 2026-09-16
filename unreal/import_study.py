@@ -103,6 +103,16 @@ def main():
                 comp.set_material(index,glass)
         if label.endswith('_glass'):
             comp.set_cast_shadow(False)
+        # 2026-09-16追加：照明器具の簡易プレースホルダー（blender/electrical_assets.py
+        # のcreate_fixture_mesh()が作る"lighting.<id>.shade"/".rod"、幅30cm前後の
+        # 不透明な箱）は、その真下（ダウンライト）または真下中心（シーリングライトは
+        # 全方位に光るPointLight）にちょうど接する位置に光源を置いている。影を落と
+        # したままだと、特にPointLight系の器具は自分の箱で光の大半を自己遮蔽してしま
+        # い、施主報告の「四角いブロックが光を遮っている」という見え方になる。実物の
+        # 器具（電球が本体から突き出る）と違いこの箱は光源と密着しているため、影を
+        # 落とさないことが妥当な近似（ガラス・階段当たり判定用メッシュと同じ扱い）。
+        if label.startswith('lighting_') and (label.endswith('_shade') or label.endswith('_rod')):
+            comp.set_cast_shadow(False)
 
     # W04: rebuild surface-bindings.json using the ACTUAL imported actor
     # labels (Blender's own dotted mesh names get sanitized on import, same
@@ -251,8 +261,15 @@ def main():
             light_actor.light_component.set_editor_property('use_temperature',True)
             light_actor.light_component.set_editor_property('temperature',fixture['temperatureK'])
             if fixture['source']=='spot':
-                light_actor.light_component.set_editor_property('inner_cone_angle',fixture['spotAngleDeg']/2)
-                light_actor.light_component.set_editor_property('outer_cone_angle',fixture['spotAngleDeg']/2)
+                # 2026-09-16修正：inner/outerを同じ角度にしていたため、フル輝度の範囲
+                # とゼロになる範囲の境界が完全に一致し、なだらかな減衰（ペナンブラ）
+                # が一切無い硬い光になっていた（施主報告：ダウンライトが暗く・光源が
+                # そこから出ていないように見える、の一因）。outerを型のspotAngleDeg
+                # （全開き角）の半分＝実際の光が届く境界とし、innerはその6割にして、
+                # 中心から縁にかけて自然に暗くなる帯を持たせる。
+                outer=fixture['spotAngleDeg']/2
+                light_actor.light_component.set_editor_property('inner_cone_angle',outer*0.6)
+                light_actor.light_component.set_editor_property('outer_cone_angle',outer)
         lighting_report=dict(sha256=hashlib.sha256(lighting_path.read_bytes()).hexdigest(),
             fixtureIds=[f['id'] for f in lighting_bindings['fixtures']])
     device_report=None
