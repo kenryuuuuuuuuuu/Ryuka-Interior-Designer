@@ -71,6 +71,12 @@ private:
  // project (no lighting-bindings.json there), in which case ApplyConditions()
  // below just finds no fixtures to apply -- not an error.
  TSharedPtr<class FJsonObject> LightingBindings;
+ // 2026-09-16: data/visual/lighting-settings.json as copied into the project.
+ // Only `nightExposureEV100` is read here (ApplyConditions(): fixed exposure
+ // for night mode instead of the state's daytime exposureEV100 -- see
+ // unreal/lighting.py night_exposure_ev100(), the editor-side twin). Absent
+ // (pre-2026-09-16 project) means night keeps using the day value as before.
+ TSharedPtr<class FJsonObject> LightingSettings;
  TSharedPtr<class FJsonObject> TimePresets;
  FVector LastSafeLocation=FVector::ZeroVector;
  mutable FString LastLeafMotionBlocker;  // W07-G2: diagnostic -- label of whatever last limited/blocked a leaf's motion

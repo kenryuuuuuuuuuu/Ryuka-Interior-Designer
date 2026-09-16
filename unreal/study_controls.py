@@ -11,7 +11,7 @@ from solar_position import (apply_case, matches, validate_cases, validate_site,
     cases_match_site, case_matches_site, make_case, season_reference_timestamps, site_sha256)
 from material_builder import rgb
 from surface_finish_overrides import resolve_finish, resolve_overrides
-from lighting import validate_lighting_bindings, resolve_fixture_overrides, effective_fixture
+from lighting import validate_lighting_bindings, resolve_fixture_overrides, effective_fixture, night_exposure_ev100
 import multi_room_state as mrs
 import circulation
 
@@ -104,6 +104,13 @@ def scene():
 def surface_bindings():
     path=project()/'surface-bindings.json'
     return read('surface-bindings.json') if path.exists() else dict(schemaVersion='1.0.0',surfaces={})
+
+
+def lighting_settings():
+    """data/visual/lighting-settings.json as copied into this project by
+    scripts/build-unreal-study.py, or None for a pre-W06 project."""
+    path=project()/'lighting-settings.json'
+    return read('lighting-settings.json') if path.exists() else None
 
 
 def lighting_bindings():
@@ -289,8 +296,12 @@ def apply_state(state):
         sun.modify(); sun.light_component.modify()
         sun.set_actor_rotation(unreal.MathLibrary.find_look_at_rotation(unreal.Vector(),direction),False)
         post.modify(); pp=post.get_editor_property('settings')
+        # 2026-09-16: night renders with lighting-settings.json's nightExposureEV100
+        # (see lighting.night_exposure_ev100()); the state's own exposureEV100
+        # stays the daytime value and is restored the moment mode returns to day.
+        applied_ev=night_exposure_ev100(lighting_settings(),state['exposureEV100']) if state['lighting']['mode']=='night' else state['exposureEV100']
         for key in ('auto_exposure_min_brightness','auto_exposure_max_brightness'):
-            pp.set_editor_property('override_'+key,True); pp.set_editor_property(key,state['exposureEV100'])
+            pp.set_editor_property('override_'+key,True); pp.set_editor_property(key,applied_ev)
         post.set_editor_property('settings',pp)
         if state['camera']:
             c=state['camera']; camera.modify(); camera.get_cine_camera_component().modify()
@@ -328,7 +339,7 @@ def apply_state(state):
     mode=state['solar']['localTimestamp'] if state.get('solar') else '手動角度'
     active_variant=room_variant(state['activeRoomId'])
     unreal.log(f"内装比較: 対象室 {state['activeRoomId']}（{active_variant}） / 太陽高度 {state['elevationDeg']}° / "
-        f"EV100 {state['exposureEV100']}（{mode}・照度未校正）")
+        f"EV100 {applied_ev}（{mode}・{'夜間固定露出' if state['lighting']['mode']=='night' else '昼間'}・照度未校正）")
 
 
 def set_variant(name):
@@ -607,7 +618,10 @@ def scene_state(base):
     pp=actors['Fixed_exposure'].get_editor_property('settings')
     low=pp.get_editor_property('auto_exposure_min_brightness'); high=pp.get_editor_property('auto_exposure_max_brightness')
     if abs(low-high)>1e-6: raise RuntimeError('Use a fixed exposure before saving comparison conditions.')
-    state['exposureEV100']=low
+    # 2026-09-16: while night is active the volume holds the night EV (see
+    # apply_state()); keep the state's DAYTIME exposureEV100 instead of reading
+    # that back -- same treatment as sunLux above.
+    state['exposureEV100']=base['exposureEV100'] if is_night else low
     camera=actors['Camera_guest_LDK']; rotation=camera.get_actor_rotation()
     state['camera']=dict(locationCm=list(camera.get_actor_location().to_tuple()),rotationDeg=[rotation.pitch,rotation.yaw,rotation.roll],
         lensMm=camera.get_cine_camera_component().get_editor_property('current_focal_length'))

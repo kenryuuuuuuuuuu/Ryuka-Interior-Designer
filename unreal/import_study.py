@@ -265,10 +265,12 @@ def main():
                 # とゼロになる範囲の境界が完全に一致し、なだらかな減衰（ペナンブラ）
                 # が一切無い硬い光になっていた（施主報告：ダウンライトが暗く・光源が
                 # そこから出ていないように見える、の一因）。outerを型のspotAngleDeg
-                # （全開き角）の半分＝実際の光が届く境界とし、innerはその6割にして、
-                # 中心から縁にかけて自然に暗くなる帯を持たせる。
+                # （全開き角、拡散タイプは120°）の半分＝実際の光が届く境界とし、inner
+                # はその半分にして、公称配光角の外へ緩やかに漏れる実物の配光（ビーム角
+                # は50%輝度で定義され、その外にも光が続く）に近づける。UEはlumens指定
+                # の全光束をこの円錐内に配分するため、角度を広げても総光量は変わらない。
                 outer=fixture['spotAngleDeg']/2
-                light_actor.light_component.set_editor_property('inner_cone_angle',outer*0.6)
+                light_actor.light_component.set_editor_property('inner_cone_angle',outer*0.5)
                 light_actor.light_component.set_editor_property('outer_cone_angle',outer)
         lighting_report=dict(sha256=hashlib.sha256(lighting_path.read_bytes()).hexdigest(),
             fixtureIds=[f['id'] for f in lighting_bindings['fixtures']])

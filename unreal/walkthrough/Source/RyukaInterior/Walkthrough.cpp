@@ -535,6 +535,7 @@ void AWalkthroughCharacter::BeginPlay() {
  SurfaceBindings=ReadJSON(TEXT("surface-bindings.json"));
  FinishDocument=ReadJSON(TEXT("finish-settings.json"));
  LightingBindings=ReadJSON(TEXT("lighting-bindings.json"));
+ LightingSettings=ReadJSON(TEXT("lighting-settings.json"));
  TimePresets=ReadJSON(TEXT("walkthrough-time-presets.json"));
  if(auto Study=ReadJSON(TEXT("SourcePackage/study.json"))) {
   const TSharedPtr<FJsonObject>* SettingsObj;
@@ -1001,7 +1002,17 @@ bool AWalkthroughCharacter::ApplyConditions() {
   Item.Actor->GetLightComponent()->SetIntensity(Item.Intensity);
   Item.Actor->GetLightComponent()->SetTemperature(Item.Temperature);
  }
- Post->Settings.AutoExposureMinBrightness=EV; Post->Settings.AutoExposureMaxBrightness=EV;
+ // 2026-09-16: night renders with lighting-settings.json's nightExposureEV100
+ // (owner report: night interiors looked far darker than reality because the
+ // state's DAYTIME exposureEV100 -- default 7.5, ~200-250 lx to middle grey --
+ // was reused at night). The state itself is not rewritten; SaveView() keeps
+ // the day value and day mode restores it. Mirrors study_controls.apply_state().
+ double AppliedEV=EV;
+ if(bNight&&LightingSettings.IsValid()) {
+  double NightEV;
+  if(LightingSettings->TryGetNumberField(TEXT("nightExposureEV100"),NightEV)&&FMath::IsFinite(NightEV)&&NightEV>=-5&&NightEV<=20) AppliedEV=NightEV;
+ }
+ Post->Settings.AutoExposureMinBrightness=AppliedEV; Post->Settings.AutoExposureMaxBrightness=AppliedEV;
  return true;
 }
 void AWalkthroughCharacter::SetFinish(const FString& Name,const FString& Label) {

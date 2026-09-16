@@ -1,31 +1,45 @@
 {
   "schemaVersion": "1.0.0",
   "note": "W06: data/electrical-catalog.jsonの照明type（category:lighting）ごとの光学プロファイル（推定値）と、比較用グループ。実測配光・光束・IES・実採用品番の確認前のため、全プロファイルstatus:estimated。位置・寸法はdata/electrical.json側の正本のまま複製しない。座標系は正本と同じx東/y上/z南（m）。directionLocalは器具のローカル+Z軸を基準にした発光方向（天井付けは常に鉛直下向き＝y成分-1の[0,-1,0]固定＝勾配天井の傾きでは変えない。壁付けは器具の正面＝取付け面から外向き（水平、z成分+1の[0,0,1]）、blender/electrical_assets.pyのresolve_mount()が実際の設置方位へ回転させたうえで解決済みベクトルをlighting-bindings.jsonへ書き出す）。W06-v1レビューR2で修正：天井付けの当初値[0,0,-1]はz成分（南向き水平）であり下向きではなかった。",
+  "nightExposureEV100": 5.5,
+  "nightExposureNote": "夜間モード（lighting.mode=night）で固定露出に使うEV100。昼間は保存状態のexposureEV100（既定7.5、約200〜250 lxを中間グレーとして写す値）を使うが、夜間の室内（100〜300 lx程度）を同じ値で写すと実際の見え方より暗くなるため、夜間はこの値へ切り替える（2026-09-16、施主指摘）。5.5は約60 lxを中間グレーとして写す値で、人の目が室内に順応した見え方の近似。study_controls.apply_state()とWalkthrough.cppのApplyConditions()が同じ値を使い、保存状態のexposureEV100は昼間用として変更しない（scene_state()は夜間中に露出を読み戻さない）。省略時は昼間の値をそのまま使う。",
   "profiles": {
     "light-downlight": {
       "source": "spot",
-      "lumens": 650,
+      "lumens": 1500,
       "temperatureK": 2700,
-      "spotAngleDeg": 90,
-      "directionLocal": [0, -1, 0],
+      "spotAngleDeg": 120,
+      "directionLocal": [
+        0,
+        -1,
+        0
+      ],
       "status": "estimated",
-      "note": "一般的なLEDダウンライト(6W相当)の概算光束。実採用品番未確認。"
+      "note": "LEDダウンライト100形（100W相当、約1,500 lm）の概算光束。2026-09-16に施主指示で60形(650 lm)から変更。spotAngleDeg=120は拡散タイプの公称配光角（UE側はこの半分60°を光が届く外側角、その半分30°をフル輝度の内側角として使う）。実採用品番未確認。"
     },
     "light-downlight-sensor": {
       "source": "spot",
-      "lumens": 650,
+      "lumens": 1500,
       "temperatureK": 2700,
-      "spotAngleDeg": 90,
-      "directionLocal": [0, -1, 0],
+      "spotAngleDeg": 120,
+      "directionLocal": [
+        0,
+        -1,
+        0
+      ],
       "status": "estimated",
-      "note": "人感センサー一体型ダウンライト。光学特性はlight-downlightと同一（センサーは点灯要否の判定のみで発光自体には影響しない）。実採用品番未確認。"
+      "note": "人感センサー一体型ダウンライト。光学特性はlight-downlight（100形・拡散120°）と同一（センサーは点灯要否の判定のみで発光自体には影響しない）。実採用品番未確認。"
     },
     "light-ceiling": {
       "source": "point",
       "lumens": 3800,
       "temperatureK": 3000,
       "spotAngleDeg": null,
-      "directionLocal": [0, -1, 0],
+      "directionLocal": [
+        0,
+        -1,
+        0
+      ],
       "status": "estimated",
       "note": "6-8畳向けLEDシーリングライトの概算光束（調光器一体型を想定）。実採用品番未確認。"
     },
@@ -34,7 +48,11 @@
       "lumens": 400,
       "temperatureK": 2700,
       "spotAngleDeg": null,
-      "directionLocal": [0, 0, 1],
+      "directionLocal": [
+        0,
+        0,
+        1
+      ],
       "status": "estimated",
       "note": "廊下・階段等の補助照明を想定した概算光束。現時点でdata/electrical.jsonに配置インスタンスなし（型・検証経路のみ用意）。"
     },
@@ -43,7 +61,11 @@
       "lumens": 800,
       "temperatureK": 2700,
       "spotAngleDeg": null,
-      "directionLocal": [0, -1, 0],
+      "directionLocal": [
+        0,
+        -1,
+        0
+      ],
       "status": "estimated",
       "note": "ダイニングテーブル上等を想定したペンダント1灯あたりの概算光束。実採用品番未確認。"
     }
@@ -56,17 +78,24 @@
     {
       "id": "guest-ldk-main",
       "label": "ゲストLDK：主照明（シーリング＋ダウンライト）",
-      "fixtureIds": ["elec-008", "elec-200"]
+      "fixtureIds": [
+        "elec-008",
+        "elec-200"
+      ]
     },
     {
       "id": "guest-ldk-dining",
       "label": "ゲストLDK：ダイニング（ペンダント）",
-      "fixtureIds": ["elec-201"]
+      "fixtureIds": [
+        "elec-201"
+      ]
     },
     {
       "id": "guest-western-main",
       "label": "洋室：主照明（シーリング）",
-      "fixtureIds": ["elec-006"]
+      "fixtureIds": [
+        "elec-006"
+      ]
     }
   ]
 }

@@ -55,6 +55,10 @@ def validate_lighting_settings(document):
             raise ValueError(f'{type_name}: invalid status')
         if not isinstance(profile.get('note'), str) or not profile['note'].strip():
             raise ValueError(f'{type_name}: requires a provenance note')
+    # 2026-09-16: optional fixed exposure for night mode (see night_exposure_ev100()).
+    # Same range as a state's exposureEV100 (study_state.py / multi_room_state.py).
+    if 'nightExposureEV100' in document and not _number(document['nightExposureEV100'], -5, 20):
+        raise ValueError('nightExposureEV100 must be a number in [-5, 20]')
     groups = document.get('groups')
     if not isinstance(groups, list) or not groups:
         raise ValueError('lighting-settings.json requires at least one group')
@@ -115,6 +119,22 @@ def validate_lighting_bindings(document):
         if not _number(fixture.get('temperatureK'), 1800, 10000):
             raise ValueError(f'{fid}: invalid temperatureK')
     return document
+
+
+def night_exposure_ev100(settings, day_ev100):
+    """The fixed EV100 to render a night-mode state with. 2026-09-16 (owner
+    report: night interiors looked far darker than reality): a state's
+    exposureEV100 is the DAYTIME value (default 7.5, which maps roughly
+    200-250 lx to middle grey); reusing it at night makes a 100-300 lx
+    artificially-lit room render dim. lighting-settings.json may carry
+    `nightExposureEV100` (5.5 by default, ~60 lx to middle grey -- an
+    approximation of eyes adapted to the room); absent, the day value is
+    used unchanged, so a pre-2026-09-16 settings file behaves exactly as
+    before. The STATE's exposureEV100 is never rewritten with this value
+    (scene_state() keeps the day value while night is active)."""
+    if settings and _number(settings.get('nightExposureEV100'), -5, 20):
+        return settings['nightExposureEV100']
+    return day_ev100
 
 
 def resolve_fixture_overrides(fixtures, bindings, room_id=None):

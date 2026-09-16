@@ -8,7 +8,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'unreal'))
 from lighting import (validate_lighting_settings, validate_lighting_bindings,
-    resolve_fixture_overrides, effective_fixture, kelvin_to_rgb)
+    resolve_fixture_overrides, effective_fixture, kelvin_to_rgb, night_exposure_ev100)
 
 SETTINGS=json.loads((ROOT/'data/visual/lighting-settings.json').read_text(encoding='utf-8'))
 
@@ -38,6 +38,21 @@ class LightingSettingsTests(unittest.TestCase):
     def test_point_profile_rejects_spot_angle(self):
         doc=json.loads(json.dumps(SETTINGS))
         doc['profiles']['light-ceiling']['spotAngleDeg']=45
+        with self.assertRaises(ValueError): validate_lighting_settings(doc)
+
+    def test_night_exposure(self):
+        # 2026-09-16: night renders with a fixed nightExposureEV100 from the
+        # settings; absent/invalid falls back to the state's day value, and
+        # the checked-in file must carry a valid one.
+        self.assertEqual(night_exposure_ev100(SETTINGS,7.5),SETTINGS['nightExposureEV100'])
+        self.assertNotEqual(night_exposure_ev100(SETTINGS,7.5),7.5)
+        doc=json.loads(json.dumps(SETTINGS)); del doc['nightExposureEV100']
+        validate_lighting_settings(doc)  # optional
+        self.assertEqual(night_exposure_ev100(doc,7.5),7.5)
+        self.assertEqual(night_exposure_ev100(None,7.5),7.5)
+        doc['nightExposureEV100']=99
+        with self.assertRaises(ValueError): validate_lighting_settings(doc)
+        doc['nightExposureEV100']='dark'
         with self.assertRaises(ValueError): validate_lighting_settings(doc)
 
     def test_rejects_duplicate_or_empty_group(self):
