@@ -23,7 +23,7 @@ from surface_bindings import partition_room_faces, split_wall_at, wall_cap_for_r
 from electrical_assets import build_lighting_bindings, merged_item, create_fixture_mesh, ceiling_height_at
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'unreal'))
 from finish_settings import details_for_variant
-from furniture_assets import validate_bindings, asset_parts, STORAGE_ASSETS, LAUNDRY_ASSETS
+from furniture_assets import validate_bindings, asset_parts, STORAGE_ASSETS, LAUNDRY_ASSETS, ENTRY_ASSETS
 from guest_decor import build as build_decor
 from wall_geometry import opening_plane
 from interior_geometry import ceiling_y, point_in_room, wall_polygons
@@ -669,7 +669,7 @@ def build_furniture(data,room_ids,mats_by_room):
         items.append(i)
     role_bindings={}
     storage_materials={}
-    if any(catalog[i['type']]['shape'] in STORAGE_ASSETS or catalog[i['type']]['shape'] in LAUNDRY_ASSETS for i in items):
+    if any(catalog[i['type']]['shape'] in STORAGE_ASSETS or catalog[i['type']]['shape'] in LAUNDRY_ASSETS or catalog[i['type']]['shape'] in ENTRY_ASSETS for i in items):
         # Fixed joinery finishes, independent of the room's wall/floor variant.
         storage_materials=dict(wood=material('CloakOak','d1b38a',.65,texture='wood'),
             cabinet=material('CloakWhite','f2efe9',.6),fabric=material('CloakLinen','c8c0b0',.9),
@@ -691,13 +691,13 @@ def build_furniture(data,room_ids,mats_by_room):
             return obj
         shape=profile['shape']
         binding=bindings.get(item['id'])
-        native_asset={**STORAGE_ASSETS,**LAUNDRY_ASSETS,'raisedPlatform':'raised-platform-v1','mattress':'mattress-v1',
+        native_asset={**STORAGE_ASSETS,**LAUNDRY_ASSETS,**ENTRY_ASSETS,'raisedPlatform':'raised-platform-v1','mattress':'mattress-v1',
                       'sofaWorkTable':'sofa-work-table-v1','roundTable':'round-table-v1','timberChair':'chair-timber-v1',
                       'rangeHood':'range-hood-v1','faucet':'faucet-v1','airConditioner':'air-conditioner-v1'}.get(shape)
         if binding or native_asset:
             binding=binding or dict(furnitureId=item['id'],assetId=native_asset,sizing='parametric',
                                     status='estimated',note='Default renderer for catalog shape; no explicit override.')
-            if shape in STORAGE_ASSETS or shape in LAUNDRY_ASSETS:
+            if shape in STORAGE_ASSETS or shape in LAUNDRY_ASSETS or shape in ENTRY_ASSETS:
                 mats=dict(mats,**storage_materials)
             for spec in asset_parts(binding['assetId'],w,d,h,item.get('storage')):
                 kind=spec.get('kind','box')

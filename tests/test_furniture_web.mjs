@@ -215,3 +215,41 @@ laundryCases.forEach((args,i)=>{
 assert.throws(()=>run(`laundryParts('laundryCounter',3,.55,.85)`),/対応範囲外/);
 assert.throws(()=>run(`laundryParts('laundryRack',1.2,.35,.5)`),/対応範囲外/);
 console.log('Laundry fittings: catalog dimensions render and match the Blender part recipe; out-of-range rejected.');
+
+// 2026-09-17 玄関・土間の造作（ウォールハンガー・壁付け板棚の靴棚）も同じ方式で検証する。
+const entryCases=catalog.types.filter(t=>run('ENTRY_SHAPES').includes(t.shape)).map(t=>[t.shape,t.width,t.depth,t.height]);
+assert.equal(entryCases.length,2,'catalog should carry the wall hook rail and the wall plank shelf');
+const pyEntry=spawnSync('python',['-c',`import sys,json;sys.path.insert(0,'blender');from entry_assets import entry_parts;print(json.dumps([entry_parts(*a) for a in json.load(sys.stdin)]))`],{cwd:new URL('..',import.meta.url),input:JSON.stringify(entryCases),encoding:'utf8'});
+assert.equal(pyEntry.status,0,pyEntry.stderr);
+const entryPython=JSON.parse(pyEntry.stdout);
+entryCases.forEach((args,i)=>{
+  const actual=run(`entryParts(...${JSON.stringify(args)})`);
+  assert.equal(actual.length,entryPython[i].length);
+  actual.forEach((part,j)=>{
+    assert.equal(part.name,entryPython[i][j].name);
+    assert.equal(part.material,entryPython[i][j].material);
+    part.bounds.forEach((v,k)=>assert.ok(Math.abs(v-entryPython[i][j].bounds[k])<1e-9,`${part.name} bound ${k}`));
+  });
+});
+assert.equal(run(`entryPegCount(.6)`),5);assert.equal(run(`entryPegCount(1.5)`),8);
+assert.throws(()=>run(`entryParts('wallHookRail',2,.1,.12)`),/対応範囲外/);
+// フック先端が腕より上にあること（上向き＝J形。下向きに戻る回帰を防ぐ）。
+{
+  const parts=run(`entryParts('wallHookRail',.6,.1,.12)`);
+  const arm=parts.find(p=>p.name==='peg-0-arm'), tip=parts.find(p=>p.name==='peg-0-tip');
+  assert.ok(tip.bounds[4]>=arm.bounds[5]-1e-9, 'hook tip must sit at or above the arm top, not below it');
+}
+// 壁付け板棚：段数と、各棚板がwidth/depth/heightの範囲に収まること。
+{
+  const parts=run(`entryParts('wallPlankShelf',1.4,.3,1.42)`);
+  const planks=parts.filter(p=>p.name.startsWith('plank-'));
+  assert.equal(planks.length,5,'5 planks at .28 pitch should fit within height 1.42');
+  const rails=parts.filter(p=>p.name.startsWith('rail-'));
+  assert.equal(rails.length,2);
+  for(const p of parts){
+    const [x0,x1,z0,z1,y0,y1]=p.bounds;
+    assert.ok(x0>=-.7-1e-9 && x1<=.7+1e-9 && z0>=-.15-1e-9 && z1<=.15+1e-9 && y0>=-1e-9 && y1<=1.42+1e-9, p.name);
+  }
+}
+assert.throws(()=>run(`entryParts('wallPlankShelf',2.5,.3,1.42)`),/対応範囲外/);
+console.log('Entry fittings (wall hook rail / wall plank shelf): catalog dimensions render and match the Blender part recipe; hook faces up; out-of-range rejected.');

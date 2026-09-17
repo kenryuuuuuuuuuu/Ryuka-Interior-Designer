@@ -248,7 +248,9 @@ const FURNITURE_CATALOG = {
   'laundry-counter': { label:'ランドリー作業カウンター', category:'fixture', shape:'laundryCounter', width:2.09, depth:0.55, height:0.85, clearance:0.6, rotationConvention:'source' },
   'laundry-wall-shelf': { label:'ランドリー壁付けオープン棚', category:'fixture', shape:'laundryShelf', width:1.34, depth:0.3, height:0.7, clearance:0, rotationConvention:'source' },
   'laundry-rack': { label:'室内物干しバー（壁付けコの字）', category:'fixture', shape:'laundryRack', width:1.2, depth:0.35, height:0.06, clearance:0, rotationConvention:'source' },
-  'laundry-basket': { label:'ランドリーバスケット', category:'fixture', shape:'laundryBasket', width:0.4, depth:0.4, height:0.35, clearance:0, rotationConvention:'source' }
+  'laundry-basket': { label:'ランドリーバスケット', category:'fixture', shape:'laundryBasket', width:0.4, depth:0.4, height:0.35, clearance:0, rotationConvention:'source' },
+  'wall-hook-rail': { label:'ウォールハンガー（フックレール）', category:'fixture', shape:'wallHookRail', width:0.6, depth:0.1, height:0.12, clearance:0, rotationConvention:'source' },
+  'wall-plank-shelf': { label:'靴棚（壁付け板棚）', category:'fixture', shape:'wallPlankShelf', width:1.4, depth:0.3, height:1.42, clearance:0.5, rotationConvention:'source' }
 };
 
 const FURNITURE_ITEMS = [
@@ -310,6 +312,8 @@ const FURNITURE_ITEMS = [
   { id:'fur-laundry-07', type:'laundry-basket', level:1, x:15.68, z:4.45, rotation:90, width:0.4, depth:0.4, height:0.35, label:'ランドリーバスケット2', status:'estimated', note:'2026-09-17：施主承認の脱衣室(ランドリールーム)案A。カウンター下のオープン部。洗う前の分別用（実例でもかご3個）。蓋のない開放型バスケット（storage-boxだと段ボール箱に見えるため専用形状 laundry-basket へ変更）。', room:'room-1f-16' }, // 2026-09-17：施主承認の脱衣室(ランドリールーム)案A。カウンター下のオープン部。洗う前の分別用（実例でもかご3個）。蓋のない開放型バスケット（storage-boxだと段ボール箱に見えるため専用形状 laundry-basket へ変更）。
   { id:'fur-laundry-08', type:'laundry-basket', level:1, x:15.68, z:4.95, rotation:90, width:0.4, depth:0.4, height:0.35, label:'ランドリーバスケット3', status:'estimated', note:'2026-09-17：施主承認の脱衣室(ランドリールーム)案A。カウンター下のオープン部。洗う前の分別用（実例でもかご3個）。蓋のない開放型バスケット（storage-boxだと段ボール箱に見えるため専用形状 laundry-basket へ変更）。', room:'room-1f-16' }, // 2026-09-17：施主承認の脱衣室(ランドリールーム)案A。カウンター下のオープン部。洗う前の分別用（実例でもかご3個）。蓋のない開放型バスケット（storage-boxだと段ボール箱に見えるため専用形状 laundry-basket へ変更）。
   { id:'fur-user-1789646593230', type:'closet-double', level:1, x:13.19, z:0.26, rotation:0, width:0.9, depth:0.5, height:2.2, label:'クローク・2段ハンガー収納', status:'estimated', note:'ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。', room:'room-1f-20' }, // ブラウザで追加した仮家具。製品未選定。寸法・材質は推定。
+  { id:'fur-entry-02', type:'wall-hook-rail', level:1, x:13.59, z:1.95, rotation:270, width:0.6, depth:0.1, height:0.12, label:'ウォールハンガー（バッグ・上着掛け）', status:'estimated', elevation:1.55, note:'2026-09-17：シューズクローク(room-1f-20)の東壁(x=13.651)、電気設備(分電盤・コンセント・LAN、z=0.30-1.15、FL+1.8)を避けて南寄りに配置。バッグ・上着を一時的に掛ける用途。フック5本。訂正(2026-09-17)：初回実装はフック先端が下向き(逆さのΓ形)で掛けたものが抜け落ちる形状だった。板の下寄りに腕を取り付け、先端を上に立ち上げる向き(J形)に修正（elevation・位置は変更なし）。', room:'room-1f-20' }, // 2026-09-17：シューズクローク(room-1f-20)の東壁(x=13.651)、電気設備(分電盤・コンセント・LAN、z=0.30-1.15、FL+1.8)を避けて南寄りに配置。バッグ・上着を一時的に掛ける用途。フック5本。訂正(2026-09-17)：初回実装はフック先端が下向き(逆さのΓ形)で掛けたものが抜け落ちる形状だった。板の下寄りに腕を取り付け、先端を上に立ち上げる向き(J形)に修正（elevation・位置は変更なし）。
+  { id:'fur-entry-03', type:'wall-plank-shelf', level:1, x:11.69, z:2.12, rotation:180, width:1.4, depth:0.3, height:1.42, label:'靴棚（壁付け板棚）', status:'estimated', note:'2026-09-17：土間(room-1f-09)南壁(z=2.275、LDKとの間仕切り壁、開口・電気設備なし)に配置。施主指摘によりシューズクローク(room-1f-20)ではなく土間側に変更。棚板5枚（下から0.28mピッチでFL+0.28/0.56/0.84/1.12/1.40、最上段の上面height=1.42）、奥行300mmで靴を横向きに収納。壁面から後退5mmで密着はしない取付け前提（フック類と同様、実際の固定方法は施工仕様確認待ち）。幅1.4mは土間の南壁全幅1.531mに対し左右6-7cmの余白を残した値。', room:'room-1f-09' }, // 2026-09-17：土間(room-1f-09)南壁(z=2.275、LDKとの間仕切り壁、開口・電気設備なし)に配置。施主指摘によりシューズクローク(room-1f-20)ではなく土間側に変更。棚板5枚（下から0.28mピッチでFL+0.28/0.56/0.84/1.12/1.40、最上段の上面height=1.42）、奥行300mmで靴を横向きに収納。壁面から後退5mmで密着はしない取付け前提（フック類と同様、実際の固定方法は施工仕様確認待ち）。幅1.4mは土間の南壁全幅1.531mに対し左右6-7cmの余白を残した値。
 ];
 
 const ELECTRICAL_CATALOG = {
