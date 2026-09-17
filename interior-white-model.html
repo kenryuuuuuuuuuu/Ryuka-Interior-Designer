@@ -1892,6 +1892,54 @@ function drawStorage(group,shape,w,d,h,options){
     mesh.name=spec.name;
   }
 }
+// ---- 脱衣室の造作（blender/laundry_assets.py と同じ部品レシピ。板厚・パイプ径は推定）----
+const LAUNDRY_SHAPES=['laundryCounter','laundryShelf','laundryRack','laundryBasket'];
+const LAUNDRY_LIMITS={laundryCounter:[[.9,2.4],[.4,.65],[.8,.95]],
+  laundryShelf:[[.5,2.2],[.2,.45],[.3,.9]], laundryRack:[[.6,2.0],[.25,.5],[.03,.12]],
+  laundryBasket:[[.3,.55],[.3,.55],[.25,.45]]};
+const LAUNDRY_BOARD=.025, LAUNDRY_TOP=.04, LAUNDRY_PIPE=.03, LAUNDRY_BASKET_WALL=.015, LAUNDRY_BASKET_RIM=.02;
+function laundryParts(shape,w,d,h){
+  const limits=LAUNDRY_LIMITS[shape];
+  if(!limits || [w,d,h].some((v,i)=>!Number.isFinite(v)||v<limits[i][0]||v>limits[i][1]))
+    throw Error('ランドリー造作の寸法が対応範囲外です: '+shape);
+  const parts=[];
+  const box=(name,x0,x1,z0,z1,y0,y1,material,bevel)=>parts.push({name,bounds:[x0,x1,z0,z1,y0,y1],material,kind:'box',bevel});
+  if(shape==='laundryCounter'){
+    const top=h-LAUNDRY_TOP;
+    box('top',-w/2,w/2,-d/2,d/2,top,h,'wood',.004);
+    box('side-left',-w/2,-w/2+LAUNDRY_BOARD,-d/2,d/2,0,top,'cabinet',.006);
+    box('side-right',w/2-LAUNDRY_BOARD,w/2,-d/2,d/2,0,top,'cabinet',.006);
+    box('rail-back',-w/2+LAUNDRY_BOARD,w/2-LAUNDRY_BOARD,-d/2,-d/2+LAUNDRY_BOARD,top-.09,top,'cabinet',.006);
+  }else if(shape==='laundryShelf'){
+    box('side-left',-w/2,-w/2+LAUNDRY_BOARD,-d/2,d/2,0,h,'cabinet',.006);
+    box('side-right',w/2-LAUNDRY_BOARD,w/2,-d/2,d/2,0,h,'cabinet',.006);
+    [['shelf-low',0],['shelf-mid',(h-LAUNDRY_BOARD)/2],['shelf-top',h-LAUNDRY_BOARD]].forEach(([name,y0])=>
+      box(name,-w/2+LAUNDRY_BOARD,w/2-LAUNDRY_BOARD,-d/2,d/2,y0,y0+LAUNDRY_BOARD,'wood',.004));
+  }else if(shape==='laundryRack'){
+    const pipe=Math.min(LAUNDRY_PIPE,h);
+    box('arm-left',-w/2,-w/2+pipe,-d/2,d/2,0,h,'metal',.004);
+    box('arm-right',w/2-pipe,w/2,-d/2,d/2,0,h,'metal',.004);
+    box('bar',-w/2,w/2,d/2-pipe,d/2,0,h,'metal',.004);
+  }else{
+    // laundryBasket: 蓋のない開放型（storageBox=蓋付き箱の流用は段ボール箱に見えるため専用形状）。
+    // 側壁は常に薄板のまま（上端2cmだけ色違いのトリム）で、天面を塞ぐ板は置かない＝開口部を維持する。
+    const t=LAUNDRY_BASKET_WALL, rim0=h-LAUNDRY_BASKET_RIM;
+    box('bottom',-w/2,w/2,-d/2,d/2,0,t,'fabric',.004);
+    [['front',-w/2,w/2,d/2-t,d/2],['back',-w/2,w/2,-d/2,-d/2+t],
+     ['left',-w/2,-w/2+t,-d/2,d/2],['right',w/2-t,w/2,-d/2,d/2]].forEach(([name,x0,x1,z0,z1])=>{
+      box('wall-'+name,x0,x1,z0,z1,0,rim0,'fabric',.004);
+      box('rim-'+name,x0,x1,z0,z1,rim0,h,'wood',.004);
+    });
+  }
+  return parts;
+}
+function drawLaundry(group,shape,w,d,h){
+  const materials={wood:FMAT.storageWood,cabinet:FMAT.white,metal:FMAT.metal,fabric:FMAT.storageFabric};
+  for(const spec of laundryParts(shape,w,d,h)){
+    const [x0,x1,z0,z1,y0,y1]=spec.bounds;
+    fPart(group,x1-x0,y1-y0,z1-z0,(x0+x1)/2,y0,(z0+z1)/2,materials[spec.material]).name=spec.name;
+  }
+}
 const FURNITURE_SHAPES = {
   closetSingle(g,w,d,h,o){drawStorage(g,'closetSingle',w,d,h,o);},
   closetDouble(g,w,d,h,o){drawStorage(g,'closetDouble',w,d,h,o);},
@@ -2006,6 +2054,12 @@ const FURNITURE_SHAPES = {
     fPart(group, w,0.04,d, 0,h*0.5,0, FMAT.dark); // 天板（家電置き場）
     fPart(group, w,h*0.42,d*0.85, 0,h*0.54,0, FMAT.mirror); // 上段（ガラス扉のイメージ）
   },
+  // 2026-09-17: 脱衣室(room-1f-16)の造作。blender/laundry_assets.py と1対1で対応させ、
+  // 部品レシピ(laundryParts)を両者で突き合わせられる形にする（収納家具と同じ方式）。
+  laundryCounter(group,w,d,h){drawLaundry(group,'laundryCounter',w,d,h);},
+  laundryShelf(group,w,d,h){drawLaundry(group,'laundryShelf',w,d,h);},
+  laundryRack(group,w,d,h){drawLaundry(group,'laundryRack',w,d,h);},
+  laundryBasket(group,w,d,h){drawLaundry(group,'laundryBasket',w,d,h);},
   shelf(group,w,d,h){
     fPart(group, w,h,0.04, 0,0,-d*0.45, FMAT.wood); // 背板
     fPart(group, 0.04,h,d, -w*0.47,0,0, FMAT.wood); // 側板

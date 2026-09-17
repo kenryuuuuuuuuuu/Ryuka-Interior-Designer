@@ -195,3 +195,23 @@ cases.forEach((args,i)=>{
   });
 });
 console.log('Closet: six types/four rotations, configuration edit/export/reset/rejection, JS-Python part parity passed.');
+
+// 2026-09-17 脱衣室の造作（カウンター・壁付け棚・物干しバー）も、収納家具と同じく
+// ブラウザとBlenderの部品レシピが一致することを機械確認する。寸法範囲外は両者とも拒否する。
+const laundryCases=catalog.types.filter(t=>run('LAUNDRY_SHAPES').includes(t.shape)).map(t=>[t.shape,t.width,t.depth,t.height]);
+assert.equal(laundryCases.length,4,'catalog should carry all four laundry fittings');
+const pyLaundry=spawnSync('python',['-c',`import sys,json;sys.path.insert(0,'blender');from laundry_assets import laundry_parts;print(json.dumps([laundry_parts(*a) for a in json.load(sys.stdin)]))`],{cwd:new URL('..',import.meta.url),input:JSON.stringify(laundryCases),encoding:'utf8'});
+assert.equal(pyLaundry.status,0,pyLaundry.stderr);
+const laundryPython=JSON.parse(pyLaundry.stdout);
+laundryCases.forEach((args,i)=>{
+  const actual=run(`laundryParts(...${JSON.stringify(args)})`);
+  assert.equal(actual.length,laundryPython[i].length);
+  actual.forEach((part,j)=>{
+    assert.equal(part.name,laundryPython[i][j].name);
+    assert.equal(part.material,laundryPython[i][j].material);
+    part.bounds.forEach((v,k)=>assert.ok(Math.abs(v-laundryPython[i][j].bounds[k])<1e-9,`${part.name} bound ${k}`));
+  });
+});
+assert.throws(()=>run(`laundryParts('laundryCounter',3,.55,.85)`),/対応範囲外/);
+assert.throws(()=>run(`laundryParts('laundryRack',1.2,.35,.5)`),/対応範囲外/);
+console.log('Laundry fittings: catalog dimensions render and match the Blender part recipe; out-of-range rejected.');
