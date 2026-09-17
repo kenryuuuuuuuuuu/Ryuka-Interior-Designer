@@ -215,3 +215,77 @@ laundryCases.forEach((args,i)=>{
 assert.throws(()=>run(`laundryParts('laundryCounter',3,.55,.85)`),/対応範囲外/);
 assert.throws(()=>run(`laundryParts('laundryRack',1.2,.35,.5)`),/対応範囲外/);
 console.log('Laundry fittings: catalog dimensions render and match the Blender part recipe; out-of-range rejected.');
+
+// 2026-09-17 玄関・土間の造作（ウォールハンガー・壁付け板棚の靴棚）も同じ方式で検証する。
+const entryCases=catalog.types.filter(t=>run('ENTRY_SHAPES').includes(t.shape)).map(t=>[t.shape,t.width,t.depth,t.height]);
+assert.equal(entryCases.length,2,'catalog should carry the wall hook rail and the wall plank shelf');
+const pyEntry=spawnSync('python',['-c',`import sys,json;sys.path.insert(0,'blender');from entry_assets import entry_parts;print(json.dumps([entry_parts(*a) for a in json.load(sys.stdin)]))`],{cwd:new URL('..',import.meta.url),input:JSON.stringify(entryCases),encoding:'utf8'});
+assert.equal(pyEntry.status,0,pyEntry.stderr);
+const entryPython=JSON.parse(pyEntry.stdout);
+entryCases.forEach((args,i)=>{
+  const actual=run(`entryParts(...${JSON.stringify(args)})`);
+  assert.equal(actual.length,entryPython[i].length);
+  actual.forEach((part,j)=>{
+    assert.equal(part.name,entryPython[i][j].name);
+    assert.equal(part.material,entryPython[i][j].material);
+    part.bounds.forEach((v,k)=>assert.ok(Math.abs(v-entryPython[i][j].bounds[k])<1e-9,`${part.name} bound ${k}`));
+  });
+});
+assert.equal(run(`entryPegCount(.6)`),5);assert.equal(run(`entryPegCount(1.5)`),8);
+assert.throws(()=>run(`entryParts('wallHookRail',2,.1,.12)`),/対応範囲外/);
+// フック先端が腕より上にあること（上向き＝J形。下向きに戻る回帰を防ぐ）。
+{
+  const parts=run(`entryParts('wallHookRail',.6,.1,.12)`);
+  const arm=parts.find(p=>p.name==='peg-0-arm'), tip=parts.find(p=>p.name==='peg-0-tip');
+  assert.ok(tip.bounds[4]>=arm.bounds[5]-1e-9, 'hook tip must sit at or above the arm top, not below it');
+}
+// 壁付け板棚：段数と、各棚板がwidth/depth/heightの範囲に収まること。
+{
+  const parts=run(`entryParts('wallPlankShelf',1.4,.3,1.42)`);
+  const planks=parts.filter(p=>p.name.startsWith('plank-'));
+  assert.equal(planks.length,5,'5 planks at .28 pitch should fit within height 1.42');
+  const rails=parts.filter(p=>p.name.startsWith('rail-'));
+  assert.equal(rails.length,2);
+  for(const p of parts){
+    const [x0,x1,z0,z1,y0,y1]=p.bounds;
+    assert.ok(x0>=-.7-1e-9 && x1<=.7+1e-9 && z0>=-.15-1e-9 && z1<=.15+1e-9 && y0>=-1e-9 && y1<=1.42+1e-9, p.name);
+  }
+}
+assert.throws(()=>run(`entryParts('wallPlankShelf',2.5,.3,1.42)`),/対応範囲外/);
+// 2026-09-18：施主指摘により汎用化（靴棚専用ではない）。パントリーの浅い棚等にも
+// 使えるよう奥行き下限を0.22mから0.05mへ拡大。0.05mは通り、0.04mは依然として弾かれること。
+assert.doesNotThrow(()=>run(`entryParts('wallPlankShelf',.85,.05,1.2)`),'depth 0.05m (the new lower bound) must be accepted');
+assert.throws(()=>run(`entryParts('wallPlankShelf',.85,.04,1.2)`),/対応範囲外/);
+console.log('Entry fittings (wall hook rail / wall plank shelf): catalog dimensions render and match the Blender part recipe; hook faces up; out-of-range rejected; shallow (pantry) depth down to 0.05m accepted.');
+
+// W08-H回帰: 範囲外の幅・奥行き・高さを持つ家具が1件混ざっていても、placeFurnitureItemの
+// forEachループ全体が止まらず、その1件だけスキップされること（黒画面バグの再発防止。
+// 実際に土間(room-1f-09)以外の部屋へ追加されたwallPlankShelfのdepthOverrideが当時の
+// 対応範囲(0.22-0.4m、2026-09-18に0.05-0.4mへ拡大)を外れて起きた）。depth=.03は
+// 拡大後の新しい下限0.05mより下なので、拡大後も引き続き無効な値として機能する。
+{
+  const badItem={id:'test-bad-shape-dims',type:'wall-plank-shelf',room:'room-1f-09',level:1,
+    x:11.69,z:2.12,rotation:180,width:.85,depth:.03,height:1,elevation:0};
+  assert.doesNotThrow(()=>run(`placeFurnitureItem(${JSON.stringify(badItem)})`),
+    'an out-of-range item must not crash the whole furniture build loop');
+  assert.equal(run(`furnitureMeshes.has('test-bad-shape-dims')`),false,
+    'the out-of-range item itself must be skipped (not added), while everything else keeps rendering');
+}
+console.log('Fault isolation: an out-of-range item is skipped instead of crashing furniture placement.');
+
+// W08-H回帰: applySizeEditの保存前チェックは元々STORAGE_SHAPESにしか効いておらず、
+// wallPlankShelf(ENTRY_SHAPES)のdepthをUI上で対応範囲外へ縮めても保存できてしまい
+// (furnitureEdits/エクスポートJSONに残り)、次回の再読み込みで初めて上のフォルトアイソ
+// レーションに引っかかっていた。保存する前にfpStorageErrorへ表示して弾くこと。
+run(`setSelectedFurniture('fur-entry-03');`);
+nodes.get('fpStorageError').textContent='';
+run(`applySizeEdit('depth','.03');`);
+assert.ok(nodes.get('fpStorageError').textContent.includes('対応範囲外'),
+  'an out-of-range depth edit on a wallPlankShelf item must be rejected with an error message before saving');
+assert.equal(run(`furnitureEdits['fur-entry-03']?.depth`),undefined,
+  'the rejected depth must not be saved into furnitureEdits');
+run(`applySizeEdit('depth','.15');`);
+assert.equal(run(`furnitureEdits['fur-entry-03'].depth`),.15,
+  'a shallow-but-valid depth (within the widened 0.05-0.4m range) must be accepted');
+run(`resetSelected();`);
+console.log('Size-edit panel: out-of-range wall-plank-shelf depth rejected before saving; shallow valid depth still accepted.');

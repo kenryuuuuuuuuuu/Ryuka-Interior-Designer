@@ -17,6 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'blender'))
 from storage_assets import settings as storage_settings, SHAPES as STORAGE_SHAPES
+from laundry_assets import check as laundry_check, SHAPES as LAUNDRY_SHAPES
+from entry_assets import check as entry_check, SHAPES as ENTRY_SHAPES
 CATALOG = ROOT / "data" / "furniture-catalog.json"
 FURNITURE = ROOT / "data" / "furniture.json"
 HOUSE = ROOT / "data" / "house.json"
@@ -65,13 +67,29 @@ def validate(catalog, furniture, house):
         assert type(elevation) in (int, float) and math.isfinite(elevation) and elevation >= 0, f"{item['id']}: invalid elevation"
         assert item["type"] in by_type, f"{item['id']}: 未知のtype「{item['type']}」（furniture-catalog.jsonに存在しない）"
         profile = by_type[item['type']]
+        dims = [item.get(k+'Override', profile[k]) for k in ('width', 'depth', 'height')]
         if profile['shape'] in STORAGE_SHAPES:
             try:
-                storage_settings(profile['shape'], *[item.get(k+'Override',profile[k]) for k in ('width','depth','height')], item.get('storage'))
+                storage_settings(profile['shape'], *dims, item.get('storage'))
             except ValueError as error:
                 raise AssertionError(f"{item['id']}: {error}") from error
         else:
             assert 'storage' not in item, f"{item['id']}: この種類では収納設定を使えません"
+            # W08-H: STORAGE_SHAPES以外にも寸法の対応範囲(LIMITS)を持つ形状ファミリーがある
+            # （laundry_assets/entry_assets）。ここを素通りすると、範囲外の幅・奥行き・高さが
+            # data/furniture.jsonやランチャー取込みで検出されないまま残り、Blenderビルド
+            # (asset_parts経由でcheck()がValueErrorを投げ、ガードなしでビルド全体が止まる)や
+            # ブラウザのThree.js描画(同様に無ガードだとシーン全体が止まる)で初めて表面化する。
+            if profile['shape'] in LAUNDRY_SHAPES:
+                try:
+                    laundry_check(profile['shape'], *dims)
+                except ValueError as error:
+                    raise AssertionError(f"{item['id']}: {error}") from error
+            elif profile['shape'] in ENTRY_SHAPES:
+                try:
+                    entry_check(profile['shape'], *dims)
+                except ValueError as error:
+                    raise AssertionError(f"{item['id']}: {error}") from error
         assert item["rotation"] in VALID_ROTATION, f"{item['id']}: rotationは0/90/180/270のいずれか"
         assert item["status"] in VALID_STATUS, f"{item['id']}: 不正なstatus"
         assert item["level"] in valid_levels, f"{item['id']}: 存在しないlevel {item['level']}"

@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'blender'))
 sys.path.insert(0,str(ROOT/'scripts'))
 from storage_assets import storage_parts, settings
-from furniture_assets import asset_parts, STORAGE_ASSETS
+from furniture_assets import asset_parts, STORAGE_ASSETS, LAUNDRY_ASSETS, ENTRY_ASSETS
 
 
 class StorageAssets(unittest.TestCase):
@@ -28,9 +28,15 @@ class StorageAssets(unittest.TestCase):
         catalog={t['type']:t for t in json.loads((ROOT/'data/furniture-catalog.json').read_text(encoding='utf-8'))['types']}
         items=[i for i in json.loads((ROOT/'data/furniture.json').read_text(encoding='utf-8'))['items'] if i.get('room')=='room-1f-12']
         rects={}
+        # W08-H: this room now also hosts non-STORAGE_ASSETS fixtures (e.g. the owner
+        # placed a wall-plank-shelf here through the Web editor), so the asset lookup
+        # has to cover every family build_interior.py itself recognizes, not just
+        # STORAGE_ASSETS -- otherwise a KeyError here masks the real check below.
+        ASSET_MAP={**STORAGE_ASSETS,**LAUNDRY_ASSETS,**ENTRY_ASSETS}
         for item in items:
             t=catalog[item['type']];w,d,h=[item.get(k+'Override',t[k]) for k in ('width','depth','height')]
-            parts=asset_parts(STORAGE_ASSETS[t['shape']],w,d,h,item.get('storage'))
+            self.assertIn(t['shape'],ASSET_MAP,f"{item['id']}: no native asset registered for shape {t['shape']}")
+            parts=asset_parts(ASSET_MAP[t['shape']],w,d,h,item.get('storage'))
             for part in parts:
                 a,b,c,e,f,g=part['bounds']
                 self.assertTrue(-w/2-1e-8<=a<b<=w/2+1e-8)

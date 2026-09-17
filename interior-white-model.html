@@ -1940,6 +1940,65 @@ function drawLaundry(group,shape,w,d,h){
     fPart(group,x1-x0,y1-y0,z1-z0,(x0+x1)/2,y0,(z0+z1)/2,materials[spec.material]).name=spec.name;
   }
 }
+// ---- 玄関・土間・シューズクロークの造作（blender/entry_assets.py と同じ部品レシピ）----
+const ENTRY_SHAPES=['wallHookRail','wallPlankShelf'];
+const ENTRY_LIMITS={wallHookRail:[[.3,1.5],[.05,.15],[.08,.18]], wallPlankShelf:[[.6,2.0],[.05,.4],[.3,2.0]]};
+const ENTRY_BOARD=.02, ENTRY_PEG_LEN=.07, ENTRY_PEG_W=.022, ENTRY_TIP_RISE=.045, ENTRY_SPACING=.17;
+const ENTRY_RAIL_W=.04, ENTRY_RAIL_D=.025, ENTRY_PLANK_T=.02, ENTRY_PLANK_PITCH=.28, ENTRY_PLANK_FIRST=.28;
+function entryPegCount(width){return Math.max(3,Math.min(8,Math.round(width/ENTRY_SPACING)+1));}
+function entryPlankPositions(h){
+  const ys=[];let y0=ENTRY_PLANK_FIRST;
+  while(y0+ENTRY_PLANK_T<=h+1e-9 && ys.length<6){ys.push(y0);y0+=ENTRY_PLANK_PITCH;}
+  if(!ys.length) ys.push(Math.max(0,h-ENTRY_PLANK_T));
+  return ys;
+}
+function entryParts(shape,w,d,h){
+  const limits=ENTRY_LIMITS[shape];
+  if(!limits || [w,d,h].some((v,i)=>!Number.isFinite(v)||v<limits[i][0]||v>limits[i][1]))
+    throw Error('エントリー造作の寸法が対応範囲外です: '+shape);
+  const parts=[];
+  const box=(name,x0,x1,z0,z1,y0,y1,material,bevel)=>parts.push({name,bounds:[x0,x1,z0,z1,y0,y1],material,kind:'box',bevel});
+  if(shape==='wallHookRail'){
+    const boardD=Math.min(ENTRY_BOARD,d*.4);
+    box('board',-w/2,w/2,-d/2,-d/2+boardD,0,h,'wood',.004);
+    const n=entryPegCount(w), pegH=Math.min(ENTRY_PEG_W,h*.5);
+    const armY0=Math.min(.02,h*.15);
+    const availableTop=h-armY0-pegH;
+    const tipRise=Math.max(pegH,Math.min(ENTRY_TIP_RISE,availableTop-.008));
+    for(let j=0;j<n;j++){
+      const cx=-w/2+(j+.5)*w/n;
+      box(`peg-${j}-arm`,cx-ENTRY_PEG_W/2,cx+ENTRY_PEG_W/2,-d/2+boardD,-d/2+boardD+ENTRY_PEG_LEN,armY0,armY0+pegH,'wood',.003);
+      box(`peg-${j}-tip`,cx-ENTRY_PEG_W/2,cx+ENTRY_PEG_W/2,-d/2+boardD+ENTRY_PEG_LEN-ENTRY_PEG_W,-d/2+boardD+ENTRY_PEG_LEN,armY0+pegH,armY0+pegH+tipRise,'wood',.003);
+    }
+  }else if(shape==='wallPlankShelf'){
+    const railD=Math.min(ENTRY_RAIL_D,d*.3);
+    box('rail-left',-w/2,-w/2+ENTRY_RAIL_W,-d/2,-d/2+railD,0,h,'metal',.003);
+    box('rail-right',w/2-ENTRY_RAIL_W,w/2,-d/2,-d/2+railD,0,h,'metal',.003);
+    entryPlankPositions(h).forEach((y0,j)=>box(`plank-${j}`,-w/2,w/2,-d/2,d/2,y0,y0+ENTRY_PLANK_T,'wood',.004));
+  }
+  return parts;
+}
+function drawEntry(group,shape,w,d,h){
+  const materials={wood:FMAT.storageWood,metal:FMAT.metal};
+  for(const spec of entryParts(shape,w,d,h)){
+    const [x0,x1,z0,z1,y0,y1]=spec.bounds;
+    fPart(group,x1-x0,y1-y0,z1-z0,(x0+x1)/2,y0,(z0+z1)/2,materials[spec.material]).name=spec.name;
+  }
+}
+// サイズ編集パネルの保存前チェック（W08-H）：STORAGE_SHAPES専用だったstorageSettingsの
+// 事前検証を、laundry/entry系の形状にも同じ方式で広げる。各shapeFnが内部で投げる
+// 「対応範囲外」系のエラーを保存前に捕まえ、fpStorageErrorに表示して保存を止める
+// （でないと、範囲外の値がexport→再取込み後の初回描画で初めて例外を投げ、
+// placeFurnitureItemの呼び出し元(未ガード)でスクリプト全体が止まり、画面が
+// 真っ黒になる。実際にwallPlankShelfのdepthを0.22m未満へ縮めた編集でこれが起きた）。
+function validateFurnitureShapeDims(shape,w,d,h,storage){
+  try{
+    if(STORAGE_SHAPES.includes(shape)) storageSettings(shape,w,d,h,storage);
+    else if(LAUNDRY_SHAPES.includes(shape)) laundryParts(shape,w,d,h);
+    else if(ENTRY_SHAPES.includes(shape)) entryParts(shape,w,d,h);
+    return null;
+  }catch(e){ return e.message; }
+}
 const FURNITURE_SHAPES = {
   closetSingle(g,w,d,h,o){drawStorage(g,'closetSingle',w,d,h,o);},
   closetDouble(g,w,d,h,o){drawStorage(g,'closetDouble',w,d,h,o);},
@@ -2060,6 +2119,8 @@ const FURNITURE_SHAPES = {
   laundryShelf(group,w,d,h){drawLaundry(group,'laundryShelf',w,d,h);},
   laundryRack(group,w,d,h){drawLaundry(group,'laundryRack',w,d,h);},
   laundryBasket(group,w,d,h){drawLaundry(group,'laundryBasket',w,d,h);},
+  wallHookRail(group,w,d,h){drawEntry(group,'wallHookRail',w,d,h);},
+  wallPlankShelf(group,w,d,h){drawEntry(group,'wallPlankShelf',w,d,h);},
   shelf(group,w,d,h){
     fPart(group, w,h,0.04, 0,0,-d*0.45, FMAT.wood); // 背板
     fPart(group, 0.04,h,d, -w*0.47,0,0, FMAT.wood); // 側板
@@ -2110,7 +2171,17 @@ function placeFurnitureItem(item){
   if(!shapeFn) return;
   const holder = new THREE.Group();
   holder.userData.furnitureId = item.id;
-  shapeFn(holder, item.width, item.depth, item.height, item.storage);
+  try{
+    shapeFn(holder, item.width, item.depth, item.height, item.storage);
+  }catch(e){
+    // W08-H: 1件の寸法異常（範囲外の幅・奥行き・高さ等）でシーン全体の構築を止めない。
+    // このtry/catchがない間、ここで投げた例外がこの関数の呼び出し元
+    // (activeFurnitureItems().forEach(...)、ページ読込み時に無条件で実行される)まで
+    // 伝播し、それ以降のスクリプト全体(床・壁・照明・カメラ操作・アニメーションループの
+    // 初期化を含む)が実行されないまま止まり、画面が真っ黒になる不具合があった。
+    console.error('家具の形状生成に失敗したため、この家具の表示をスキップします:', item.id, item.label||'', e.message);
+    return;
+  }
   const baseY = (item.level===1 ? LEVELS.fl1 : LEVELS.fl2) + (ROOMS_APPROX[item.level].find(r=>r.id===item.room)?.floorOffsetM ?? 0);
   const [sx,sz] = toScene(item.x, item.z);
   holder.position.set(sx, baseY + (item.elevation ?? 0), sz);
@@ -2226,11 +2297,9 @@ function applySizeEdit(field, value){
   const base=FURNITURE_ITEMS.find(f=>f.id===selectedFurnitureId);
   const eff={...effectiveFurniture(base),[field]:round2(v)};
   const shape=FURNITURE_CATALOG[eff.type].shape;
-  if(STORAGE_SHAPES.includes(shape)){
-    try{storageSettings(shape,eff.width,eff.depth,eff.height,eff.storage);}
-    catch(e){document.getElementById('fpStorageError').textContent=e.message;updateFurniturePanel();return;}
-    document.getElementById('fpStorageError').textContent='';
-  }
+  const dimError=validateFurnitureShapeDims(shape,eff.width,eff.depth,eff.height,eff.storage);
+  if(dimError){document.getElementById('fpStorageError').textContent=dimError;updateFurniturePanel();return;}
+  document.getElementById('fpStorageError').textContent='';
   furnitureEdits[selectedFurnitureId] = {...(furnitureEdits[selectedFurnitureId]||{}), [field]: round2(v)};
   saveFurnitureEdits();
   rebuildFurnitureItem(selectedFurnitureId);
