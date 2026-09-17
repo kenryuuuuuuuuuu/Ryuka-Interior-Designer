@@ -253,3 +253,33 @@ assert.throws(()=>run(`entryParts('wallHookRail',2,.1,.12)`),/対応範囲外/);
 }
 assert.throws(()=>run(`entryParts('wallPlankShelf',2.5,.3,1.42)`),/対応範囲外/);
 console.log('Entry fittings (wall hook rail / wall plank shelf): catalog dimensions render and match the Blender part recipe; hook faces up; out-of-range rejected.');
+
+// W08-H回帰: 範囲外の幅・奥行き・高さを持つ家具が1件混ざっていても、placeFurnitureItemの
+// forEachループ全体が止まらず、その1件だけスキップされること（黒画面バグの再発防止。
+// 実際に土間(room-1f-09)以外の部屋へ追加されたwallPlankShelfのdepthOverrideが0.15mまで
+// 縮められ、対応範囲(0.22-0.4m)を外れて起きた）。
+{
+  const badItem={id:'test-bad-shape-dims',type:'wall-plank-shelf',room:'room-1f-09',level:1,
+    x:11.69,z:2.12,rotation:180,width:.85,depth:.15,height:1,elevation:0};
+  assert.doesNotThrow(()=>run(`placeFurnitureItem(${JSON.stringify(badItem)})`),
+    'an out-of-range item must not crash the whole furniture build loop');
+  assert.equal(run(`furnitureMeshes.has('test-bad-shape-dims')`),false,
+    'the out-of-range item itself must be skipped (not added), while everything else keeps rendering');
+}
+console.log('Fault isolation: an out-of-range item is skipped instead of crashing furniture placement.');
+
+// W08-H回帰: applySizeEditの保存前チェックは元々STORAGE_SHAPESにしか効いておらず、
+// wallPlankShelf(ENTRY_SHAPES)のdepthをUI上で0.22m未満へ縮めても保存できてしまい
+// (furnitureEdits/エクスポートJSONに残り)、次回の再読み込みで初めて上のフォルトアイソ
+// レーションに引っかかっていた。保存する前にfpStorageErrorへ表示して弾くこと。
+run(`setSelectedFurniture('fur-entry-03');`);
+nodes.get('fpStorageError').textContent='';
+run(`applySizeEdit('depth','.15');`);
+assert.ok(nodes.get('fpStorageError').textContent.includes('対応範囲外'),
+  'an out-of-range depth edit on a wallPlankShelf item must be rejected with an error message before saving');
+assert.equal(run(`furnitureEdits['fur-entry-03']?.depth`),undefined,
+  'the rejected depth must not be saved into furnitureEdits');
+run(`applySizeEdit('depth','.3');`);
+assert.equal(run(`furnitureEdits['fur-entry-03'].depth`),.3,'a subsequent valid edit must still be accepted');
+run(`resetSelected();`);
+console.log('Size-edit panel: out-of-range wall-plank-shelf depth rejected before saving; valid edit still accepted.');

@@ -699,7 +699,15 @@ def build_furniture(data,room_ids,mats_by_room):
                                     status='estimated',note='Default renderer for catalog shape; no explicit override.')
             if shape in STORAGE_ASSETS or shape in LAUNDRY_ASSETS or shape in ENTRY_ASSETS:
                 mats=dict(mats,**storage_materials)
-            for spec in asset_parts(binding['assetId'],w,d,h,item.get('storage')):
+            try:
+                parts_list=asset_parts(binding['assetId'],w,d,h,item.get('storage'))
+            except ValueError as error:
+                # W08-H: tests/validate_furniture.py (and the launcher import it backs)
+                # is meant to catch an out-of-range width/depth/height override before it
+                # ever reaches data/furniture.json -- this is the last line of defense,
+                # so fail loudly with the offending item instead of a bare traceback.
+                raise ValueError(f"furniture '{item['id']}' ({item.get('label', item['type'])}): {error}") from error
+            for spec in parts_list:
                 kind=spec.get('kind','box')
                 if kind!='box':
                     x0,x1,z0,z1,y0,y1=spec['bounds']
