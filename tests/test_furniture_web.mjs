@@ -252,15 +252,20 @@ assert.throws(()=>run(`entryParts('wallHookRail',2,.1,.12)`),/対応範囲外/);
   }
 }
 assert.throws(()=>run(`entryParts('wallPlankShelf',2.5,.3,1.42)`),/対応範囲外/);
-console.log('Entry fittings (wall hook rail / wall plank shelf): catalog dimensions render and match the Blender part recipe; hook faces up; out-of-range rejected.');
+// 2026-09-18：施主指摘により汎用化（靴棚専用ではない）。パントリーの浅い棚等にも
+// 使えるよう奥行き下限を0.22mから0.05mへ拡大。0.05mは通り、0.04mは依然として弾かれること。
+assert.doesNotThrow(()=>run(`entryParts('wallPlankShelf',.85,.05,1.2)`),'depth 0.05m (the new lower bound) must be accepted');
+assert.throws(()=>run(`entryParts('wallPlankShelf',.85,.04,1.2)`),/対応範囲外/);
+console.log('Entry fittings (wall hook rail / wall plank shelf): catalog dimensions render and match the Blender part recipe; hook faces up; out-of-range rejected; shallow (pantry) depth down to 0.05m accepted.');
 
 // W08-H回帰: 範囲外の幅・奥行き・高さを持つ家具が1件混ざっていても、placeFurnitureItemの
 // forEachループ全体が止まらず、その1件だけスキップされること（黒画面バグの再発防止。
-// 実際に土間(room-1f-09)以外の部屋へ追加されたwallPlankShelfのdepthOverrideが0.15mまで
-// 縮められ、対応範囲(0.22-0.4m)を外れて起きた）。
+// 実際に土間(room-1f-09)以外の部屋へ追加されたwallPlankShelfのdepthOverrideが当時の
+// 対応範囲(0.22-0.4m、2026-09-18に0.05-0.4mへ拡大)を外れて起きた）。depth=.03は
+// 拡大後の新しい下限0.05mより下なので、拡大後も引き続き無効な値として機能する。
 {
   const badItem={id:'test-bad-shape-dims',type:'wall-plank-shelf',room:'room-1f-09',level:1,
-    x:11.69,z:2.12,rotation:180,width:.85,depth:.15,height:1,elevation:0};
+    x:11.69,z:2.12,rotation:180,width:.85,depth:.03,height:1,elevation:0};
   assert.doesNotThrow(()=>run(`placeFurnitureItem(${JSON.stringify(badItem)})`),
     'an out-of-range item must not crash the whole furniture build loop');
   assert.equal(run(`furnitureMeshes.has('test-bad-shape-dims')`),false,
@@ -269,17 +274,18 @@ console.log('Entry fittings (wall hook rail / wall plank shelf): catalog dimensi
 console.log('Fault isolation: an out-of-range item is skipped instead of crashing furniture placement.');
 
 // W08-H回帰: applySizeEditの保存前チェックは元々STORAGE_SHAPESにしか効いておらず、
-// wallPlankShelf(ENTRY_SHAPES)のdepthをUI上で0.22m未満へ縮めても保存できてしまい
+// wallPlankShelf(ENTRY_SHAPES)のdepthをUI上で対応範囲外へ縮めても保存できてしまい
 // (furnitureEdits/エクスポートJSONに残り)、次回の再読み込みで初めて上のフォルトアイソ
 // レーションに引っかかっていた。保存する前にfpStorageErrorへ表示して弾くこと。
 run(`setSelectedFurniture('fur-entry-03');`);
 nodes.get('fpStorageError').textContent='';
-run(`applySizeEdit('depth','.15');`);
+run(`applySizeEdit('depth','.03');`);
 assert.ok(nodes.get('fpStorageError').textContent.includes('対応範囲外'),
   'an out-of-range depth edit on a wallPlankShelf item must be rejected with an error message before saving');
 assert.equal(run(`furnitureEdits['fur-entry-03']?.depth`),undefined,
   'the rejected depth must not be saved into furnitureEdits');
-run(`applySizeEdit('depth','.3');`);
-assert.equal(run(`furnitureEdits['fur-entry-03'].depth`),.3,'a subsequent valid edit must still be accepted');
+run(`applySizeEdit('depth','.15');`);
+assert.equal(run(`furnitureEdits['fur-entry-03'].depth`),.15,
+  'a shallow-but-valid depth (within the widened 0.05-0.4m range) must be accepted');
 run(`resetSelected();`);
-console.log('Size-edit panel: out-of-range wall-plank-shelf depth rejected before saving; valid edit still accepted.');
+console.log('Size-edit panel: out-of-range wall-plank-shelf depth rejected before saving; shallow valid depth still accepted.');

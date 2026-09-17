@@ -1942,7 +1942,7 @@ function drawLaundry(group,shape,w,d,h){
 }
 // ---- 玄関・土間・シューズクロークの造作（blender/entry_assets.py と同じ部品レシピ）----
 const ENTRY_SHAPES=['wallHookRail','wallPlankShelf'];
-const ENTRY_LIMITS={wallHookRail:[[.3,1.5],[.05,.15],[.08,.18]], wallPlankShelf:[[.6,2.0],[.22,.4],[.3,2.0]]};
+const ENTRY_LIMITS={wallHookRail:[[.3,1.5],[.05,.15],[.08,.18]], wallPlankShelf:[[.6,2.0],[.05,.4],[.3,2.0]]};
 const ENTRY_BOARD=.02, ENTRY_PEG_LEN=.07, ENTRY_PEG_W=.022, ENTRY_TIP_RISE=.045, ENTRY_SPACING=.17;
 const ENTRY_RAIL_W=.04, ENTRY_RAIL_D=.025, ENTRY_PLANK_T=.02, ENTRY_PLANK_PITCH=.28, ENTRY_PLANK_FIRST=.28;
 function entryPegCount(width){return Math.max(3,Math.min(8,Math.round(width/ENTRY_SPACING)+1));}

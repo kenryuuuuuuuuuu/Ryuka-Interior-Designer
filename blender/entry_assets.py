@@ -5,10 +5,12 @@ Two fittings:
   referenced (a horizontal board with a row of evenly spaced hooks, for
   bags/coats -- distinct from closetSingle/closetDouble's hanging PIPE for
   coats on hangers).
-- wallPlankShelf: the wall-mounted floating shoe shelf the owner referenced
-  (a photo of wooden planks on wall brackets/rails, no sides/back/base --
-  distinct from the boxed closetShelves unit used elsewhere for a general
-  purpose movable shelf).
+- wallPlankShelf: a general-purpose wall-mounted floating shelf (a photo of
+  wooden planks on wall brackets/rails, no sides/back/base -- distinct from
+  the boxed closetShelves unit used elsewhere for a general purpose movable
+  shelf). Started as a shoe shelf design (SC/room-1f-09's 靴棚); renamed
+  generic (2026-09-18) once the owner also wanted it for a shallow pantry
+  shelf -- same shape, just a shallower depth.
 
 Estimated joinery/appearance study, not a load-rated fixing drawing: board
 thickness, hook/plank spacing and fixing method are all assumptions to
@@ -22,10 +24,12 @@ LIMITS = {
     # 壁付けフックレール（シェーカーレール/なげしフック）。widthはレールの長さ、
     # depthは板厚+フック突き出し、heightは板の見付け高さ。
     'wallHookRail': ((.3, 1.5), (.05, .15), (.08, .18)),
-    # 壁付け板棚（靴棚）。左右の縦レール(金物)に棚板を渡すだけの構成で、
-    # 側板・背板・地板を持たない。widthは棚板の長さ、depthは板の奥行、
-    # heightは最上段棚板の上面までの高さ。
-    'wallPlankShelf': ((.6, 2.0), (.22, .4), (.3, 2.0)),
+    # 壁付け板棚（汎用。靴棚・パントリーの浅い棚など用途を問わない）。左右の縦レール
+    # (金物)に棚板を渡すだけの構成で、側板・背板・地板を持たない。widthは棚板の長さ、
+    # depthは板の奥行、heightは最上段棚板の上面までの高さ。depthの下限は0.05m
+    # （パントリーの缶詰・調味料棚のような浅い用途にも対応するため、靴棚前提の
+    # 0.22mから訂正(2026-09-18)）。
+    'wallPlankShelf': ((.6, 2.0), (.05, .4), (.3, 2.0)),
 }
 
 BOARD = .02   # 背板の厚み

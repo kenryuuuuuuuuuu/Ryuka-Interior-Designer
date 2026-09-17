@@ -1,10 +1,13 @@
 """W08-H regression: tests/validate_furniture.py used to only range-check
 STORAGE_SHAPES overrides (closetSingle/closetDouble/closetShelves/...). A
 wall-plank-shelf (ENTRY_SHAPES) placed through the Web editor with
-depthOverride=0.15 (below wallPlankShelf's 0.22-0.4m range) slipped past this
-validator -- and past the guest launcher's import, which calls the same
-validate() -- and only failed much later, as an UNCAUGHT exception inside
-Three.js's unguarded furniture-build loop, blanking the whole viewer.
+depthOverride=0.15 (below wallPlankShelf's then-range of 0.22-0.4m) slipped
+past this validator -- and past the guest launcher's import, which calls the
+same validate() -- and only failed much later, as an UNCAUGHT exception
+inside Three.js's unguarded furniture-build loop, blanking the whole viewer.
+(2026-09-18: wallPlankShelf was generalized from a shoe-shelf-only design and
+its depth range widened to 0.05-0.4m for shallow uses like a pantry shelf --
+0.15m is valid now, so this test uses 0.03m, still below the new floor.)
 
 This asserts the validator now catches an out-of-range override for a
 LAUNDRY_SHAPES and an ENTRY_SHAPES type, exactly like it already did for
@@ -43,10 +46,20 @@ class ShapeDimensionValidation(unittest.TestCase):
             hook_type = next(t for t in catalog['types'] if t['shape'] == 'wallPlankShelf')
             data['items'].append(dict(id='test-bad-plank-shelf', type=hook_type['type'],
                 room='room-1f-12', level=1, x=15.89, z=1.3, rotation=270,
-                depthOverride=0.15, status='estimated'))
+                depthOverride=0.03, status='estimated'))
         with self.assertRaises(AssertionError) as ctx:
             self._run_with(mutate)
         self.assertIn('対応範囲外', str(ctx.exception))
+
+    def test_entry_shape_shallow_pantry_depth_is_accepted(self):
+        # 2026-09-18: the owner wants this shape generalized beyond shoe shelves
+        # (e.g. a shallow pantry shelf), so 0.15m must now validate cleanly.
+        def mutate(data, catalog):
+            hook_type = next(t for t in catalog['types'] if t['shape'] == 'wallPlankShelf')
+            data['items'].append(dict(id='test-shallow-plank-shelf', type=hook_type['type'],
+                room='room-1f-21', level=1, x=15.02, z=0.99, rotation=0,
+                widthOverride=0.85, depthOverride=0.15, heightOverride=1.2, status='estimated'))
+        self._run_with(mutate)  # must not raise
 
     def test_laundry_shape_out_of_range_width_is_rejected(self):
         def mutate(data, catalog):
